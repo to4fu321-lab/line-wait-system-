@@ -29,27 +29,57 @@ const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
 // ============================================================
 // 友達追加画面
 // ============================================================
-function AddFriendView({ onAdded: _ }: { onAdded: () => void }) {
+function AddFriendView({ onAdded }: { onAdded: () => void }) {
+  const [checking, setChecking] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const addUrl = `https://line.me/R/ti/p/@${LINE_BASIC_ID.replace(/^@/, '')}`
+
+  const handleCheck = async () => {
+    setChecking(true)
+    setFailed(false)
+    try {
+      // LINEプロフィールを再取得してサーバーで友達確認
+      const profile = await (await import('@/lib/liff')).getLineProfile()
+      if (profile?.userId) {
+        const res = await fetch(`/api/check-friend?userId=${profile.userId}`)
+        const { friend } = await res.json()
+        if (friend) { onAdded(); return }
+      }
+    } catch { /* ignore */ }
+    setFailed(true)
+    setChecking(false)
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-500 to-green-600 flex flex-col items-center justify-center px-6">
       <div className="text-center text-white mb-8">
         <div className="text-7xl mb-6">💬</div>
         <h1 className="text-3xl font-black mb-3">友達追加が必要です</h1>
-        <p className="text-green-100 text-lg leading-relaxed">
-          順番が来たときにLINEで<br />通知を受け取るために必要です
-        </p>
+        <p className="text-green-100 text-lg">順番が来たらLINEで通知が届きます</p>
       </div>
 
-      <div className="bg-white rounded-3xl p-6 w-full max-w-sm text-center shadow-xl">
-        <p className="text-gray-700 font-bold text-lg mb-2">友達追加の手順</p>
-        <p className="text-gray-500 text-base leading-relaxed mb-6">
-          一度この画面を<strong>×で閉じて</strong>、<br />
-          もう一度QRコードを読み取ると<br />
-          友達追加の案内が表示されます
-        </p>
-        <div className="bg-green-50 rounded-2xl p-4 text-green-700 text-sm font-medium">
-          友達追加後は自動で受付画面になります
-        </div>
+      <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-xl space-y-4">
+        <a
+          href={addUrl}
+          className="w-full bg-green-500 text-white text-xl font-black py-5 rounded-2xl flex items-center justify-center gap-3 active:scale-95 transition-transform"
+        >
+          <MessageCircle size={24} />
+          ① 友達追加する
+        </a>
+
+        <button
+          onClick={handleCheck}
+          disabled={checking}
+          className="w-full bg-blue-600 text-white text-lg font-bold py-4 rounded-2xl disabled:opacity-60 flex items-center justify-center gap-2 active:scale-95 transition-transform"
+        >
+          {checking ? <><Loader2 size={18} className="animate-spin" />確認中...</> : '② 追加済み → 受付へ進む'}
+        </button>
+
+        {failed && (
+          <p className="text-red-500 text-sm text-center">
+            友達追加が確認できません。追加してから②を押してください。
+          </p>
+        )}
       </div>
     </div>
   )
@@ -470,7 +500,18 @@ export default function CustomerPage() {
       const profile = await getLineProfile()
       if (profile) setLineProfile(profile)
 
-      setView('register')
+      // サーバーサイドAPIで友達確認（Messaging APIを使うため確実）
+      if (profile?.userId) {
+        try {
+          const res = await fetch(`/api/check-friend?userId=${profile.userId}`)
+          const { friend } = await res.json()
+          setView(friend ? 'register' : 'add_friend')
+        } catch {
+          setView('register') // API失敗時は通す
+        }
+      } else {
+        setView('add_friend') // LINE未ログインは友達追加画面へ
+      }
     })()
   }, [storeId, ticketKey, dateKey])
 
