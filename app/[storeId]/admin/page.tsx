@@ -293,7 +293,6 @@ function TicketCard({ ticket, onAction }: {
           )}
         </div>
       )}
-    </div>
 
       {(ticket.status === 'waiting' || ticket.status === 'calling') && (
         <div className="grid grid-cols-3 gap-2 mt-4">
