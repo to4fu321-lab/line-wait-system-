@@ -338,6 +338,7 @@ function AdminDashboard({
   const [refreshing, setRefreshing] = useState(false)
   const [filter, setFilter] = useState<QueueStatus | 'active'>('active')
   const [actionError, setActionError] = useState<string | null>(null)
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null)
 
   const fetchQueues = useCallback(async () => {
     setRefreshing(true)
@@ -370,6 +371,8 @@ function AdminDashboard({
               prev.map(q => q.id === payload.new.id ? payload.new as Queue : q)
             )
           }
+          // Realtimeが届かない場合の保険として再フェッチ
+          fetchQueues()
         }
       )
       .subscribe()
@@ -379,11 +382,26 @@ function AdminDashboard({
 
   const handleAction = async (id: string, status: QueueStatus) => {
     setActionError(null)
+    setActionSuccess(null)
+
+    // 楽観的UI更新（Realtimeを待たずに即反映）
+    setQueues(prev => prev.map(q => q.id === id ? { ...q, status } : q))
+
     const { error } = await supabase.from('queues').update({ status }).eq('id', id)
     if (error) {
+      // 失敗したら元に戻す
+      fetchQueues()
       setActionError('更新に失敗しました: ' + error.message)
       return
     }
+
+    const statusLabel: Record<QueueStatus, string> = {
+      calling: '呼出しました', completed: '完了しました',
+      cancelled: '不在にしました', waiting: '待機に戻しました',
+    }
+    setActionSuccess(statusLabel[status] ?? '更新しました')
+    setTimeout(() => setActionSuccess(null), 2000)
+
     if (status === 'calling') {
       const target = queues.find(q => q.id === id)
       if (target) {
@@ -396,6 +414,11 @@ function AdminDashboard({
             customerName: target.customer_name,
             storeName:    store.name,
           }),
+        }).then(async r => {
+          const json = await r.json()
+          if (!json.ok && !json.skipped) {
+            setActionError('LINE通知失敗: ' + (json.error ?? ''))
+          }
         }).catch(console.error)
       }
     }
@@ -417,6 +440,12 @@ function AdminDashboard({
         refreshing={refreshing}
         onLogout={onLogout}
       />
+
+      {actionSuccess && (
+        <div className="bg-green-500 px-4 py-3 text-white font-bold text-center text-sm">
+          ✅ {actionSuccess}
+        </div>
+      )}
 
       {callingTicket && (
         <div className="bg-yellow-400 px-4 py-3 flex items-center gap-3">
