@@ -30,39 +30,18 @@ const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
 // 友達追加画面
 // ============================================================
 function AddFriendView({ onAdded }: { onAdded: () => void }) {
-  const [checking, setChecking] = useState(false)
-  const [notAdded, setNotAdded] = useState(false)
-
-  const handleAddFriend = () => {
-    openAddFriend(LINE_BASIC_ID)
-    setTimeout(() => setNotAdded(true), 3000)
-  }
-
-  const handleCheck = async () => {
-    setChecking(true)
-    const isFriend = await checkFriendship()
-    if (isFriend) {
-      onAdded()
-    } else {
-      // 確認できない場合でも2回目以降はそのまま進める
-      setNotAdded(true)
-      setChecking(false)
-      setTimeout(() => onAdded(), 2000)
-    }
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-500 to-green-600 flex flex-col">
       <div className="px-6 pt-12 pb-8 text-center text-white">
         <div className="text-6xl mb-4">💬</div>
         <h1 className="text-3xl font-black">受付の前に</h1>
-        <p className="text-green-100 mt-2 text-lg">LINE公式アカウントを<br />友達追加してください</p>
+        <p className="text-green-100 mt-2 text-lg">LINEの友達追加が完了したら<br />下のボタンで受付に進んでください</p>
       </div>
 
       <div className="flex-1 bg-white rounded-t-3xl px-6 pt-8 pb-10">
         <div className="max-w-md mx-auto">
           <div className="bg-green-50 rounded-2xl p-5 mb-6">
-            <h2 className="font-bold text-green-800 text-lg mb-3">友達追加が必要な理由</h2>
+            <h2 className="font-bold text-green-800 text-lg mb-3">友達追加するメリット</h2>
             <div className="space-y-3">
               <div className="flex items-start gap-3">
                 <span className="text-2xl">🔔</span>
@@ -72,39 +51,20 @@ function AddFriendView({ onAdded }: { onAdded: () => void }) {
                 <span className="text-2xl">📱</span>
                 <p className="text-gray-700">店内を自由に移動しながら<strong>順番を待てます</strong></p>
               </div>
-              <div className="flex items-start gap-3">
-                <span className="text-2xl">✅</span>
-                <p className="text-gray-700">追加は<strong>無料</strong>で、不要になれば削除できます</p>
-              </div>
             </div>
           </div>
 
           <button
-            onClick={handleAddFriend}
+            onClick={onAdded}
             className="w-full bg-green-500 text-white text-xl font-black py-6 rounded-2xl shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-3"
           >
             <MessageCircle size={28} />
-            友達追加する
+            受付に進む →
           </button>
 
-          {notAdded && (
-            <div className="mt-4 animate-slide-up">
-              <button
-                onClick={handleCheck}
-                disabled={checking}
-                className="w-full bg-blue-600 text-white text-lg font-bold py-5 rounded-2xl active:scale-95 transition-transform disabled:opacity-60 flex items-center justify-center gap-2"
-              >
-                {checking ? <><Loader2 size={20} className="animate-spin" />確認中...</> : '追加しました →'}
-              </button>
-            </div>
-          )}
-
-          <button
-            onClick={onAdded}
-            className="w-full mt-4 text-gray-400 text-sm py-3 underline"
-          >
-            通知は不要なので受付のみ進む
-          </button>
+          <p className="text-center text-gray-400 text-sm mt-4">
+            友達追加のご案内はLINEが自動で行います
+          </p>
         </div>
       </div>
     </div>
