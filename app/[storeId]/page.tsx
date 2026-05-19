@@ -390,10 +390,15 @@ function WaitingView({
           <div className="mt-5">
             <a
               href={`/${storeId}/details?ticketId=${ticket.id}`}
-              className="text-sm text-gray-400 underline underline-offset-2 hover:text-gray-600 transition-colors"
+              className="w-full bg-orange-500 text-white text-lg font-black py-5 rounded-2xl shadow-lg flex items-center justify-center gap-3 active:scale-95 transition-transform"
             >
-              詳細情報を入力する（任意）
+              <span>📋</span>
+              <span>住所・電話番号を入力する</span>
+              <span className="bg-white text-orange-500 text-xs font-black px-2 py-1 rounded-full leading-none">必須</span>
             </a>
+            <p className="text-center text-orange-600 text-sm font-medium mt-2">
+              ご購入に必要な情報です。必ずご入力ください。
+            </p>
           </div>
         </div>
 
