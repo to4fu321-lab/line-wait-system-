@@ -495,8 +495,9 @@ export default function CustomerPage() {
       const profile = await getLineProfile()
       if (profile) setLineProfile(profile)
 
-      const isFriend = await checkFriendship()
-      setView(isFriend ? 'register' : 'add_friend')
+      // On(aggressive)がLIFF起動時に友達追加ポップアップを表示済み
+      // カスタム画面は不要 → そのまま受付フォームへ
+      setView('register')
     })()
   }, [storeId, ticketKey, dateKey])
 
