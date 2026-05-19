@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 // LINE Messaging API 呼出通知
 // 実運用では LINE_CHANNEL_ACCESS_TOKEN を .env.local に設定してください
 export async function POST(req: NextRequest) {
-  const { lineUserId, ticketNumber, customerName } = await req.json()
+  const { lineUserId, ticketNumber, customerName, storeName } = await req.json()
 
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN
 
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
         messages: [
           {
             type: 'text',
-            text: `🔔 お呼びしています！\n\n整理番号：${String(ticketNumber).padStart(3, '0')}\n${customerName} 様\n\nカウンターへお越しください。`,
+            text: `🔔 お呼びしています！\n\n${storeName ? `【${storeName}】\n` : ''}整理番号：${String(ticketNumber).padStart(3, '0')}\n${customerName} 様\n\nカウンターへお越しください。`,
           },
         ],
       }),

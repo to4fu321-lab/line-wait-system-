@@ -323,9 +323,10 @@ function AdminDashboard({ storeId, storeName }: { storeId: string; storeName: st
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            lineUserId:    target.line_user_id,
-            ticketNumber:  target.ticket_number,
-            customerName:  target.customer_name,
+            lineUserId:   target.line_user_id,
+            ticketNumber: target.ticket_number,
+            customerName: target.customer_name,
+            storeName,
           }),
         }).catch(console.error)
       }
