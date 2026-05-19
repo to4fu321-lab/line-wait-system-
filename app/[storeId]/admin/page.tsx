@@ -1,15 +1,15 @@
 'use client'
 
 import { useParams } from 'next/navigation'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 
 export default function AdminPage() {
   const { storeId } = useParams<{ storeId: string }>()
   return (
     <div style={{ padding: 40, fontFamily: 'sans-serif' }}>
-      <h1>管理テスト5</h1>
+      <h1>管理テスト6</h1>
       <p>storeId: {storeId}</p>
-      <p>createClient型: {typeof createClient}</p>
+      <p>supabase: {supabase ? 'OK' : 'NG'}</p>
     </div>
   )
 }
