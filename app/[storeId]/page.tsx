@@ -44,8 +44,10 @@ function AddFriendView({ onAdded }: { onAdded: () => void }) {
     if (isFriend) {
       onAdded()
     } else {
+      // 確認できない場合でも2回目以降はそのまま進める
       setNotAdded(true)
       setChecking(false)
+      setTimeout(() => onAdded(), 2000)
     }
   }
 

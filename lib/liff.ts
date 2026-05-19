@@ -99,7 +99,7 @@ export function openAddFriend(lineBasicId: string) {
   const id = lineBasicId.startsWith('@') ? lineBasicId : `@${lineBasicId}`
   const url = `https://line.me/R/ti/p/${id}`
   if (liffInstance?.isInClient()) {
-    liffInstance.openWindow({ url, external: false })
+    liffInstance.openWindow({ url, external: true })
   } else {
     window.open(url, '_blank')
   }
