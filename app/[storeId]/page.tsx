@@ -24,7 +24,7 @@ const SCHOOLS = [
 
 type PageView = 'loading' | 'add_friend' | 'register' | 'waiting' | 'calling' | 'completed' | 'cancelled' | 'not_found'
 
-const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID ?? ''
+const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
 
 // ============================================================
 // 友達追加画面

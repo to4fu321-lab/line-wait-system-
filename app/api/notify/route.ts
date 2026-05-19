@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function POST(req: NextRequest) {
   const { lineUserId, ticketNumber, customerName, storeName } = await req.json()
 
-  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN
+  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN || 'VCdCDq+VcStiwPWbk3nzK59dV1MylArXtvMETswJlGy3IwikR3WNJGk1br86YnzKGqBpHp0kIQbRDaDSPzMphck0TKHwy6MDHW4U2UzbZaYU0Uq+QxhI2pp90x13qHxd8PdgqIIBoq2xq8hFaPXAOQdB04t89/1O/w1cDnyilFU='
 
   // LINEユーザーIDまたはトークンが未設定の場合はスキップ
   if (!token || !lineUserId) {

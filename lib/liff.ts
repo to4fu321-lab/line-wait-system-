@@ -20,7 +20,7 @@ export async function initLiff(): Promise<Liff | null> {
   if (liffInstance) return liffInstance
   if (initPromise) return initPromise
 
-  const liffId = process.env.NEXT_PUBLIC_LIFF_ID
+  const liffId = process.env.NEXT_PUBLIC_LIFF_ID || '2010126882-aUahQStD'
   if (!liffId) {
     console.warn('[LIFF] NEXT_PUBLIC_LIFF_ID is not set — LIFF disabled')
     return null
