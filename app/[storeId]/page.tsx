@@ -411,19 +411,13 @@ function WaitingView({
           </div>
 
           <div className="mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6">
-            {waitingAhead === 0 ? (
-              <div>
-                <p className="text-gray-600 font-medium">まもなくお呼びします</p>
-                <p className="text-4xl font-black text-orange-500 mt-1">準備中</p>
-              </div>
-            ) : (
-              <div>
-                <p className="text-gray-600 font-medium">あなたの前の待ち人数</p>
-                <div className="flex items-baseline justify-center gap-1 mt-1">
-                  <span className="ticket-number text-6xl font-black text-blue-700">{waitingAhead}</span>
-                  <span className="text-2xl font-bold text-blue-500">組</span>
-                </div>
-              </div>
+            <p className="text-gray-600 font-medium mb-1">あなたの前の待ち人数</p>
+            <div className="flex items-baseline justify-center gap-1">
+              <span className="ticket-number text-6xl font-black text-blue-700 tabular-nums">{waitingAhead}</span>
+              <span className="text-2xl font-bold text-blue-500">組</span>
+            </div>
+            {waitingAhead === 0 && (
+              <p className="text-orange-500 font-bold text-sm mt-2">まもなくお呼びします。お近くでお待ちください。</p>
             )}
           </div>
 
