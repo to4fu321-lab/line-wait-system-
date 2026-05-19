@@ -603,9 +603,10 @@ export default function CustomerPage() {
       if (!hasSavedTicket) {
         const { data: storeData } = await supabase
           .from('stores')
-          .select('is_open')
+          .select('is_open, name')
           .eq('id', storeId)
           .single()
+        if (storeData?.name) setStoreName(storeData.name)
         if (storeData && !storeData.is_open) {
           setView('closed')
           return
@@ -778,6 +779,7 @@ export default function CustomerPage() {
     return (
       <RegisterView
         storeId={storeId}
+        storeName={storeName}
         onComplete={handleRegistered}
         lineProfile={lineProfile}
         inLineApp={inLineApp}
@@ -797,6 +799,7 @@ export default function CustomerPage() {
       waitingAhead={waitingAhead}
       onStatusChange={handleStatusChange}
       storeId={storeId}
+      storeName={storeName}
     />
   )
 }
