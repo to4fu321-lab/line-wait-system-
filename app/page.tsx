@@ -1,0 +1,558 @@
+'use client'
+
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { AlertCircle, Clock, CheckCircle2, ChevronDown, Loader2, MessageCircle } from 'lucide-react'
+import { supabase, getTodayStart } from '@/lib/supabase'
+import type { Queue, QueueCategory } from '@/types/database'
+import { CATEGORY_LABELS, CATEGORY_ICONS } from '@/types/database'
+import { initLiff, getLineProfile, isInLineApp, type LiffProfile } from '@/lib/liff'
+
+// ============================================================
+// 学校リスト（実際の取引校に変更してください）
+// ============================================================
+const SCHOOLS = [
+  '○○高等学校',
+  '○○高等学校（2年）',
+  '△△中学校',
+  '△△中学校（新入生）',
+  '□□高等学校',
+  '◇◇中学校',
+  '◎◎高等学校',
+  'その他（直接入力）',
+]
+
+type PageView = 'register' | 'waiting' | 'calling' | 'completed' | 'cancelled'
+
+// ============================================================
+// 受付フォーム画面
+// ============================================================
+function RegisterView({
+  onComplete,
+  lineProfile,
+  inLineApp,
+}: {
+  onComplete: (ticket: Queue) => void
+  lineProfile: LiffProfile | null
+  inLineApp: boolean
+}) {
+  const [schoolName, setSchoolName] = useState('')
+  const [customSchool, setCustomSchool] = useState('')
+  const [customerName, setCustomerName] = useState(lineProfile?.displayName ?? '')
+  const [category, setCategory] = useState<QueueCategory>('fitting')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [showCustomInput, setShowCustomInput] = useState(false)
+
+  // LINEプロフィールが後から取得された場合、氏名を自動セット
+  useEffect(() => {
+    if (lineProfile?.displayName && !customerName) {
+      setCustomerName(lineProfile.displayName)
+    }
+  }, [lineProfile, customerName])
+
+  const handleSchoolChange = (val: string) => {
+    if (val === 'その他（直接入力）') {
+      setShowCustomInput(true)
+      setSchoolName('')
+    } else {
+      setShowCustomInput(false)
+      setSchoolName(val)
+    }
+  }
+
+  const finalSchoolName = showCustomInput ? customSchool : schoolName
+
+  const handleSubmit = async () => {
+    if (!finalSchoolName.trim()) {
+      setError('学校名を選択または入力してください')
+      return
+    }
+    if (!customerName.trim()) {
+      setError('氏名を入力してください')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      // 当日の次番号を取得
+      const { data: nextNum, error: rpcErr } = await supabase.rpc('get_next_ticket_number')
+      if (rpcErr) throw rpcErr
+
+      const { data, error: insertErr } = await supabase
+        .from('queues')
+        .insert({
+          ticket_number: nextNum as number,
+          status: 'waiting',
+          school_name: finalSchoolName.trim(),
+          customer_name: customerName.trim(),
+          category,
+          line_user_id: lineProfile?.userId ?? null,
+        })
+        .select()
+        .single()
+
+      if (insertErr) throw insertErr
+      if (!data) throw new Error('データの保存に失敗しました')
+
+      // ローカルストレージに保存（当日のみ有効）
+      localStorage.setItem('queue_ticket_id', data.id)
+      localStorage.setItem('queue_ticket_date', new Date().toDateString())
+
+      onComplete(data)
+    } catch (e) {
+      console.error(e)
+      setError('受付に失敗しました。もう一度お試しください。')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-blue-600 to-blue-700 flex flex-col">
+      {/* ヘッダー */}
+      <div className="px-6 pt-10 pb-8 text-center text-white">
+        <div className="text-5xl mb-3">🎓</div>
+        <h1 className="text-3xl font-black tracking-tight">順番待ち受付</h1>
+        <p className="text-blue-100 mt-2 text-lg">下記を入力して受付してください</p>
+
+        {/* LINE連携バッジ */}
+        {lineProfile ? (
+          <div className="inline-flex items-center gap-2 bg-green-500/20 border border-green-300/30 rounded-full px-4 py-1.5 mt-4 text-sm">
+            <MessageCircle size={14} />
+            LINE連携済み（{lineProfile.displayName}）
+          </div>
+        ) : !inLineApp ? (
+          <div className="inline-flex items-center gap-2 bg-yellow-500/20 border border-yellow-300/30 rounded-full px-4 py-1.5 mt-4 text-xs">
+            ⚠️ LINEで開くと呼出通知が届きます
+          </div>
+        ) : null}
+      </div>
+
+      {/* フォームカード */}
+      <div className="flex-1 bg-white rounded-t-3xl px-6 pt-8 pb-10 animate-slide-up">
+        <div className="max-w-md mx-auto space-y-6">
+
+          {/* 学校名 */}
+          <div>
+            <label className="block text-lg font-bold text-gray-700 mb-2">
+              学校名 <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <select
+                className="w-full appearance-none text-lg border-2 border-gray-200 rounded-2xl px-5 py-4 pr-12 focus:border-blue-500 focus:outline-none bg-white text-gray-800 transition-colors"
+                value={showCustomInput ? 'その他（直接入力）' : schoolName}
+                onChange={e => handleSchoolChange(e.target.value)}
+              >
+                <option value="">選択してください</option>
+                {SCHOOLS.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={20} />
+            </div>
+            {showCustomInput && (
+              <input
+                type="text"
+                className="mt-3 w-full text-lg border-2 border-blue-300 rounded-2xl px-5 py-4 focus:border-blue-500 focus:outline-none transition-colors"
+                placeholder="学校名を入力してください"
+                value={customSchool}
+                onChange={e => setCustomSchool(e.target.value)}
+                autoFocus
+              />
+            )}
+          </div>
+
+          {/* 氏名 */}
+          <div>
+            <label className="block text-lg font-bold text-gray-700 mb-2">
+              氏名 <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              inputMode="text"
+              autoComplete="name"
+              className="w-full text-lg border-2 border-gray-200 rounded-2xl px-5 py-4 focus:border-blue-500 focus:outline-none transition-colors"
+              placeholder="例：山田 太郎"
+              value={customerName}
+              onChange={e => setCustomerName(e.target.value)}
+            />
+          </div>
+
+          {/* ご用件 */}
+          <div>
+            <label className="block text-lg font-bold text-gray-700 mb-3">
+              ご用件 <span className="text-red-500">*</span>
+            </label>
+            <div className="grid grid-cols-3 gap-3">
+              {(['fitting', 'pickup', 'other'] as QueueCategory[]).map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCategory(cat)}
+                  className={`py-5 rounded-2xl border-2 text-center transition-all active:scale-95 ${
+                    category === cat
+                      ? 'border-blue-500 bg-blue-50 shadow-md'
+                      : 'border-gray-200 bg-white'
+                  }`}
+                >
+                  <div className="text-3xl mb-1">{CATEGORY_ICONS[cat]}</div>
+                  <div className={`text-base font-bold ${category === cat ? 'text-blue-700' : 'text-gray-600'}`}>
+                    {CATEGORY_LABELS[cat]}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* エラー表示 */}
+          {error && (
+            <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-2xl text-red-600">
+              <AlertCircle size={20} className="shrink-0" />
+              <span className="text-base font-medium">{error}</span>
+            </div>
+          )}
+
+          {/* 受付ボタン */}
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={loading}
+            className="w-full bg-blue-600 text-white text-2xl font-black py-6 rounded-2xl shadow-xl active:scale-95 transition-all disabled:opacity-60 flex items-center justify-center gap-3 mt-2"
+          >
+            {loading ? (
+              <>
+                <Loader2 size={24} className="animate-spin" />
+                受付中...
+              </>
+            ) : (
+              '受付する →'
+            )}
+          </button>
+
+          <p className="text-center text-gray-400 text-sm pt-2">
+            受付後は画面を閉じないでください
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// 待機状況画面
+// ============================================================
+function WaitingView({
+  ticket,
+  waitingAhead,
+  onStatusChange,
+}: {
+  ticket: Queue
+  waitingAhead: number
+  onStatusChange: (status: 'calling' | 'completed' | 'cancelled') => void
+}) {
+  useEffect(() => {
+    if (ticket.status === 'calling') onStatusChange('calling')
+    else if (ticket.status === 'completed') onStatusChange('completed')
+    else if (ticket.status === 'cancelled') onStatusChange('cancelled')
+  }, [ticket.status, onStatusChange])
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col">
+      {/* ヘッダー */}
+      <div className="bg-blue-600 px-6 py-6 text-center text-white">
+        <div className="inline-flex items-center gap-2 bg-blue-500 rounded-full px-4 py-1.5 text-sm font-medium mb-2">
+          <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+          リアルタイム更新中
+        </div>
+        <h1 className="text-2xl font-black">受付完了</h1>
+      </div>
+
+      <main className="flex-1 flex flex-col items-center px-6 py-8 max-w-md mx-auto w-full">
+        {/* 整理番号 */}
+        <div className="w-full bg-white rounded-3xl shadow-xl p-8 text-center animate-slide-up">
+          <p className="text-base text-gray-500 font-medium mb-1">あなたの整理番号</p>
+          <div className="ticket-number text-8xl font-black text-blue-600 leading-none tabular-nums">
+            {String(ticket.ticket_number).padStart(3, '0')}
+          </div>
+
+          {/* 待ち人数 */}
+          <div className="mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6">
+            {waitingAhead === 0 ? (
+              <div>
+                <p className="text-gray-600 font-medium">まもなくお呼びします</p>
+                <p className="text-4xl font-black text-orange-500 mt-1">準備中</p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-gray-600 font-medium">あなたの前の待ち人数</p>
+                <div className="flex items-baseline justify-center gap-1 mt-1">
+                  <span className="ticket-number text-6xl font-black text-blue-700">{waitingAhead}</span>
+                  <span className="text-2xl font-bold text-blue-500">組</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 受付情報 */}
+          <div className="mt-6 bg-gray-50 rounded-2xl p-5 text-left space-y-3">
+            <InfoRow label="学校名" value={ticket.school_name} />
+            <InfoRow label="氏名" value={`${ticket.customer_name} 様`} />
+            <InfoRow label="ご用件" value={`${CATEGORY_ICONS[ticket.category]} ${CATEGORY_LABELS[ticket.category]}`} />
+          </div>
+
+          {/* LINE連携バッジ */}
+          {ticket.line_user_id ? (
+            <div className="mt-4 inline-flex items-center gap-2 bg-green-50 border border-green-200 rounded-full px-4 py-2 text-green-700">
+              <MessageCircle size={14} />
+              <span className="text-sm font-medium">LINEで呼出通知が届きます</span>
+            </div>
+          ) : (
+            <div className="mt-4 inline-flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-full px-4 py-2 text-amber-700">
+              <span className="text-sm font-medium">📱 この画面を閉じないでください</span>
+            </div>
+          )}
+        </div>
+
+        {/* 注意書き */}
+        <div className="mt-6 text-center space-y-2">
+          <div className="flex items-center justify-center gap-2 text-gray-400">
+            <Clock size={16} className="animate-spin" style={{ animationDuration: '4s' }} />
+            <span className="text-sm">リアルタイム更新中</span>
+          </div>
+        </div>
+      </main>
+    </div>
+  )
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between items-center">
+      <span className="text-gray-500 text-base">{label}</span>
+      <span className="font-bold text-gray-800 text-base text-right max-w-[60%]">{value}</span>
+    </div>
+  )
+}
+
+// ============================================================
+// 呼出中画面（黄色背景でアラート）
+// ============================================================
+function CallingView({ ticket }: { ticket: Queue }) {
+  return (
+    <div className="min-h-screen bg-yellow-400 animate-pulse-bg flex flex-col items-center justify-center px-6">
+      <div className="text-center animate-slide-up">
+        <div className="text-7xl mb-4">
+          <span className="animate-ring inline-block">🔔</span>
+        </div>
+        <h2 className="text-5xl font-black text-yellow-900 leading-tight mb-4">
+          お呼び<br />しています！
+        </h2>
+        <p className="text-2xl font-bold text-yellow-800 mb-8">
+          カウンターへお越しください
+        </p>
+
+        <div className="bg-white rounded-3xl shadow-2xl p-8 inline-block">
+          <p className="text-base text-gray-500 mb-1">整理番号</p>
+          <div className="ticket-number text-8xl font-black text-blue-600 leading-none">
+            {String(ticket.ticket_number).padStart(3, '0')}
+          </div>
+          <p className="text-xl font-bold text-gray-700 mt-3">
+            {ticket.customer_name} 様
+          </p>
+        </div>
+
+        <p className="mt-8 text-yellow-800 font-bold text-xl">
+          {ticket.school_name}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// 完了・不在画面
+// ============================================================
+function CompletedView({ onReset }: { onReset: () => void }) {
+  return (
+    <div className="min-h-screen bg-green-50 flex flex-col items-center justify-center px-6">
+      <div className="text-center animate-slide-up">
+        <CheckCircle2 size={96} className="text-green-500 mx-auto mb-6" />
+        <h2 className="text-4xl font-black text-green-800 mb-3">ご対応完了</h2>
+        <p className="text-xl text-green-600 mb-10">ありがとうございました！</p>
+        <button
+          onClick={onReset}
+          className="bg-green-500 text-white text-xl font-bold py-5 px-10 rounded-2xl shadow-lg active:scale-95 transition-transform"
+        >
+          最初に戻る
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function CancelledView({ onReset }: { onReset: () => void }) {
+  return (
+    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center px-6">
+      <div className="text-center animate-slide-up">
+        <div className="text-7xl mb-6">😔</div>
+        <h2 className="text-4xl font-black text-gray-700 mb-3">お呼びしましたが</h2>
+        <p className="text-xl text-gray-500 mb-3">ご不在のためキャンセルされました</p>
+        <p className="text-base text-gray-400 mb-10">再度受付が必要な場合は下のボタンを押してください</p>
+        <button
+          onClick={onReset}
+          className="bg-blue-600 text-white text-xl font-bold py-5 px-10 rounded-2xl shadow-lg active:scale-95 transition-transform"
+        >
+          もう一度受付する
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// メインコンポーネント
+// ============================================================
+export default function CustomerPage() {
+  const [view, setView] = useState<PageView>('register')
+  const [ticket, setTicket] = useState<Queue | null>(null)
+  const [waitingAhead, setWaitingAhead] = useState(0)
+  const [lineProfile, setLineProfile] = useState<LiffProfile | null>(null)
+  const [inLineApp, setInLineApp] = useState(false)
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+
+  // LIFF初期化＆プロフィール取得
+  useEffect(() => {
+    (async () => {
+      const liff = await initLiff()
+      if (!liff) return
+      setInLineApp(isInLineApp())
+
+      // 外部ブラウザでも自動ログイン誘導するか判定
+      // LINE内ブラウザ: 自動取得  /  外部ブラウザ: ログイン済みなら取得
+      if (liff.isLoggedIn()) {
+        const profile = await getLineProfile()
+        if (profile) setLineProfile(profile)
+      } else if (isInLineApp()) {
+        // LINE内ブラウザなら自動ログイン
+        const profile = await getLineProfile()
+        if (profile) setLineProfile(profile)
+      }
+      // 外部ブラウザでログインしていない場合は何もしない（任意操作）
+    })()
+  }, [])
+
+  // ローカルストレージから当日のチケットを復元
+  useEffect(() => {
+    const savedId = localStorage.getItem('queue_ticket_id')
+    const savedDate = localStorage.getItem('queue_ticket_date')
+    const today = new Date().toDateString()
+
+    if (savedId && savedDate === today) {
+      supabase
+        .from('queues')
+        .select('*')
+        .eq('id', savedId)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setTicket(data)
+            setView(
+              data.status === 'calling' ? 'calling' :
+              data.status === 'completed' ? 'completed' :
+              data.status === 'cancelled' ? 'cancelled' : 'waiting'
+            )
+          }
+        })
+    }
+  }, [])
+
+  // 前の待ち人数を取得
+  const fetchWaitingAhead = useCallback(async (t: Queue) => {
+    const { count } = await supabase
+      .from('queues')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'waiting')
+      .lt('ticket_number', t.ticket_number)
+      .gte('created_at', getTodayStart())
+
+    setWaitingAhead(count ?? 0)
+  }, [])
+
+  // Realtime サブスクリプション
+  useEffect(() => {
+    if (!ticket) return
+
+    fetchWaitingAhead(ticket)
+
+    // 既存のチャンネルをクリーンアップ
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current)
+    }
+
+    const channel = supabase
+      .channel(`ticket-${ticket.id}`)
+      // 自分のチケットの変更を監視
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'queues', filter: `id=eq.${ticket.id}` },
+        payload => {
+          const updated = payload.new as Queue
+          setTicket(updated)
+        }
+      )
+      // 全体の変更を監視（待ち人数の更新）
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'queues' },
+        () => fetchWaitingAhead(ticket)
+      )
+      .subscribe()
+
+    channelRef.current = channel
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [ticket?.id, fetchWaitingAhead])
+
+  const handleRegistered = (newTicket: Queue) => {
+    setTicket(newTicket)
+    setView('waiting')
+  }
+
+  const handleStatusChange = useCallback((status: 'calling' | 'completed' | 'cancelled') => {
+    setView(status)
+  }, [])
+
+  const handleReset = () => {
+    localStorage.removeItem('queue_ticket_id')
+    localStorage.removeItem('queue_ticket_date')
+    setTicket(null)
+    setView('register')
+    setWaitingAhead(0)
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current)
+      channelRef.current = null
+    }
+  }
+
+  if (view === 'register') {
+    return <RegisterView onComplete={handleRegistered} lineProfile={lineProfile} inLineApp={inLineApp} />
+  }
+
+  if (!ticket) return null
+
+  if (view === 'calling') return <CallingView ticket={ticket} />
+  if (view === 'completed') return <CompletedView onReset={handleReset} />
+  if (view === 'cancelled') return <CancelledView onReset={handleReset} />
+
+  return (
+    <WaitingView
+      ticket={ticket}
+      waitingAhead={waitingAhead}
+      onStatusChange={handleStatusChange}
+    />
+  )
+}
