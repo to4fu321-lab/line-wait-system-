@@ -7,8 +7,15 @@ export function middleware(request: NextRequest) {
   const isLine = /Line\//i.test(ua)
   const path = request.nextUrl.pathname
 
-  // トップページ(/)をLINEで開いた → 店舗受付ページへリダイレクト
   if (path === '/' && isLine) {
+    // liff.state に storeId が含まれていればそちらへリダイレクト（多店舗対応）
+    const liffState = request.nextUrl.searchParams.get('liff.state')
+    if (liffState) {
+      const match = decodeURIComponent(liffState).match(/^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/)
+      if (match) {
+        return NextResponse.redirect(new URL(`/${match[1]}`, request.url))
+      }
+    }
     return NextResponse.redirect(new URL(`/${STORE_ID}`, request.url))
   }
 
