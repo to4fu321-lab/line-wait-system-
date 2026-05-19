@@ -30,14 +30,28 @@ const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
 // 友達追加画面
 // ============================================================
 function AddFriendView({ onAdded }: { onAdded: () => void }) {
+  const [checking, setChecking] = useState(false)
+  const [failed, setFailed] = useState(false)
   const addUrl = `https://line.me/R/ti/p/@${LINE_BASIC_ID.replace(/^@/, '')}`
+
+  const handleCheck = async () => {
+    setChecking(true)
+    setFailed(false)
+    const isFriend = await checkFriendship()
+    if (isFriend) {
+      onAdded()
+    } else {
+      setFailed(true)
+      setChecking(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-500 to-green-600 flex flex-col">
       <div className="px-6 pt-12 pb-8 text-center text-white">
         <div className="text-6xl mb-4">💬</div>
         <h1 className="text-3xl font-black">受付の前に</h1>
-        <p className="text-green-100 mt-2 text-lg">LINE公式アカウントを<br />友達追加してください</p>
+        <p className="text-green-100 mt-2 text-lg">LINE公式アカウントの<br />友達追加が必要です</p>
       </div>
 
       <div className="flex-1 bg-white rounded-t-3xl px-6 pt-8 pb-10">
@@ -46,7 +60,7 @@ function AddFriendView({ onAdded }: { onAdded: () => void }) {
             <div className="space-y-3">
               <div className="flex items-start gap-3">
                 <span className="text-2xl">🔔</span>
-                <p className="text-gray-700">お呼びする際に<strong>LINEで通知</strong>が届きます</p>
+                <p className="text-gray-700">順番が来たら<strong>LINEで通知</strong>が届きます</p>
               </div>
               <div className="flex items-start gap-3">
                 <span className="text-2xl">📱</span>
@@ -55,25 +69,37 @@ function AddFriendView({ onAdded }: { onAdded: () => void }) {
             </div>
           </div>
 
+          {/* Step 1 */}
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center font-black shrink-0">1</div>
+            <p className="font-bold text-gray-700">まず友達追加する</p>
+          </div>
           <a
             href={addUrl}
-            className="w-full bg-green-500 text-white text-xl font-black py-6 rounded-2xl shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-3 block text-center"
+            className="w-full bg-green-500 text-white text-xl font-black py-5 rounded-2xl shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-3 mb-6"
           >
-            <MessageCircle size={28} />
+            <MessageCircle size={24} />
             友達追加する
           </a>
 
-          <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-2xl p-4 text-sm text-yellow-800">
-            ⚠️ 追加後はLINEのトーク画面になります。<br />
-            ホーム画面からもう一度このQRコードを読み取って戻ってきてください。
+          {/* Step 2 */}
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-black shrink-0">2</div>
+            <p className="font-bold text-gray-700">追加後、このページに戻って確認</p>
           </div>
-
           <button
-            onClick={onAdded}
-            className="w-full mt-4 text-gray-400 text-sm py-3 underline"
+            onClick={handleCheck}
+            disabled={checking}
+            className="w-full bg-blue-600 text-white text-xl font-black py-5 rounded-2xl shadow-lg active:scale-95 transition-transform disabled:opacity-60 flex items-center justify-center gap-2"
           >
-            通知は不要なので受付のみ進む
+            {checking ? <><Loader2 size={20} className="animate-spin" />確認中...</> : '追加済み → 受付へ進む'}
           </button>
+
+          {failed && (
+            <p className="text-red-500 text-sm text-center mt-3">
+              まだ友達追加が確認できません。追加してから再度お試しください。
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -495,9 +521,8 @@ export default function CustomerPage() {
       const profile = await getLineProfile()
       if (profile) setLineProfile(profile)
 
-      // On(aggressive)がLIFF起動時に友達追加ポップアップを表示済み
-      // カスタム画面は不要 → そのまま受付フォームへ
-      setView('register')
+      const isFriend = await checkFriendship()
+      setView(isFriend ? 'register' : 'add_friend')
     })()
   }, [storeId, ticketKey, dateKey])
 
