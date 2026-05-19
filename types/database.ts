@@ -22,8 +22,10 @@ export interface Queue {
   status: QueueStatus
   school_name: string
   customer_name: string
+  child_name: string | null
   category: QueueCategory
   line_user_id: string | null
+  details: Record<string, unknown> | null
   created_at: string
 }
 
@@ -51,8 +53,10 @@ export interface Database {
           status?: QueueStatus
           school_name: string
           customer_name: string
+          child_name?: string | null
           category: QueueCategory
           line_user_id?: string | null
+          details?: Record<string, unknown> | null
           created_at?: string
         }
         Update: {
@@ -62,8 +66,10 @@ export interface Database {
           status?: QueueStatus
           school_name?: string
           customer_name?: string
+          child_name?: string | null
           category?: QueueCategory
           line_user_id?: string | null
+          details?: Record<string, unknown> | null
           created_at?: string
         }
         Relationships: []

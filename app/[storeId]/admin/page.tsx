@@ -257,6 +257,9 @@ function TicketCard({ ticket, onAction }: {
             </span>
           </div>
           <p className="font-bold text-gray-800 text-lg mt-1 truncate">{ticket.customer_name} 様</p>
+          {ticket.child_name && (
+            <p className="text-gray-400 text-xs truncate">お子様: {ticket.child_name}</p>
+          )}
           <p className="text-gray-500 text-sm truncate">{ticket.school_name}</p>
         </div>
       </div>

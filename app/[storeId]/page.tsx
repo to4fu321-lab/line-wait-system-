@@ -102,6 +102,7 @@ function RegisterView({
   const [schoolName, setSchoolName] = useState('')
   const [customSchool, setCustomSchool] = useState('')
   const [customerName, setCustomerName] = useState(lineProfile?.displayName ?? '')
+  const [childName, setChildName] = useState('')
   const [category, setCategory] = useState<QueueCategory>('fitting')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -152,6 +153,7 @@ function RegisterView({
           status: 'waiting',
           school_name: finalSchoolName.trim(),
           customer_name: customerName.trim(),
+          child_name: childName.trim() || null,
           category,
           line_user_id: lineProfile?.userId ?? null,
         })
@@ -240,6 +242,21 @@ function RegisterView({
           </div>
 
           <div>
+            <label className="block text-lg font-bold text-gray-700 mb-2">
+              お子様のお名前
+            </label>
+            <input
+              type="text"
+              inputMode="text"
+              autoComplete="off"
+              className="w-full text-lg border-2 border-gray-200 rounded-2xl px-5 py-4 focus:border-blue-500 focus:outline-none transition-colors"
+              placeholder="例：山田 花子"
+              value={childName}
+              onChange={e => setChildName(e.target.value)}
+            />
+          </div>
+
+          <div>
             <label className="block text-lg font-bold text-gray-700 mb-3">
               ご用件 <span className="text-red-500">*</span>
             </label>
@@ -303,10 +320,12 @@ function WaitingView({
   ticket,
   waitingAhead,
   onStatusChange,
+  storeId,
 }: {
   ticket: Queue
   waitingAhead: number
   onStatusChange: (status: 'calling' | 'completed' | 'cancelled') => void
+  storeId: string
 }) {
   useEffect(() => {
     if (ticket.status === 'calling') onStatusChange('calling')
@@ -351,6 +370,9 @@ function WaitingView({
           <div className="mt-6 bg-gray-50 rounded-2xl p-5 text-left space-y-3">
             <InfoRow label="学校名" value={ticket.school_name} />
             <InfoRow label="氏名" value={`${ticket.customer_name} 様`} />
+            {ticket.child_name && (
+              <InfoRow label="お子様" value={ticket.child_name} />
+            )}
             <InfoRow label="ご用件" value={`${CATEGORY_ICONS[ticket.category]} ${CATEGORY_LABELS[ticket.category]}`} />
           </div>
 
@@ -364,6 +386,15 @@ function WaitingView({
               <span className="text-sm font-medium">📱 この画面を閉じないでください</span>
             </div>
           )}
+
+          <div className="mt-5">
+            <a
+              href={`/${storeId}/details?ticketId=${ticket.id}`}
+              className="text-sm text-gray-400 underline underline-offset-2 hover:text-gray-600 transition-colors"
+            >
+              詳細情報を入力する（任意）
+            </a>
+          </div>
         </div>
 
         <div className="mt-6 text-center">
@@ -650,6 +681,7 @@ export default function CustomerPage() {
       ticket={ticket}
       waitingAhead={waitingAhead}
       onStatusChange={handleStatusChange}
+      storeId={storeId}
     />
   )
 }
