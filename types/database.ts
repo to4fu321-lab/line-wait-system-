@@ -27,15 +27,31 @@ export interface Database {
           line_user_id?: string | null
           created_at?: string
         }
-        Update: Partial<Omit<Queue, 'id' | 'created_at'>>
+        Update: {
+          id?: string
+          ticket_number?: number
+          status?: QueueStatus
+          school_name?: string
+          customer_name?: string
+          category?: QueueCategory
+          line_user_id?: string | null
+          created_at?: string
+        }
+        Relationships: []
       }
     }
+    Views: Record<string, never>
     Functions: {
       get_next_ticket_number: {
-        Args: Record<string, never>
+        Args: Record<PropertyKey, never>
         Returns: number
       }
     }
+    Enums: {
+      queue_status: QueueStatus
+      queue_category: QueueCategory
+    }
+    CompositeTypes: Record<string, never>
   }
 }
 
