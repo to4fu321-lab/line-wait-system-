@@ -140,6 +140,14 @@ function RegisterView({
     setError(null)
 
     try {
+      const { data: storeData } = await supabase
+        .from('stores').select('is_open').eq('id', storeId).single()
+      if (storeData && !storeData.is_open) {
+        setError('現在受付を停止しています。スタッフにお声がけください。')
+        setLoading(false)
+        return
+      }
+
       const { data: nextNum, error: rpcErr } = await supabase.rpc('get_next_ticket_number', {
         p_store_id: storeId,
       })
@@ -670,16 +678,18 @@ export default function CustomerPage() {
     setView(status)
   }, [])
 
-  const handleReset = () => {
+  const handleReset = async () => {
     localStorage.removeItem(ticketKey)
     localStorage.removeItem(dateKey)
     setTicket(null)
-    setView('register')
     setWaitingAhead(0)
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current)
       channelRef.current = null
     }
+    const { data: storeData } = await supabase
+      .from('stores').select('is_open').eq('id', storeId).single()
+    setView(storeData && !storeData.is_open ? 'closed' : 'register')
   }
 
   if (view === 'loading') {
