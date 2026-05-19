@@ -79,3 +79,27 @@ export function isInLineApp(): boolean {
     return false
   }
 }
+
+/** LINE公式アカウントを友達追加しているか */
+export async function checkFriendship(): Promise<boolean> {
+  const liff = await initLiff()
+  if (!liff) return false
+  if (!liff.isLoggedIn()) return false
+  try {
+    const { friendFlag } = await liff.getFriendship()
+    return friendFlag
+  } catch (e) {
+    console.warn('[LIFF] getFriendship failed:', e)
+    return false
+  }
+}
+
+/** 友達追加ページを開く */
+export function openAddFriend(lineBasicId: string) {
+  const url = `https://line.me/R/ti/p/${lineBasicId}`
+  if (liffInstance?.isInClient()) {
+    liffInstance.openWindow({ url, external: false })
+  } else {
+    window.open(url, '_blank')
+  }
+}

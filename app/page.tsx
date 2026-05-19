@@ -5,7 +5,7 @@ import { AlertCircle, Clock, CheckCircle2, ChevronDown, Loader2, MessageCircle }
 import { supabase, getTodayStart } from '@/lib/supabase'
 import type { Queue, QueueCategory } from '@/types/database'
 import { CATEGORY_LABELS, CATEGORY_ICONS } from '@/types/database'
-import { initLiff, getLineProfile, isInLineApp, type LiffProfile } from '@/lib/liff'
+import { initLiff, getLineProfile, isInLineApp, checkFriendship, openAddFriend, type LiffProfile } from '@/lib/liff'
 
 // ============================================================
 // 学校リスト（実際の取引校に変更してください）
@@ -21,7 +21,99 @@ const SCHOOLS = [
   'その他（直接入力）',
 ]
 
-type PageView = 'register' | 'waiting' | 'calling' | 'completed' | 'cancelled'
+type PageView = 'loading' | 'add_friend' | 'register' | 'waiting' | 'calling' | 'completed' | 'cancelled'
+
+const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID ?? ''
+
+// ============================================================
+// 友達追加画面
+// ============================================================
+function AddFriendView({ onAdded }: { onAdded: () => void }) {
+  const [checking, setChecking] = useState(false)
+  const [notAdded, setNotAdded] = useState(false)
+
+  const handleAddFriend = () => {
+    openAddFriend(LINE_BASIC_ID)
+    // 3秒後に再チェックボタンを表示
+    setTimeout(() => setNotAdded(true), 3000)
+  }
+
+  const handleCheck = async () => {
+    setChecking(true)
+    const isFriend = await checkFriendship()
+    if (isFriend) {
+      onAdded()
+    } else {
+      setNotAdded(true)
+      setChecking(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-green-500 to-green-600 flex flex-col">
+      <div className="px-6 pt-12 pb-8 text-center text-white">
+        <div className="text-6xl mb-4">💬</div>
+        <h1 className="text-3xl font-black">受付の前に</h1>
+        <p className="text-green-100 mt-2 text-lg">LINE公式アカウントを<br />友達追加してください</p>
+      </div>
+
+      <div className="flex-1 bg-white rounded-t-3xl px-6 pt-8 pb-10">
+        <div className="max-w-md mx-auto">
+
+          {/* 説明 */}
+          <div className="bg-green-50 rounded-2xl p-5 mb-6">
+            <h2 className="font-bold text-green-800 text-lg mb-3">友達追加が必要な理由</h2>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">🔔</span>
+                <p className="text-gray-700">お呼びする際に<strong>LINEで通知</strong>が届きます</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">📱</span>
+                <p className="text-gray-700">店内を自由に移動しながら<strong>順番を待てます</strong></p>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">✅</span>
+                <p className="text-gray-700">追加は<strong>無料</strong>で、不要になれば削除できます</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 友達追加ボタン */}
+          <button
+            onClick={handleAddFriend}
+            className="w-full bg-green-500 text-white text-xl font-black py-6 rounded-2xl shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-3"
+          >
+            <MessageCircle size={28} />
+            友達追加する
+          </button>
+
+          {/* 追加後の確認 */}
+          {notAdded && (
+            <div className="mt-4 animate-slide-up">
+              <button
+                onClick={handleCheck}
+                disabled={checking}
+                className="w-full bg-blue-600 text-white text-lg font-bold py-5 rounded-2xl active:scale-95 transition-transform disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {checking ? <><Loader2 size={20} className="animate-spin" />確認中...</> : '追加しました →'}
+              </button>
+            </div>
+          )}
+
+          {/* LINEを使わない場合 */}
+          <button
+            onClick={onAdded}
+            className="w-full mt-4 text-gray-400 text-sm py-3 underline"
+          >
+            通知は不要なので受付のみ進む
+          </button>
+
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ============================================================
 // 受付フォーム画面
@@ -415,36 +507,51 @@ function CancelledView({ onReset }: { onReset: () => void }) {
 // メインコンポーネント
 // ============================================================
 export default function CustomerPage() {
-  const [view, setView] = useState<PageView>('register')
+  const [view, setView] = useState<PageView>('loading')
   const [ticket, setTicket] = useState<Queue | null>(null)
   const [waitingAhead, setWaitingAhead] = useState(0)
   const [lineProfile, setLineProfile] = useState<LiffProfile | null>(null)
   const [inLineApp, setInLineApp] = useState(false)
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
-  // LIFF初期化＆プロフィール取得
+  // LIFF初期化 → 友達チェック → 画面遷移
   useEffect(() => {
     (async () => {
-      const liff = await initLiff()
-      if (!liff) return
-      setInLineApp(isInLineApp())
-
-      // 外部ブラウザでも自動ログイン誘導するか判定
-      // LINE内ブラウザ: 自動取得  /  外部ブラウザ: ログイン済みなら取得
-      if (liff.isLoggedIn()) {
-        const profile = await getLineProfile()
-        if (profile) setLineProfile(profile)
-      } else if (isInLineApp()) {
-        // LINE内ブラウザなら自動ログイン
-        const profile = await getLineProfile()
-        if (profile) setLineProfile(profile)
+      // 当日チケットが既にある場合はスキップ
+      const savedId = localStorage.getItem('queue_ticket_id')
+      const savedDate = localStorage.getItem('queue_ticket_date')
+      if (savedId && savedDate === new Date().toDateString()) {
+        setView('register') // ローカルストレージ復元処理へ
+        return
       }
-      // 外部ブラウザでログインしていない場合は何もしない（任意操作）
+
+      const liff = await initLiff()
+      const inLine = isInLineApp()
+      setInLineApp(inLine)
+
+      if (!liff || !inLine) {
+        // LINE外ブラウザ：友達追加不要でそのまま受付へ
+        setView('register')
+        return
+      }
+
+      // LINE内ブラウザ：プロフィール取得
+      const profile = await getLineProfile()
+      if (profile) setLineProfile(profile)
+
+      // 友達追加チェック
+      const isFriend = await checkFriendship()
+      if (isFriend) {
+        setView('register')
+      } else {
+        setView('add_friend')
+      }
     })()
   }, [])
 
   // ローカルストレージから当日のチケットを復元
   useEffect(() => {
+    if (view !== 'register') return
     const savedId = localStorage.getItem('queue_ticket_id')
     const savedDate = localStorage.getItem('queue_ticket_date')
     const today = new Date().toDateString()
@@ -466,7 +573,7 @@ export default function CustomerPage() {
           }
         })
     }
-  }, [])
+  }, [view])
 
   // 前の待ち人数を取得
   const fetchWaitingAhead = useCallback(async (t: Queue) => {
@@ -536,6 +643,21 @@ export default function CustomerPage() {
       supabase.removeChannel(channelRef.current)
       channelRef.current = null
     }
+  }
+
+  if (view === 'loading') {
+    return (
+      <div className="min-h-screen bg-blue-600 flex items-center justify-center">
+        <div className="text-center text-white">
+          <Loader2 size={48} className="animate-spin mx-auto mb-4" />
+          <p className="text-xl font-bold">読み込み中...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (view === 'add_friend') {
+    return <AddFriendView onAdded={() => setView('register')} />
   }
 
   if (view === 'register') {
