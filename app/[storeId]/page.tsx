@@ -22,7 +22,7 @@ const SCHOOLS = [
   'その他（直接入力）',
 ]
 
-type PageView = 'loading' | 'add_friend' | 'register' | 'waiting' | 'calling' | 'completed' | 'cancelled' | 'not_found'
+type PageView = 'loading' | 'add_friend' | 'register' | 'waiting' | 'calling' | 'completed' | 'cancelled' | 'not_found' | 'closed'
 
 const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
 
@@ -498,6 +498,21 @@ function CancelledView({ onReset }: { onReset: () => void }) {
 }
 
 // ============================================================
+// 受付停止画面
+// ============================================================
+function ClosedView() {
+  return (
+    <div className="min-h-screen bg-gray-800 flex flex-col items-center justify-center px-6">
+      <div className="text-center text-white animate-slide-up">
+        <div className="text-7xl mb-6">🚪</div>
+        <h1 className="text-3xl font-black mb-3">現在受付を停止しています</h1>
+        <p className="text-gray-400 text-lg">店頭スタッフにお声がけください</p>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
 // メインコンポーネント
 // ============================================================
 export default function CustomerPage() {
@@ -520,6 +535,19 @@ export default function CustomerPage() {
       const savedId   = localStorage.getItem(ticketKey)
       const savedDate = localStorage.getItem(dateKey)
       const hasSavedTicket = savedId && savedDate === new Date().toDateString()
+
+      // 待機中のお客様はis_openチェックをスキップして画面を見続けられるようにする
+      if (!hasSavedTicket) {
+        const { data: storeData } = await supabase
+          .from('stores')
+          .select('is_open')
+          .eq('id', storeId)
+          .single()
+        if (storeData && !storeData.is_open) {
+          setView('closed')
+          return
+        }
+      }
 
       // 保存済みチケットがある場合でも必ずLIFF初期化してprofileを取得
       // （再受付時にline_user_idがnullになるバグを防ぐ）
@@ -664,6 +692,8 @@ export default function CustomerPage() {
       </div>
     )
   }
+
+  if (view === 'closed') return <ClosedView />
 
   if (view === 'not_found') {
     return (

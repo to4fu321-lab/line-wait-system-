@@ -153,12 +153,16 @@ function StatsHeader({
   onRefresh,
   refreshing,
   onLogout,
+  isOpen,
+  onToggleOpen,
 }: {
   storeName: string
   queues: Queue[]
   onRefresh: () => void
   refreshing: boolean
   onLogout: () => void
+  isOpen: boolean
+  onToggleOpen: () => void
 }) {
   const waiting   = queues.filter(q => q.status === 'waiting').length
   const calling   = queues.filter(q => q.status === 'calling').length
@@ -193,6 +197,17 @@ function StatsHeader({
             </button>
           </div>
         </div>
+
+        <button
+          onClick={onToggleOpen}
+          className={`w-full py-4 rounded-2xl text-xl font-black mb-4 active:scale-95 transition-all shadow-lg ${
+            isOpen
+              ? 'bg-green-500 text-white'
+              : 'bg-red-600 text-white'
+          }`}
+        >
+          {isOpen ? '✅ 受付中 — タップして停止' : '🚫 受付停止中 — タップして開始'}
+        </button>
 
         <div className="grid grid-cols-4 gap-2">
           <StatCard label="本日合計" value={total}     color="text-white" />
@@ -387,6 +402,22 @@ function AdminDashboard({
   const [filter, setFilter] = useState<QueueStatus | 'active'>('active')
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionSuccess, setActionSuccess] = useState<string | null>(null)
+  const [isOpen, setIsOpen] = useState(false)
+
+  const fetchStoreStatus = useCallback(async () => {
+    const { data } = await supabase
+      .from('stores')
+      .select('is_open')
+      .eq('id', store.id)
+      .single()
+    if (data) setIsOpen(data.is_open ?? false)
+  }, [store.id])
+
+  const handleToggleOpen = async () => {
+    const next = !isOpen
+    setIsOpen(next)
+    await supabase.from('stores').update({ is_open: next }).eq('id', store.id)
+  }
 
   const fetchQueues = useCallback(async () => {
     setRefreshing(true)
@@ -402,6 +433,7 @@ function AdminDashboard({
   }, [store.id])
 
   useEffect(() => {
+    fetchStoreStatus()
     fetchQueues()
 
     const channel = supabase
@@ -426,7 +458,7 @@ function AdminDashboard({
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [store.id, fetchQueues])
+  }, [store.id, fetchQueues, fetchStoreStatus])
 
   const handleAction = async (id: string, status: QueueStatus) => {
     setActionError(null)
@@ -487,6 +519,8 @@ function AdminDashboard({
         onRefresh={fetchQueues}
         refreshing={refreshing}
         onLogout={onLogout}
+        isOpen={isOpen}
+        onToggleOpen={handleToggleOpen}
       />
 
       {actionSuccess && (

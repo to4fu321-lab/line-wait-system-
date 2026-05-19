@@ -12,6 +12,7 @@ export interface Store {
   group_id: string | null
   name: string
   pin: string
+  is_open: boolean
   created_at: string
 }
 
@@ -40,8 +41,8 @@ export interface Database {
       }
       stores: {
         Row: Store
-        Insert: { id?: string; group_id?: string | null; name: string; pin?: string; created_at?: string }
-        Update: { id?: string; group_id?: string | null; name?: string; pin?: string; created_at?: string }
+        Insert: { id?: string; group_id?: string | null; name: string; pin?: string; is_open?: boolean; created_at?: string }
+        Update: { id?: string; group_id?: string | null; name?: string; pin?: string; is_open?: boolean; created_at?: string }
         Relationships: []
       }
       queues: {
