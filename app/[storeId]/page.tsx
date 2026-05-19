@@ -124,6 +124,7 @@ function RegisterView({
   }, [lineProfile, customerName])
 
   const handleSchoolChange = (val: string) => {
+    setError(null)
     if (val === 'その他（直接入力）') {
       setShowCustomInput(true)
       setSchoolName('')
@@ -210,34 +211,31 @@ function RegisterView({
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-600 to-blue-700 flex flex-col">
-      <div className="px-6 pt-10 pb-8 text-center text-white">
-        <div className="text-5xl mb-3">🎓</div>
-        <h1 className="text-3xl font-black tracking-tight">順番待ち受付</h1>
-        {storeName && <p className="text-blue-200 text-base mt-1">{storeName}</p>}
-        <p className="text-blue-100 mt-2 text-lg">下記を入力して受付してください</p>
-
+      <div className="px-6 pt-6 pb-4 text-center text-white">
+        <h1 className="text-2xl font-black tracking-tight">順番待ち受付</h1>
+        {storeName && <p className="text-blue-200 text-sm mt-0.5">{storeName}</p>}
         {lineProfile ? (
-          <div className="inline-flex items-center gap-2 bg-green-500/20 border border-green-300/30 rounded-full px-4 py-1.5 mt-4 text-sm">
-            <MessageCircle size={14} />
+          <div className="inline-flex items-center gap-1.5 bg-green-500/20 border border-green-300/30 rounded-full px-3 py-1 mt-2 text-xs">
+            <MessageCircle size={12} />
             LINE連携済み（{lineProfile.displayName}）
           </div>
         ) : !inLineApp ? (
-          <div className="inline-flex items-center gap-2 bg-yellow-500/20 border border-yellow-300/30 rounded-full px-4 py-1.5 mt-4 text-xs">
+          <div className="inline-flex items-center gap-1.5 bg-yellow-500/20 border border-yellow-300/30 rounded-full px-3 py-1 mt-2 text-xs">
             ⚠️ LINEで開くと呼出通知が届きます
           </div>
         ) : null}
       </div>
 
-      <div className="flex-1 bg-white rounded-t-3xl px-6 pt-8 pb-10 animate-slide-up">
-        <div className="max-w-md mx-auto space-y-6">
+      <div className="flex-1 bg-white rounded-t-3xl px-5 pt-5 pb-8 animate-slide-up">
+        <div className="max-w-md mx-auto space-y-4">
 
           <div>
-            <label className="block text-lg font-bold text-gray-700 mb-2">
+            <label className="block text-sm font-bold text-gray-700 mb-1.5">
               学校名 <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <select
-                className="w-full appearance-none text-lg border-2 border-gray-200 rounded-2xl px-5 py-4 pr-12 focus:border-blue-500 focus:outline-none bg-white text-gray-800 transition-colors"
+                className="w-full appearance-none text-base border-2 border-gray-200 rounded-xl px-4 py-3 pr-10 focus:border-blue-500 focus:outline-none bg-white text-gray-800 transition-colors"
                 value={showCustomInput ? 'その他（直接入力）' : schoolName}
                 onChange={e => handleSchoolChange(e.target.value)}
               >
@@ -246,44 +244,44 @@ function RegisterView({
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
-              <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={20} />
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
             </div>
             {showCustomInput && (
               <input
                 type="text"
-                className="mt-3 w-full text-lg border-2 border-blue-300 rounded-2xl px-5 py-4 focus:border-blue-500 focus:outline-none transition-colors"
+                className="mt-2 w-full text-base border-2 border-blue-300 rounded-xl px-4 py-3 focus:border-blue-500 focus:outline-none transition-colors"
                 placeholder="学校名を入力してください"
                 value={customSchool}
-                onChange={e => setCustomSchool(e.target.value)}
+                onChange={e => { setCustomSchool(e.target.value); setError(null) }}
                 autoFocus
               />
             )}
           </div>
 
           <div>
-            <label className="block text-lg font-bold text-gray-700 mb-2">
+            <label className="block text-sm font-bold text-gray-700 mb-1.5">
               氏名 <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               inputMode="text"
               autoComplete="name"
-              className="w-full text-lg border-2 border-gray-200 rounded-2xl px-5 py-4 focus:border-blue-500 focus:outline-none transition-colors"
+              className="w-full text-base border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-blue-500 focus:outline-none transition-colors"
               placeholder="例：山田 太郎"
               value={customerName}
-              onChange={e => setCustomerName(e.target.value)}
+              onChange={e => { setCustomerName(e.target.value); setError(null) }}
             />
           </div>
 
           <div>
-            <label className="block text-lg font-bold text-gray-700 mb-2">
+            <label className="block text-sm font-bold text-gray-700 mb-1.5">
               お子様のお名前
             </label>
             <input
               type="text"
               inputMode="text"
               autoComplete="off"
-              className="w-full text-lg border-2 border-gray-200 rounded-2xl px-5 py-4 focus:border-blue-500 focus:outline-none transition-colors"
+              className="w-full text-base border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-blue-500 focus:outline-none transition-colors"
               placeholder="例：山田 花子"
               value={childName}
               onChange={e => setChildName(e.target.value)}
@@ -291,23 +289,23 @@ function RegisterView({
           </div>
 
           <div>
-            <label className="block text-lg font-bold text-gray-700 mb-3">
+            <label className="block text-sm font-bold text-gray-700 mb-1.5">
               性別 <span className="text-red-500">*</span>
             </label>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               {GENDER_OPTIONS.map(opt => (
                 <button
                   key={opt.value}
                   type="button"
                   onClick={() => setGender(opt.value)}
-                  className={`py-5 rounded-2xl border-2 text-center transition-all active:scale-95 ${
+                  className={`py-3 rounded-xl border-2 text-center transition-all active:scale-95 ${
                     gender === opt.value
                       ? 'border-blue-500 bg-blue-50 shadow-md'
                       : 'border-gray-200 bg-white'
                   }`}
                 >
-                  <div className="text-3xl mb-1">{opt.icon}</div>
-                  <div className={`text-base font-bold ${gender === opt.value ? 'text-blue-700' : 'text-gray-600'}`}>
+                  <div className="text-2xl mb-0.5">{opt.icon}</div>
+                  <div className={`text-sm font-bold ${gender === opt.value ? 'text-blue-700' : 'text-gray-600'}`}>
                     {opt.label}
                   </div>
                 </button>
@@ -316,23 +314,23 @@ function RegisterView({
           </div>
 
           <div>
-            <label className="block text-lg font-bold text-gray-700 mb-3">
+            <label className="block text-sm font-bold text-gray-700 mb-1.5">
               ご用件 <span className="text-red-500">*</span>
             </label>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               {(['fitting', 'pickup', 'other'] as QueueCategory[]).map(cat => (
                 <button
                   key={cat}
                   type="button"
                   onClick={() => setCategory(cat)}
-                  className={`py-5 rounded-2xl border-2 text-center transition-all active:scale-95 ${
+                  className={`py-3 rounded-xl border-2 text-center transition-all active:scale-95 ${
                     category === cat
                       ? 'border-blue-500 bg-blue-50 shadow-md'
                       : 'border-gray-200 bg-white'
                   }`}
                 >
-                  <div className="text-3xl mb-1">{CATEGORY_ICONS[cat]}</div>
-                  <div className={`text-base font-bold ${category === cat ? 'text-blue-700' : 'text-gray-600'}`}>
+                  <div className="text-2xl mb-0.5">{CATEGORY_ICONS[cat]}</div>
+                  <div className={`text-sm font-bold ${category === cat ? 'text-blue-700' : 'text-gray-600'}`}>
                     {CATEGORY_LABELS[cat]}
                   </div>
                 </button>
@@ -351,11 +349,11 @@ function RegisterView({
             type="button"
             onClick={handleSubmit}
             disabled={loading}
-            className="w-full bg-blue-600 text-white text-2xl font-black py-6 rounded-2xl shadow-xl active:scale-95 transition-all disabled:opacity-60 flex items-center justify-center gap-3 mt-2"
+            className="w-full bg-blue-600 text-white text-xl font-black py-4 rounded-2xl shadow-xl active:scale-95 transition-all disabled:opacity-60 flex items-center justify-center gap-3"
           >
             {loading ? (
               <>
-                <Loader2 size={24} className="animate-spin" />
+                <Loader2 size={20} className="animate-spin" />
                 受付中...
               </>
             ) : (
@@ -363,7 +361,7 @@ function RegisterView({
             )}
           </button>
 
-          <p className="text-center text-gray-400 text-sm pt-2">
+          <p className="text-center text-gray-400 text-xs">
             受付後は画面を閉じないでください
           </p>
         </div>

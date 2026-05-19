@@ -571,6 +571,7 @@ function AdminDashboard({
             { key: 'waiting',   label: '待ち',   icon: <Clock size={14} /> },
             { key: 'calling',   label: '呼出中', icon: <BellRing size={14} /> },
             { key: 'completed', label: '完了',   icon: <CheckCheck size={14} /> },
+            { key: 'cancelled', label: '不在',   icon: <UserX size={14} /> },
           ].map(tab => (
             <button
               key={tab.key}
