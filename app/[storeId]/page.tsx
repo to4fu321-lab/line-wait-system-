@@ -30,18 +30,19 @@ const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
 // 友達追加画面
 // ============================================================
 function AddFriendView({ onAdded }: { onAdded: () => void }) {
+  const addUrl = `https://line.me/R/ti/p/@${LINE_BASIC_ID.replace(/^@/, '')}`
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-500 to-green-600 flex flex-col">
       <div className="px-6 pt-12 pb-8 text-center text-white">
         <div className="text-6xl mb-4">💬</div>
         <h1 className="text-3xl font-black">受付の前に</h1>
-        <p className="text-green-100 mt-2 text-lg">LINEの友達追加が完了したら<br />下のボタンで受付に進んでください</p>
+        <p className="text-green-100 mt-2 text-lg">LINE公式アカウントを<br />友達追加してください</p>
       </div>
 
       <div className="flex-1 bg-white rounded-t-3xl px-6 pt-8 pb-10">
         <div className="max-w-md mx-auto">
           <div className="bg-green-50 rounded-2xl p-5 mb-6">
-            <h2 className="font-bold text-green-800 text-lg mb-3">友達追加するメリット</h2>
             <div className="space-y-3">
               <div className="flex items-start gap-3">
                 <span className="text-2xl">🔔</span>
@@ -54,17 +55,25 @@ function AddFriendView({ onAdded }: { onAdded: () => void }) {
             </div>
           </div>
 
-          <button
-            onClick={onAdded}
-            className="w-full bg-green-500 text-white text-xl font-black py-6 rounded-2xl shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-3"
+          <a
+            href={addUrl}
+            className="w-full bg-green-500 text-white text-xl font-black py-6 rounded-2xl shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-3 block text-center"
           >
             <MessageCircle size={28} />
-            受付に進む →
-          </button>
+            友達追加する
+          </a>
 
-          <p className="text-center text-gray-400 text-sm mt-4">
-            友達追加のご案内はLINEが自動で行います
-          </p>
+          <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-2xl p-4 text-sm text-yellow-800">
+            ⚠️ 追加後はLINEのトーク画面になります。<br />
+            ホーム画面からもう一度このQRコードを読み取って戻ってきてください。
+          </div>
+
+          <button
+            onClick={onAdded}
+            className="w-full mt-4 text-gray-400 text-sm py-3 underline"
+          >
+            通知は不要なので受付のみ進む
+          </button>
         </div>
       </div>
     </div>
