@@ -14,9 +14,9 @@ try {
 
 const supabaseAnonKey = rawKey.trim()
 
-const FALLBACK_URL = 'https://placeholder.supabase.co'
+const FALLBACK_URL = 'https://ffbixfbddxguhdhayqqy.supabase.co'
 const FALLBACK_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYwMDAwMDAwMCwiZXhwIjo5OTk5OTk5OTk5fQ.K0-HNhXL5LuAa7FTbTgGVvdmBQKbdXlFR5placeholder'
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZmYml4ZmJkZHhndWhkaGF5cXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMzk3MjksImV4cCI6MjA5NDcxNTcyOX0.F2YjXfFE148wL6kh93WMzKF68SBf-pIYIxGImMMUnFk'
 
 let supabaseClient: ReturnType<typeof createClient<Database>>
 try {
