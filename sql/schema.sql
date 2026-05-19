@@ -3,36 +3,54 @@
 -- Supabaseのダッシュボード > SQL Editor で実行してください
 -- ============================================================
 
--- 既存テーブルを削除（再実行時）
 DROP TABLE IF EXISTS queues CASCADE;
+DROP TABLE IF EXISTS stores CASCADE;
+DROP TABLE IF EXISTS groups CASCADE;
+DROP FUNCTION IF EXISTS get_next_ticket_number(uuid);
 DROP FUNCTION IF EXISTS get_next_ticket_number();
 DROP FUNCTION IF EXISTS notify_line_user(text, text);
+DROP TYPE IF EXISTS queue_status CASCADE;
+DROP TYPE IF EXISTS queue_category CASCADE;
 
--- ステータス型
-CREATE TYPE queue_status AS ENUM ('waiting', 'calling', 'completed', 'cancelled');
-
--- カテゴリ型
+CREATE TYPE queue_status   AS ENUM ('waiting', 'calling', 'completed', 'cancelled');
 CREATE TYPE queue_category AS ENUM ('fitting', 'pickup', 'other');
 
--- 順番待ちテーブル
-CREATE TABLE queues (
-  id              uuid            PRIMARY KEY DEFAULT gen_random_uuid(),
-  ticket_number   int             NOT NULL,
-  status          queue_status    NOT NULL DEFAULT 'waiting',
-  school_name     text            NOT NULL,
-  customer_name   text            NOT NULL,
-  category        queue_category  NOT NULL,
-  line_user_id    text,
-  created_at      timestamptz     NOT NULL DEFAULT now()
+-- グループ（複数店舗を束ねる単位）
+CREATE TABLE groups (
+  id         uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  name       text        NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
--- インデックス
-CREATE INDEX idx_queues_status      ON queues(status);
-CREATE INDEX idx_queues_created_at  ON queues(created_at);
-CREATE INDEX idx_queues_ticket_num  ON queues(ticket_number, created_at);
+-- 店舗
+CREATE TABLE stores (
+  id         uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  group_id   uuid        REFERENCES groups(id) ON DELETE SET NULL,
+  name       text        NOT NULL,
+  pin        text        NOT NULL DEFAULT '1234',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
 
--- 当日の次の整理番号を取得する関数（排他ロックで競合防止）
-CREATE OR REPLACE FUNCTION get_next_ticket_number()
+-- 順番待ち
+CREATE TABLE queues (
+  id              uuid           PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id        uuid           NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  ticket_number   int            NOT NULL,
+  status          queue_status   NOT NULL DEFAULT 'waiting',
+  school_name     text           NOT NULL,
+  customer_name   text           NOT NULL,
+  category        queue_category NOT NULL,
+  line_user_id    text,
+  created_at      timestamptz    NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_queues_store_id   ON queues(store_id);
+CREATE INDEX idx_queues_status     ON queues(status);
+CREATE INDEX idx_queues_created_at ON queues(created_at);
+CREATE INDEX idx_queues_ticket_num ON queues(store_id, ticket_number, created_at);
+
+-- 店舗・当日ごとの次の整理番号
+CREATE OR REPLACE FUNCTION get_next_ticket_number(p_store_id uuid)
 RETURNS int
 LANGUAGE plpgsql
 AS $$
@@ -42,33 +60,24 @@ BEGIN
   SELECT COALESCE(MAX(ticket_number), 0) + 1
   INTO next_num
   FROM queues
-  WHERE created_at::date = CURRENT_DATE AT TIME ZONE 'Asia/Tokyo';
+  WHERE store_id = p_store_id
+    AND created_at::date = CURRENT_DATE AT TIME ZONE 'Asia/Tokyo';
 
   RETURN next_num;
 END;
 $$;
 
--- Realtime を有効化（Supabaseダッシュボードで手動設定も可）
--- Database > Replication > queues テーブルにチェックを入れてください
-
--- Row Level Security (RLS) - 必要に応じてコメントアウト解除
--- ALTER TABLE queues ENABLE ROW LEVEL SECURITY;
-
--- 全員が読み取り可能（お客様の待ち状況表示のため）
--- CREATE POLICY "allow_select" ON queues FOR SELECT USING (true);
-
--- 挿入は誰でも可能（お客様の受付のため）
--- CREATE POLICY "allow_insert" ON queues FOR INSERT WITH CHECK (true);
-
--- 更新はサービスロールのみ（実運用ではAPIルート経由にすること）
--- CREATE POLICY "allow_update" ON queues FOR UPDATE USING (true);
+-- Realtime: Database > Replication > queues テーブルにチェックを入れてください
 
 -- ============================================================
 -- サンプルデータ（動作確認用）
 -- ============================================================
--- INSERT INTO queues (ticket_number, status, school_name, customer_name, category)
--- VALUES
---   (1, 'completed', '○○高校', '田中 太郎', 'fitting'),
---   (2, 'calling',   '△△中学校', '鈴木 花子', 'pickup'),
---   (3, 'waiting',   '○○高校', '佐藤 次郎', 'fitting'),
---   (4, 'waiting',   '□□高校', '山田 三郎', 'other');
+INSERT INTO groups (id, name) VALUES
+  ('00000000-0000-0000-0000-000000000001', 'サンプルグループ');
+
+INSERT INTO stores (id, group_id, name, pin) VALUES
+  ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000001', '本店',  '1234'),
+  ('00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000001', '支店A', '5678');
+
+-- お客様受付URL例:    /<store_id>
+-- スタッフ管理URL例:  /<store_id>/admin
