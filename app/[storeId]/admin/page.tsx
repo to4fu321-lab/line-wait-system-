@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import type { Queue, QueueStatus } from '@/types/database'
-import { CATEGORY_LABELS, CATEGORY_ICONS, STATUS_LABELS } from '@/types/database'
+import { CATEGORY_LABELS, CATEGORY_ICONS, STATUS_LABELS, GENDER_LABELS, GENDER_STYLES } from '@/types/database'
 
 type AdminView = 'loading' | 'select_store' | 'pin' | 'dashboard'
 
@@ -282,9 +282,16 @@ function TicketCard({ ticket, onAction }: {
               : <span className="text-xs bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full shrink-0">LINE×</span>
             }
           </div>
-          {ticket.child_name && (
-            <p className="text-gray-400 text-xs truncate">お子様: {ticket.child_name}</p>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {ticket.child_name && (
+              <p className="text-gray-400 text-xs truncate">お子様: {ticket.child_name}</p>
+            )}
+            {ticket.gender !== 'other' && (
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full shrink-0 ${GENDER_STYLES[ticket.gender]}`}>
+                {GENDER_LABELS[ticket.gender]}
+              </span>
+            )}
+          </div>
           <p className="text-gray-500 text-sm truncate">{ticket.school_name}</p>
         </div>
 
@@ -312,6 +319,18 @@ function TicketCard({ ticket, onAction }: {
           ) : (
             <p className="text-xs text-gray-400 text-center py-1">詳細情報は未入力です</p>
           )}
+        </div>
+      )}
+
+      {ticket.status === 'cancelled' && (
+        <div className="mt-4">
+          <ActionButton
+            label="待機に戻す"
+            icon={<RefreshCw size={16} />}
+            color="bg-blue-500 text-white"
+            loading={loading === 'waiting'}
+            onClick={() => handleAction('waiting')}
+          />
         </div>
       )}
 
@@ -549,8 +568,8 @@ function AdminDashboard({
         <div className="flex gap-2 bg-white rounded-2xl p-1 shadow-sm">
           {[
             { key: 'active',    label: '対応中', icon: <Users size={14} /> },
-            { key: 'waiting',   label: '待機',   icon: <Clock size={14} /> },
-            { key: 'calling',   label: '呼出',   icon: <BellRing size={14} /> },
+            { key: 'waiting',   label: '待ち',   icon: <Clock size={14} /> },
+            { key: 'calling',   label: '呼出中', icon: <BellRing size={14} /> },
             { key: 'completed', label: '完了',   icon: <CheckCheck size={14} /> },
           ].map(tab => (
             <button

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { AlertCircle, Clock, CheckCircle2, ChevronDown, Loader2, MessageCircle } from 'lucide-react'
 import { supabase, getTodayStart } from '@/lib/supabase'
-import type { Queue, QueueCategory } from '@/types/database'
+import type { Queue, QueueCategory, Gender } from '@/types/database'
 import { CATEGORY_LABELS, CATEGORY_ICONS } from '@/types/database'
 import { initLiff, getLineProfile, isInLineApp, checkFriendship, openAddFriend, type LiffProfile } from '@/lib/liff'
 
@@ -88,13 +88,21 @@ function AddFriendView({ onAdded }: { onAdded: () => void }) {
 // ============================================================
 // 受付フォーム画面
 // ============================================================
+const GENDER_OPTIONS: { value: Gender; label: string; icon: string }[] = [
+  { value: 'male',   label: '男性', icon: '👦' },
+  { value: 'female', label: '女性', icon: '👧' },
+  { value: 'other',  label: 'その他', icon: '👤' },
+]
+
 function RegisterView({
   storeId,
+  storeName,
   onComplete,
   lineProfile,
   inLineApp,
 }: {
   storeId: string
+  storeName: string
   onComplete: (ticket: Queue) => void
   lineProfile: LiffProfile | null
   inLineApp: boolean
@@ -103,6 +111,7 @@ function RegisterView({
   const [customSchool, setCustomSchool] = useState('')
   const [customerName, setCustomerName] = useState(lineProfile?.displayName ?? '')
   const [childName, setChildName] = useState('')
+  const [gender, setGender] = useState<Gender>('other')
   const [category, setCategory] = useState<QueueCategory>('fitting')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -163,6 +172,7 @@ function RegisterView({
           customer_name: customerName.trim(),
           child_name: childName.trim() || null,
           category,
+          gender,
           line_user_id: lineProfile?.userId ?? null,
         })
         .select()
@@ -173,6 +183,21 @@ function RegisterView({
 
       localStorage.setItem(`queue_ticket_id_${storeId}`, data.id)
       localStorage.setItem(`queue_ticket_date_${storeId}`, new Date().toDateString())
+
+      if (data.line_user_id) {
+        fetch('/api/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lineUserId:   data.line_user_id,
+            ticketNumber: data.ticket_number,
+            customerName: data.customer_name,
+            storeName,
+            storeId,
+            type: 'registered',
+          }),
+        }).catch(console.error)
+      }
 
       onComplete(data)
     } catch (e) {
@@ -188,6 +213,7 @@ function RegisterView({
       <div className="px-6 pt-10 pb-8 text-center text-white">
         <div className="text-5xl mb-3">🎓</div>
         <h1 className="text-3xl font-black tracking-tight">順番待ち受付</h1>
+        {storeName && <p className="text-blue-200 text-base mt-1">{storeName}</p>}
         <p className="text-blue-100 mt-2 text-lg">下記を入力して受付してください</p>
 
         {lineProfile ? (
@@ -266,6 +292,31 @@ function RegisterView({
 
           <div>
             <label className="block text-lg font-bold text-gray-700 mb-3">
+              性別 <span className="text-red-500">*</span>
+            </label>
+            <div className="grid grid-cols-3 gap-3">
+              {GENDER_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setGender(opt.value)}
+                  className={`py-5 rounded-2xl border-2 text-center transition-all active:scale-95 ${
+                    gender === opt.value
+                      ? 'border-blue-500 bg-blue-50 shadow-md'
+                      : 'border-gray-200 bg-white'
+                  }`}
+                >
+                  <div className="text-3xl mb-1">{opt.icon}</div>
+                  <div className={`text-base font-bold ${gender === opt.value ? 'text-blue-700' : 'text-gray-600'}`}>
+                    {opt.label}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-lg font-bold text-gray-700 mb-3">
               ご用件 <span className="text-red-500">*</span>
             </label>
             <div className="grid grid-cols-3 gap-3">
@@ -329,11 +380,13 @@ function WaitingView({
   waitingAhead,
   onStatusChange,
   storeId,
+  storeName,
 }: {
   ticket: Queue
   waitingAhead: number
   onStatusChange: (status: 'calling' | 'completed' | 'cancelled') => void
   storeId: string
+  storeName: string
 }) {
   useEffect(() => {
     if (ticket.status === 'calling') onStatusChange('calling')
@@ -349,6 +402,7 @@ function WaitingView({
           リアルタイム更新中
         </div>
         <h1 className="text-2xl font-black">受付完了</h1>
+        {storeName && <p className="text-blue-200 text-base mt-1">{storeName}</p>}
       </div>
 
       <main className="flex-1 flex flex-col items-center px-6 py-8 max-w-md mx-auto w-full">
@@ -531,6 +585,7 @@ export default function CustomerPage() {
   const [waitingAhead, setWaitingAhead] = useState(0)
   const [lineProfile, setLineProfile] = useState<LiffProfile | null>(null)
   const [inLineApp, setInLineApp] = useState(false)
+  const [storeName, setStoreName] = useState('')
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
   const ticketKey = `queue_ticket_id_${storeId}`

@@ -1,5 +1,6 @@
 export type QueueStatus   = 'waiting' | 'calling' | 'completed' | 'cancelled'
 export type QueueCategory = 'fitting' | 'pickup' | 'other'
+export type Gender        = 'male' | 'female' | 'other'
 
 export interface Group {
   id: string
@@ -25,6 +26,7 @@ export interface Queue {
   customer_name: string
   child_name: string | null
   category: QueueCategory
+  gender: Gender
   line_user_id: string | null
   details: Record<string, unknown> | null
   created_at: string
@@ -56,6 +58,7 @@ export interface Database {
           customer_name: string
           child_name?: string | null
           category: QueueCategory
+          gender: Gender
           line_user_id?: string | null
           details?: Record<string, unknown> | null
           created_at?: string
@@ -69,6 +72,7 @@ export interface Database {
           customer_name?: string
           child_name?: string | null
           category?: QueueCategory
+          gender?: Gender
           line_user_id?: string | null
           details?: Record<string, unknown> | null
           created_at?: string
@@ -104,8 +108,20 @@ export const CATEGORY_ICONS: Record<QueueCategory, string> = {
 }
 
 export const STATUS_LABELS: Record<QueueStatus, string> = {
-  waiting:   '待機中',
+  waiting:   '待ち',
   calling:   '呼出中',
   completed: '完了',
   cancelled: '不在',
+}
+
+export const GENDER_LABELS: Record<Gender, string> = {
+  male:   '👦男性',
+  female: '👧女性',
+  other:  '',
+}
+
+export const GENDER_STYLES: Record<Gender, string> = {
+  male:   'bg-blue-100 text-blue-700',
+  female: 'bg-pink-100 text-pink-700',
+  other:  '',
 }
