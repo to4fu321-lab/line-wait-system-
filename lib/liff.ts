@@ -96,7 +96,8 @@ export async function checkFriendship(): Promise<boolean> {
 
 /** 友達追加ページを開く */
 export function openAddFriend(lineBasicId: string) {
-  const url = `https://line.me/R/ti/p/${lineBasicId}`
+  const id = lineBasicId.startsWith('@') ? lineBasicId : `@${lineBasicId}`
+  const url = `https://line.me/R/ti/p/${id}`
   if (liffInstance?.isInClient()) {
     liffInstance.openWindow({ url, external: false })
   } else {
