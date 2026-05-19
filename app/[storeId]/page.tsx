@@ -512,14 +512,6 @@ export default function CustomerPage() {
         return
       }
 
-      // LINE以外のブラウザから開いた場合はLIFFへリダイレクト
-      const isLineUA = /Line\//i.test(navigator.userAgent)
-      if (!isLineUA) {
-        const liffId = process.env.NEXT_PUBLIC_LIFF_ID || '2010126882-aUahQStD'
-        window.location.href = `https://liff.line.me/${liffId}`
-        return
-      }
-
       const liff   = await initLiff()
       const inLine = isInLineApp()
       setInLineApp(inLine)
