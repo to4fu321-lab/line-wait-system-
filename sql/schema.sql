@@ -9,8 +9,8 @@ DROP TABLE IF EXISTS groups CASCADE;
 DROP FUNCTION IF EXISTS get_next_ticket_number(uuid);
 DROP FUNCTION IF EXISTS get_next_ticket_number();
 DROP FUNCTION IF EXISTS notify_line_user(text, text);
-DROP TYPE IF EXISTS queue_status;
-DROP TYPE IF EXISTS queue_category;
+DROP TYPE IF EXISTS queue_status CASCADE;
+DROP TYPE IF EXISTS queue_category CASCADE;
 
 CREATE TYPE queue_status   AS ENUM ('waiting', 'calling', 'completed', 'cancelled');
 CREATE TYPE queue_category AS ENUM ('fitting', 'pickup', 'other');
