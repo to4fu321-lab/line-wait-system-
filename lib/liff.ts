@@ -20,7 +20,7 @@ export async function initLiff(): Promise<Liff | null> {
   if (liffInstance) return liffInstance
   if (initPromise) return initPromise
 
-  const liffId = process.env.NEXT_PUBLIC_LIFF_ID
+  const liffId = process.env.NEXT_PUBLIC_LIFF_ID || '2010126882-aUahQStD'
   if (!liffId) {
     console.warn('[LIFF] NEXT_PUBLIC_LIFF_ID is not set — LIFF disabled')
     return null
@@ -96,9 +96,10 @@ export async function checkFriendship(): Promise<boolean> {
 
 /** 友達追加ページを開く */
 export function openAddFriend(lineBasicId: string) {
-  const url = `https://line.me/R/ti/p/${lineBasicId}`
+  const id = lineBasicId.startsWith('@') ? lineBasicId : `@${lineBasicId}`
+  const url = `https://line.me/R/ti/p/${id}`
   if (liffInstance?.isInClient()) {
-    liffInstance.openWindow({ url, external: false })
+    liffInstance.openWindow({ url, external: true })
   } else {
     window.open(url, '_blank')
   }

@@ -4,12 +4,11 @@ import type { Database } from '@/types/database'
 const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
 const rawKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
 
-// Strip any path suffix (e.g. /rest/v1/) — only the origin is needed
 let supabaseUrl = rawUrl.trim()
 try {
   supabaseUrl = new URL(supabaseUrl).origin
 } catch {
-  // non-URL value; fall through to placeholder
+  // invalid URL; fall through to fallback
 }
 
 const supabaseAnonKey = rawKey.trim()
@@ -26,7 +25,7 @@ try {
     { realtime: { params: { eventsPerSecond: 10 } } }
   )
 } catch (err) {
-  console.error('[Supabase] createClient failed, using placeholder:', err)
+  console.error('[Supabase] createClient failed, using fallback:', err)
   supabaseClient = createClient<Database>(FALLBACK_URL, FALLBACK_KEY)
 }
 
@@ -37,11 +36,4 @@ export function getTodayStart(): string {
   const jst = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }))
   jst.setHours(0, 0, 0, 0)
   return jst.toISOString()
-}
-
-export const _diagnostics = {
-  rawUrl,
-  parsedUrl: supabaseUrl,
-  keyLength: rawKey.length,
-  keyPrefix: rawKey.slice(0, 20),
 }
