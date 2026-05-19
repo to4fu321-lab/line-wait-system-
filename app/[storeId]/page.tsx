@@ -470,8 +470,7 @@ export default function CustomerPage() {
       const profile = await getLineProfile()
       if (profile) setLineProfile(profile)
 
-      const isFriend = await checkFriendship()
-      setView(isFriend ? 'register' : 'add_friend')
+      setView('register')
     })()
   }, [storeId, ticketKey, dateKey])
 
