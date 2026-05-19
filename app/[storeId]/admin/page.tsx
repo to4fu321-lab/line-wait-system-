@@ -422,14 +422,18 @@ function AdminDashboard({
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionSuccess, setActionSuccess] = useState<string | null>(null)
   const [isOpen, setIsOpen] = useState(false)
+  const [noticeThreshold, setNoticeThreshold] = useState(3)
 
   const fetchStoreStatus = useCallback(async () => {
     const { data } = await supabase
       .from('stores')
-      .select('is_open')
+      .select('is_open, notice_threshold')
       .eq('id', store.id)
       .single()
-    if (data) setIsOpen(data.is_open ?? false)
+    if (data) {
+      setIsOpen(data.is_open ?? false)
+      if (data.notice_threshold != null) setNoticeThreshold(data.notice_threshold)
+    }
   }, [store.id])
 
   const handleToggleOpen = async () => {
@@ -502,6 +506,12 @@ function AdminDashboard({
     setTimeout(() => setActionSuccess(null), 2000)
 
     if (status === 'calling') {
+      fetch('/api/notify-threshold', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId: store.id, calledTicketId: id }),
+      }).catch(console.error)
+
       const target = queues.find(q => q.id === id)
       if (target) {
         fetch('/api/notify', {
@@ -520,6 +530,19 @@ function AdminDashboard({
           }
         }).catch(console.error)
       }
+    }
+  }
+
+  const handleSaveNoticeThreshold = async () => {
+    const { error } = await supabase
+      .from('stores')
+      .update({ notice_threshold: noticeThreshold })
+      .eq('id', store.id)
+    if (error) {
+      setActionError('通知設定の保存に失敗しました: ' + error.message)
+    } else {
+      setActionSuccess('通知設定を保存しました')
+      setTimeout(() => setActionSuccess(null), 2000)
     }
   }
 
@@ -589,7 +612,7 @@ function AdminDashboard({
         </div>
       </div>
 
-      <div className="flex-1 px-4 pb-8 space-y-3 overflow-y-auto">
+      <div className="flex-1 px-4 pb-4 space-y-3 overflow-y-auto">
         {filteredQueues.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
             <Users size={48} className="mx-auto mb-3 opacity-30" />
@@ -600,6 +623,30 @@ function AdminDashboard({
             <TicketCard key={ticket.id} ticket={ticket} onAction={handleAction} />
           ))
         )}
+      </div>
+
+      <div className="px-4 pb-6 mt-4">
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <h3 className="font-black text-gray-700 mb-3">🔔 通知設定</h3>
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-gray-500 shrink-0">残り待ち通知（名以下）</label>
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={noticeThreshold}
+              onChange={e => setNoticeThreshold(Number(e.target.value))}
+              className="w-20 border-2 border-gray-200 rounded-xl px-3 py-2 text-center font-bold text-lg focus:border-blue-500 focus:outline-none"
+            />
+            <button
+              onClick={handleSaveNoticeThreshold}
+              className="bg-blue-600 text-white text-sm font-bold px-4 py-2 rounded-xl active:scale-95 transition-transform"
+            >
+              保存
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">残り待ち人数がこの値以下になると、先頭の待ち客にLINE通知を送ります</p>
+        </div>
       </div>
     </div>
   )
