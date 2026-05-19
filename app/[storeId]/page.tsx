@@ -519,34 +519,49 @@ export default function CustomerPage() {
     ;(async () => {
       const savedId   = localStorage.getItem(ticketKey)
       const savedDate = localStorage.getItem(dateKey)
-      if (savedId && savedDate === new Date().toDateString()) {
-        setView('register')
-        return
-      }
+      const hasSavedTicket = savedId && savedDate === new Date().toDateString()
 
+      // 保存済みチケットがある場合でも必ずLIFF初期化してprofileを取得
+      // （再受付時にline_user_idがnullになるバグを防ぐ）
       const liff   = await initLiff()
       const inLine = isInLineApp()
       setInLineApp(inLine)
+
+      if (liff && inLine) {
+        try {
+          // login()リダイレクトを避けるため isLoggedIn() で確認してから取得
+          if (liff.isLoggedIn()) {
+            const p = await liff.getProfile()
+            setLineProfile({ userId: p.userId, displayName: p.displayName, pictureUrl: p.pictureUrl })
+          }
+        } catch { /* ignore */ }
+      }
+
+      // 当日のチケットが残っていれば復元（友達チェックはスキップ）
+      if (hasSavedTicket) {
+        setView('register')
+        return
+      }
 
       if (!liff || !inLine) {
         setView('register')
         return
       }
 
+      // 新規訪問者：サーバーサイドAPIで友達確認
       const profile = await getLineProfile()
       if (profile) setLineProfile(profile)
 
-      // サーバーサイドAPIで友達確認（Messaging APIを使うため確実）
       if (profile?.userId) {
         try {
           const res = await fetch(`/api/check-friend?userId=${profile.userId}`)
           const { friend } = await res.json()
           setView(friend ? 'register' : 'add_friend')
         } catch {
-          setView('register') // API失敗時は通す
+          setView('register')
         }
       } else {
-        setView('add_friend') // LINE未ログインは友達追加画面へ
+        setView('add_friend')
       }
     })()
   }, [storeId, ticketKey, dateKey])
