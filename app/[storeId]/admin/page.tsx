@@ -260,7 +260,13 @@ function TicketCard({ ticket, onAction }: {
               {CATEGORY_ICONS[ticket.category]} {CATEGORY_LABELS[ticket.category]}
             </span>
           </div>
-          <p className="font-bold text-gray-800 text-lg mt-1 truncate">{ticket.customer_name} 様</p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="font-bold text-gray-800 text-lg truncate">{ticket.customer_name} 様</p>
+            {ticket.line_user_id
+              ? <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full shrink-0">LINE✓</span>
+              : <span className="text-xs bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full shrink-0">LINE×</span>
+            }
+          </div>
           {ticket.child_name && (
             <p className="text-gray-400 text-xs truncate">お子様: {ticket.child_name}</p>
           )}
