@@ -222,6 +222,7 @@ function TicketCard({ ticket, onAction }: {
   onAction: (id: string, status: QueueStatus) => Promise<void>
 }) {
   const [loading, setLoading] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState(false)
   const styles = STATUS_STYLES[ticket.status]
 
   const handleAction = async (status: QueueStatus) => {
@@ -233,6 +234,9 @@ function TicketCard({ ticket, onAction }: {
   const waitMinutes = Math.floor(
     (Date.now() - new Date(ticket.created_at).getTime()) / 60000
   )
+
+  const details = (ticket.details ?? {}) as Record<string, string>
+  const hasDetails = details.address || details.phone || details.postalCode || details.notes
 
   return (
     <div className={`rounded-2xl border border-gray-100 p-4 transition-all ${styles.row}`}>
@@ -262,7 +266,34 @@ function TicketCard({ ticket, onAction }: {
           )}
           <p className="text-gray-500 text-sm truncate">{ticket.school_name}</p>
         </div>
+
+        <button
+          onClick={() => setExpanded(v => !v)}
+          className={`shrink-0 text-xs font-bold px-2 py-1 rounded-lg transition-colors ${
+            hasDetails
+              ? 'bg-blue-100 text-blue-600'
+              : 'bg-gray-100 text-gray-400'
+          }`}
+        >
+          {expanded ? '閉じる' : hasDetails ? '詳細▼' : '詳細'}
+        </button>
       </div>
+
+      {expanded && (
+        <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
+          {hasDetails ? (
+            <>
+              {details.postalCode && <DetailRow label="郵便番号" value={details.postalCode} />}
+              {details.address    && <DetailRow label="住所"     value={details.address} />}
+              {details.phone      && <DetailRow label="電話番号" value={details.phone} />}
+              {details.notes      && <DetailRow label="備考"     value={details.notes} />}
+            </>
+          ) : (
+            <p className="text-xs text-gray-400 text-center py-1">詳細情報は未入力です</p>
+          )}
+        </div>
+      )}
+    </div>
 
       {(ticket.status === 'waiting' || ticket.status === 'calling') && (
         <div className="grid grid-cols-3 gap-2 mt-4">
@@ -302,6 +333,15 @@ function TicketCard({ ticket, onAction }: {
           />
         </div>
       )}
+    </div>
+  )
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-2 text-sm">
+      <span className="text-gray-400 shrink-0 w-16">{label}</span>
+      <span className="text-gray-700 font-medium break-all">{value}</span>
     </div>
   )
 }
