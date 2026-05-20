@@ -400,13 +400,14 @@ function SettingsPanel({
 
       {/* 通知閾値 */}
       <div>
-        <label className="text-sm font-bold text-zinc-300 mb-3 block">残り待ち通知（名以下になったら先頭の人にLINE通知）</label>
+        <label className="text-sm font-bold text-zinc-300 mb-3 block">まもなく通知（N番目になったらLINE通知）</label>
         <div className="flex items-center gap-3">
           <input type="number" min={1} max={20} value={noticeThreshold}
             onChange={e => onNoticeChange(Number(e.target.value))}
             className="w-20 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-center font-black text-xl text-white focus:border-indigo-500 focus:outline-none" />
-          <span className="text-zinc-400 text-sm">名以下で通知</span>
+          <span className="text-zinc-400 text-sm">番目の方に通知</span>
         </div>
+        <p className="text-xs text-zinc-500 mt-2">例）3に設定 → 3番目の順番になった方へ「まもなくお呼びします」を自動送信</p>
       </div>
 
       {/* 待ちメッセージ */}
