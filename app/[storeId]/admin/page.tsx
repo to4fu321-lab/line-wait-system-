@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import {
   BellRing, CheckCheck, UserX, RefreshCw, Clock, Users,
@@ -465,10 +465,13 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
   const [allowRemote,     setAllowRemote]     = useState(false)
   const [saving,          setSaving]          = useState(false)
   const [showSettings,    setShowSettings]    = useState(false)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const showToast = (type: 'ok' | 'err', msg: string) => {
-    setToast({ type, msg }); setTimeout(() => setToast(null), 2500)
-  }
+  const showToast = useCallback((type: 'ok' | 'err', msg: string, duration = 3500) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    setToast({ type, msg })
+    toastTimerRef.current = setTimeout(() => setToast(null), duration)
+  }, [])
 
   const fetchStoreStatus = useCallback(async () => {
     const { data } = await supabase.from('stores')
@@ -531,6 +534,8 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
       // 呼出中は waiting+calling 両方でカウントするため位置は変わらない → threshold通知不要
     }
     if (status === 'completed' || status === 'cancelled') {
+      // 少し待ってからトースト表示（直前の「完了」トーストと競合しないよう）
+      await new Promise(res => setTimeout(res, 800))
       try {
         const r = await fetch('/api/notify-threshold', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -538,14 +543,14 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
         })
         const j = await r.json()
         if (j.ok && j.notified) {
-          showToast('ok', `📲 まもなく通知: No.${String(j.notified).padStart(3,'0')}`)
+          showToast('ok', `📲 LINE通知送信: No.${String(j.notified).padStart(3,'0')}`, 5000)
         } else if (j.skipped) {
-          showToast('ok', `通知スキップ: ${j.reason}`)
+          showToast('ok', `通知スキップ (${j.reason})`, 4000)
         } else if (!j.ok) {
-          showToast('err', `通知エラー: ${j.error ?? '不明'}`)
+          showToast('err', `通知APIエラー: ${j.error ?? '不明'}`, 5000)
         }
       } catch (e) {
-        showToast('err', `通知失敗: ${String(e)}`)
+        showToast('err', `通知API失敗: ${String(e)}`, 5000)
       }
     }
   }
