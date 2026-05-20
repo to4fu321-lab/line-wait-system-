@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
-import { AlertCircle, Clock, CheckCircle2, ChevronDown, Loader2, MessageCircle } from 'lucide-react'
+import { AlertCircle, Clock, CheckCircle2, ChevronDown, Loader2, MessageCircle, MapPin } from 'lucide-react'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import type { Queue, QueueCategory, Gender, WaitThreshold } from '@/types/database'
 import { CATEGORY_LABELS, CATEGORY_ICONS, DEFAULT_THRESHOLDS, getWaitMessage } from '@/types/database'
@@ -19,7 +19,7 @@ const SCHOOLS = [
   'その他（直接入力）',
 ]
 
-type PageView = 'loading' | 'add_friend' | 'register' | 'waiting' | 'calling' | 'completed' | 'cancelled' | 'not_found' | 'closed'
+type PageView = 'loading' | 'add_friend' | 'register' | 'waiting' | 'calling' | 'completed' | 'cancelled' | 'closed'
 
 const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
 
@@ -28,13 +28,13 @@ const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
 // ============================================================
 function AddFriendView({ onAdded }: { onAdded: () => void }) {
   const [checking, setChecking] = useState(false)
-  const [failed, setFailed] = useState(false)
+  const [failed,   setFailed]   = useState(false)
   const addUrl = `https://line.me/R/ti/p/@${LINE_BASIC_ID.replace(/^@/, '')}`
 
   const handleCheck = async () => {
     setChecking(true); setFailed(false)
     try {
-      const profile = await (await import('@/lib/liff')).getLineProfile()
+      const profile = await getLineProfile()
       if (profile?.userId) {
         const res = await fetch(`/api/check-friend?userId=${profile.userId}`)
         const { friend } = await res.json()
@@ -76,20 +76,22 @@ const GENDER_OPTIONS: { value: Gender; label: string; icon: string }[] = [
   { value: 'other',  label: 'その他', icon: '👤' },
 ]
 
-function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp }: {
+function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp, allowRemote }: {
   storeId: string; storeName: string
   onComplete: (ticket: Queue) => void
   lineProfile: LiffProfile | null; inLineApp: boolean
+  allowRemote: boolean
 }) {
-  const [schoolName,       setSchoolName]       = useState('')
-  const [customSchool,     setCustomSchool]     = useState('')
-  const [customerName,     setCustomerName]     = useState(lineProfile?.displayName ?? '')
-  const [childName,        setChildName]        = useState('')
-  const [gender,           setGender]           = useState<Gender>('other')
-  const [category,         setCategory]         = useState<QueueCategory>('fitting')
-  const [loading,          setLoading]          = useState(false)
-  const [error,            setError]            = useState<string | null>(null)
-  const [showCustomInput,  setShowCustomInput]  = useState(false)
+  const [schoolName,      setSchoolName]      = useState('')
+  const [customSchool,    setCustomSchool]    = useState('')
+  const [customerName,    setCustomerName]    = useState(lineProfile?.displayName ?? '')
+  const [childName,       setChildName]       = useState('')
+  const [gender,          setGender]          = useState<Gender>('other')
+  const [category,        setCategory]        = useState<QueueCategory>('fitting')
+  const [isRemote,        setIsRemote]        = useState(false)
+  const [loading,         setLoading]         = useState(false)
+  const [error,           setError]           = useState<string | null>(null)
+  const [showCustomInput, setShowCustomInput] = useState(false)
 
   useEffect(() => {
     if (lineProfile?.displayName && !customerName) setCustomerName(lineProfile.displayName)
@@ -120,6 +122,7 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp }
         school_name: finalSchoolName.trim(), customer_name: customerName.trim(),
         child_name: childName.trim() || null, category, gender,
         line_user_id: lineProfile?.userId ?? null,
+        is_remote: isRemote, checked_in: !isRemote, // 現地受付はチェックイン済み扱い
       }).select().single()
       if (insertErr) throw insertErr
       if (!data) throw new Error('保存失敗')
@@ -199,9 +202,7 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp }
               {GENDER_OPTIONS.map(opt => (
                 <button key={opt.value} type="button" onClick={() => setGender(opt.value)}
                   className={`py-3.5 rounded-xl border-2 text-center transition-all active:scale-95 ${
-                    gender === opt.value
-                      ? 'border-indigo-500 bg-indigo-50 shadow-md shadow-indigo-100'
-                      : 'border-gray-100 bg-gray-50 hover:border-gray-200'
+                    gender === opt.value ? 'border-indigo-500 bg-indigo-50 shadow-md shadow-indigo-100' : 'border-gray-100 bg-gray-50'
                   }`}>
                   <div className="text-2xl mb-0.5">{opt.icon}</div>
                   <div className={`text-sm font-bold ${gender === opt.value ? 'text-indigo-700' : 'text-gray-500'}`}>{opt.label}</div>
@@ -215,9 +216,7 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp }
               {(['fitting', 'pickup', 'other'] as QueueCategory[]).map(cat => (
                 <button key={cat} type="button" onClick={() => setCategory(cat)}
                   className={`py-3.5 rounded-xl border-2 text-center transition-all active:scale-95 ${
-                    category === cat
-                      ? 'border-indigo-500 bg-indigo-50 shadow-md shadow-indigo-100'
-                      : 'border-gray-100 bg-gray-50 hover:border-gray-200'
+                    category === cat ? 'border-indigo-500 bg-indigo-50 shadow-md shadow-indigo-100' : 'border-gray-100 bg-gray-50'
                   }`}>
                   <div className="text-2xl mb-0.5">{CATEGORY_ICONS[cat]}</div>
                   <div className={`text-sm font-bold ${category === cat ? 'text-indigo-700' : 'text-gray-500'}`}>{CATEGORY_LABELS[cat]}</div>
@@ -225,6 +224,33 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp }
               ))}
             </div>
           </FormField>
+
+          {/* 遠隔チェックイントグル */}
+          {allowRemote && (
+            <FormField label="来店方法">
+              <button type="button" onClick={() => setIsRemote(v => !v)}
+                className={`w-full py-4 rounded-2xl border-2 text-left px-5 transition-all active:scale-[0.98] ${
+                  isRemote ? 'border-indigo-400 bg-indigo-50' : 'border-gray-100 bg-gray-50'
+                }`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className={`font-bold text-base ${isRemote ? 'text-indigo-700' : 'text-gray-700'}`}>
+                      🏠 遠隔チェックイン
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">今すぐ来店しない（自宅・外出先から順番取り）</p>
+                  </div>
+                  <div className={`w-12 h-6 rounded-full transition-colors shrink-0 ${isRemote ? 'bg-indigo-500' : 'bg-gray-300'}`}>
+                    <div className={`w-5 h-5 bg-white rounded-full mt-0.5 shadow transition-transform ${isRemote ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                  </div>
+                </div>
+              </button>
+              {isRemote && (
+                <p className="text-xs text-indigo-600 font-medium mt-2 px-1">
+                  ※ 店舗に到着したら「チェックイン」ボタンを押してください。チェックイン後に呼び出しの対象となります。
+                </p>
+              )}
+            </FormField>
+          )}
 
           {error && (
             <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-100 rounded-2xl text-red-600">
@@ -238,7 +264,9 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp }
             {loading ? <><Loader2 size={20} className="animate-spin" />受付中...</> : '受付する →'}
           </button>
 
-          <p className="text-center text-gray-400 text-xs">受付後は画面を閉じないでください</p>
+          <p className="text-center text-gray-400 text-xs">
+            {isRemote ? '遠隔モードで受付します。到着後に「チェックイン」を押してください。' : '受付後は画面を閉じないでください'}
+          </p>
         </div>
       </div>
     </div>
@@ -259,18 +287,29 @@ function FormField({ label, required, children }: { label: string; required?: bo
 // ============================================================
 // 待機中画面
 // ============================================================
-function WaitingView({ ticket, waitingAhead, waitThresholds, onStatusChange, storeId, storeName }: {
+function WaitingView({ ticket, waitingAhead, waitThresholds, onStatusChange, onCheckIn, storeId, storeName }: {
   ticket: Queue; waitingAhead: number; waitThresholds: WaitThreshold[]
   onStatusChange: (s: 'calling' | 'completed' | 'cancelled') => void
+  onCheckIn: () => void
   storeId: string; storeName: string
 }) {
+  const [checkinLoading, setCheckinLoading] = useState(false)
+
   useEffect(() => {
-    if (ticket.status === 'calling')   onStatusChange('calling')
+    if (ticket.status === 'calling')    onStatusChange('calling')
     else if (ticket.status === 'completed') onStatusChange('completed')
     else if (ticket.status === 'cancelled') onStatusChange('cancelled')
   }, [ticket.status, onStatusChange])
 
-  const waitMsg = getWaitMessage(waitingAhead, waitThresholds.length > 0 ? waitThresholds : DEFAULT_THRESHOLDS)
+  const waitMsg        = getWaitMessage(waitingAhead, waitThresholds.length > 0 ? waitThresholds : DEFAULT_THRESHOLDS)
+  const isRemoteWaiting = ticket.is_remote && !ticket.checked_in
+
+  const handleCheckin = async () => {
+    setCheckinLoading(true)
+    await supabase.from('queues').update({ checked_in: true }).eq('id', ticket.id)
+    setCheckinLoading(false)
+    onCheckIn()
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-violet-900 to-blue-900 flex flex-col">
@@ -281,7 +320,9 @@ function WaitingView({ ticket, waitingAhead, waitThresholds, onStatusChange, sto
           <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
           リアルタイム更新中
         </div>
-        <h1 className="text-2xl font-black tracking-tight">受付完了</h1>
+        <h1 className="text-2xl font-black tracking-tight">
+          {isRemoteWaiting ? '🏠 遠隔待ち受付中' : '受付完了'}
+        </h1>
         {storeName && <p className="text-indigo-200 text-sm mt-1">{storeName}</p>}
       </div>
 
@@ -294,21 +335,20 @@ function WaitingView({ ticket, waitingAhead, waitThresholds, onStatusChange, sto
             {String(ticket.ticket_number).padStart(3, '0')}
           </div>
 
-          {/* 待ち人数 */}
           <div className="mt-6 bg-white/10 backdrop-blur-sm border border-white/15 rounded-2xl p-5">
             <p className="text-white/60 text-sm font-medium mb-2">あなたの前の待ち人数</p>
             <div className="flex items-baseline justify-center gap-1">
-              <span className="ticket-number text-6xl font-black text-white leading-none animate-number-pop">
-                {waitingAhead}
-              </span>
+              <span className="ticket-number text-6xl font-black text-white leading-none">{waitingAhead}</span>
               <span className="text-xl font-bold text-white/70">組</span>
             </div>
-            {waitMsg && (
+            {waitMsg && !isRemoteWaiting && (
               <p className="text-white/80 text-sm font-medium mt-3 leading-relaxed">{waitMsg}</p>
+            )}
+            {isRemoteWaiting && (
+              <p className="text-indigo-200/70 text-sm mt-3">店舗に到着したらチェックインしてください</p>
             )}
           </div>
 
-          {/* 受付情報 */}
           <div className="mt-5 bg-white/8 border border-white/10 rounded-2xl p-4 text-left space-y-2.5">
             <InfoRow label="学校名" value={ticket.school_name} />
             <InfoRow label="氏名"   value={`${ticket.customer_name} 様`} />
@@ -328,18 +368,44 @@ function WaitingView({ ticket, waitingAhead, waitThresholds, onStatusChange, sto
           )}
         </div>
 
-        {/* 詳細情報入力ボタン */}
-        <div className="w-full mt-4 animate-fade-in">
-          <a href={`/${storeId}/details?ticketId=${ticket.id}`}
-            className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white text-lg font-black py-5 rounded-2xl shadow-2xl shadow-orange-900/50 flex items-center justify-center gap-3 active:scale-95 transition-all">
-            <span>📋</span>
-            <span>住所・電話番号を入力する</span>
-            <span className="bg-white text-orange-500 text-xs font-black px-2 py-1 rounded-full">必須</span>
-          </a>
-          <p className="text-center text-orange-200/80 text-sm font-medium mt-2">
-            ご購入に必要な情報です。必ずご入力ください。
-          </p>
-        </div>
+        {/* 遠隔 — チェックインボタン（常時表示） */}
+        {isRemoteWaiting && (
+          <div className="w-full mt-4 space-y-3 animate-fade-in">
+            <button
+              onClick={handleCheckin}
+              disabled={checkinLoading}
+              className="w-full bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-400 hover:to-green-400 text-white text-xl font-black py-6 rounded-2xl shadow-2xl shadow-emerald-900/50 active:scale-95 transition-all disabled:opacity-60 flex items-center justify-center gap-3"
+            >
+              {checkinLoading
+                ? <><Loader2 size={22} className="animate-spin" />チェックイン中...</>
+                : <><MapPin size={22} />店舗付近に到着しました（チェックイン）</>
+              }
+            </button>
+            <p className="text-center text-indigo-200/60 text-xs">チェックイン後に呼び出し対象となります</p>
+          </div>
+        )}
+
+        {/* 遠隔 — チェックイン済み */}
+        {ticket.is_remote && ticket.checked_in && (
+          <div className="w-full mt-4 animate-fade-in">
+            <div className="bg-emerald-500/20 backdrop-blur-sm border border-emerald-400/40 rounded-2xl p-4 text-center">
+              <p className="text-emerald-300 font-black text-lg">✅ チェックイン済み</p>
+              <p className="text-emerald-200/70 text-sm mt-1">整理番号が呼ばれるまで店舗内でお待ちください</p>
+            </div>
+          </div>
+        )}
+
+        {/* 現地受付 — 詳細情報入力 */}
+        {!ticket.is_remote && (
+          <div className="w-full mt-4 animate-fade-in">
+            <a href={`/${storeId}/details?ticketId=${ticket.id}`}
+              className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white text-lg font-black py-5 rounded-2xl shadow-2xl shadow-orange-900/50 flex items-center justify-center gap-3 active:scale-95 transition-all">
+              <span>📋</span><span>住所・電話番号を入力する</span>
+              <span className="bg-white text-orange-500 text-xs font-black px-2 py-1 rounded-full">必須</span>
+            </a>
+            <p className="text-center text-orange-200/80 text-sm font-medium mt-2">ご購入に必要な情報です。必ずご入力ください。</p>
+          </div>
+        )}
 
         <div className="mt-6 flex items-center gap-2 text-white/40">
           <Clock size={14} className="animate-spin" style={{ animationDuration: '4s' }} />
@@ -366,14 +432,9 @@ function CallingView({ ticket }: { ticket: Queue }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-400 via-orange-400 to-yellow-300 animate-pulse-bg flex flex-col items-center justify-center px-6">
       <div className="text-center animate-slide-up">
-        <div className="text-8xl mb-4">
-          <span className="animate-ring inline-block">🔔</span>
-        </div>
-        <h2 className="text-5xl font-black text-orange-900 leading-tight mb-3">
-          お呼び<br />しています！
-        </h2>
+        <div className="text-8xl mb-4"><span className="animate-ring inline-block">🔔</span></div>
+        <h2 className="text-5xl font-black text-orange-900 leading-tight mb-3">お呼び<br />しています！</h2>
         <p className="text-xl font-bold text-orange-800 mb-8">カウンターへお越しください</p>
-
         <div className="bg-white rounded-3xl shadow-2xl p-8 inline-block">
           <p className="text-base text-gray-400 mb-1 font-medium">整理番号</p>
           <div className="ticket-number text-[88px] font-black text-indigo-600 leading-none tracking-tight">
@@ -388,22 +449,18 @@ function CallingView({ ticket }: { ticket: Queue }) {
 }
 
 // ============================================================
-// 完了・不在画面
+// 完了・不在・受付停止画面
 // ============================================================
 function CompletedView({ onReset }: { onReset: () => void }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-600 to-teal-700 flex flex-col items-center justify-center px-6">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(255,255,255,0.1),transparent)] pointer-events-none" />
       <div className="relative text-center animate-slide-up">
-        <div className="w-28 h-28 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center mx-auto mb-6 shadow-2xl">
+        <div className="w-28 h-28 rounded-full bg-white/20 border border-white/30 flex items-center justify-center mx-auto mb-6">
           <CheckCircle2 size={60} className="text-white" />
         </div>
-        <h2 className="text-4xl font-black text-white mb-2 tracking-tight">ご対応完了</h2>
+        <h2 className="text-4xl font-black text-white mb-2">ご対応完了</h2>
         <p className="text-emerald-100 text-xl mb-10">ありがとうございました！</p>
-        <button onClick={onReset}
-          className="bg-white text-emerald-700 text-xl font-black py-5 px-10 rounded-2xl shadow-xl active:scale-95 transition-transform">
-          最初に戻る
-        </button>
+        <button onClick={onReset} className="bg-white text-emerald-700 text-xl font-black py-5 px-10 rounded-2xl shadow-xl active:scale-95 transition-transform">最初に戻る</button>
       </div>
     </div>
   )
@@ -412,31 +469,23 @@ function CompletedView({ onReset }: { onReset: () => void }) {
 function CancelledView({ onReset }: { onReset: () => void }) {
   return (
     <div className="min-h-screen bg-zinc-900 flex flex-col items-center justify-center px-6">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_20%,rgba(99,102,241,0.1),transparent)] pointer-events-none" />
       <div className="relative text-center animate-slide-up">
         <div className="text-7xl mb-5">😔</div>
-        <h2 className="text-3xl font-black text-white mb-2 tracking-tight">お呼びしましたが</h2>
+        <h2 className="text-3xl font-black text-white mb-2">お呼びしましたが</h2>
         <p className="text-zinc-400 text-lg mb-2">ご不在のためキャンセルされました</p>
         <p className="text-zinc-500 text-sm mb-10">再度受付が必要な場合は下のボタンを押してください</p>
-        <button onClick={onReset}
-          className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-xl font-black py-5 px-10 rounded-2xl shadow-xl active:scale-95 transition-transform">
-          もう一度受付する
-        </button>
+        <button onClick={onReset} className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-xl font-black py-5 px-10 rounded-2xl shadow-xl active:scale-95 transition-transform">もう一度受付する</button>
       </div>
     </div>
   )
 }
 
-// ============================================================
-// 受付停止画面
-// ============================================================
 function ClosedView() {
   return (
     <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-6">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_20%,rgba(99,102,241,0.08),transparent)] pointer-events-none" />
       <div className="relative text-center text-white animate-slide-up">
         <div className="text-7xl mb-5">🚪</div>
-        <h1 className="text-3xl font-black mb-2 tracking-tight">現在受付を停止しています</h1>
+        <h1 className="text-3xl font-black mb-2">現在受付を停止しています</h1>
         <p className="text-zinc-400 text-lg">店頭スタッフにお声がけください</p>
       </div>
     </div>
@@ -456,6 +505,7 @@ export default function CustomerPage() {
   const [inLineApp,      setInLineApp]      = useState(false)
   const [storeName,      setStoreName]      = useState('')
   const [waitThresholds, setWaitThresholds] = useState<WaitThreshold[]>(DEFAULT_THRESHOLDS)
+  const [allowRemote,    setAllowRemote]    = useState(false)
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
   const ticketKey = `queue_ticket_id_${storeId}`
@@ -469,12 +519,13 @@ export default function CustomerPage() {
       const hasSavedTicket = savedId && savedDate === new Date().toDateString()
 
       if (!hasSavedTicket) {
-        const { data: storeData } = await supabase.from('stores')
-          .select('is_open, name, wait_thresholds').eq('id', storeId).single()
-        if (storeData?.name) setStoreName(storeData.name)
-        if (Array.isArray(storeData?.wait_thresholds) && storeData.wait_thresholds.length > 0)
-          setWaitThresholds(storeData.wait_thresholds as WaitThreshold[])
-        if (storeData && !storeData.is_open) { setView('closed'); return }
+        const { data: sd } = await supabase.from('stores')
+          .select('is_open, name, wait_thresholds, allow_remote').eq('id', storeId).single()
+        if (sd?.name)            setStoreName(sd.name)
+        if (Array.isArray(sd?.wait_thresholds) && sd.wait_thresholds.length > 0)
+          setWaitThresholds(sd.wait_thresholds as WaitThreshold[])
+        if (sd?.allow_remote != null) setAllowRemote(sd.allow_remote)
+        if (sd && !sd.is_open) { setView('closed'); return }
       }
 
       const liff   = await initLiff()
@@ -506,7 +557,6 @@ export default function CustomerPage() {
     })()
   }, [storeId, ticketKey, dateKey])
 
-  // ローカルストレージからチケット復元
   useEffect(() => {
     if (view !== 'register' || !storeId) return
     const savedId   = localStorage.getItem(ticketKey)
@@ -516,7 +566,11 @@ export default function CustomerPage() {
         .then(({ data }) => {
           if (data) {
             setTicket(data)
-            setView(data.status === 'calling' ? 'calling' : data.status === 'completed' ? 'completed' : data.status === 'cancelled' ? 'cancelled' : 'waiting')
+            const v = data.status === 'calling' ? 'calling'
+              : data.status === 'completed' ? 'completed'
+              : data.status === 'cancelled' ? 'cancelled'
+              : 'waiting'
+            setView(v)
           }
         })
     }
@@ -530,31 +584,29 @@ export default function CustomerPage() {
     setWaitingAhead(count ?? 0)
   }, [storeId])
 
-  // Realtime
   useEffect(() => {
     if (!ticket) return
     fetchWaitingAhead(ticket)
     if (channelRef.current) supabase.removeChannel(channelRef.current)
-
     const channel = supabase.channel(`ticket-${ticket.id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'queues', filter: `id=eq.${ticket.id}` },
         payload => setTicket(payload.new as Queue))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'queues', filter: `store_id=eq.${storeId}` },
         () => fetchWaitingAhead(ticket))
       .subscribe()
-
     channelRef.current = channel
     return () => { supabase.removeChannel(channel) }
   }, [ticket?.id, storeId, fetchWaitingAhead])
 
-  const handleRegistered = (newTicket: Queue) => { setTicket(newTicket); setView('waiting') }
-  const handleStatusChange = useCallback((status: 'calling' | 'completed' | 'cancelled') => { setView(status) }, [])
+  const handleRegistered   = (t: Queue) => { setTicket(t); setView('waiting') }
+  const handleStatusChange = useCallback((s: 'calling' | 'completed' | 'cancelled') => setView(s), [])
+  const handleCheckIn      = useCallback(() => setTicket(prev => prev ? { ...prev, checked_in: true } : null), [])
   const handleReset = async () => {
     localStorage.removeItem(ticketKey); localStorage.removeItem(dateKey)
     setTicket(null); setWaitingAhead(0)
     if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null }
-    const { data: storeData } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
-    setView(storeData && !storeData.is_open ? 'closed' : 'register')
+    const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
+    setView(sd && !sd.is_open ? 'closed' : 'register')
   }
 
   if (view === 'loading') return (
@@ -566,30 +618,19 @@ export default function CustomerPage() {
     </div>
   )
   if (view === 'closed')     return <ClosedView />
-  if (view === 'not_found')  return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-6">
-      <div className="text-center text-white">
-        <div className="text-6xl mb-4">🔍</div>
-        <h1 className="text-2xl font-black mb-2">店舗が見つかりません</h1>
-        <p className="text-zinc-500">URLをご確認ください</p>
-      </div>
-    </div>
-  )
   if (view === 'add_friend') return <AddFriendView onAdded={() => setView('register')} />
-  if (view === 'register')   return <RegisterView storeId={storeId} storeName={storeName} onComplete={handleRegistered} lineProfile={lineProfile} inLineApp={inLineApp} />
+  if (view === 'register')   return (
+    <RegisterView storeId={storeId} storeName={storeName} onComplete={handleRegistered}
+      lineProfile={lineProfile} inLineApp={inLineApp} allowRemote={allowRemote} />
+  )
   if (!ticket) return null
   if (view === 'calling')   return <CallingView ticket={ticket} />
   if (view === 'completed') return <CompletedView onReset={handleReset} />
   if (view === 'cancelled') return <CancelledView onReset={handleReset} />
 
   return (
-    <WaitingView
-      ticket={ticket}
-      waitingAhead={waitingAhead}
-      waitThresholds={waitThresholds}
-      onStatusChange={handleStatusChange}
-      storeId={storeId}
-      storeName={storeName}
-    />
+    <WaitingView ticket={ticket} waitingAhead={waitingAhead} waitThresholds={waitThresholds}
+      onStatusChange={handleStatusChange} onCheckIn={handleCheckIn}
+      storeId={storeId} storeName={storeName} />
   )
 }

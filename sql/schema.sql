@@ -81,3 +81,13 @@ INSERT INTO stores (id, group_id, name, pin) VALUES
 
 -- お客様受付URL例:    /<store_id>
 -- スタッフ管理URL例:  /<store_id>/admin
+
+-- ============================================================
+-- マイグレーション: 遠隔チェックイン機能（⑤追加時）
+-- ============================================================
+ALTER TABLE queues ADD COLUMN IF NOT EXISTS is_remote  boolean DEFAULT false;
+ALTER TABLE queues ADD COLUMN IF NOT EXISTS checked_in boolean DEFAULT false;
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS allow_remote     boolean DEFAULT false;
+-- wait_thresholds / notice_threshold は以前のマイグレーションで追加済み
+-- ALTER TABLE stores ADD COLUMN IF NOT EXISTS wait_thresholds   jsonb   DEFAULT '[]'::jsonb;
+-- ALTER TABLE stores ADD COLUMN IF NOT EXISTS notice_threshold  integer DEFAULT 3;

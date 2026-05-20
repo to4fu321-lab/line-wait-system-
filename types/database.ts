@@ -21,6 +21,8 @@ export interface Store {
   is_open: boolean
   wait_thresholds: WaitThreshold[]
   notice_threshold: number
+  allow_remote: boolean
+  remote_threshold: number
   created_at: string
 }
 
@@ -36,6 +38,8 @@ export interface Queue {
   gender: Gender
   line_user_id: string | null
   details: Record<string, unknown> | null
+  is_remote: boolean
+  checked_in: boolean
   created_at: string
 }
 
