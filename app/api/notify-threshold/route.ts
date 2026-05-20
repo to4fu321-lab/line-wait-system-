@@ -3,10 +3,12 @@ import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 import { getTodayStart } from '@/lib/supabase'
 
+const LIFF_URL = 'https://liff.line.me/2010126882-aUahQStD'
+
 // POST { storeId, calledTicketId }
-// 呼出後の残り待ち人数がnotice_threshold以下なら、次の待機者にプッシュ通知を送る
+// 呼出後、ちょうど threshold 番目になったチケットにプッシュ通知を送る
 export async function POST(req: NextRequest) {
-  const { storeId, calledTicketId } = await req.json()
+  const { storeId } = await req.json()
 
   if (!storeId) {
     return NextResponse.json({ ok: false, error: 'storeId is required' }, { status: 400 })
@@ -21,10 +23,10 @@ export async function POST(req: NextRequest) {
 
   const supabase = createClient<Database>(supabaseUrl, supabaseKey)
 
-  // 1. stores から notice_threshold を取得
+  // 1. stores から notice_threshold と店舗名を取得
   const { data: storeData, error: storeErr } = await supabase
     .from('stores')
-    .select('notice_threshold')
+    .select('notice_threshold, name')
     .eq('id', storeId)
     .single()
 
@@ -34,8 +36,9 @@ export async function POST(req: NextRequest) {
   }
 
   const noticeThreshold = storeData.notice_threshold ?? 3
+  const storeName       = storeData.name ?? ''
 
-  // 2. 当日の waiting 状態チケットを ticket_number 昇順で取得
+  // 2. 当日の waiting + checked_in 済み遠隔 を ticket_number 昇順で取得
   const { data: waitingTickets, error: queueErr } = await supabase
     .from('queues')
     .select('*')
@@ -51,20 +54,16 @@ export async function POST(req: NextRequest) {
 
   const waitingCount = waitingTickets?.length ?? 0
 
-  // 3. 残り待ち人数が notice_threshold 以下でなければスキップ
-  if (waitingCount > noticeThreshold) {
-    console.log(`[notify-threshold] waiting=${waitingCount} > threshold=${noticeThreshold} → skip`)
-    return NextResponse.json({ ok: true, skipped: true, reason: 'above threshold' })
-  }
-
-  // 先頭の waiting チケット（最も ticket_number が小さい）
-  const nextTicket = waitingTickets?.[0]
+  // 3. ちょうど threshold 番目のチケットに通知
+  //    （呼出のたびに threshold 番目の人が入れ替わり、1人ずつ通知が届く）
+  const targetIdx  = noticeThreshold - 1
+  const nextTicket = waitingTickets?.[targetIdx]
 
   if (!nextTicket) {
-    return NextResponse.json({ ok: true, skipped: true, reason: 'no waiting tickets' })
+    console.log(`[notify-threshold] waiting=${waitingCount} < threshold=${noticeThreshold} → no ticket at position ${noticeThreshold}`)
+    return NextResponse.json({ ok: true, skipped: true, reason: 'no ticket at threshold position' })
   }
 
-  // line_user_id がない場合はスキップ
   if (!nextTicket.line_user_id) {
     console.log(`[notify-threshold] No.${nextTicket.ticket_number} LINE未連携 → skip`)
     return NextResponse.json({ ok: true, skipped: true, reason: 'no line_user_id' })
@@ -74,7 +73,10 @@ export async function POST(req: NextRequest) {
     process.env.LINE_CHANNEL_ACCESS_TOKEN ||
     'VCdCDq+VcStiwPWbk3nzK59dV1MylArXtvMETswJlGy3IwikR3WNJGk1br86YnzKGqBpHp0kIQbRDaDSPzMphck0TKHwy6MDHW4U2UzbZaYU0Uq+QxhI2pp90x13qHxd8PdgqIIBoq2xq8hFaPXAOQdB04t89/1O/w1cDnyilFU='
 
-  const messageText = `🔔 まもなくお呼びします！\n\n整理番号：${String(nextTicket.ticket_number).padStart(3, '0')}\n${nextTicket.customer_name} 様\n\nカウンター付近でお待ちください。`
+  const storeLabel = storeName ? `【${storeName}】\n` : ''
+  const paddedNum  = String(nextTicket.ticket_number).padStart(3, '0')
+  const messageText =
+    `⏰ まもなくお呼びします！\n\n${storeLabel}整理番号：${paddedNum}\n${nextTicket.customer_name} 様\n\nカウンター付近でお待ちください。\n\n▼ 待ち状況を確認\n${LIFF_URL}/${storeId}`
 
   try {
     const res = await fetch('https://api.line.me/v2/bot/message/push', {
@@ -96,7 +98,7 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(
-      `[notify-threshold] 通知送信 No.${nextTicket.ticket_number} ${nextTicket.customer_name} 様 (waiting=${waitingCount}, threshold=${noticeThreshold})`
+      `[notify-threshold] 通知送信 No.${nextTicket.ticket_number} ${nextTicket.customer_name} 様 (position=${noticeThreshold}, waiting=${waitingCount})`
     )
     return NextResponse.json({ ok: true, notified: nextTicket.ticket_number })
   } catch (e) {

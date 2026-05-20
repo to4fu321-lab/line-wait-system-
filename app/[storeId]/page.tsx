@@ -336,10 +336,10 @@ function WaitingView({ ticket, waitingAhead, waitThresholds, onStatusChange, onC
           </div>
 
           <div className="mt-6 bg-white/10 backdrop-blur-sm border border-white/15 rounded-2xl p-5">
-            <p className="text-white/60 text-sm font-medium mb-2">あなたの前の待ち人数</p>
+            <p className="text-white/60 text-sm font-medium mb-2">現在の順番</p>
             <div className="flex items-baseline justify-center gap-1">
-              <span className="ticket-number text-6xl font-black text-white leading-none">{waitingAhead}</span>
-              <span className="text-xl font-bold text-white/70">組</span>
+              <span className="ticket-number text-6xl font-black text-white leading-none">{waitingAhead + 1}</span>
+              <span className="text-xl font-bold text-white/70">番目</span>
             </div>
             {waitMsg && !isRemoteWaiting && (
               <p className="text-white/80 text-sm font-medium mt-3 leading-relaxed">{waitMsg}</p>
@@ -428,21 +428,63 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 // ============================================================
 // 呼出中画面
 // ============================================================
-function CallingView({ ticket }: { ticket: Queue }) {
+function CallingView({ ticket, onComplete }: { ticket: Queue; onComplete: () => void }) {
+  const [confirming, setConfirming] = useState(false)
+  const [loading,    setLoading]    = useState(false)
+
+  const handleComplete = async () => {
+    setLoading(true)
+    await supabase.from('queues').update({ status: 'completed' }).eq('id', ticket.id)
+    onComplete()
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-400 via-orange-400 to-yellow-300 animate-pulse-bg flex flex-col items-center justify-center px-6">
-      <div className="text-center animate-slide-up">
-        <div className="text-8xl mb-4"><span className="animate-ring inline-block">🔔</span></div>
-        <h2 className="text-5xl font-black text-orange-900 leading-tight mb-3">お呼び<br />しています！</h2>
-        <p className="text-xl font-bold text-orange-800 mb-8">カウンターへお越しください</p>
-        <div className="bg-white rounded-3xl shadow-2xl p-8 inline-block">
-          <p className="text-base text-gray-400 mb-1 font-medium">整理番号</p>
+    <div className="min-h-screen bg-gradient-to-br from-amber-400 via-orange-400 to-yellow-300 flex flex-col">
+      <div className="flex-1 flex flex-col items-center justify-center px-6 text-center animate-slide-up">
+        <div className="text-8xl mb-3"><span className="animate-ring inline-block">🔔</span></div>
+        <h2 className="text-4xl font-black text-orange-900 leading-tight mb-2">お呼び<br />しています！</h2>
+        <p className="text-lg font-bold text-orange-800 mb-6">カウンターへお越しください</p>
+
+        <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-sm">
+          <p className="text-sm text-gray-400 mb-1 font-medium">整理番号</p>
           <div className="ticket-number text-[88px] font-black text-indigo-600 leading-none tracking-tight">
             {String(ticket.ticket_number).padStart(3, '0')}
           </div>
           <p className="text-xl font-bold text-gray-700 mt-3">{ticket.customer_name} 様</p>
+          <p className="text-sm text-gray-500 mt-1">{ticket.school_name}</p>
+          <p className="text-xs text-gray-300 mt-4 border-t pt-3">📱 この画面をスタッフに見せてください</p>
         </div>
-        <p className="mt-6 text-orange-800 font-bold text-lg">{ticket.school_name}</p>
+      </div>
+
+      <div className="px-6 pb-10 pt-4">
+        {!confirming ? (
+          <button
+            onClick={() => setConfirming(true)}
+            className="w-full bg-emerald-500 hover:bg-emerald-400 text-white text-xl font-black py-5 rounded-2xl shadow-xl active:scale-95 transition-all"
+          >
+            ✅ スタッフから案内を受けました
+          </button>
+        ) : (
+          <div className="bg-white rounded-2xl p-5 shadow-xl space-y-3 animate-fade-in">
+            <p className="text-center font-bold text-gray-800">案内を受けましたか？</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setConfirming(false)}
+                className="py-4 rounded-xl bg-gray-100 text-gray-600 font-bold active:scale-95 transition-transform"
+              >
+                いいえ
+              </button>
+              <button
+                onClick={handleComplete}
+                disabled={loading}
+                className="py-4 rounded-xl bg-emerald-500 text-white font-black active:scale-95 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {loading && <Loader2 size={18} className="animate-spin" />}
+                はい
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -579,7 +621,8 @@ export default function CustomerPage() {
   const fetchWaitingAhead = useCallback(async (t: Queue) => {
     const { count } = await supabase.from('queues')
       .select('*', { count: 'exact', head: true })
-      .eq('store_id', storeId).eq('status', 'waiting')
+      .eq('store_id', storeId)
+      .in('status', ['waiting', 'calling'])
       .lt('ticket_number', t.ticket_number).gte('created_at', getTodayStart())
     setWaitingAhead(count ?? 0)
   }, [storeId])
@@ -624,7 +667,7 @@ export default function CustomerPage() {
       lineProfile={lineProfile} inLineApp={inLineApp} allowRemote={allowRemote} />
   )
   if (!ticket) return null
-  if (view === 'calling')   return <CallingView ticket={ticket} />
+  if (view === 'calling')   return <CallingView ticket={ticket} onComplete={() => handleStatusChange('completed')} />
   if (view === 'completed') return <CompletedView onReset={handleReset} />
   if (view === 'cancelled') return <CancelledView onReset={handleReset} />
 
