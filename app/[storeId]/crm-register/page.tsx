@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { initLiff, getLineProfile } from '@/lib/liff'
 import type { Customer } from '@/types/crm'
 
-type View = 'loading' | 'existing' | 'new_form' | 'done' | 'not_line'
+type View = 'loading' | 'existing' | 'new_form' | 'confirm' | 'done' | 'not_line'
 
 export default function CrmRegisterPage() {
   const { storeId } = useParams<{ storeId: string }>()
@@ -21,6 +21,7 @@ export default function CrmRegisterPage() {
   const [saving,         setSaving]         = useState(false)
   const [errorMsg,       setErrorMsg]       = useState('')
   const [doneName,       setDoneName]       = useState('')
+  const [confirmCustomer, setConfirmCustomer] = useState<Customer | null>(null)
 
   useEffect(() => {
     if (!storeId) return
@@ -85,7 +86,13 @@ export default function CrmRegisterPage() {
   }
 
   const handleSelectExisting = (customer: Customer) => {
-    setDoneName(customer.name)
+    setConfirmCustomer(customer)
+    setView('confirm')
+  }
+
+  const handleConfirm = () => {
+    if (!confirmCustomer) return
+    setDoneName(confirmCustomer.name)
     setView('done')
   }
 
@@ -103,6 +110,44 @@ export default function CrmRegisterPage() {
       <div>
         <h1 className="text-2xl font-black mb-2">LINEで開いてください</h1>
         <p className="text-green-100 text-base">スタッフのQRコードをLINEカメラで<br />読み取ってください</p>
+      </div>
+    </div>
+  )
+
+  // ── 確認 ──────────────────────────────────────
+  if (view === 'confirm' && confirmCustomer) return (
+    <div className="min-h-screen bg-[#06C755] flex flex-col items-center justify-center px-6 gap-6">
+      <div className="text-center text-white">
+        <MessageCircle size={48} className="mx-auto mb-2" />
+        {storeName && <p className="text-green-200 text-xs font-bold mb-1">{storeName}</p>}
+        <h1 className="text-2xl font-black">お名前の確認</h1>
+      </div>
+
+      <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center space-y-5">
+        <div>
+          <p className="text-zinc-500 text-sm mb-3">こちらのお名前でよろしいですか？</p>
+          <div className="flex items-center justify-center gap-3 bg-green-50 rounded-2xl px-5 py-4">
+            <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
+              <User size={18} className="text-[#06C755]" />
+            </div>
+            <p className="text-2xl font-black text-zinc-900">{confirmCustomer.name}</p>
+          </div>
+          {confirmCustomer.school_name && (
+            <p className="text-zinc-400 text-xs mt-2">{confirmCustomer.school_name}</p>
+          )}
+        </div>
+
+        <button
+          onClick={handleConfirm}
+          className="w-full bg-[#06C755] text-white text-lg font-black py-4 rounded-2xl active:scale-95 transition-transform shadow-lg shadow-green-200">
+          はい、これで進む
+        </button>
+
+        <button
+          onClick={() => { setConfirmCustomer(null); setView('existing') }}
+          className="w-full text-zinc-400 text-sm py-2 hover:text-zinc-600 transition-colors">
+          ← 戻る
+        </button>
       </div>
     </div>
   )
