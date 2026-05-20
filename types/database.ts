@@ -2,6 +2,11 @@ export type QueueStatus   = 'waiting' | 'calling' | 'completed' | 'cancelled'
 export type QueueCategory = 'fitting' | 'pickup' | 'other'
 export type Gender        = 'male' | 'female' | 'other'
 
+export interface WaitThreshold {
+  max_wait: number | null
+  text: string
+}
+
 export interface Group {
   id: string
   name: string
@@ -14,6 +19,8 @@ export interface Store {
   name: string
   pin: string
   is_open: boolean
+  wait_thresholds: WaitThreshold[]
+  notice_threshold: number
   created_at: string
 }
 
@@ -43,39 +50,31 @@ export interface Database {
       }
       stores: {
         Row: Store
-        Insert: { id?: string; group_id?: string | null; name: string; pin?: string; is_open?: boolean; created_at?: string }
-        Update: { id?: string; group_id?: string | null; name?: string; pin?: string; is_open?: boolean; created_at?: string }
+        Insert: {
+          id?: string; group_id?: string | null; name: string; pin?: string
+          is_open?: boolean; wait_thresholds?: WaitThreshold[]; notice_threshold?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string; group_id?: string | null; name?: string; pin?: string
+          is_open?: boolean; wait_thresholds?: WaitThreshold[]; notice_threshold?: number
+          created_at?: string
+        }
         Relationships: []
       }
       queues: {
         Row: Queue
         Insert: {
-          id?: string
-          store_id: string
-          ticket_number: number
-          status?: QueueStatus
-          school_name: string
-          customer_name: string
-          child_name?: string | null
-          category: QueueCategory
-          gender: Gender
-          line_user_id?: string | null
-          details?: Record<string, unknown> | null
-          created_at?: string
+          id?: string; store_id: string; ticket_number: number; status?: QueueStatus
+          school_name: string; customer_name: string; child_name?: string | null
+          category: QueueCategory; gender: Gender; line_user_id?: string | null
+          details?: Record<string, unknown> | null; created_at?: string
         }
         Update: {
-          id?: string
-          store_id?: string
-          ticket_number?: number
-          status?: QueueStatus
-          school_name?: string
-          customer_name?: string
-          child_name?: string | null
-          category?: QueueCategory
-          gender?: Gender
-          line_user_id?: string | null
-          details?: Record<string, unknown> | null
-          created_at?: string
+          id?: string; store_id?: string; ticket_number?: number; status?: QueueStatus
+          school_name?: string; customer_name?: string; child_name?: string | null
+          category?: QueueCategory; gender?: Gender; line_user_id?: string | null
+          details?: Record<string, unknown> | null; created_at?: string
         }
         Relationships: []
       }
@@ -124,4 +123,22 @@ export const GENDER_STYLES: Record<Gender, string> = {
   male:   'bg-blue-100 text-blue-700',
   female: 'bg-pink-100 text-pink-700',
   other:  '',
+}
+
+export const DEFAULT_THRESHOLDS: WaitThreshold[] = [
+  { max_wait: 4,    text: 'まもなくお呼びします。お近くでお待ちください。' },
+  { max_wait: 9,    text: '中程度の待ち時間が発生しています。館内でお待ちください。' },
+  { max_wait: null, text: 'ただいま大変混み合っております。お時間を潰してお待ちいただけます。' },
+]
+
+export function getWaitMessage(waitingAhead: number, thresholds: WaitThreshold[]): string {
+  const sorted = [...thresholds].sort((a, b) => {
+    if (a.max_wait === null) return 1
+    if (b.max_wait === null) return -1
+    return a.max_wait - b.max_wait
+  })
+  for (const t of sorted) {
+    if (t.max_wait === null || waitingAhead <= t.max_wait) return t.text
+  }
+  return ''
 }
