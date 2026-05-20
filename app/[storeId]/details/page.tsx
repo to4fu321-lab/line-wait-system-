@@ -1,9 +1,5 @@
 'use client'
 
-// NOTE: Before using this page, run the following SQL in Supabase:
-//   ALTER TABLE queues ADD COLUMN IF NOT EXISTS details jsonb DEFAULT '{}';
-//   ALTER TABLE queues ADD COLUMN IF NOT EXISTS child_name text;
-
 import { useState, useEffect, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
@@ -14,16 +10,15 @@ function DetailsForm() {
   const searchParams = useSearchParams()
   const ticketId = searchParams.get('ticketId')
 
-  const [postalCode, setPostalCode] = useState('')
-  const [address, setAddress] = useState('')
-  const [phone, setPhone] = useState('')
-  const [notes, setNotes] = useState('')
+  const [height,      setHeight]      = useState('')
+  const [weight,      setWeight]      = useState('')
+  const [parentPhone, setParentPhone] = useState('')
 
-  const [loading, setLoading] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [loading,      setLoading]      = useState(false)
+  const [saved,        setSaved]        = useState(false)
+  const [error,        setError]        = useState<string | null>(null)
   const [ticketNumber, setTicketNumber] = useState<number | null>(null)
-  const [notFound, setNotFound] = useState(false)
+  const [notFound,     setNotFound]     = useState(false)
 
   useEffect(() => {
     if (!ticketId) return
@@ -36,10 +31,9 @@ function DetailsForm() {
         if (err || !data) { setNotFound(true); return }
         setTicketNumber(data.ticket_number)
         const d = (data.details ?? {}) as Record<string, string>
-        if (d.postalCode) setPostalCode(d.postalCode)
-        if (d.address) setAddress(d.address)
-        if (d.phone) setPhone(d.phone)
-        if (d.notes) setNotes(d.notes)
+        if (d.height)      setHeight(d.height)
+        if (d.weight)      setWeight(d.weight)
+        if (d.parentPhone) setParentPhone(d.parentPhone)
       })
   }, [ticketId])
 
@@ -48,16 +42,14 @@ function DetailsForm() {
     setLoading(true)
     setError(null)
 
+    const details: Record<string, string> = {}
+    if (height.trim())      details.height      = height.trim()
+    if (weight.trim())      details.weight      = weight.trim()
+    if (parentPhone.trim()) details.parentPhone = parentPhone.trim()
+
     const { error: updateErr } = await supabase
       .from('queues')
-      .update({
-        details: {
-          postalCode: postalCode.trim(),
-          address: address.trim(),
-          phone: phone.trim(),
-          notes: notes.trim(),
-        },
-      })
+      .update({ details })
       .eq('id', ticketId)
 
     setLoading(false)
@@ -82,14 +74,14 @@ function DetailsForm() {
 
   if (saved) {
     return (
-      <div className="min-h-screen bg-green-50 flex flex-col items-center justify-center px-6">
+      <div className="min-h-screen bg-emerald-50 flex flex-col items-center justify-center px-6">
         <div className="text-center animate-slide-up">
-          <CheckCircle2 size={96} className="text-green-500 mx-auto mb-6" />
-          <h2 className="text-3xl font-black text-green-800 mb-3">保存しました</h2>
-          <p className="text-lg text-green-600 mb-8">詳細情報を受け付けました</p>
+          <CheckCircle2 size={96} className="text-emerald-500 mx-auto mb-6" />
+          <h2 className="text-3xl font-black text-emerald-800 mb-3">保存しました</h2>
+          <p className="text-lg text-emerald-600 mb-8">詳細情報を受け付けました</p>
           <a
             href={`/${storeId}`}
-            className="bg-green-500 text-white text-lg font-bold py-4 px-8 rounded-2xl shadow-lg inline-block active:scale-95 transition-transform"
+            className="bg-emerald-500 text-white text-lg font-bold py-4 px-8 rounded-2xl shadow-lg inline-block active:scale-95 transition-transform"
           >
             待ち状況に戻る
           </a>
@@ -99,73 +91,54 @@ function DetailsForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-600 to-blue-700 flex flex-col">
-      <div className="px-6 pt-10 pb-8 text-center text-white">
-        <div className="text-4xl mb-3">📋</div>
+    <div className="min-h-screen bg-gradient-to-b from-orange-500 to-amber-500 flex flex-col">
+      <div className="px-6 pt-10 pb-6 text-center text-white">
+        <div className="text-4xl mb-2">📏</div>
         <h1 className="text-2xl font-black tracking-tight">詳細情報の入力</h1>
         {ticketNumber !== null && (
-          <p className="text-blue-100 mt-2">整理番号 {String(ticketNumber).padStart(3, '0')}</p>
+          <p className="text-orange-100 mt-2 text-lg font-bold">整理番号 {String(ticketNumber).padStart(3, '0')}</p>
         )}
-        <p className="text-blue-200 mt-1 text-sm">任意項目です。入力しなくても受付は完了しています。</p>
+        <p className="text-orange-100 mt-1 text-sm">任意項目です。入力しなくても受付は完了しています。</p>
       </div>
 
-      <div className="flex-1 bg-white rounded-t-3xl px-6 pt-8 pb-10">
-        <div className="max-w-md mx-auto space-y-6">
+      <div className="flex-1 bg-white rounded-t-3xl px-5 pt-6 pb-10">
+        <div className="max-w-md mx-auto space-y-5">
 
-          <div>
-            <label className="block text-base font-bold text-gray-700 mb-2">
-              郵便番号
-            </label>
-            <input
-              type="text"
-              inputMode="numeric"
-              className="w-full text-lg border-2 border-gray-200 rounded-2xl px-5 py-4 focus:border-blue-500 focus:outline-none transition-colors"
-              placeholder="例：123-4567"
-              value={postalCode}
-              onChange={e => setPostalCode(e.target.value)}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">お子様の身長（cm）</label>
+              <input
+                type="number"
+                inputMode="numeric"
+                className="w-full text-lg border-2 border-gray-200 rounded-2xl px-4 py-4 focus:border-orange-400 focus:outline-none transition-colors"
+                placeholder="例：155"
+                value={height}
+                onChange={e => setHeight(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">お子様の体重（kg）</label>
+              <input
+                type="number"
+                inputMode="numeric"
+                className="w-full text-lg border-2 border-gray-200 rounded-2xl px-4 py-4 focus:border-orange-400 focus:outline-none transition-colors"
+                placeholder="例：50"
+                value={weight}
+                onChange={e => setWeight(e.target.value)}
+              />
+            </div>
           </div>
 
           <div>
-            <label className="block text-base font-bold text-gray-700 mb-2">
-              住所
-            </label>
-            <input
-              type="text"
-              inputMode="text"
-              autoComplete="street-address"
-              className="w-full text-lg border-2 border-gray-200 rounded-2xl px-5 py-4 focus:border-blue-500 focus:outline-none transition-colors"
-              placeholder="例：東京都渋谷区〇〇1-2-3"
-              value={address}
-              onChange={e => setAddress(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label className="block text-base font-bold text-gray-700 mb-2">
-              電話番号
-            </label>
+            <label className="block text-sm font-bold text-gray-700 mb-2">保護者の電話番号</label>
             <input
               type="tel"
               inputMode="tel"
               autoComplete="tel"
-              className="w-full text-lg border-2 border-gray-200 rounded-2xl px-5 py-4 focus:border-blue-500 focus:outline-none transition-colors"
+              className="w-full text-lg border-2 border-gray-200 rounded-2xl px-5 py-4 focus:border-orange-400 focus:outline-none transition-colors"
               placeholder="例：090-1234-5678"
-              value={phone}
-              onChange={e => setPhone(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label className="block text-base font-bold text-gray-700 mb-2">
-              備考
-            </label>
-            <textarea
-              className="w-full text-lg border-2 border-gray-200 rounded-2xl px-5 py-4 focus:border-blue-500 focus:outline-none transition-colors resize-none"
-              placeholder="ご要望・メモなど"
-              rows={4}
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
+              value={parentPhone}
+              onChange={e => setParentPhone(e.target.value)}
             />
           </div>
 
@@ -180,21 +153,21 @@ function DetailsForm() {
             type="button"
             onClick={handleSave}
             disabled={loading}
-            className="w-full bg-blue-600 text-white text-xl font-black py-5 rounded-2xl shadow-xl active:scale-95 transition-all disabled:opacity-60 flex items-center justify-center gap-3"
+            className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xl font-black py-5 rounded-2xl shadow-xl active:scale-95 transition-all disabled:opacity-60 flex items-center justify-center gap-3"
           >
             {loading ? (
-              <>
-                <Loader2 size={22} className="animate-spin" />
-                保存中...
-              </>
+              <><Loader2 size={22} className="animate-spin" />保存中...</>
             ) : (
               '保存する'
             )}
           </button>
 
-          <p className="text-center text-gray-400 text-sm">
-            すべての項目は任意です
-          </p>
+          <a href={`/${storeId}`}
+            className="w-full py-4 rounded-2xl border-2 border-gray-200 bg-gray-50 text-gray-500 font-bold text-base flex items-center justify-center gap-2 active:scale-95 transition-all">
+            ⏭ 入力せず待ち状況に戻る
+          </a>
+
+          <p className="text-center text-gray-400 text-sm">すべての項目は任意です</p>
         </div>
       </div>
     </div>
@@ -204,7 +177,7 @@ function DetailsForm() {
 export default function DetailsPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-blue-600 flex items-center justify-center">
+      <div className="min-h-screen bg-orange-500 flex items-center justify-center">
         <Loader2 size={48} className="animate-spin text-white" />
       </div>
     }>

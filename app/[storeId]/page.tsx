@@ -86,17 +86,21 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp, 
   const [customSchool,    setCustomSchool]    = useState('')
   const [customerName,    setCustomerName]    = useState(lineProfile?.displayName ?? '')
   const [childName,       setChildName]       = useState('')
-  const [gender,          setGender]          = useState<Gender>('other')
-  const [category,        setCategory]        = useState<QueueCategory>('fitting')
+  const [gender,          setGender]          = useState<Gender | ''>('')
+  const [category,        setCategory]        = useState<QueueCategory | ''>('')
   const [isRemote,        setIsRemote]        = useState(false)
   const [loading,         setLoading]         = useState(false)
   const [error,           setError]           = useState<string | null>(null)
   const [showCustomInput, setShowCustomInput] = useState(false)
   const [waitingCount,    setWaitingCount]    = useState<number | null>(null)
+  // ユーザーが手動で名前を編集したかを追跡（編集後はLINE名で上書きしない）
+  const nameEditedRef = useRef(false)
 
   useEffect(() => {
-    if (lineProfile?.displayName && !customerName) setCustomerName(lineProfile.displayName)
-  }, [lineProfile, customerName])
+    if (!nameEditedRef.current && lineProfile?.displayName) {
+      setCustomerName(lineProfile.displayName)
+    }
+  }, [lineProfile?.displayName])
 
   useEffect(() => {
     supabase.from('queues')
@@ -117,7 +121,9 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp, 
 
   const handleSubmit = async () => {
     if (!finalSchoolName.trim()) { setError('学校名を選択または入力してください'); return }
-    if (!customerName.trim())    { setError('氏名を入力してください'); return }
+    if (!customerName.trim())    { setError('氏名（保護者様）を入力してください'); return }
+    if (!gender)                 { setError('性別を選択してください'); return }
+    if (!category)               { setError('ご用件を選択してください'); return }
     setLoading(true); setError(null)
     try {
       const { data: storeData } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
@@ -130,7 +136,7 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp, 
       const { data, error: insertErr } = await supabase.from('queues').insert({
         store_id: storeId, ticket_number: nextNum as number, status: 'waiting',
         school_name: finalSchoolName.trim(), customer_name: customerName.trim(),
-        child_name: childName.trim() || null, category, gender,
+        child_name: childName.trim() || null, category: category as QueueCategory, gender: gender as Gender,
         line_user_id: lineProfile?.userId ?? null,
         is_remote: isRemote, checked_in: !isRemote,
       }).select().single()
@@ -208,7 +214,7 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp, 
                 className="w-full text-sm border-2 border-gray-100 bg-gray-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all"
                 placeholder="例：山田 太郎"
                 value={customerName}
-                onChange={e => { setCustomerName(e.target.value); setError(null) }} />
+                onChange={e => { nameEditedRef.current = true; setCustomerName(e.target.value); setError(null) }} />
             </FormField>
             <FormField label="お子様のお名前">
               <input type="text" inputMode="text" autoComplete="off"
@@ -309,22 +315,22 @@ function DetailsView({ ticket, storeId, onComplete, onSkip }: {
   const paddedNum = String(ticket.ticket_number).padStart(3, '0')
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-600 to-teal-700 flex flex-col">
-      <div className="px-5 pt-6 pb-4 text-white">
-        <div className="flex items-center gap-3">
-          <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-white/30">
-            <span className="text-2xl font-black">{paddedNum}</span>
-          </div>
-          <div>
-            <p className="text-emerald-100 text-xs font-bold">受付完了！</p>
-            <h1 className="text-xl font-black">詳細情報の入力</h1>
-            <p className="text-emerald-200 text-xs">入力するとスタッフがスムーズにご案内できます</p>
-          </div>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-emerald-500 to-teal-600 flex flex-col">
+      {/* 受付完了バナー */}
+      <div className="px-5 pt-8 pb-5 text-center text-white">
+        <div className="text-5xl mb-2">✅</div>
+        <h1 className="text-3xl font-black tracking-tight">受付完了！</h1>
+        <p className="text-emerald-100 text-base font-bold mt-1">整理番号 <span className="text-white text-2xl font-black">{paddedNum}</span> で並び始めました</p>
+        <p className="text-emerald-200 text-xs mt-2">受付はすでに完了しています。<br />以下の入力はしなくてもOKです。</p>
       </div>
 
-      <div className="flex-1 bg-white rounded-t-3xl px-4 pt-5 pb-8 shadow-2xl">
+      <div className="flex-1 bg-white rounded-t-3xl px-4 pt-5 pb-6 shadow-2xl">
         <div className="max-w-md mx-auto space-y-4">
+
+          <div className="bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-3 text-center">
+            <p className="text-emerald-700 text-sm font-bold">📏 スタッフがスムーズにご案内するために</p>
+            <p className="text-emerald-600 text-xs mt-0.5">身長・体重・電話番号をご入力ください（任意）</p>
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <FormField label="お子様の身長（cm）">
@@ -356,10 +362,12 @@ function DetailsView({ ticket, storeId, onComplete, onSkip }: {
             {loading ? <><Loader2 size={18} className="animate-spin" />保存中...</> : '入力して順番待ちへ →'}
           </button>
 
+          {/* スキップを目立たせる */}
           <button type="button" onClick={onSkip}
-            className="w-full py-3 text-gray-400 text-sm font-medium">
-            スキップして順番待ちへ
+            className="w-full py-3.5 rounded-2xl border-2 border-gray-200 bg-gray-50 text-gray-600 text-base font-bold active:scale-95 transition-all flex items-center justify-center gap-2">
+            <span>⏭</span> 後で入力する（今は順番待ちへ）
           </button>
+          <p className="text-center text-gray-400 text-xs">※ 入力しなくても受付は完了しています</p>
         </div>
       </div>
     </div>
@@ -491,15 +499,14 @@ function WaitingView({ ticket, waitingAhead, waitThresholds, onStatusChange, onC
           </div>
         )}
 
-        {/* 現地受付 — 詳細情報入力 */}
-        {!ticket.is_remote && (
+        {/* 詳細情報入力ボタン（現地・遠隔チェックイン済み共通） */}
+        {(!ticket.is_remote || ticket.checked_in) && (
           <div className="w-full mt-4 animate-fade-in">
             <a href={`/${storeId}/details?ticketId=${ticket.id}`}
               className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white text-lg font-black py-5 rounded-2xl shadow-2xl shadow-orange-900/50 flex items-center justify-center gap-3 active:scale-95 transition-all">
-              <span>📋</span><span>住所・電話番号を入力する</span>
-              <span className="bg-white text-orange-500 text-xs font-black px-2 py-1 rounded-full">必須</span>
+              <span>📏</span><span>身長・体重・電話番号を入力する</span>
             </a>
-            <p className="text-center text-orange-200/80 text-sm font-medium mt-2">ご購入に必要な情報です。必ずご入力ください。</p>
+            <p className="text-center text-orange-200/80 text-sm font-medium mt-2">入力するとスタッフがスムーズにご案内できます（任意）</p>
           </div>
         )}
 
