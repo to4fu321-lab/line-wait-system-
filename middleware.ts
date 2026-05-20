@@ -7,35 +7,39 @@ export function middleware(request: NextRequest) {
   const isLine = /Line\//i.test(ua)
   const path = request.nextUrl.pathname
 
+  // ── ① LINEブラウザで / にアクセス ─────────────────────
+  // liff.state にサブパスがあればそちらへ、なければ既定店舗のホームへ
   if (path === '/' && isLine) {
-    // liff.state に storeId が含まれていればそちらへリダイレクト（多店舗対応）
-    // サブパス・クエリパラメータも含めてそのまま転送する
     const liffState = request.nextUrl.searchParams.get('liff.state')
     if (liffState) {
       const decoded = decodeURIComponent(liffState)
       const match = decoded.match(/^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/)
       if (match) {
-        // /{storeId}/crm-register や /{storeId}?mode=crm_register も正しく転送
         return NextResponse.redirect(new URL(decoded, request.url))
       }
     }
-    return NextResponse.redirect(new URL(`/${STORE_ID}`, request.url))
+    return NextResponse.redirect(new URL(`/${STORE_ID}/home`, request.url))
   }
 
-  // 店舗ページをLINE以外のブラウザで開いた → 案内ページへ（元パスを渡す）
+  // ── ② 非LINEブラウザで / にアクセス ────────────────────
+  // LIFF URLを直接貼った場合 (?liff.state=...) は案内ページへ
+  // それ以外はサービス紹介LPをそのまま表示
+  if (path === '/' && !isLine) {
+    const liffState = request.nextUrl.searchParams.get('liff.state')
+    if (liffState) {
+      const dest = new URL('/open-in-line', request.url)
+      const decoded = decodeURIComponent(liffState)
+      const match = decoded.match(/^(\/[0-9a-f-]{36}(?:\/[a-z-]+)?)/)
+      if (match) dest.searchParams.set('to', match[1])
+      return NextResponse.redirect(dest)
+    }
+    return NextResponse.next()
+  }
+
+  // ── ③ 店舗ページを非LINEブラウザで開いた → 案内ページへ ─
   if (!isLine) {
     const dest = new URL('/open-in-line', request.url)
-    if (path !== '/') {
-      dest.searchParams.set('to', path)
-    } else {
-      // LIFFサーバー経由のとき /?liff.state=/{storeId}/crm-register の形で来る
-      const liffState = request.nextUrl.searchParams.get('liff.state')
-      if (liffState) {
-        const decoded = decodeURIComponent(liffState)
-        const match = decoded.match(/^(\/[0-9a-f-]{36}(?:\/[a-z-]+)?)/)
-        if (match) dest.searchParams.set('to', match[1])
-      }
-    }
+    dest.searchParams.set('to', path)
     return NextResponse.redirect(dest)
   }
 
@@ -43,5 +47,11 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/', '/:storeId([0-9a-f-]{36})', '/:storeId([0-9a-f-]{36})/crm-register'],
+  matcher: [
+    '/',
+    '/:storeId([0-9a-f-]{36})',
+    '/:storeId([0-9a-f-]{36})/home',
+    '/:storeId([0-9a-f-]{36})/onboarding',
+    '/:storeId([0-9a-f-]{36})/crm-register',
+  ],
 }
