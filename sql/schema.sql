@@ -24,11 +24,15 @@ CREATE TABLE groups (
 
 -- 店舗
 CREATE TABLE stores (
-  id         uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  group_id   uuid        REFERENCES groups(id) ON DELETE SET NULL,
-  name       text        NOT NULL,
-  pin        text        NOT NULL DEFAULT '1234',
-  created_at timestamptz NOT NULL DEFAULT now()
+  id               uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  group_id         uuid        REFERENCES groups(id) ON DELETE SET NULL,
+  name             text        NOT NULL,
+  pin              text        NOT NULL DEFAULT '1234',
+  is_open          boolean     NOT NULL DEFAULT false,
+  wait_thresholds  jsonb       NOT NULL DEFAULT '[]'::jsonb,
+  notice_threshold integer     NOT NULL DEFAULT 3,
+  allow_remote     boolean     NOT NULL DEFAULT false,
+  created_at       timestamptz NOT NULL DEFAULT now()
 );
 
 -- 順番待ち
@@ -39,8 +43,13 @@ CREATE TABLE queues (
   status          queue_status   NOT NULL DEFAULT 'waiting',
   school_name     text           NOT NULL,
   customer_name   text           NOT NULL,
+  child_name      text,
   category        queue_category NOT NULL,
+  gender          text           NOT NULL DEFAULT 'other',
   line_user_id    text,
+  details         jsonb,
+  is_remote       boolean        NOT NULL DEFAULT false,
+  checked_in      boolean        NOT NULL DEFAULT false,
   created_at      timestamptz    NOT NULL DEFAULT now()
 );
 
@@ -82,12 +91,4 @@ INSERT INTO stores (id, group_id, name, pin) VALUES
 -- お客様受付URL例:    /<store_id>
 -- スタッフ管理URL例:  /<store_id>/admin
 
--- ============================================================
--- マイグレーション: 遠隔チェックイン機能（⑤追加時）
--- ============================================================
-ALTER TABLE queues ADD COLUMN IF NOT EXISTS is_remote  boolean DEFAULT false;
-ALTER TABLE queues ADD COLUMN IF NOT EXISTS checked_in boolean DEFAULT false;
-ALTER TABLE stores ADD COLUMN IF NOT EXISTS allow_remote     boolean DEFAULT false;
--- wait_thresholds / notice_threshold は以前のマイグレーションで追加済み
--- ALTER TABLE stores ADD COLUMN IF NOT EXISTS wait_thresholds   jsonb   DEFAULT '[]'::jsonb;
--- ALTER TABLE stores ADD COLUMN IF NOT EXISTS notice_threshold  integer DEFAULT 3;
+-- ※ 既存DBへのカラム追加は sql/migration-add-columns.sql を使用してください

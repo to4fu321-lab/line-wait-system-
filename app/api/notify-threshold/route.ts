@@ -24,21 +24,33 @@ export async function POST(req: NextRequest) {
   const supabase = createClient<Database>(supabaseUrl, supabaseKey)
 
   // 1. stores から notice_threshold と店舗名を取得
+  //    notice_threshold カラムが未作成でも name だけでフォールバック動作する
+  let noticeThreshold = 3
+  let storeName = ''
+
   const { data: storeData, error: storeErr } = await supabase
     .from('stores')
-    .select('notice_threshold, name')
+    .select('name, notice_threshold')
     .eq('id', storeId)
     .single()
 
-  if (storeErr || !storeData) {
-    console.error('[notify-threshold] store fetch error:', storeErr)
+  if (storeErr) {
+    // notice_threshold カラムが存在しない可能性 → name だけ再取得してデフォルト値で続行
+    console.warn('[notify-threshold] full store fetch failed, retrying name only:', storeErr.message)
+    const { data: basicData } = await supabase
+      .from('stores').select('name').eq('id', storeId).single()
+    if (!basicData) {
+      return NextResponse.json({ ok: false, error: 'store not found' }, { status: 404 })
+    }
+    storeName = basicData.name ?? ''
+  } else if (storeData) {
+    noticeThreshold = storeData.notice_threshold ?? 3
+    storeName       = storeData.name ?? ''
+  } else {
     return NextResponse.json({ ok: false, error: 'store not found' }, { status: 404 })
   }
 
-  const noticeThreshold = storeData.notice_threshold ?? 3
-  const storeName       = storeData.name ?? ''
-
-  // 2. 当日の waiting + checked_in 済み遠隔 を ticket_number 昇順で取得
+  // 2. 当日の waiting チケットを ticket_number 昇順で取得
   const { data: waitingTickets, error: queueErr } = await supabase
     .from('queues')
     .select('*')
@@ -60,7 +72,7 @@ export async function POST(req: NextRequest) {
   const nextTicket = waitingTickets?.[targetIdx]
 
   if (!nextTicket) {
-    console.log(`[notify-threshold] waiting=${waitingCount} < threshold=${noticeThreshold} → no ticket at position ${noticeThreshold}`)
+    console.log(`[notify-threshold] waiting=${waitingCount} < threshold=${noticeThreshold} → skip`)
     return NextResponse.json({ ok: true, skipped: true, reason: 'no ticket at threshold position' })
   }
 

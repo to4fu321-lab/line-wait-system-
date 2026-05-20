@@ -560,15 +560,14 @@ export default function CustomerPage() {
       const savedDate = localStorage.getItem(dateKey)
       const hasSavedTicket = savedId && savedDate === new Date().toDateString()
 
-      if (!hasSavedTicket) {
-        const { data: sd } = await supabase.from('stores')
-          .select('is_open, name, wait_thresholds, allow_remote').eq('id', storeId).single()
-        if (sd?.name)            setStoreName(sd.name)
-        if (Array.isArray(sd?.wait_thresholds) && sd.wait_thresholds.length > 0)
-          setWaitThresholds(sd.wait_thresholds as WaitThreshold[])
-        if (sd?.allow_remote != null) setAllowRemote(sd.allow_remote)
-        if (sd && !sd.is_open) { setView('closed'); return }
-      }
+      // 受付済みでも常に最新設定を取得（wait_thresholds の変更を反映させるため）
+      const { data: sd } = await supabase.from('stores')
+        .select('is_open, name, wait_thresholds, allow_remote').eq('id', storeId).single()
+      if (sd?.name)            setStoreName(sd.name)
+      if (Array.isArray(sd?.wait_thresholds) && sd.wait_thresholds.length > 0)
+        setWaitThresholds(sd.wait_thresholds as WaitThreshold[])
+      if (sd?.allow_remote != null) setAllowRemote(sd.allow_remote)
+      if (!hasSavedTicket && sd && !sd.is_open) { setView('closed'); return }
 
       const liff   = await initLiff()
       const inLine = isInLineApp()
