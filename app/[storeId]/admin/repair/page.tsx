@@ -287,7 +287,7 @@ function NewCustomerQrCard({ storeId, onCancel }: { storeId: string; onCancel: (
   const [error,       setError]       = useState<string | null>(null)
   const [saved,       setSaved]       = useState(false)
 
-  const registerUrl = `${LIFF_BASE}/${storeId}/crm-register`
+  const registerUrl = `${LIFF_BASE}/${storeId}?mode=crm_register`
   const qrImageUrl  = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(registerUrl)}&margin=15`
 
   const handleManualSave = async () => {
