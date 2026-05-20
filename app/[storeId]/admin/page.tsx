@@ -132,7 +132,7 @@ function WaitingCard({ ticket, onAction, onCheckIn }: {
   const [open, setOpen]       = useState(false)
   const waitMin   = Math.floor((Date.now() - new Date(ticket.created_at).getTime()) / 60000)
   const details   = (ticket.details ?? {}) as Record<string, string>
-  const hasDetail = !!(details.address || details.phone || details.postalCode || details.notes)
+  const hasDetail = !!(details.height || details.weight || details.parentPhone)
   const isRemoteUnchecked = ticket.is_remote && !ticket.checked_in
 
   const act = async (s: QueueStatus) => { setLoading(s); await onAction(ticket.id, s); setLoading(null) }
@@ -194,10 +194,9 @@ function WaitingCard({ ticket, onAction, onCheckIn }: {
 
       {open && hasDetail && (
         <div className="mt-3 pt-3 border-t border-white/5 space-y-1.5">
-          {details.postalCode && <DetailRow label="〒" value={details.postalCode} />}
-          {details.address    && <DetailRow label="住所" value={details.address} />}
-          {details.phone      && <DetailRow label="TEL" value={details.phone} />}
-          {details.notes      && <DetailRow label="備考" value={details.notes} />}
+          {details.height      && <DetailRow label="身長" value={`${details.height}cm`} />}
+          {details.weight      && <DetailRow label="体重" value={`${details.weight}kg`} />}
+          {details.parentPhone && <DetailRow label="保護者TEL" value={details.parentPhone} />}
         </div>
       )}
 
@@ -238,7 +237,7 @@ function CallingCard({ ticket, onAction }: { ticket: Queue; onAction: (id: strin
   const [open, setOpen]       = useState(false)
   const waitMin   = Math.floor((Date.now() - new Date(ticket.created_at).getTime()) / 60000)
   const details   = (ticket.details ?? {}) as Record<string, string>
-  const hasDetail = !!(details.address || details.phone || details.postalCode || details.notes)
+  const hasDetail = !!(details.height || details.weight || details.parentPhone)
 
   const act = async (s: QueueStatus) => { setLoading(s); await onAction(ticket.id, s); setLoading(null) }
   const recall = async () => {
@@ -276,10 +275,9 @@ function CallingCard({ ticket, onAction }: { ticket: Queue; onAction: (id: strin
 
       {open && hasDetail && (
         <div className="mt-3 pt-3 border-t border-white/5 space-y-1.5">
-          {details.postalCode && <DetailRow label="〒" value={details.postalCode} />}
-          {details.address    && <DetailRow label="住所" value={details.address} />}
-          {details.phone      && <DetailRow label="TEL" value={details.phone} />}
-          {details.notes      && <DetailRow label="備考" value={details.notes} />}
+          {details.height      && <DetailRow label="身長" value={`${details.height}cm`} />}
+          {details.weight      && <DetailRow label="体重" value={`${details.weight}kg`} />}
+          {details.parentPhone && <DetailRow label="保護者TEL" value={details.parentPhone} />}
         </div>
       )}
 
@@ -308,7 +306,7 @@ function HistoryCard({ ticket, onAction }: { ticket: Queue; onAction: (id: strin
   const [loading, setLoading] = useState<string | null>(null)
   const [open, setOpen]       = useState(false)
   const details   = (ticket.details ?? {}) as Record<string, string>
-  const hasDetail = !!(details.address || details.phone || details.postalCode || details.notes)
+  const hasDetail = !!(details.height || details.weight || details.parentPhone)
   const isDone    = ticket.status === 'completed'
   const act = async (s: QueueStatus) => { setLoading(s); await onAction(ticket.id, s); setLoading(null) }
 
@@ -347,10 +345,9 @@ function HistoryCard({ ticket, onAction }: { ticket: Queue; onAction: (id: strin
       </div>
       {open && hasDetail && (
         <div className="mt-2 pt-2 border-t border-white/5 space-y-1">
-          {details.postalCode && <DetailRow label="〒" value={details.postalCode} />}
-          {details.address    && <DetailRow label="住所" value={details.address} />}
-          {details.phone      && <DetailRow label="TEL" value={details.phone} />}
-          {details.notes      && <DetailRow label="備考" value={details.notes} />}
+          {details.height      && <DetailRow label="身長" value={`${details.height}cm`} />}
+          {details.weight      && <DetailRow label="体重" value={`${details.weight}kg`} />}
+          {details.parentPhone && <DetailRow label="保護者TEL" value={details.parentPhone} />}
         </div>
       )}
     </div>
@@ -500,15 +497,11 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
     fetchStoreStatus(); fetchQueues()
     const channel = supabase.channel(`admin-${store.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'queues', filter: `store_id=eq.${store.id}` },
-        payload => {
-          if (payload.eventType === 'INSERT')
-            setQueues(prev => [...prev, payload.new as Queue].sort((a,b) => a.ticket_number - b.ticket_number))
-          else if (payload.eventType === 'UPDATE')
-            setQueues(prev => prev.map(q => q.id === payload.new.id ? payload.new as Queue : q))
-          fetchQueues()
-        })
+        () => fetchQueues())
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    // Realtime が動かない環境向けのポーリングフォールバック
+    const pollId = setInterval(() => fetchQueues(), 10000)
+    return () => { supabase.removeChannel(channel); clearInterval(pollId) }
   }, [store.id, fetchQueues, fetchStoreStatus])
 
   const handleToggleOpen = async () => {
@@ -518,9 +511,9 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
   }
 
   const handleAction = async (id: string, status: QueueStatus) => {
-    setQueues(prev => prev.map(q => q.id === id ? { ...q, status } : q))
     const { error } = await supabase.from('queues').update({ status }).eq('id', id)
-    if (error) { fetchQueues(); showToast('err', '更新失敗: ' + error.message); return }
+    if (error) { showToast('err', '更新失敗: ' + error.message); return }
+    setQueues(prev => prev.map(q => q.id === id ? { ...q, status } : q))
     const labels: Record<QueueStatus, string> = { calling:'呼出', completed:'完了', cancelled:'不在', waiting:'待機に戻しました' }
     showToast('ok', labels[status])
     if (status === 'calling') {

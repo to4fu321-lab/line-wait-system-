@@ -86,16 +86,29 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp, 
   const [customSchool,    setCustomSchool]    = useState('')
   const [customerName,    setCustomerName]    = useState(lineProfile?.displayName ?? '')
   const [childName,       setChildName]       = useState('')
+  const [height,          setHeight]          = useState('')
+  const [weight,          setWeight]          = useState('')
+  const [parentPhone,     setParentPhone]     = useState('')
   const [gender,          setGender]          = useState<Gender>('other')
   const [category,        setCategory]        = useState<QueueCategory>('fitting')
   const [isRemote,        setIsRemote]        = useState(false)
   const [loading,         setLoading]         = useState(false)
   const [error,           setError]           = useState<string | null>(null)
   const [showCustomInput, setShowCustomInput] = useState(false)
+  const [waitingCount,    setWaitingCount]    = useState<number | null>(null)
 
   useEffect(() => {
     if (lineProfile?.displayName && !customerName) setCustomerName(lineProfile.displayName)
   }, [lineProfile, customerName])
+
+  useEffect(() => {
+    supabase.from('queues')
+      .select('*', { count: 'exact', head: true })
+      .eq('store_id', storeId)
+      .in('status', ['waiting', 'calling'])
+      .gte('created_at', getTodayStart())
+      .then(({ count }) => setWaitingCount(count ?? 0))
+  }, [storeId])
 
   const handleSchoolChange = (val: string) => {
     setError(null)
@@ -122,7 +135,12 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp, 
         school_name: finalSchoolName.trim(), customer_name: customerName.trim(),
         child_name: childName.trim() || null, category, gender,
         line_user_id: lineProfile?.userId ?? null,
-        is_remote: isRemote, checked_in: !isRemote, // 現地受付はチェックイン済み扱い
+        is_remote: isRemote, checked_in: !isRemote,
+        details: (height || weight || parentPhone) ? {
+          ...(height      ? { height }      : {}),
+          ...(weight      ? { weight }      : {}),
+          ...(parentPhone ? { parentPhone } : {}),
+        } : null,
       }).select().single()
       if (insertErr) throw insertErr
       if (!data) throw new Error('保存失敗')
@@ -158,6 +176,19 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp, 
 
       <div className="flex-1 bg-white rounded-t-3xl px-5 pt-6 pb-10 animate-slide-up shadow-2xl">
         <div className="max-w-md mx-auto space-y-5">
+
+          {/* 現在の待ち人数 */}
+          {waitingCount !== null && (
+            <div className="flex items-center justify-between bg-indigo-50 border border-indigo-100 rounded-2xl px-5 py-3.5">
+              <div>
+                <p className="text-xs font-bold text-indigo-400 uppercase tracking-wide">現在の待ち人数</p>
+                <p className="text-3xl font-black text-indigo-700 leading-none mt-0.5">
+                  {waitingCount}<span className="text-sm font-bold text-indigo-500 ml-1">組</span>
+                </p>
+              </div>
+              <div className="text-4xl">👥</div>
+            </div>
+          )}
 
           <FormField label="学校名" required>
             <div className="relative">
@@ -195,6 +226,31 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp, 
               placeholder="例：山田 花子"
               value={childName}
               onChange={e => setChildName(e.target.value)} />
+          </FormField>
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="身長（cm）">
+              <input type="number" inputMode="numeric"
+                className="w-full text-base border-2 border-gray-100 bg-gray-50 rounded-xl px-4 py-3.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all"
+                placeholder="例：155"
+                value={height}
+                onChange={e => setHeight(e.target.value)} />
+            </FormField>
+            <FormField label="体重（kg）">
+              <input type="number" inputMode="numeric"
+                className="w-full text-base border-2 border-gray-100 bg-gray-50 rounded-xl px-4 py-3.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all"
+                placeholder="例：50"
+                value={weight}
+                onChange={e => setWeight(e.target.value)} />
+            </FormField>
+          </div>
+
+          <FormField label="保護者の電話番号">
+            <input type="tel" inputMode="tel" autoComplete="tel"
+              className="w-full text-base border-2 border-gray-100 bg-gray-50 rounded-xl px-4 py-3.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all"
+              placeholder="例：090-1234-5678"
+              value={parentPhone}
+              onChange={e => setParentPhone(e.target.value)} />
           </FormField>
 
           <FormField label="性別" required>
