@@ -4,7 +4,8 @@ import crypto from 'crypto'
 const TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN ||
   'VCdCDq+VcStiwPWbk3nzK59dV1MylArXtvMETswJlGy3IwikR3WNJGk1br86YnzKGqBpHp0kIQbRDaDSPzMphck0TKHwy6MDHW4U2UzbZaYU0Uq+QxhI2pp90x13qHxd8PdgqIIBoq2xq8hFaPXAOQdB04t89/1O/w1cDnyilFU='
 const SECRET = process.env.LINE_CHANNEL_SECRET || ''
-const LIFF_URL = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || '2010126882-aUahQStD'}`
+const LIFF_BASE = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || '2010126882-aUahQStD'}`
+const STORE_ID = process.env.STORE_ID || '00000000-0000-0000-0000-000000000010'
 
 function verifySignature(body: string, sig: string) {
   if (!SECRET) return true
@@ -27,13 +28,15 @@ export async function POST(req: NextRequest) {
           to: event.source.userId,
           messages: [{
             type: 'template',
-            altText: '順番待ち受付はこちらから',
+            altText: 'ご来店ありがとうございます',
             template: {
               type: 'buttons',
-              thumbnailImageUrl: undefined,
               title: 'ご来店ありがとうございます',
-              text: '下のボタンから順番待ちの受付ができます。',
-              actions: [{ type: 'uri', label: '受付する', uri: LIFF_URL }],
+              text: '下のボタンからお手続きをお選びください。',
+              actions: [
+                { type: 'uri', label: '📋 順番待ち受付', uri: `${LIFF_BASE}/${STORE_ID}` },
+                { type: 'uri', label: '✂️ お直し登録', uri: `${LIFF_BASE}/${STORE_ID}/crm-register` },
+              ],
             },
           }],
         }),

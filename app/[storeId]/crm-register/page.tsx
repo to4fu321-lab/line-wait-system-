@@ -127,6 +127,10 @@ export default function CrmRegisterPage() {
           className="w-full bg-[#06C755] text-white text-lg font-black py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-green-200">
           <MessageCircle size={20} />① 友達追加する
         </button>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-amber-700 text-xs leading-relaxed">
+          ✂️ 友達追加後にLINEが届いたら<br />
+          <span className="font-bold">「お直し登録」ボタン</span>を押してください
+        </div>
         <button
           onClick={() => window.location.reload()}
           className="w-full bg-zinc-100 text-zinc-700 text-base font-bold py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform">
