@@ -19,7 +19,7 @@ const SCHOOLS = [
   'その他（直接入力）',
 ]
 
-type PageView = 'loading' | 'add_friend' | 'register' | 'waiting' | 'calling' | 'completed' | 'cancelled' | 'self_cancelled' | 'closed'
+type PageView = 'loading' | 'add_friend' | 'register' | 'details' | 'waiting' | 'calling' | 'completed' | 'cancelled' | 'self_cancelled' | 'closed'
 
 const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
 
@@ -86,9 +86,6 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp, 
   const [customSchool,    setCustomSchool]    = useState('')
   const [customerName,    setCustomerName]    = useState(lineProfile?.displayName ?? '')
   const [childName,       setChildName]       = useState('')
-  const [height,          setHeight]          = useState('')
-  const [weight,          setWeight]          = useState('')
-  const [parentPhone,     setParentPhone]     = useState('')
   const [gender,          setGender]          = useState<Gender>('other')
   const [category,        setCategory]        = useState<QueueCategory>('fitting')
   const [isRemote,        setIsRemote]        = useState(false)
@@ -136,11 +133,6 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp, 
         child_name: childName.trim() || null, category, gender,
         line_user_id: lineProfile?.userId ?? null,
         is_remote: isRemote, checked_in: !isRemote,
-        details: (height || weight || parentPhone) ? {
-          ...(height      ? { height }      : {}),
-          ...(weight      ? { weight }      : {}),
-          ...(parentPhone ? { parentPhone } : {}),
-        } : null,
       }).select().single()
       if (insertErr) throw insertErr
       if (!data) throw new Error('保存失敗')
@@ -160,51 +152,49 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp, 
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-700 via-indigo-700 to-blue-700 flex flex-col">
-      <div className="px-6 pt-8 pb-6 text-center text-white">
-        <h1 className="text-2xl font-black tracking-tight">順番待ち受付</h1>
-        {storeName && <p className="text-indigo-200 text-sm mt-0.5">{storeName}</p>}
+      {/* ヘッダー：コンパクトに待ち人数も表示 */}
+      <div className="px-5 pt-6 pb-4 text-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-black tracking-tight">順番待ち受付</h1>
+            {storeName && <p className="text-indigo-200 text-xs mt-0.5">{storeName}</p>}
+          </div>
+          {waitingCount !== null && (
+            <div className="text-right bg-white/15 rounded-2xl px-4 py-2 backdrop-blur-sm border border-white/20">
+              <p className="text-indigo-200 text-xs font-bold">現在の待ち</p>
+              <p className="text-2xl font-black leading-none">{waitingCount}<span className="text-xs font-bold ml-0.5">組</span></p>
+            </div>
+          )}
+        </div>
         {lineProfile ? (
-          <div className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-3 py-1.5 mt-3 text-xs">
-            <MessageCircle size={11} />LINE連携済み（{lineProfile.displayName}）
+          <div className="inline-flex items-center gap-1.5 bg-white/10 border border-white/20 rounded-full px-2.5 py-1 mt-2 text-xs">
+            <MessageCircle size={10} />LINE連携済み
           </div>
         ) : !inLineApp ? (
-          <div className="inline-flex items-center gap-1.5 bg-yellow-400/20 border border-yellow-300/30 rounded-full px-3 py-1.5 mt-3 text-xs">
-            ⚠️ LINEで開くと呼出通知が届きます
+          <div className="inline-flex items-center gap-1.5 bg-yellow-400/20 border border-yellow-300/30 rounded-full px-2.5 py-1 mt-2 text-xs">
+            ⚠️ LINEで開くと通知が届きます
           </div>
         ) : null}
       </div>
 
-      <div className="flex-1 bg-white rounded-t-3xl px-5 pt-6 pb-10 animate-slide-up shadow-2xl">
-        <div className="max-w-md mx-auto space-y-5">
-
-          {/* 現在の待ち人数 */}
-          {waitingCount !== null && (
-            <div className="flex items-center justify-between bg-indigo-50 border border-indigo-100 rounded-2xl px-5 py-3.5">
-              <div>
-                <p className="text-xs font-bold text-indigo-400 uppercase tracking-wide">現在の待ち人数</p>
-                <p className="text-3xl font-black text-indigo-700 leading-none mt-0.5">
-                  {waitingCount}<span className="text-sm font-bold text-indigo-500 ml-1">組</span>
-                </p>
-              </div>
-              <div className="text-4xl">👥</div>
-            </div>
-          )}
+      <div className="flex-1 bg-white rounded-t-3xl px-4 pt-4 pb-6 animate-slide-up shadow-2xl overflow-y-auto">
+        <div className="max-w-md mx-auto space-y-3">
 
           <FormField label="学校名" required>
             <div className="relative">
               <select
-                className="w-full appearance-none text-base border-2 border-gray-100 bg-gray-50 rounded-xl px-4 py-3.5 pr-10 focus:border-indigo-400 focus:bg-white focus:outline-none text-gray-800 transition-all"
+                className="w-full appearance-none text-sm border-2 border-gray-100 bg-gray-50 rounded-xl px-3 py-2.5 pr-9 focus:border-indigo-400 focus:bg-white focus:outline-none text-gray-800 transition-all"
                 value={showCustomInput ? 'その他（直接入力）' : schoolName}
                 onChange={e => handleSchoolChange(e.target.value)}
               >
                 <option value="">選択してください</option>
                 {SCHOOLS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
             </div>
             {showCustomInput && (
               <input type="text"
-                className="mt-2 w-full text-base border-2 border-indigo-200 bg-indigo-50 rounded-xl px-4 py-3.5 focus:border-indigo-400 focus:outline-none transition-all"
+                className="mt-1.5 w-full text-sm border-2 border-indigo-200 bg-indigo-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:outline-none transition-all"
                 placeholder="学校名を入力してください"
                 value={customSchool}
                 onChange={e => { setCustomSchool(e.target.value); setError(null) }}
@@ -212,33 +202,141 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp, 
             )}
           </FormField>
 
-          <FormField label="氏名" required>
-            <input type="text" inputMode="text" autoComplete="name"
-              className="w-full text-base border-2 border-gray-100 bg-gray-50 rounded-xl px-4 py-3.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all"
-              placeholder="例：山田 太郎"
-              value={customerName}
-              onChange={e => { setCustomerName(e.target.value); setError(null) }} />
-          </FormField>
-
-          <FormField label="お子様のお名前">
-            <input type="text" inputMode="text" autoComplete="off"
-              className="w-full text-base border-2 border-gray-100 bg-gray-50 rounded-xl px-4 py-3.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all"
-              placeholder="例：山田 花子"
-              value={childName}
-              onChange={e => setChildName(e.target.value)} />
-          </FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="氏名（保護者様）" required>
+              <input type="text" inputMode="text" autoComplete="name"
+                className="w-full text-sm border-2 border-gray-100 bg-gray-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all"
+                placeholder="例：山田 太郎"
+                value={customerName}
+                onChange={e => { setCustomerName(e.target.value); setError(null) }} />
+            </FormField>
+            <FormField label="お子様のお名前">
+              <input type="text" inputMode="text" autoComplete="off"
+                className="w-full text-sm border-2 border-gray-100 bg-gray-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all"
+                placeholder="例：山田 花子"
+                value={childName}
+                onChange={e => setChildName(e.target.value)} />
+            </FormField>
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="身長（cm）">
+            <FormField label="性別" required>
+              <div className="grid grid-cols-3 gap-1">
+                {GENDER_OPTIONS.map(opt => (
+                  <button key={opt.value} type="button" onClick={() => setGender(opt.value)}
+                    className={`py-2 rounded-xl border-2 text-center transition-all active:scale-95 ${
+                      gender === opt.value ? 'border-indigo-500 bg-indigo-50' : 'border-gray-100 bg-gray-50'
+                    }`}>
+                    <div className="text-lg">{opt.icon}</div>
+                    <div className={`text-xs font-bold mt-0.5 ${gender === opt.value ? 'text-indigo-700' : 'text-gray-500'}`}>{opt.label}</div>
+                  </button>
+                ))}
+              </div>
+            </FormField>
+            <FormField label="ご用件" required>
+              <div className="grid grid-cols-3 gap-1">
+                {(['fitting', 'pickup', 'other'] as QueueCategory[]).map(cat => (
+                  <button key={cat} type="button" onClick={() => setCategory(cat)}
+                    className={`py-2 rounded-xl border-2 text-center transition-all active:scale-95 ${
+                      category === cat ? 'border-indigo-500 bg-indigo-50' : 'border-gray-100 bg-gray-50'
+                    }`}>
+                    <div className="text-lg">{CATEGORY_ICONS[cat]}</div>
+                    <div className={`text-xs font-bold mt-0.5 ${category === cat ? 'text-indigo-700' : 'text-gray-500'}`}>{CATEGORY_LABELS[cat]}</div>
+                  </button>
+                ))}
+              </div>
+            </FormField>
+          </div>
+
+          {allowRemote && (
+            <button type="button" onClick={() => setIsRemote(v => !v)}
+              className={`w-full py-2.5 rounded-xl border-2 px-4 flex items-center justify-between transition-all active:scale-[0.98] ${
+                isRemote ? 'border-indigo-400 bg-indigo-50' : 'border-gray-100 bg-gray-50'
+              }`}>
+              <div className="text-left">
+                <p className={`font-bold text-sm ${isRemote ? 'text-indigo-700' : 'text-gray-600'}`}>🏠 遠隔チェックイン</p>
+                <p className="text-xs text-gray-400">今すぐ来店しない</p>
+              </div>
+              <div className={`w-10 h-5 rounded-full transition-colors shrink-0 ${isRemote ? 'bg-indigo-500' : 'bg-gray-300'}`}>
+                <div className={`w-4 h-4 bg-white rounded-full mt-0.5 shadow transition-transform ${isRemote ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </div>
+            </button>
+          )}
+
+          {error && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-100 rounded-xl text-red-600">
+              <AlertCircle size={15} className="shrink-0" />
+              <span className="text-xs font-medium">{error}</span>
+            </div>
+          )}
+
+          <button type="button" onClick={handleSubmit} disabled={loading}
+            className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-lg font-black py-4 rounded-2xl shadow-lg shadow-indigo-200 active:scale-95 transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+            {loading ? <><Loader2 size={18} className="animate-spin" />受付中...</> : '受付する →'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// 詳細情報入力画面（受付後）
+// ============================================================
+function DetailsView({ ticket, storeId, onComplete, onSkip }: {
+  ticket: Queue; storeId: string
+  onComplete: (updated: Queue) => void
+  onSkip: () => void
+}) {
+  const [height,      setHeight]      = useState('')
+  const [weight,      setWeight]      = useState('')
+  const [parentPhone, setParentPhone] = useState('')
+  const [loading,     setLoading]     = useState(false)
+
+  const handleSubmit = async () => {
+    const details: Record<string, string> = {}
+    if (height.trim())      details.height      = height.trim()
+    if (weight.trim())      details.weight      = weight.trim()
+    if (parentPhone.trim()) details.parentPhone = parentPhone.trim()
+
+    if (Object.keys(details).length === 0) { onSkip(); return }
+    setLoading(true)
+    const { data } = await supabase.from('queues').update({ details }).eq('id', ticket.id).select().single()
+    setLoading(false)
+    data ? onComplete(data) : onSkip()
+  }
+
+  const paddedNum = String(ticket.ticket_number).padStart(3, '0')
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-emerald-600 to-teal-700 flex flex-col">
+      <div className="px-5 pt-6 pb-4 text-white">
+        <div className="flex items-center gap-3">
+          <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-white/30">
+            <span className="text-2xl font-black">{paddedNum}</span>
+          </div>
+          <div>
+            <p className="text-emerald-100 text-xs font-bold">受付完了！</p>
+            <h1 className="text-xl font-black">詳細情報の入力</h1>
+            <p className="text-emerald-200 text-xs">入力するとスタッフがスムーズにご案内できます</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 bg-white rounded-t-3xl px-4 pt-5 pb-8 shadow-2xl">
+        <div className="max-w-md mx-auto space-y-4">
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="お子様の身長（cm）">
               <input type="number" inputMode="numeric"
-                className="w-full text-base border-2 border-gray-100 bg-gray-50 rounded-xl px-4 py-3.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all"
+                className="w-full text-base border-2 border-gray-100 bg-gray-50 rounded-xl px-3 py-3 focus:border-emerald-400 focus:bg-white focus:outline-none transition-all"
                 placeholder="例：155"
                 value={height}
                 onChange={e => setHeight(e.target.value)} />
             </FormField>
-            <FormField label="体重（kg）">
+            <FormField label="お子様の体重（kg）">
               <input type="number" inputMode="numeric"
-                className="w-full text-base border-2 border-gray-100 bg-gray-50 rounded-xl px-4 py-3.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all"
+                className="w-full text-base border-2 border-gray-100 bg-gray-50 rounded-xl px-3 py-3 focus:border-emerald-400 focus:bg-white focus:outline-none transition-all"
                 placeholder="例：50"
                 value={weight}
                 onChange={e => setWeight(e.target.value)} />
@@ -247,82 +345,21 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp, 
 
           <FormField label="保護者の電話番号">
             <input type="tel" inputMode="tel" autoComplete="tel"
-              className="w-full text-base border-2 border-gray-100 bg-gray-50 rounded-xl px-4 py-3.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all"
+              className="w-full text-base border-2 border-gray-100 bg-gray-50 rounded-xl px-3 py-3 focus:border-emerald-400 focus:bg-white focus:outline-none transition-all"
               placeholder="例：090-1234-5678"
               value={parentPhone}
               onChange={e => setParentPhone(e.target.value)} />
           </FormField>
 
-          <FormField label="性別" required>
-            <div className="grid grid-cols-3 gap-2">
-              {GENDER_OPTIONS.map(opt => (
-                <button key={opt.value} type="button" onClick={() => setGender(opt.value)}
-                  className={`py-3.5 rounded-xl border-2 text-center transition-all active:scale-95 ${
-                    gender === opt.value ? 'border-indigo-500 bg-indigo-50 shadow-md shadow-indigo-100' : 'border-gray-100 bg-gray-50'
-                  }`}>
-                  <div className="text-2xl mb-0.5">{opt.icon}</div>
-                  <div className={`text-sm font-bold ${gender === opt.value ? 'text-indigo-700' : 'text-gray-500'}`}>{opt.label}</div>
-                </button>
-              ))}
-            </div>
-          </FormField>
-
-          <FormField label="ご用件" required>
-            <div className="grid grid-cols-3 gap-2">
-              {(['fitting', 'pickup', 'other'] as QueueCategory[]).map(cat => (
-                <button key={cat} type="button" onClick={() => setCategory(cat)}
-                  className={`py-3.5 rounded-xl border-2 text-center transition-all active:scale-95 ${
-                    category === cat ? 'border-indigo-500 bg-indigo-50 shadow-md shadow-indigo-100' : 'border-gray-100 bg-gray-50'
-                  }`}>
-                  <div className="text-2xl mb-0.5">{CATEGORY_ICONS[cat]}</div>
-                  <div className={`text-sm font-bold ${category === cat ? 'text-indigo-700' : 'text-gray-500'}`}>{CATEGORY_LABELS[cat]}</div>
-                </button>
-              ))}
-            </div>
-          </FormField>
-
-          {/* 遠隔チェックイントグル */}
-          {allowRemote && (
-            <FormField label="来店方法">
-              <button type="button" onClick={() => setIsRemote(v => !v)}
-                className={`w-full py-4 rounded-2xl border-2 text-left px-5 transition-all active:scale-[0.98] ${
-                  isRemote ? 'border-indigo-400 bg-indigo-50' : 'border-gray-100 bg-gray-50'
-                }`}>
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className={`font-bold text-base ${isRemote ? 'text-indigo-700' : 'text-gray-700'}`}>
-                      🏠 遠隔チェックイン
-                    </p>
-                    <p className="text-xs text-gray-400 mt-0.5">今すぐ来店しない（自宅・外出先から順番取り）</p>
-                  </div>
-                  <div className={`w-12 h-6 rounded-full transition-colors shrink-0 ${isRemote ? 'bg-indigo-500' : 'bg-gray-300'}`}>
-                    <div className={`w-5 h-5 bg-white rounded-full mt-0.5 shadow transition-transform ${isRemote ? 'translate-x-6' : 'translate-x-0.5'}`} />
-                  </div>
-                </div>
-              </button>
-              {isRemote && (
-                <p className="text-xs text-indigo-600 font-medium mt-2 px-1">
-                  ※ 店舗に到着したら「チェックイン」ボタンを押してください。チェックイン後に呼び出しの対象となります。
-                </p>
-              )}
-            </FormField>
-          )}
-
-          {error && (
-            <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-100 rounded-2xl text-red-600">
-              <AlertCircle size={18} className="shrink-0" />
-              <span className="text-sm font-medium">{error}</span>
-            </div>
-          )}
-
           <button type="button" onClick={handleSubmit} disabled={loading}
-            className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xl font-black py-5 rounded-2xl shadow-xl shadow-indigo-200 active:scale-95 transition-all disabled:opacity-60 flex items-center justify-center gap-3">
-            {loading ? <><Loader2 size={20} className="animate-spin" />受付中...</> : '受付する →'}
+            className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-lg font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+            {loading ? <><Loader2 size={18} className="animate-spin" />保存中...</> : '入力して順番待ちへ →'}
           </button>
 
-          <p className="text-center text-gray-400 text-xs">
-            {isRemote ? '遠隔モードで受付します。到着後に「チェックイン」を押してください。' : '受付後は画面を閉じないでください'}
-          </p>
+          <button type="button" onClick={onSkip}
+            className="w-full py-3 text-gray-400 text-sm font-medium">
+            スキップして順番待ちへ
+          </button>
         </div>
       </div>
     </div>
@@ -764,7 +801,9 @@ export default function CustomerPage() {
     }
   }, [ticket?.id, storeId, fetchWaitingAhead])
 
-  const handleRegistered   = (t: Queue) => { setTicket(t); setView('waiting') }
+  const handleRegistered        = (t: Queue) => { setTicket(t); setView('details') }
+  const handleDetailsComplete   = (t: Queue) => { setTicket(t); setView('waiting') }
+  const handleDetailsSkip       = () => setView('waiting')
   const handleStatusChange = useCallback((s: 'calling' | 'completed' | 'cancelled') => setView(s), [])
   const handleCheckIn      = useCallback(() => setTicket(prev => prev ? { ...prev, checked_in: true } : null), [])
   const handleCustomerCancel = useCallback(async () => {
@@ -795,6 +834,10 @@ export default function CustomerPage() {
   if (view === 'register')   return (
     <RegisterView storeId={storeId} storeName={storeName} onComplete={handleRegistered}
       lineProfile={lineProfile} inLineApp={inLineApp} allowRemote={allowRemote} />
+  )
+  if (view === 'details' && ticket) return (
+    <DetailsView ticket={ticket} storeId={storeId}
+      onComplete={handleDetailsComplete} onSkip={handleDetailsSkip} />
   )
   if (!ticket) return null
   if (view === 'calling')        return <CallingView ticket={ticket} onComplete={() => handleStatusChange('completed')} />
