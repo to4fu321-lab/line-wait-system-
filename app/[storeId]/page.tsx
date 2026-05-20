@@ -378,7 +378,7 @@ function WaitingView({ ticket, waitingAhead, waitThresholds, onStatusChange, onC
             >
               {checkinLoading
                 ? <><Loader2 size={22} className="animate-spin" />チェックイン中...</>
-                : <><MapPin size={22} />店舗付近に到着しました（チェックイン）</>
+                : <><MapPin size={22} />店舗付近に到着しました。（5分以内で来店可能）</>
               }
             </button>
             <p className="text-center text-indigo-200/60 text-xs">チェックイン後に呼び出し対象となります</p>
@@ -390,7 +390,7 @@ function WaitingView({ ticket, waitingAhead, waitThresholds, onStatusChange, onC
           <div className="w-full mt-4 animate-fade-in">
             <div className="bg-emerald-500/20 backdrop-blur-sm border border-emerald-400/40 rounded-2xl p-4 text-center">
               <p className="text-emerald-300 font-black text-lg">✅ チェックイン済み</p>
-              <p className="text-emerald-200/70 text-sm mt-1">整理番号が呼ばれるまで店舗内でお待ちください</p>
+              <p className="text-emerald-200/70 text-sm mt-1">駐車場や店舗付近でお待ちください。</p>
             </div>
           </div>
         )}
