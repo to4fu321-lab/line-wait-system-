@@ -19,17 +19,19 @@ function DetailsForm() {
   const [error,        setError]        = useState<string | null>(null)
   const [ticketNumber, setTicketNumber] = useState<number | null>(null)
   const [notFound,     setNotFound]     = useState(false)
+  const [lineUserId,   setLineUserId]   = useState<string | null>(null)
 
   useEffect(() => {
     if (!ticketId) return
     supabase
       .from('queues')
-      .select('ticket_number, details')
+      .select('ticket_number, details, line_user_id')
       .eq('id', ticketId)
       .single()
       .then(({ data, error: err }) => {
         if (err || !data) { setNotFound(true); return }
         setTicketNumber(data.ticket_number)
+        setLineUserId(data.line_user_id ?? null)
         const d = (data.details ?? {}) as Record<string, string>
         if (d.height)      setHeight(d.height)
         if (d.weight)      setWeight(d.weight)
@@ -51,6 +53,14 @@ function DetailsForm() {
       .from('queues')
       .update({ details })
       .eq('id', ticketId)
+
+    if (!updateErr && parentPhone.trim() && lineUserId && storeId) {
+      await supabase
+        .from('customers')
+        .update({ tel: parentPhone.trim() })
+        .eq('store_id', storeId)
+        .eq('line_user_id', lineUserId)
+    }
 
     setLoading(false)
     if (updateErr) {

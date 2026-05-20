@@ -8,6 +8,9 @@ export interface Customer {
   tel:          string | null
   line_user_id: string | null
   notes:        string | null
+  school_name:  string | null
+  gender:       string | null
+  category:     string | null
   created_at:   string
   updated_at:   string
 }
