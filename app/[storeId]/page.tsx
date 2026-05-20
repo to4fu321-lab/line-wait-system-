@@ -297,6 +297,17 @@ function DetailsView({ ticket, storeId, onComplete, onSkip }: {
   const [height,      setHeight]      = useState('')
   const [weight,      setWeight]      = useState('')
   const [parentPhone, setParentPhone] = useState('')
+  const [position,    setPosition]    = useState<number | null>(null)
+
+  useEffect(() => {
+    supabase.from('queues')
+      .select('*', { count: 'exact', head: true })
+      .eq('store_id', storeId)
+      .in('status', ['waiting', 'calling'])
+      .lt('ticket_number', ticket.ticket_number)
+      .gte('created_at', getTodayStart())
+      .then(({ count }) => setPosition((count ?? 0) + 1))
+  }, [storeId, ticket.ticket_number])
   const [loading,     setLoading]     = useState(false)
 
   const handleSubmit = async () => {
@@ -312,16 +323,25 @@ function DetailsView({ ticket, storeId, onComplete, onSkip }: {
     data ? onComplete(data) : onSkip()
   }
 
-  const paddedNum = String(ticket.ticket_number).padStart(3, '0')
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-500 to-teal-600 flex flex-col">
       {/* 受付完了バナー */}
       <div className="px-5 pt-8 pb-5 text-center text-white">
         <div className="text-5xl mb-2">✅</div>
         <h1 className="text-3xl font-black tracking-tight">受付完了！</h1>
-        <p className="text-emerald-100 text-base font-bold mt-1">整理番号 <span className="text-white text-2xl font-black">{paddedNum}</span> で並び始めました</p>
-        <p className="text-emerald-200 text-xs mt-2">受付はすでに完了しています。<br />以下の入力はしなくてもOKです。</p>
+        {position !== null ? (
+          <div className="mt-2">
+            <p className="text-emerald-100 text-sm font-bold">並んだ順番</p>
+            <p className="text-white leading-none">
+              <span className="text-7xl font-black">{position}</span>
+              <span className="text-2xl font-bold ml-1">番目</span>
+            </p>
+            <p className="text-emerald-100 text-sm mt-1">現在 <span className="font-black text-white text-base">{position}番目</span> に並んでいます</p>
+          </div>
+        ) : (
+          <p className="text-emerald-100 text-base font-bold mt-2">順番を確認中...</p>
+        )}
+        <p className="text-emerald-200 text-xs mt-3">受付はすでに完了しています。<br />以下の入力はしなくてもOKです。</p>
       </div>
 
       <div className="flex-1 bg-white rounded-t-3xl px-4 pt-5 pb-6 shadow-2xl">
