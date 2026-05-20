@@ -61,7 +61,7 @@ BEGIN
   INTO next_num
   FROM queues
   WHERE store_id = p_store_id
-    AND created_at::date = CURRENT_DATE AT TIME ZONE 'Asia/Tokyo';
+    AND (created_at AT TIME ZONE 'Asia/Tokyo')::date = (NOW() AT TIME ZONE 'Asia/Tokyo')::date;
 
   RETURN next_num;
 END;
