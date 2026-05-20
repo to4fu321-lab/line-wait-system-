@@ -441,7 +441,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
   const [refreshing,      setRefreshing]      = useState(false)
   const [historyTab,      setHistoryTab]      = useState<HistoryTab>('completed')
   const [toast,           setToast]           = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
-  const [isOpen,          setIsOpen]          = useState(false)
+  const [isOpen,          setIsOpen]          = useState<boolean | null>(null)
   const [noticeThreshold, setNoticeThreshold] = useState(3)
   const [waitThresholds,  setWaitThresholds]  = useState<WaitThreshold[]>(DEFAULT_THRESHOLDS)
   const [allowRemote,     setAllowRemote]     = useState(false)
@@ -490,6 +490,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
   }, [store.id, fetchQueues, fetchStoreStatus])
 
   const handleToggleOpen = async () => {
+    if (isOpen === null) return
     const next = !isOpen; setIsOpen(next)
     await supabase.from('stores').update({ is_open: next }).eq('id', store.id)
   }
@@ -561,12 +562,13 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
           </div>
         </div>
 
-        <button onClick={handleToggleOpen}
-          className={`w-full py-4 rounded-2xl text-base font-black mb-3 active:scale-[0.98] transition-all shadow-lg ${
-            isOpen ? 'bg-gradient-to-r from-emerald-500 to-teal-500 shadow-emerald-900/40 text-white'
-                   : 'bg-gradient-to-r from-red-600 to-rose-600 shadow-red-900/40 text-white'
+        <button onClick={handleToggleOpen} disabled={isOpen === null}
+          className={`w-full py-4 rounded-2xl text-base font-black mb-3 active:scale-[0.98] transition-all shadow-lg disabled:opacity-50 ${
+            isOpen === null  ? 'bg-zinc-700 text-zinc-400' :
+            isOpen           ? 'bg-gradient-to-r from-emerald-500 to-teal-500 shadow-emerald-900/40 text-white'
+                             : 'bg-gradient-to-r from-red-600 to-rose-600 shadow-red-900/40 text-white'
           }`}>
-          {isOpen ? '✅ 受付中 — タップして停止' : '🚫 受付停止中 — タップして開始'}
+          {isOpen === null ? '⏳ 読み込み中...' : isOpen ? '✅ 受付中 — タップして停止' : '🚫 受付停止中 — タップして開始'}
         </button>
 
         <div className="grid grid-cols-4 gap-2">
