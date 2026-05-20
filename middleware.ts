@@ -25,7 +25,17 @@ export function middleware(request: NextRequest) {
   // 店舗ページをLINE以外のブラウザで開いた → 案内ページへ（元パスを渡す）
   if (!isLine) {
     const dest = new URL('/open-in-line', request.url)
-    if (path !== '/') dest.searchParams.set('to', path)
+    if (path !== '/') {
+      dest.searchParams.set('to', path)
+    } else {
+      // LIFFサーバー経由のとき /?liff.state=/{storeId}/crm-register の形で来る
+      const liffState = request.nextUrl.searchParams.get('liff.state')
+      if (liffState) {
+        const decoded = decodeURIComponent(liffState)
+        const match = decoded.match(/^(\/[0-9a-f-]{36}(?:\/[a-z-]+)?)/)
+        if (match) dest.searchParams.set('to', match[1])
+      }
+    }
     return NextResponse.redirect(dest)
   }
 

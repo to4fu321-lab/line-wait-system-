@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { Loader2, CheckCircle2, MessageCircle, AlertCircle, Plus, User, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { initLiff, getLineProfile, checkFriendship, openAddFriend } from '@/lib/liff'
+import { initLiff, getLineProfile, openAddFriend } from '@/lib/liff'
 import type { Customer } from '@/types/crm'
 
 type View = 'loading' | 'add_friend' | 'existing' | 'new_form' | 'confirm' | 'done' | 'not_line'
@@ -14,16 +14,35 @@ const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
 export default function CrmRegisterPage() {
   const { storeId } = useParams<{ storeId: string }>()
 
-  const [view,           setView]           = useState<View>('loading')
-  const [lineUserId,     setLineUserId]     = useState('')
+  const [view,            setView]            = useState<View>('loading')
+  const [lineUserId,      setLineUserId]      = useState('')
   const [lineDisplayName, setLineDisplayName] = useState('')
-  const [storeName,      setStoreName]      = useState('')
-  const [existingList,   setExistingList]   = useState<Customer[]>([])
-  const [name,           setName]           = useState('')
-  const [saving,         setSaving]         = useState(false)
-  const [errorMsg,       setErrorMsg]       = useState('')
-  const [doneName,       setDoneName]       = useState('')
+  const [storeName,       setStoreName]       = useState('')
+  const [existingList,    setExistingList]    = useState<Customer[]>([])
+  const [name,            setName]            = useState('')
+  const [saving,          setSaving]          = useState(false)
+  const [errorMsg,        setErrorMsg]        = useState('')
+  const [doneName,        setDoneName]        = useState('')
   const [confirmCustomer, setConfirmCustomer] = useState<Customer | null>(null)
+  const [checking,        setChecking]        = useState(false)
+  const [friendFailed,    setFriendFailed]    = useState(false)
+
+  const loadCustomerView = async (userId: string, displayName: string) => {
+    const { data: existing } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('store_id', storeId)
+      .eq('line_user_id', userId)
+      .order('created_at', { ascending: true })
+
+    if (existing && existing.length > 0) {
+      setExistingList(existing as Customer[])
+      setView('existing')
+    } else {
+      setName(displayName)
+      setView('new_form')
+    }
+  }
 
   useEffect(() => {
     if (!storeId) return
@@ -45,30 +64,36 @@ export default function CrmRegisterPage() {
         setLineUserId(profile.userId)
         setLineDisplayName(profile.displayName ?? '')
 
-        // 友達登録チェック（プッシュ通知に必要）
-        const isFriend = await checkFriendship()
-        if (!isFriend) { setView('add_friend'); return }
+        // 友達チェックはMessaging APIで行う（liff.getFriendship()より信頼性が高い）
+        const res = await fetch(`/api/check-friend?userId=${profile.userId}`)
+        const { friend } = await res.json()
+        if (!friend) { setView('add_friend'); return }
 
-        // 同じLINE IDで登録済みのお子様を検索
-        const { data: existing } = await supabase
-          .from('customers')
-          .select('*')
-          .eq('store_id', storeId)
-          .eq('line_user_id', profile.userId)
-          .order('created_at', { ascending: true })
-
-        if (existing && existing.length > 0) {
-          setExistingList(existing as Customer[])
-          setView('existing')
-        } else {
-          setName(profile.displayName ?? '')
-          setView('new_form')
-        }
+        await loadCustomerView(profile.userId, profile.displayName ?? '')
       } catch {
         setView('not_line')
       }
     })()
   }, [storeId])
+
+  // 友達追加後に「追加済み」ボタンを押したときの確認
+  const handleProceedAfterFriend = async () => {
+    if (!lineUserId) return
+    setChecking(true)
+    setFriendFailed(false)
+    try {
+      const res = await fetch(`/api/check-friend?userId=${lineUserId}`)
+      const { friend } = await res.json()
+      if (friend) {
+        await loadCustomerView(lineUserId, lineDisplayName)
+      } else {
+        setFriendFailed(true)
+      }
+    } catch {
+      setFriendFailed(true)
+    }
+    setChecking(false)
+  }
 
   const handleRegister = async () => {
     if (!name.trim() || !lineUserId) return
@@ -132,10 +157,19 @@ export default function CrmRegisterPage() {
           <span className="font-bold">「お直し登録」ボタン</span>を押してください
         </div>
         <button
-          onClick={() => window.location.reload()}
-          className="w-full bg-zinc-100 text-zinc-700 text-base font-bold py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform">
-          ② 追加済み → 登録へ進む
+          onClick={handleProceedAfterFriend}
+          disabled={checking}
+          className="w-full bg-zinc-100 text-zinc-700 text-base font-bold py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60">
+          {checking
+            ? <><Loader2 size={16} className="animate-spin" />確認中...</>
+            : '② 追加済み → 登録へ進む'
+          }
         </button>
+        {friendFailed && (
+          <p className="text-red-500 text-xs text-center">
+            友達追加が確認できません。追加してから②を押してください。
+          </p>
+        )}
       </div>
     </div>
   )
