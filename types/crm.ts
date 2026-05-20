@@ -5,6 +5,7 @@ export interface Customer {
   store_id:     string
   name:         string
   kana:         string | null
+  parent_name:  string | null
   tel:          string | null
   line_user_id: string | null
   notes:        string | null

@@ -87,6 +87,7 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp, 
   const [schoolName,      setSchoolName]      = useState('')
   const [customSchool,    setCustomSchool]    = useState('')
   const [customerName,    setCustomerName]    = useState(lineProfile?.displayName ?? '')
+  const [customerKana,    setCustomerKana]    = useState('')
   const [childName,       setChildName]       = useState('')
   const [gender,          setGender]          = useState<Gender | ''>('')
   const [category,        setCategory]        = useState<QueueCategory | ''>('')
@@ -95,10 +96,27 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp, 
   const [error,           setError]           = useState<string | null>(null)
   const [showCustomInput, setShowCustomInput] = useState(false)
   const [waitingCount,    setWaitingCount]    = useState<number | null>(null)
-  const nameEditedRef = useRef(false)
+  const nameEditedRef    = useRef(false)
+  const kanaEditedRef    = useRef(false)
+
+  const toKatakana = (str: string) =>
+    str.replace(/[ぁ-ゖ]/g, ch => String.fromCharCode(ch.charCodeAt(0) + 0x60))
+
+  const handleCustomerNameChange = (val: string) => {
+    nameEditedRef.current = true
+    setCustomerName(val)
+    if (!kanaEditedRef.current) setCustomerKana(toKatakana(val))
+    setError(null)
+  }
+
+  const handleCustomerKanaChange = (val: string) => {
+    kanaEditedRef.current = true
+    setCustomerKana(val)
+  }
 
   const handleSelectCustomer = (c: Customer) => {
     setChildName(c.name)
+    if (c.kana && !kanaEditedRef.current) setCustomerKana(c.kana)
     if (c.gender) setGender(c.gender as Gender)
     if (c.category) setCategory(c.category as QueueCategory)
     if (c.school_name) {
@@ -137,6 +155,7 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp, 
   const handleSubmit = async () => {
     if (!finalSchoolName.trim()) { setError('学校名を選択または入力してください'); return }
     if (!customerName.trim())    { setError('氏名（保護者様）を入力してください'); return }
+    if (!childName.trim())       { setError('お子様のお名前を入力してください'); return }
     if (!gender)                 { setError('性別を選択してください'); return }
     if (!category)               { setError('ご用件を選択してください'); return }
     setLoading(true); setError(null)
@@ -151,6 +170,7 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp, 
       const { data, error: insertErr } = await supabase.from('queues').insert({
         store_id: storeId, ticket_number: nextNum as number, status: 'waiting',
         school_name: finalSchoolName.trim(), customer_name: customerName.trim(),
+        customer_kana: customerKana.trim() || null,
         child_name: childName.trim() || null, category: category as QueueCategory, gender: gender as Gender,
         line_user_id: lineProfile?.userId ?? null,
         is_remote: isRemote, checked_in: !isRemote,
@@ -244,9 +264,9 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp, 
                 className="w-full text-sm border-2 border-gray-100 bg-gray-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all"
                 placeholder="例：山田 太郎"
                 value={customerName}
-                onChange={e => { nameEditedRef.current = true; setCustomerName(e.target.value); setError(null) }} />
+                onChange={e => handleCustomerNameChange(e.target.value)} />
             </FormField>
-            <FormField label="お子様のお名前">
+            <FormField label="お子様のお名前" required>
               <input type="text" inputMode="text" autoComplete="off"
                 className="w-full text-sm border-2 border-gray-100 bg-gray-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all"
                 placeholder="例：山田 花子"
@@ -254,6 +274,14 @@ function RegisterView({ storeId, storeName, onComplete, lineProfile, inLineApp, 
                 onChange={e => setChildName(e.target.value)} />
             </FormField>
           </div>
+
+          <FormField label="フリガナ（保護者様）">
+            <input type="text" inputMode="text"
+              className="w-full text-sm border-2 border-gray-100 bg-gray-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all"
+              placeholder="ヤマダ タロウ"
+              value={customerKana}
+              onChange={e => handleCustomerKanaChange(e.target.value)} />
+          </FormField>
 
           <div className="grid grid-cols-2 gap-3">
             <FormField label="性別" required>
