@@ -17,9 +17,11 @@ export async function POST(req: NextRequest) {
 
   const paddedNum = String(ticketNumber).padStart(3, '0')
 
+  const storeUrl = storeId ? `\n\n▼ 画面を開く\n${LIFF_URL}/${storeId}` : ''
+
   const messageText = type === 'registered'
     ? `✅ 受付が完了しました！\n\n【${storeName}】\n整理番号：${paddedNum}\n${customerName} 様\n\n現在の待ち状況はこちらから確認できます👇\n${LIFF_URL}/${storeId}`
-    : `🔔 お呼びしています！\n\n${storeName ? `【${storeName}】\n` : ''}整理番号：${paddedNum}\n${customerName} 様\n\nカウンターへお越しください。`
+    : `🔔 お呼びしています！\n\n${storeName ? `【${storeName}】\n` : ''}整理番号：${paddedNum}\n${customerName} 様\n\nカウンターへお越しください。${storeUrl}`
 
   try {
     const res = await fetch('https://api.line.me/v2/bot/message/push', {
