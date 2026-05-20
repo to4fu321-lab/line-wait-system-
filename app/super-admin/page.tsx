@@ -212,14 +212,16 @@ function SuperDashboard() {
                 >
                   <ExternalLink size={13} />顧客受付ページ
                 </a>
-                <a
-                  href={`/${store.id}/admin`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={() => {
+                    sessionStorage.setItem('admin_auth', '1')
+                    sessionStorage.setItem('admin_store_id', store.id)
+                    window.open(`/${store.id}/admin`, '_blank')
+                  }}
                   className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-amber-600/20 border border-amber-500/30 text-amber-300 hover:bg-amber-600/30 transition-colors text-sm font-bold"
                 >
                   <ShieldCheck size={13} />店舗管理画面
-                </a>
+                </button>
               </div>
             </div>
           ))}
