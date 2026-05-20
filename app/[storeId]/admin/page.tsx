@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import {
   BellRing, CheckCheck, UserX, RefreshCw, Clock, Users,
   Loader2, Store, Settings, Plus, Trash2,
-  ChevronRight, LayoutDashboard, X, MapPin,
+  ChevronRight, LayoutDashboard, X, MapPin, Scissors,
 } from 'lucide-react'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import type { Queue, QueueStatus, WaitThreshold } from '@/types/database'
@@ -632,6 +632,15 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
             <span className="text-zinc-500 text-xs">（顧客到着後に呼出可）</span>
           </div>
         )}
+
+        <a href={`/${store.id}/admin/repair`}
+          className="mt-2 flex items-center gap-3 px-4 py-3 bg-violet-500/10 border border-violet-500/20 rounded-xl hover:bg-violet-500/20 active:scale-[0.98] transition-all">
+          <div className="w-7 h-7 rounded-lg bg-violet-500/20 border border-violet-500/30 flex items-center justify-center shrink-0">
+            <Scissors size={14} className="text-violet-400" />
+          </div>
+          <span className="text-violet-300 text-sm font-bold flex-1">お直し管理</span>
+          <ChevronRight size={14} className="text-violet-500" />
+        </a>
       </div>
 
       {/* トースト */}
