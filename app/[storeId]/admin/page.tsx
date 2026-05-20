@@ -123,7 +123,11 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 // ============================================================
 // 待ちカード
 // ============================================================
-function WaitingCard({ ticket, onAction }: { ticket: Queue; onAction: (id: string, s: QueueStatus) => Promise<void> }) {
+function WaitingCard({ ticket, onAction, onCheckIn }: {
+  ticket: Queue
+  onAction: (id: string, s: QueueStatus) => Promise<void>
+  onCheckIn: (id: string) => Promise<void>
+}) {
   const [loading, setLoading] = useState<string | null>(null)
   const [open, setOpen]       = useState(false)
   const waitMin   = Math.floor((Date.now() - new Date(ticket.created_at).getTime()) / 60000)
@@ -198,8 +202,22 @@ function WaitingCard({ ticket, onAction }: { ticket: Queue; onAction: (id: strin
       )}
 
       {isRemoteUnchecked ? (
-        <div className="mt-3 flex items-center gap-2 p-2.5 rounded-xl bg-zinc-800/60 border border-zinc-700/50">
-          <span className="text-zinc-500 text-xs">🏠 遠隔チェックイン待ち — 顧客が到着次第チェックインします</span>
+        <div className="mt-3 space-y-2">
+          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-zinc-800/60 border border-zinc-700/50">
+            <span className="text-zinc-500 text-xs">🏠 遠隔チェックイン待ち — 顧客が到着次第チェックインします</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => onCheckIn(ticket.id)} disabled={!!loading}
+              className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-sm bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/30 active:scale-95 disabled:opacity-50 transition-all">
+              {loading === 'checkin' ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
+              代理チェックイン
+            </button>
+            <button onClick={() => act('cancelled')} disabled={!!loading}
+              className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-sm bg-zinc-700/80 hover:bg-zinc-600 text-zinc-300 active:scale-95 disabled:opacity-50 transition-all">
+              {loading === 'cancelled' ? <Loader2 size={14} className="animate-spin" /> : <UserX size={14} />}
+              キャンセル
+            </button>
+          </div>
         </div>
       ) : (
         <button onClick={() => act('calling')} disabled={!!loading}
@@ -516,6 +534,13 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
     }
   }
 
+  const handleCheckIn = async (id: string) => {
+    const { error } = await supabase.from('queues').update({ checked_in: true }).eq('id', id)
+    if (error) { showToast('err', 'チェックイン失敗: ' + error.message); return }
+    setQueues(prev => prev.map(q => q.id === id ? { ...q, checked_in: true } : q))
+    showToast('ok', '代理チェックイン済みにしました')
+  }
+
   const handleSaveSettings = async () => {
     setSaving(true)
     const { error } = await supabase.from('stores').update({
@@ -651,7 +676,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
                   <Users size={32} className="mx-auto mb-2 opacity-30" />
                   <p className="text-sm">待ちはいません</p>
                 </div>
-              ) : waitingTickets.map(t => <WaitingCard key={t.id} ticket={t} onAction={handleAction} />)}
+              ) : waitingTickets.map(t => <WaitingCard key={t.id} ticket={t} onAction={handleAction} onCheckIn={handleCheckIn} />)}
             </div>
           </div>
 

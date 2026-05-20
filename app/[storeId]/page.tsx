@@ -19,7 +19,7 @@ const SCHOOLS = [
   'その他（直接入力）',
 ]
 
-type PageView = 'loading' | 'add_friend' | 'register' | 'waiting' | 'calling' | 'completed' | 'cancelled' | 'closed'
+type PageView = 'loading' | 'add_friend' | 'register' | 'waiting' | 'calling' | 'completed' | 'cancelled' | 'self_cancelled' | 'closed'
 
 const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
 
@@ -287,13 +287,16 @@ function FormField({ label, required, children }: { label: string; required?: bo
 // ============================================================
 // 待機中画面
 // ============================================================
-function WaitingView({ ticket, waitingAhead, waitThresholds, onStatusChange, onCheckIn, storeId, storeName }: {
+function WaitingView({ ticket, waitingAhead, waitThresholds, onStatusChange, onCheckIn, onCancel, storeId, storeName }: {
   ticket: Queue; waitingAhead: number; waitThresholds: WaitThreshold[]
   onStatusChange: (s: 'calling' | 'completed' | 'cancelled') => void
   onCheckIn: () => void
+  onCancel: () => Promise<void>
   storeId: string; storeName: string
 }) {
-  const [checkinLoading, setCheckinLoading] = useState(false)
+  const [checkinLoading,    setCheckinLoading]    = useState(false)
+  const [showCancelModal,   setShowCancelModal]   = useState(false)
+  const [cancellingTicket,  setCancellingTicket]  = useState(false)
 
   useEffect(() => {
     if (ticket.status === 'calling')    onStatusChange('calling')
@@ -409,9 +412,46 @@ function WaitingView({ ticket, waitingAhead, waitThresholds, onStatusChange, onC
 
         <div className="mt-6 flex items-center gap-2 text-white/40">
           <Clock size={14} className="animate-spin" style={{ animationDuration: '4s' }} />
-          <span className="text-xs">リアルタイム更新中</span>
+          <span className="text-xs">15秒ごとに自動更新</span>
         </div>
+
+        {/* 並ぶのをやめるリンク */}
+        <button
+          onClick={() => setShowCancelModal(true)}
+          className="mt-4 text-white/25 text-xs underline underline-offset-2 hover:text-white/50 transition-colors"
+        >
+          並ぶのをやめる
+        </button>
       </main>
+
+      {/* キャンセル確認モーダル */}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
+          <div className="bg-zinc-900 border border-white/10 rounded-t-3xl p-6 w-full max-w-md animate-fade-in">
+            <h3 className="text-white font-black text-xl mb-2 text-center">並ぶのをやめますか？</h3>
+            <p className="text-zinc-400 text-sm text-center mb-6 leading-relaxed">
+              再度並ぶ場合は最後尾からとなります。<br />
+              この操作は取り消せません。
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="py-4 rounded-xl bg-zinc-800 text-white font-bold active:scale-95 transition-transform"
+              >
+                戻る
+              </button>
+              <button
+                onClick={async () => { setCancellingTicket(true); await onCancel() }}
+                disabled={cancellingTicket}
+                className="py-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black active:scale-95 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {cancellingTicket && <Loader2 size={18} className="animate-spin" />}
+                キャンセルする
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -508,6 +548,20 @@ function CompletedView({ onReset }: { onReset: () => void }) {
   )
 }
 
+function SelfCancelledView({ onReset }: { onReset: () => void }) {
+  return (
+    <div className="min-h-screen bg-zinc-900 flex flex-col items-center justify-center px-6">
+      <div className="text-center animate-slide-up">
+        <div className="text-7xl mb-5">👋</div>
+        <h2 className="text-3xl font-black text-white mb-2">キャンセルしました</h2>
+        <p className="text-zinc-400 text-lg mb-2">受付をキャンセルしました</p>
+        <p className="text-zinc-500 text-sm mb-10">再度並ぶ場合は最後尾からとなります</p>
+        <button onClick={onReset} className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-xl font-black py-5 px-10 rounded-2xl shadow-xl active:scale-95 transition-transform">もう一度受付する</button>
+      </div>
+    </div>
+  )
+}
+
 function CancelledView({ onReset }: { onReset: () => void }) {
   return (
     <div className="min-h-screen bg-zinc-900 flex flex-col items-center justify-center px-6">
@@ -549,6 +603,7 @@ export default function CustomerPage() {
   const [waitThresholds, setWaitThresholds] = useState<WaitThreshold[]>(DEFAULT_THRESHOLDS)
   const [allowRemote,    setAllowRemote]    = useState(false)
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const ticketRef  = useRef<Queue | null>(null)
 
   const ticketKey = `queue_ticket_id_${storeId}`
   const dateKey   = `queue_ticket_date_${storeId}`
@@ -626,23 +681,43 @@ export default function CustomerPage() {
     setWaitingAhead(count ?? 0)
   }, [storeId])
 
+  // ticketRef で stale closure を防ぐ
+  useEffect(() => { ticketRef.current = ticket }, [ticket])
+
   useEffect(() => {
     if (!ticket) return
+    ticketRef.current = ticket
     fetchWaitingAhead(ticket)
+
+    // Realtime が無効でも確実に更新されるよう 15 秒ポーリング
+    const pollId = setInterval(() => {
+      if (ticketRef.current) fetchWaitingAhead(ticketRef.current)
+    }, 15000)
+
     if (channelRef.current) supabase.removeChannel(channelRef.current)
     const channel = supabase.channel(`ticket-${ticket.id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'queues', filter: `id=eq.${ticket.id}` },
         payload => setTicket(payload.new as Queue))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'queues', filter: `store_id=eq.${storeId}` },
-        () => fetchWaitingAhead(ticket))
+        () => { if (ticketRef.current) fetchWaitingAhead(ticketRef.current) })
       .subscribe()
     channelRef.current = channel
-    return () => { supabase.removeChannel(channel) }
+    return () => {
+      clearInterval(pollId)
+      supabase.removeChannel(channel)
+    }
   }, [ticket?.id, storeId, fetchWaitingAhead])
 
   const handleRegistered   = (t: Queue) => { setTicket(t); setView('waiting') }
   const handleStatusChange = useCallback((s: 'calling' | 'completed' | 'cancelled') => setView(s), [])
   const handleCheckIn      = useCallback(() => setTicket(prev => prev ? { ...prev, checked_in: true } : null), [])
+  const handleCustomerCancel = useCallback(async () => {
+    if (!ticketRef.current) return
+    await supabase.from('queues').update({ status: 'cancelled' }).eq('id', ticketRef.current.id)
+    localStorage.removeItem(ticketKey)
+    localStorage.removeItem(dateKey)
+    setView('self_cancelled')
+  }, [ticketKey, dateKey])
   const handleReset = async () => {
     localStorage.removeItem(ticketKey); localStorage.removeItem(dateKey)
     setTicket(null); setWaitingAhead(0)
@@ -666,13 +741,14 @@ export default function CustomerPage() {
       lineProfile={lineProfile} inLineApp={inLineApp} allowRemote={allowRemote} />
   )
   if (!ticket) return null
-  if (view === 'calling')   return <CallingView ticket={ticket} onComplete={() => handleStatusChange('completed')} />
-  if (view === 'completed') return <CompletedView onReset={handleReset} />
-  if (view === 'cancelled') return <CancelledView onReset={handleReset} />
+  if (view === 'calling')        return <CallingView ticket={ticket} onComplete={() => handleStatusChange('completed')} />
+  if (view === 'completed')      return <CompletedView onReset={handleReset} />
+  if (view === 'cancelled')      return <CancelledView onReset={handleReset} />
+  if (view === 'self_cancelled') return <SelfCancelledView onReset={handleReset} />
 
   return (
     <WaitingView ticket={ticket} waitingAhead={waitingAhead} waitThresholds={waitThresholds}
-      onStatusChange={handleStatusChange} onCheckIn={handleCheckIn}
+      onStatusChange={handleStatusChange} onCheckIn={handleCheckIn} onCancel={handleCustomerCancel}
       storeId={storeId} storeName={storeName} />
   )
 }
