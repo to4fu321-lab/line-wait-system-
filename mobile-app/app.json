@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "せどり管理",
+    "slug": "resell-manager",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#1A1A2E"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.personal.resellmanager"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1A1A2E"
+      },
+      "package": "com.personal.resellmanager"
+    }
+  }
+}
