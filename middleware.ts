@@ -22,9 +22,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(`/${STORE_ID}`, request.url))
   }
 
-  // 店舗ページをLINE以外のブラウザで開いた → 案内ページへ
+  // 店舗ページをLINE以外のブラウザで開いた → 案内ページへ（元パスを渡す）
   if (!isLine) {
-    return NextResponse.rewrite(new URL('/open-in-line', request.url))
+    const dest = new URL('/open-in-line', request.url)
+    if (path !== '/') dest.searchParams.set('to', path)
+    return NextResponse.redirect(dest)
   }
 
   return NextResponse.next()

@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { Loader2, CheckCircle2, MessageCircle, AlertCircle, Plus, User, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { initLiff, getLineProfile } from '@/lib/liff'
+import { initLiff, getLineProfile, checkFriendship, openAddFriend } from '@/lib/liff'
 import type { Customer } from '@/types/crm'
 
-type View = 'loading' | 'existing' | 'new_form' | 'confirm' | 'done' | 'not_line'
+type View = 'loading' | 'add_friend' | 'existing' | 'new_form' | 'confirm' | 'done' | 'not_line'
+
+const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
 
 export default function CrmRegisterPage() {
   const { storeId } = useParams<{ storeId: string }>()
@@ -42,6 +44,10 @@ export default function CrmRegisterPage() {
 
         setLineUserId(profile.userId)
         setLineDisplayName(profile.displayName ?? '')
+
+        // 友達登録チェック（プッシュ通知に必要）
+        const isFriend = await checkFriendship()
+        if (!isFriend) { setView('add_friend'); return }
 
         // 同じLINE IDで登録済みのお子様を検索
         const { data: existing } = await supabase
@@ -100,6 +106,33 @@ export default function CrmRegisterPage() {
   if (view === 'loading') return (
     <div className="min-h-screen bg-[#06C755] flex items-center justify-center">
       <Loader2 size={44} className="animate-spin text-white" />
+    </div>
+  )
+
+  // ── 友達追加が必要 ────────────────────────────
+  if (view === 'add_friend') return (
+    <div className="min-h-screen bg-[#06C755] flex flex-col items-center justify-center px-6 gap-6">
+      <div className="text-center text-white">
+        <MessageCircle size={64} className="mx-auto mb-3 opacity-90" />
+        {storeName && <p className="text-green-200 text-xs font-bold mb-1">{storeName}</p>}
+        <h1 className="text-2xl font-black mb-2">友達追加が必要です</h1>
+        <p className="text-green-100 text-sm leading-relaxed">
+          お直しの受付完了・お呼び出しの通知を<br />LINEで受け取るために必要です
+        </p>
+      </div>
+
+      <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl space-y-4">
+        <button
+          onClick={() => openAddFriend(LINE_BASIC_ID)}
+          className="w-full bg-[#06C755] text-white text-lg font-black py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-green-200">
+          <MessageCircle size={20} />① 友達追加する
+        </button>
+        <button
+          onClick={() => window.location.reload()}
+          className="w-full bg-zinc-100 text-zinc-700 text-base font-bold py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform">
+          ② 追加済み → 登録へ進む
+        </button>
+      </div>
     </div>
   )
 

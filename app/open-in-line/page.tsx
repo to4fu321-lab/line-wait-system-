@@ -7,8 +7,8 @@ const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID || '2010126882-aUahQStD'
 
 function OpenInLineContent() {
   const params = useSearchParams()
-  const storeId = params.get('storeId') ?? ''
-  const liffUrl = `https://liff.line.me/${LIFF_ID}`
+  const to = params.get('to') ?? ''
+  const liffUrl = `https://liff.line.me/${LIFF_ID}${to}`
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-500 to-green-600 flex flex-col items-center justify-center px-6">
