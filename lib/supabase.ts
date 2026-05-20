@@ -32,8 +32,10 @@ try {
 export const supabase = supabaseClient
 
 export function getTodayStart(): string {
-  const now = new Date()
-  const jst = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }))
-  jst.setHours(0, 0, 0, 0)
-  return jst.toISOString()
+  const jstOffset = 9 * 60 * 60 * 1000 // UTC+9
+  const jstNow = new Date(Date.now() + jstOffset)
+  const jstMidnightUTC = new Date(
+    Date.UTC(jstNow.getUTCFullYear(), jstNow.getUTCMonth(), jstNow.getUTCDate()) - jstOffset
+  )
+  return jstMidnightUTC.toISOString()
 }
