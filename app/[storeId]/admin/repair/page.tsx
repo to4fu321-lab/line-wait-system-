@@ -61,7 +61,11 @@ function CustomerBadge({ customer, selected, onClick }: {
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-sm truncate">{customer.name}</p>
-          <p className="text-xs text-zinc-500 truncate">{customer.kana ?? customer.tel ?? '情報未登録'}</p>
+          <p className="text-xs text-zinc-500 truncate">
+            {customer.kana ? `${customer.kana}` : ''}
+            {customer.parent_name ? `　保護者: ${customer.parent_name}` : ''}
+            {!customer.kana && !customer.parent_name ? (customer.tel ?? '情報未登録') : ''}
+          </p>
         </div>
         {customer.line_user_id
           ? <MessageCircle size={13} className="text-emerald-400 shrink-0" />
@@ -403,7 +407,9 @@ function EditCustomerForm({ storeId, customer, onSaved, onCancel }: {
 }) {
   const [name,       setName]       = useState(customer.name)
   const [kana,       setKana]       = useState(customer.kana ?? '')
+  const [parentName, setParentName] = useState(customer.parent_name ?? '')
   const [tel,        setTel]        = useState(customer.tel ?? '')
+  const [schoolName, setSchoolName] = useState(customer.school_name ?? '')
   const [notes,      setNotes]      = useState(customer.notes ?? '')
   const [loading,    setLoading]    = useState(false)
   const [error,      setError]      = useState<string | null>(null)
@@ -412,7 +418,13 @@ function EditCustomerForm({ storeId, customer, onSaved, onCancel }: {
     if (!name.trim()) { setError('氏名を入力してください'); return }
     setLoading(true); setError(null)
     const { data, error: err } = await supabase.from('customers')
-      .update({ name: name.trim(), kana: kana.trim() || null, tel: tel.trim() || null, notes: notes.trim() || null })
+      .update({
+        name: name.trim(), kana: kana.trim() || null,
+        parent_name: parentName.trim() || null,
+        tel: tel.trim() || null,
+        school_name: schoolName.trim() || null,
+        notes: notes.trim() || null,
+      })
       .eq('id', customer.id).select().single()
     setLoading(false)
     if (err) { setError(err.message.includes('unique') ? '同じ電話番号の顧客が既に登録されています' : `保存失敗: ${err.message}`); return }
@@ -428,19 +440,29 @@ function EditCustomerForm({ storeId, customer, onSaved, onCancel }: {
         <button onClick={onCancel} className="p-1 text-zinc-500 hover:text-white"><X size={16} /></button>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <Field label="氏名" required>
+        <Field label="氏名（お子様）" required>
           <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-amber-500 focus:outline-none"
             value={name} onChange={e => { setName(e.target.value); setError(null) }} />
         </Field>
-        <Field label="フリガナ">
+        <Field label="フリガナ（お子様）">
           <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-amber-500 focus:outline-none"
-            placeholder="ヤマダ タロウ" value={kana} onChange={e => setKana(e.target.value)} />
+            placeholder="ヤマダ ハナコ" value={kana} onChange={e => setKana(e.target.value)} />
         </Field>
       </div>
-      <Field label="電話番号">
-        <input type="tel" inputMode="tel" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-amber-500 focus:outline-none"
-          placeholder="090-1234-5678" value={tel} onChange={e => setTel(e.target.value)} />
+      <Field label="保護者名">
+        <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-amber-500 focus:outline-none"
+          placeholder="山田 太郎" value={parentName} onChange={e => setParentName(e.target.value)} />
       </Field>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="電話番号">
+          <input type="tel" inputMode="tel" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-amber-500 focus:outline-none"
+            placeholder="090-1234-5678" value={tel} onChange={e => setTel(e.target.value)} />
+        </Field>
+        <Field label="学校名">
+          <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-amber-500 focus:outline-none"
+            placeholder="○○高等学校" value={schoolName} onChange={e => setSchoolName(e.target.value)} />
+        </Field>
+      </div>
       <Field label="メモ">
         <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-amber-500 focus:outline-none"
           placeholder="アレルギー・注意事項など" value={notes} onChange={e => setNotes(e.target.value)} />
@@ -520,7 +542,7 @@ export default function RepairManagementPage() {
     if (!storeId || !q.trim()) { setCustomers([]); setLoading(false); return }
     setLoading(true)
     const { data } = await supabase.from('customers').select('*').eq('store_id', storeId)
-      .or(`name.ilike.%${q}%,kana.ilike.%${q}%,tel.ilike.%${q.replace(/-/g, '')}%`)
+      .or(`name.ilike.%${q}%,kana.ilike.%${q}%,tel.ilike.%${q.replace(/-/g, '')}%,parent_name.ilike.%${q}%,school_name.ilike.%${q}%`)
       .order('updated_at', { ascending: false }).limit(20)
     setCustomers(data ?? []); setLoading(false)
   }, [storeId])

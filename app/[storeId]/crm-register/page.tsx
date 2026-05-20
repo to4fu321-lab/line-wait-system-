@@ -81,7 +81,19 @@ export default function CrmRegisterPage() {
       .order('created_at', { ascending: true })
 
     if (existing && existing.length > 0) {
-      setExistingList(existing as Customer[])
+      const list = existing as Customer[]
+      setExistingList(list)
+      // 登録済みデータから保護者情報を事前入力
+      const first = list[0]
+      if (first.parent_name) setParentName(first.parent_name)
+      if (first.tel)         setTel(first.tel)
+      if (first.school_name) {
+        if (SCHOOLS.includes(first.school_name)) {
+          setSchoolName(first.school_name); setShowCustomInput(false)
+        } else {
+          setCustomSchool(first.school_name); setShowCustomInput(true)
+        }
+      }
       setView('existing')
     } else {
       setName(displayName)
