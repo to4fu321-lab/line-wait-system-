@@ -506,7 +506,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
       if (target?.line_user_id) {
         fetch('/api/notify', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lineUserId: target.line_user_id, ticketNumber: target.ticket_number, customerName: target.customer_name, storeName: store.name }),
+          body: JSON.stringify({ lineUserId: target.line_user_id, ticketNumber: target.ticket_number, customerName: target.customer_name, storeName: store.name, storeId: store.id }),
         }).then(async r => { const j = await r.json(); if (!j.ok && !j.skipped) showToast('err', 'LINE通知失敗') }).catch(console.error)
       }
       fetch('/api/notify-threshold', {

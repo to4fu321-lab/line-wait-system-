@@ -5,7 +5,7 @@
 // CREATE POLICY "stores_anon_update" ON stores FOR UPDATE TO anon USING (true) WITH CHECK (true);
 
 import { useState, useEffect, useCallback } from 'react'
-import { RefreshCw, Loader2 } from 'lucide-react'
+import { RefreshCw, Loader2, ExternalLink, ShieldCheck } from 'lucide-react'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import type { Store } from '@/types/database'
 
@@ -197,11 +197,29 @@ function SuperDashboard() {
                   {store.is_open ? '受付中' : '停止'}
                 </span>
               </div>
-              <div className="grid grid-cols-4 gap-2 text-center">
+              <div className="grid grid-cols-4 gap-2 text-center mb-3">
                 <MiniStatCard label="合計" value={total}     color="text-white" />
                 <MiniStatCard label="待機" value={waiting}   color="text-blue-400" />
                 <MiniStatCard label="呼出" value={calling}   color="text-yellow-400" />
                 <MiniStatCard label="完了" value={completed} color="text-green-400" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <a
+                  href={`/${store.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-600/30 transition-colors text-sm font-bold"
+                >
+                  <ExternalLink size={13} />顧客受付ページ
+                </a>
+                <a
+                  href={`/${store.id}/admin`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-amber-600/20 border border-amber-500/30 text-amber-300 hover:bg-amber-600/30 transition-colors text-sm font-bold"
+                >
+                  <ShieldCheck size={13} />店舗管理画面
+                </a>
               </div>
             </div>
           ))}
