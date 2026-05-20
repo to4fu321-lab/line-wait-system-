@@ -9,11 +9,14 @@ export function middleware(request: NextRequest) {
 
   if (path === '/' && isLine) {
     // liff.state に storeId が含まれていればそちらへリダイレクト（多店舗対応）
+    // サブパス・クエリパラメータも含めてそのまま転送する
     const liffState = request.nextUrl.searchParams.get('liff.state')
     if (liffState) {
-      const match = decodeURIComponent(liffState).match(/^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/)
+      const decoded = decodeURIComponent(liffState)
+      const match = decoded.match(/^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/)
       if (match) {
-        return NextResponse.redirect(new URL(`/${match[1]}`, request.url))
+        // /{storeId}/crm-register や /{storeId}?mode=crm_register も正しく転送
+        return NextResponse.redirect(new URL(decoded, request.url))
       }
     }
     return NextResponse.redirect(new URL(`/${STORE_ID}`, request.url))
