@@ -520,6 +520,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
     const labels: Record<QueueStatus, string> = { calling:'呼出', completed:'完了', cancelled:'不在', waiting:'待機に戻しました' }
     showToast('ok', labels[status])
     if (status === 'calling') {
+      // 呼出通知を本人に送る
       const target = queues.find(q => q.id === id)
       if (target?.line_user_id) {
         fetch('/api/notify', {
@@ -527,9 +528,13 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
           body: JSON.stringify({ lineUserId: target.line_user_id, ticketNumber: target.ticket_number, customerName: target.customer_name, storeName: store.name, storeId: store.id }),
         }).then(async r => { const j = await r.json(); if (!j.ok && !j.skipped) showToast('err', 'LINE通知失敗') }).catch(console.error)
       }
+      // 呼出中は waiting+calling 両方でカウントするため位置は変わらない → threshold通知不要
+    }
+    if (status === 'completed' || status === 'cancelled') {
+      // 完了/不在で count から外れ後続がポジションアップ → threshold チェック
       fetch('/api/notify-threshold', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storeId: store.id, calledTicketId: id }),
+        body: JSON.stringify({ storeId: store.id, excludeId: id }),
       }).catch(console.error)
     }
   }

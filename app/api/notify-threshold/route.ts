@@ -5,10 +5,11 @@ import { getTodayStart } from '@/lib/supabase'
 
 const LIFF_URL = 'https://liff.line.me/2010126882-aUahQStD'
 
-// POST { storeId, calledTicketId }
-// 呼出後、ちょうど threshold 番目になったチケットにプッシュ通知を送る
+// POST { storeId, excludeId }
+// 完了/不在 になったチケットを除外した (waiting + calling) のうち
+// ちょうど threshold 番目の人にプッシュ通知を送る
 export async function POST(req: NextRequest) {
-  const { storeId } = await req.json()
+  const { storeId, excludeId } = await req.json()
 
   if (!storeId) {
     return NextResponse.json({ ok: false, error: 'storeId is required' }, { status: 400 })
@@ -35,7 +36,6 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (storeErr) {
-    // notice_threshold カラムが存在しない可能性 → name だけ再取得してデフォルト値で続行
     console.warn('[notify-threshold] full store fetch failed, retrying name only:', storeErr.message)
     const { data: basicData } = await supabase
       .from('stores').select('name').eq('id', storeId).single()
@@ -50,29 +50,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'store not found' }, { status: 404 })
   }
 
-  // 2. 当日の waiting チケットを ticket_number 昇順で取得
-  const { data: waitingTickets, error: queueErr } = await supabase
+  // 2. waiting + calling を ticket_number 昇順で取得
+  //    （顧客画面と同じカウント方法 = 完了/不在でポジションが下がる設計）
+  //    excludeId は直前に完了/不在になったチケット → まだ DB に old status が残る可能性があるため除外
+  const baseQuery = supabase
     .from('queues')
-    .select('*')
+    .select('id, ticket_number, customer_name, line_user_id, status')
     .eq('store_id', storeId)
-    .eq('status', 'waiting')
+    .in('status', ['waiting', 'calling'])
     .gte('created_at', getTodayStart())
     .order('ticket_number', { ascending: true })
+
+  const { data: activeTickets, error: queueErr } = excludeId
+    ? await baseQuery.neq('id', excludeId)
+    : await baseQuery
 
   if (queueErr) {
     console.error('[notify-threshold] queue fetch error:', queueErr)
     return NextResponse.json({ ok: false, error: 'queue fetch failed' }, { status: 500 })
   }
 
-  const waitingCount = waitingTickets?.length ?? 0
+  const activeCount = activeTickets?.length ?? 0
 
   // 3. ちょうど threshold 番目のチケットに通知
-  //    （呼出のたびに threshold 番目の人が入れ替わり、1人ずつ通知が届く）
+  //    呼出のたびに threshold 番目の人が入れ替わり、1人ずつ通知が届く
   const targetIdx  = noticeThreshold - 1
-  const nextTicket = waitingTickets?.[targetIdx]
+  const nextTicket = activeTickets?.[targetIdx]
 
   if (!nextTicket) {
-    console.log(`[notify-threshold] waiting=${waitingCount} < threshold=${noticeThreshold} → skip`)
+    console.log(`[notify-threshold] active=${activeCount} < threshold=${noticeThreshold} → skip`)
     return NextResponse.json({ ok: true, skipped: true, reason: 'no ticket at threshold position' })
   }
 
@@ -110,7 +116,7 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(
-      `[notify-threshold] 通知送信 No.${nextTicket.ticket_number} ${nextTicket.customer_name} 様 (position=${noticeThreshold}, waiting=${waitingCount})`
+      `[notify-threshold] 通知送信 No.${nextTicket.ticket_number} ${nextTicket.customer_name} 様 (position=${noticeThreshold}, active=${activeCount})`
     )
     return NextResponse.json({ ok: true, notified: nextTicket.ticket_number })
   } catch (e) {
