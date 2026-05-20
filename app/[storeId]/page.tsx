@@ -385,7 +385,7 @@ function DetailsView({ ticket, storeId, onComplete, onSkip }: {
           {/* スキップを目立たせる */}
           <button type="button" onClick={onSkip}
             className="w-full py-3.5 rounded-2xl border-2 border-gray-200 bg-gray-50 text-gray-600 text-base font-bold active:scale-95 transition-all flex items-center justify-center gap-2">
-            <span>⏭</span> 後で入力する（今は順番待ちへ）
+            <span>⏭</span> 後で入力する（車・待合室で入力）
           </button>
           <p className="text-center text-gray-400 text-xs">※ 入力しなくても受付は完了しています</p>
         </div>
