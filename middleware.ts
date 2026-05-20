@@ -31,5 +31,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/', '/:storeId([0-9a-f-]{36})'],
+  matcher: ['/', '/:storeId([0-9a-f-]{36})', '/:storeId([0-9a-f-]{36})/crm-register'],
 }
