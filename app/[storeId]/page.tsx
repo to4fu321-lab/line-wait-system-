@@ -906,9 +906,6 @@ export default function CustomerPage() {
   useEffect(() => {
     if (!storeId) return
     ;(async () => {
-      const isCrmMode = typeof window !== 'undefined' &&
-        new URLSearchParams(window.location.search).get('mode') === 'crm_register'
-
       const savedId   = localStorage.getItem(ticketKey)
       const savedDate = localStorage.getItem(dateKey)
       const hasSavedTicket = savedId && savedDate === new Date().toDateString()
@@ -919,11 +916,16 @@ export default function CustomerPage() {
       if (Array.isArray(sd?.wait_thresholds) && sd.wait_thresholds.length > 0)
         setWaitThresholds(sd.wait_thresholds as WaitThreshold[])
       if (sd?.allow_remote != null) setAllowRemote(sd.allow_remote)
-      if (!isCrmMode && !hasSavedTicket && sd && !sd.is_open) { setView('closed'); return }
 
       const liff   = await initLiff()
       const inLine = isInLineApp()
       setInLineApp(inLine)
+
+      // LIFF初期化後にURLを確認（LIFFがliff.stateをデコードしてURLを書き換えるため）
+      const sp = new URLSearchParams(window.location.search)
+      const liffState = decodeURIComponent(sp.get('liff.state') || '')
+      const isCrmMode = sp.get('mode') === 'crm_register' ||
+        liffState.includes('mode=crm_register')
 
       if (liff && inLine) {
         try {
@@ -933,6 +935,8 @@ export default function CustomerPage() {
           }
         } catch { /* ignore */ }
       }
+
+      if (!isCrmMode && !hasSavedTicket && sd && !sd.is_open) { setView('closed'); return }
 
       // CRMモードはそのままCRM登録画面へ
       if (isCrmMode) {
