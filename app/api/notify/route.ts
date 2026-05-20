@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   }
 
   const paddedNum = String(ticketNumber).padStart(3, '0')
-  const storeUrl  = storeId ? `\n\n▼ 画面を開く\n${LIFF_URL}/${storeId}` : ''
+  const storeUrl  = storeId ? `\n\n▼ 画面を開く\n${LIFF_URL}/${storeId}\n\nURLを開き\n画面をスタッフにお見せください。` : ''
   const storeLabel = storeName ? `【${storeName}】\n` : ''
 
   const messageText = type === 'registered'
