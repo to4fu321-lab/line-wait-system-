@@ -531,11 +531,22 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
       // 呼出中は waiting+calling 両方でカウントするため位置は変わらない → threshold通知不要
     }
     if (status === 'completed' || status === 'cancelled') {
-      // 完了/不在で count から外れ後続がポジションアップ → threshold チェック
-      fetch('/api/notify-threshold', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storeId: store.id, excludeId: id }),
-      }).catch(console.error)
+      try {
+        const r = await fetch('/api/notify-threshold', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ storeId: store.id, excludeId: id }),
+        })
+        const j = await r.json()
+        if (j.ok && j.notified) {
+          showToast('ok', `📲 まもなく通知: No.${String(j.notified).padStart(3,'0')}`)
+        } else if (j.skipped) {
+          showToast('ok', `通知スキップ: ${j.reason}`)
+        } else if (!j.ok) {
+          showToast('err', `通知エラー: ${j.error ?? '不明'}`)
+        }
+      } catch (e) {
+        showToast('err', `通知失敗: ${String(e)}`)
+      }
     }
   }
 
