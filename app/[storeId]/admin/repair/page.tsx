@@ -336,6 +336,7 @@ function NewCustomerQrCard({ storeId, onCancel }: { storeId: string; onCancel: (
               />
             </div>
             <p className="text-zinc-500 text-xs">LINEカメラで読み取ると登録画面が開きます</p>
+            <p className="text-zinc-600 text-[10px] break-all select-all">{registerUrl}</p>
           </div>
 
           <div className="bg-indigo-950/40 border border-indigo-500/20 rounded-xl p-3">
