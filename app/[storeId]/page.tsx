@@ -293,7 +293,7 @@ export default function CustomerPage() {
         }
       }
 
-      // LINEアプリ外（外部ブラウザ）または未ログインなら友達追加を促す
+      // LINEアプリ外または未ログインは必ず友達追加画面へ
       if (!profile || !isInLineApp()) { setView('add_friend'); return }
 
       // 既存顧客チェック
@@ -301,18 +301,18 @@ export default function CustomerPage() {
         .select('*').eq('store_id', storeId).eq('line_user_id', profile.userId).maybeSingle()
 
       if (cust) {
+        // 登録済み → 友達追加画面スキップして最速フローへ
         setCustomer(cust)
         const { data: childList } = await supabase.from('children')
           .select('*').eq('customer_id', cust.id).order('created_at', { ascending: true })
         const kids = childList ?? []
         setChildren(kids)
         if (sd && !sd.is_open) { setView('closed'); return }
-        // お子様1人だけなら即選択して purpose へ（最速）
         if (kids.length === 1) { setSelectedChild(kids[0]); setView('purpose'); return }
         setView('welcome')
       } else {
-        if (sd && !sd.is_open) { setView('closed'); return }
-        setView('register')
+        // 未登録（新規）→ 友達追加確認を先に出す
+        setView('add_friend')
       }
     })()
   }, [storeId, ticketKey, dateKey])
