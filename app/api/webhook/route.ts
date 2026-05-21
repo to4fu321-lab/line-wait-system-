@@ -27,17 +27,8 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify({
           to: event.source.userId,
           messages: [{
-            type: 'template',
-            altText: 'ご来店ありがとうございます',
-            template: {
-              type: 'buttons',
-              title: 'ご来店ありがとうございます',
-              text: '下のボタンからお手続きをお選びください。',
-              actions: [
-                { type: 'uri', label: '📋 順番待ち受付', uri: `${LIFF_BASE}/${STORE_ID}/queue` },
-                { type: 'uri', label: '✂️ お直し受付', uri: `${LIFF_BASE}/${STORE_ID}/repair` },
-              ],
-            },
+            type: 'text',
+            text: `友だち追加ありがとうございます😊\nこちらからメニューへお進みください。\n${LIFF_BASE}/${STORE_ID}`,
           }],
         }),
       }).catch(console.error)
