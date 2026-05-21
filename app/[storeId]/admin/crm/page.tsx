@@ -17,7 +17,7 @@ import type {
 import {
   REPAIR_STATUS_LABELS, REPAIR_STATUS_COLORS,
   PURCHASE_STATUS_LABELS, PURCHASE_STATUS_COLORS,
-  GRADE_OPTIONS,
+  GRADE_OPTIONS, SCHOOL_OPTIONS,
 } from '@/types/crm'
 
 // ============================================================
@@ -647,8 +647,11 @@ function EditChildForm({ child, onSaved, onCancel }: {
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Field label="学校名">
-          <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-amber-500 focus:outline-none"
-            placeholder="○○中学校" value={schoolName} onChange={e => setSchoolName(e.target.value)} />
+          <select value={schoolName} onChange={e => setSchoolName(e.target.value)}
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-amber-500 focus:outline-none">
+            <option value="">選択</option>
+            {SCHOOL_OPTIONS.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
+          </select>
         </Field>
         <Field label="学年">
           <select value={grade} onChange={e => setGrade(e.target.value)}
@@ -780,8 +783,11 @@ function AddChildFormCRM({ customerId, storeId, onSaved, onCancel }: {
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Field label="学校名">
-          <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none"
-            placeholder="○○中学校" value={schoolName} onChange={e => setSchoolName(e.target.value)} />
+          <select value={schoolName} onChange={e => setSchoolName(e.target.value)}
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none">
+            <option value="">選択</option>
+            {SCHOOL_OPTIONS.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
+          </select>
         </Field>
         <Field label="学年">
           <select value={grade} onChange={e => setGrade(e.target.value)}

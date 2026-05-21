@@ -440,7 +440,10 @@ export default function CustomerPage() {
         payload => {
           const updated = payload.new as Queue
           setTicket(updated)
-          if (updated.status === 'calling')   setView('queue_calling')
+          if (updated.status === 'calling') {
+            setView('queue_calling')
+            if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300])
+          }
           if (updated.status === 'completed') setView('queue_completed')
           if (updated.status === 'cancelled') setView('queue_cancelled')
         })
