@@ -1,10 +1,15 @@
 'use client'
 
-import { useState } from 'react'
-import { CheckCircle2, Minus, Plus, ShoppingCart, ChevronDown, ChevronUp } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { CheckCircle2, Minus, Plus, ShoppingCart, ChevronDown, ChevronUp, Loader2, AlertCircle, X } from 'lucide-react'
 import { useStoreTheme } from '@/lib/theme-context'
 import { supabase } from '@/lib/supabase'
+import { SCHOOL_OPTIONS, GRADE_OPTIONS } from '@/types/crm'
 import type { LiffProfile } from '@/lib/liff'
+
+function toKatakana(s: string) {
+  return s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60))
+}
 
 // ── モック商品データ ──────────────────────────────────────
 const ITEMS = [
@@ -60,6 +65,22 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
   const [orderError, setOrderError] = useState('')
   const [openCart, setOpenCart] = useState(false)
 
+  // 登録モーダル用 state
+  const [showRegModal, setShowRegModal] = useState(false)
+  const [regName,      setRegName]      = useState(lineProfile?.displayName ?? '')
+  const [regKana,      setRegKana]      = useState('')
+  const [regTel,       setRegTel]       = useState('')
+  const [regChildName, setRegChildName] = useState('')
+  const [regChildKana, setRegChildKana] = useState('')
+  const [regSchool,    setRegSchool]    = useState('')
+  const [regGrade,     setRegGrade]     = useState('')
+  const [regError,     setRegError]     = useState('')
+  const [registering,  setRegistering]  = useState(false)
+  const isComposingParent = useRef(false)
+  const isComposingChild  = useRef(false)
+  const regKanaEdited     = useRef(false)
+  const regChildKanaEdited= useRef(false)
+
   const totalQty   = cart.reduce((s, c) => s + c.qty, 0)
   const totalPrice = cart.reduce((s, c) => {
     const item = ITEMS.find(i => i.id === c.itemId)
@@ -79,27 +100,17 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
     })
   }
 
-  const handleOrder = async () => {
-    if (totalQty === 0 || ordering) return
-    if (!customerId) {
-      setOrderError('ご注文には会員登録が必要です。一度戻って会員登録してからお試しください。')
-      return
-    }
-    setOrdering(true)
-    setOrderError('')
+  // 注文DB登録（customerId確定後に呼ぶ）
+  const submitOrder = async (cId: string, chId: string | null) => {
+    setOrdering(true); setOrderError('')
     try {
       const today = new Date().toISOString().slice(0, 10)
       const records = cart.map(c => {
         const item = ITEMS.find(i => i.id === c.itemId)!
         return {
-          store_id:     storeId,
-          customer_id:  customerId ?? null,
-          child_id:     childId ?? null,
-          item_name:    `${item.name}（${c.size}）`,
-          notes:        `数量：${c.qty}点`,
-          price:        item.price * c.qty,
-          status:       'received',
-          ordered_date: today,
+          store_id: storeId, customer_id: cId, child_id: chId ?? null,
+          item_name: `${item.name}（${c.size}）`, notes: `数量：${c.qty}点`,
+          price: item.price * c.qty, status: 'received', ordered_date: today,
         }
       })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -110,6 +121,41 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
       setOrderError(e instanceof Error ? e.message : String(e))
     } finally {
       setOrdering(false)
+    }
+  }
+
+  const handleOrder = async () => {
+    if (totalQty === 0 || ordering) return
+    if (!customerId) { setShowRegModal(true); return }
+    await submitOrder(customerId, childId ?? null)
+  }
+
+  // 登録して注文
+  const handleRegisterAndOrder = async () => {
+    if (!regName.trim())      { setRegError('保護者のお名前を入力してください'); return }
+    if (!regChildName.trim()) { setRegError('お子様のお名前を入力してください'); return }
+    if (!lineProfile?.userId) { setRegError('LINE情報が取得できませんでした'); return }
+    setRegistering(true); setRegError('')
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: newCust, error: custErr } = await (supabase.from('customers') as any).insert({
+        store_id: storeId, line_user_id: lineProfile.userId,
+        name: regName.trim(), kana: regKana.trim() || null, tel: regTel.trim() || null,
+      }).select().single()
+      if (custErr) throw new Error(custErr.message)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: newChild, error: childErr } = await (supabase.from('children') as any).insert({
+        customer_id: newCust.id, store_id: storeId,
+        name: regChildName.trim(), kana: regChildKana.trim() || null,
+        school_name: regSchool || null, grade: regGrade || null,
+      }).select().single()
+      if (childErr) throw new Error(childErr.message)
+      setShowRegModal(false)
+      await submitOrder(newCust.id, newChild?.id ?? null)
+    } catch (e) {
+      setRegError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRegistering(false)
     }
   }
 
@@ -349,6 +395,87 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
                 style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`,
                   boxShadow: `0 8px 24px -6px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
                 {ordering ? '送信中...' : `在庫確認を依頼する  →`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 会員登録モーダル */}
+      {showRegModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end justify-center z-50">
+          <div className="bg-white rounded-t-3xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-zinc-100">
+              <div>
+                <p className="font-black text-zinc-900 text-base">会員登録して注文する</p>
+                <p className="text-zinc-500 text-xs mt-0.5">カートの内容はそのまま注文されます</p>
+              </div>
+              <button onClick={() => setShowRegModal(false)} className="p-1.5 rounded-xl bg-zinc-100 text-zinc-500"><X size={16} /></button>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider">保護者情報</p>
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
+                <input type="text" value={regName} placeholder="例：山田 太郎"
+                  className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all"
+                  onChange={e => { setRegName(e.target.value); if (!regKanaEdited.current && !isComposingParent.current) setRegKana(toKatakana(e.target.value)) }}
+                  onCompositionStart={() => { isComposingParent.current = true }}
+                  onCompositionEnd={() => { isComposingParent.current = false }} />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
+                <input type="text" value={regKana} placeholder="ヤマダ タロウ"
+                  className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all"
+                  onChange={e => { regKanaEdited.current = true; setRegKana(e.target.value) }} />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 mb-1.5">電話番号</label>
+                <input type="tel" inputMode="tel" value={regTel} placeholder="例：090-1234-5678"
+                  className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all"
+                  onChange={e => setRegTel(e.target.value)} />
+              </div>
+              <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider pt-2 border-t border-zinc-100">お子様情報</p>
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
+                <input type="text" value={regChildName} placeholder="例：山田 花子"
+                  className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all"
+                  onChange={e => { setRegChildName(e.target.value); if (!regChildKanaEdited.current && !isComposingChild.current) setRegChildKana(toKatakana(e.target.value)) }}
+                  onCompositionStart={() => { isComposingChild.current = true }}
+                  onCompositionEnd={() => { isComposingChild.current = false }} />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
+                <input type="text" value={regChildKana} placeholder="ヤマダ ハナコ"
+                  className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all"
+                  onChange={e => { regChildKanaEdited.current = true; setRegChildKana(e.target.value) }} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名</label>
+                  <select value={regSchool} onChange={e => setRegSchool(e.target.value)}
+                    className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all">
+                    <option value="">選択</option>
+                    {SCHOOL_OPTIONS.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-zinc-500 mb-1.5">学年</label>
+                  <select value={regGrade} onChange={e => setRegGrade(e.target.value)}
+                    className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all">
+                    <option value="">選択</option>
+                    {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+              </div>
+              {regError && (
+                <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 rounded-xl px-3 py-2">
+                  <AlertCircle size={13} />{regError}
+                </div>
+              )}
+              <button onClick={handleRegisterAndOrder} disabled={registering || !regName.trim() || !regChildName.trim()}
+                className="w-full py-4 rounded-2xl text-white font-black text-base flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50"
+                style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})` }}>
+                {registering ? <><Loader2 size={18} className="animate-spin" />登録・注文中...</> : '登録して注文する →'}
               </button>
             </div>
           </div>
