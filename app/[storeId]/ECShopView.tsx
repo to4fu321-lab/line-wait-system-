@@ -81,6 +81,10 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
 
   const handleOrder = async () => {
     if (totalQty === 0 || ordering) return
+    if (!customerId) {
+      setOrderError('ご注文には会員登録が必要です。一度戻って会員登録してからお試しください。')
+      return
+    }
     setOrdering(true)
     setOrderError('')
     try {

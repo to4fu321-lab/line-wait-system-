@@ -55,13 +55,11 @@ function InitialRegistrationForm({
 
   const onParentNameChange = (v: string) => {
     setParentName(v)
-    if (kanaBlockParent.current) { kanaBlockParent.current = false; return }
     if (!parentKanaEdited.current && !isComposingParent.current)
       setParentKana(toKatakana(v))
   }
   const onChildNameChange = (v: string) => {
     setChildName(v)
-    if (kanaBlockChild.current) { kanaBlockChild.current = false; return }
     if (!childKanaEdited.current && !isComposingChild.current)
       setChildKana(toKatakana(v))
   }
@@ -85,7 +83,7 @@ function InitialRegistrationForm({
         <input type="text" value={parentName} placeholder="例：山田 太郎" className={base}
           onChange={e => onParentNameChange(e.target.value)}
           onCompositionStart={() => { isComposingParent.current = true }}
-          onCompositionEnd={() => { isComposingParent.current = false; kanaBlockParent.current = true }}
+          onCompositionEnd={() => { isComposingParent.current = false }}
           onFocus={focus} onBlur={blur} />
       </div>
       <div>
@@ -106,7 +104,7 @@ function InitialRegistrationForm({
         <input type="text" value={childName} placeholder="例：山田 花子" className={base}
           onChange={e => onChildNameChange(e.target.value)}
           onCompositionStart={() => { isComposingChild.current = true }}
-          onCompositionEnd={() => { isComposingChild.current = false; kanaBlockChild.current = true }}
+          onCompositionEnd={() => { isComposingChild.current = false }}
           onFocus={focus} onBlur={blur} />
       </div>
       <div>
@@ -173,7 +171,6 @@ function AddChildForm({
 
   const onNameChange = (v: string) => {
     setChildName(v)
-    if (kanaBlock.current) { kanaBlock.current = false; return }
     if (!kanaEdited.current && !isComposing.current)
       setChildKana(toKatakana(v))
   }
@@ -196,7 +193,7 @@ function AddChildForm({
         <input type="text" value={childName} placeholder="例：山田 次郎" className={base}
           onChange={e => onNameChange(e.target.value)}
           onCompositionStart={() => { isComposing.current = true }}
-          onCompositionEnd={() => { isComposing.current = false; kanaBlock.current = true }}
+          onCompositionEnd={() => { isComposing.current = false }}
           onFocus={focus} onBlur={blur} />
       </div>
       <div>
@@ -397,8 +394,7 @@ export default function CustomerPage() {
       if (action === 'repair')   { setView('repair_speak');   return }
       if (action === 'purchase') { setView('purchase_ec');    return }
       if (action === 'queue') {
-        if (cust) { setView('confirm_queue'); return }
-        setPendingAction('queue'); setView('register'); return
+        setView('confirm_queue'); return
       }
       setView('purpose')
     } catch (e) {
@@ -857,10 +853,7 @@ export default function CustomerPage() {
 
       <div className="space-y-4">
         <button
-          onClick={() => {
-            if (!customer) { setPendingAction('queue'); setView('register') }
-            else setView('confirm_queue')
-          }}
+          onClick={() => setView('confirm_queue')}
           disabled={issuing}
           className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all disabled:opacity-80"
           style={cardStyle}>
