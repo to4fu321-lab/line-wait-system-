@@ -115,9 +115,9 @@ export async function POST(req: NextRequest) {
         name: storeName ?? 'メニュー',
         chatBarText: 'メニュー',
         areas: [
-          { bounds: { x: 0,    y: 0, width: 833,  height: 843 }, action: { type: 'uri', uri: `${base}?action=queue`,    label: '順番待ち' } },
-          { bounds: { x: 833,  y: 0, width: 834,  height: 843 }, action: { type: 'uri', uri: `${base}?action=repair`,   label: 'お直し' } },
-          { bounds: { x: 1667, y: 0, width: 833,  height: 843 }, action: { type: 'uri', uri: `${base}?action=purchase`, label: '取り置き注文' } },
+          { bounds: { x: 0,    y: 0, width: 833,  height: 843 }, action: { type: 'uri', uri: base, label: '順番待ち' } },
+          { bounds: { x: 833,  y: 0, width: 834,  height: 843 }, action: { type: 'uri', uri: base, label: 'お直し' } },
+          { bounds: { x: 1667, y: 0, width: 833,  height: 843 }, action: { type: 'uri', uri: base, label: '取り置き注文' } },
         ],
       }),
     })

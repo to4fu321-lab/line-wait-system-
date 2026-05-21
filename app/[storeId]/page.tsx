@@ -267,7 +267,7 @@ export default function CustomerPage() {
   // ── 初期化 ────────────────────────────────────────────
   useEffect(() => {
     if (!storeId) return
-    ;(async () => {
+    ;(async () => { try {
       const { data: sd } = await supabase.from('stores')
         .select('is_open, wait_thresholds').eq('id', storeId).single()
       if (sd && Array.isArray(sd.wait_thresholds) && sd.wait_thresholds.length > 0)
@@ -335,7 +335,10 @@ export default function CustomerPage() {
         setWaitingCount(count ?? 0)
         setView('register')
       }
-    })()
+    } catch (e) {
+      console.error('[init] error:', e)
+      setView('add_friend')
+    } })()
   }, [storeId, ticketKey, dateKey])
 
   // ── チケット購読 ──────────────────────────────────────

@@ -30,7 +30,7 @@ export async function initLiff(): Promise<Liff | null> {
     try {
       const liffModule = await import('@line/liff')
       const liff = liffModule.default
-      await liff.init({ liffId })
+      await liff.init({ liffId, withLoginOnExternalBrowser: false })
       liffInstance = liff
       return liff
     } catch (e) {
@@ -71,12 +71,15 @@ export async function getLineProfile(): Promise<LiffProfile | null> {
 
 /** LINE内ブラウザで開かれているか */
 export function isInLineApp(): boolean {
-  if (!liffInstance) return false
-  try {
-    return liffInstance.isInClient()
-  } catch {
-    return false
+  // LIFFが初期化済みならSDKで判定
+  if (liffInstance) {
+    try { return liffInstance.isInClient() } catch { /* fall through */ }
   }
+  // フォールバック: UserAgentでLINE内ブラウザを判定
+  if (typeof navigator !== 'undefined') {
+    return /\bLine\b/i.test(navigator.userAgent)
+  }
+  return false
 }
 
 /** LINE公式アカウントを友達追加しているか */
