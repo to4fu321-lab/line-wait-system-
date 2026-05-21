@@ -463,7 +463,6 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
   const [allowRemote,     setAllowRemote]     = useState(false)
   const [saving,          setSaving]          = useState(false)
   const [showSettings,    setShowSettings]    = useState(false)
-  const [richMenuLoading, setRichMenuLoading] = useState(false)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const showToast = useCallback((type: 'ok' | 'err', msg: string, duration = 3500) => {
@@ -557,21 +556,6 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
     showToast('ok', '代理チェックイン済みにしました')
   }
 
-  const handleSetRichMenu = async () => {
-    setRichMenuLoading(true)
-    try {
-      const r = await fetch('/api/richmenu', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storeId: store.id, storeName: store.name }),
-      })
-      const j = await r.json()
-      showToast(j.ok ? 'ok' : 'err', j.ok ? `リッチメニューを設定しました (${j.richMenuId})` : `失敗: ${j.error}`)
-    } catch (e) {
-      showToast('err', `エラー: ${String(e)}`)
-    }
-    setRichMenuLoading(false)
-  }
-
   const handleSaveSettings = async () => {
     setSaving(true)
     const { error } = await supabase.from('stores').update({
@@ -658,15 +642,6 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
           <ChevronRight size={14} className="text-indigo-500" />
         </a>
 
-        <button onClick={handleSetRichMenu} disabled={richMenuLoading}
-          className="mt-2 w-full flex items-center gap-3 px-4 py-3 bg-violet-500/10 border border-violet-500/20 rounded-xl hover:bg-violet-500/20 active:scale-[0.98] transition-all disabled:opacity-60">
-          <div className="w-7 h-7 rounded-lg bg-violet-500/20 border border-violet-500/30 flex items-center justify-center shrink-0">
-            {richMenuLoading ? <Loader2 size={14} className="text-violet-400 animate-spin" /> : <LayoutDashboard size={14} className="text-violet-400" />}
-          </div>
-          <span className="text-violet-300 text-sm font-bold flex-1">
-            {richMenuLoading ? 'リッチメニュー設定中...' : 'LINEリッチメニューを設定する'}
-          </span>
-        </button>
       </div>
 
       {/* トースト */}
