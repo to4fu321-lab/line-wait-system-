@@ -179,35 +179,46 @@ function RepairItem({ repair, showCustomer = false, onComplete, onDeliver, onRev
 // ============================================================
 // 追加購入アイテム
 // ============================================================
-function PurchaseItem({ order, showCustomer = false, onArrive, onDeliver, onRevert }: {
+function PurchaseItem({ order, showCustomer = false, onStock, onBackOrder, onArrive, onDeliver, onRevert }: {
   order: PurchaseOrder | PurchaseWithCustomer
   showCustomer?: boolean
-  onArrive:  (id: string) => Promise<void>
-  onDeliver: (id: string) => Promise<void>
-  onRevert:  (id: string) => Promise<void>
+  onStock:     (id: string) => Promise<void>
+  onBackOrder: (id: string) => Promise<void>
+  onArrive:    (id: string) => Promise<void>
+  onDeliver:   (id: string) => Promise<void>
+  onRevert:    (id: string) => Promise<void>
 }) {
   const [loading,       setLoading]       = useState<string | null>(null)
   const [confirmArrive, setConfirmArrive] = useState(false)
   const [confirmRevert, setConfirmRevert] = useState(false)
   const customerName = showCustomer ? (order as PurchaseWithCustomer).customer?.name : null
 
+  const cardBg =
+    order.status === 'delivered' ? 'bg-zinc-900/30 border-zinc-800/40' :
+    order.status === 'arrived'   ? 'bg-emerald-950/40 border-emerald-500/20' :
+    order.status === 'stocked'   ? 'bg-gradient-to-br from-violet-950/40 to-purple-950/30 border-violet-500/20' :
+    order.status === 'on_order'  ? 'bg-gradient-to-br from-orange-950/40 to-amber-950/30 border-orange-500/20' :
+                                   'bg-gradient-to-br from-blue-950/40 to-indigo-950/30 border-blue-500/20'
+
+  const iconBg =
+    order.status === 'delivered' ? 'bg-zinc-800' :
+    order.status === 'arrived'   ? 'bg-emerald-500/20' :
+    order.status === 'stocked'   ? 'bg-violet-500/20' :
+    order.status === 'on_order'  ? 'bg-orange-500/20' :
+                                   'bg-blue-500/20'
+
+  const icon =
+    order.status === 'delivered' ? <Package size={14} className="text-zinc-500" /> :
+    order.status === 'arrived'   ? <CheckCheck size={14} className="text-emerald-400" /> :
+    order.status === 'stocked'   ? <ShoppingBag size={14} className="text-violet-400" /> :
+    order.status === 'on_order'  ? <ShoppingBag size={14} className="text-orange-400" /> :
+                                   <ShoppingBag size={14} className="text-blue-400" />
+
   return (
-    <div className={`rounded-2xl border p-4 transition-all ${
-      order.status === 'delivered'
-        ? 'bg-zinc-900/30 border-zinc-800/40'
-        : order.status === 'arrived'
-        ? 'bg-emerald-950/40 border-emerald-500/20'
-        : 'bg-gradient-to-br from-blue-950/40 to-indigo-950/30 border-blue-500/20'
-    }`}>
+    <div className={`rounded-2xl border p-4 transition-all ${cardBg}`}>
       <div className="flex items-start gap-3">
-        <div className={`shrink-0 mt-0.5 w-8 h-8 rounded-xl flex items-center justify-center ${
-          order.status === 'delivered' ? 'bg-zinc-800'
-          : order.status === 'arrived' ? 'bg-emerald-500/20'
-          : 'bg-blue-500/20'
-        }`}>
-          {order.status === 'delivered' ? <Package size={14} className="text-zinc-500" />
-          : order.status === 'arrived'  ? <CheckCheck size={14} className="text-emerald-400" />
-          : <ShoppingBag size={14} className="text-blue-400" />}
+        <div className={`shrink-0 mt-0.5 w-8 h-8 rounded-xl flex items-center justify-center ${iconBg}`}>
+          {icon}
         </div>
         <div className="flex-1 min-w-0">
           {customerName && (
@@ -229,49 +240,59 @@ function PurchaseItem({ order, showCustomer = false, onArrive, onDeliver, onReve
           {order.notes && <p className="text-zinc-400 text-xs mt-0.5">{order.notes}</p>}
           {order.price != null && <p className="text-zinc-500 text-xs mt-0.5">¥{order.price.toLocaleString()}</p>}
           <div className="flex items-center gap-3 mt-1.5 text-zinc-600 text-xs">
-            <span className="flex items-center gap-1"><CalendarDays size={10} />注文 {fmtDate(order.ordered_date)}</span>
+            <span className="flex items-center gap-1"><CalendarDays size={10} />受付 {fmtDate(order.ordered_date)}</span>
             {order.arrived_date   && <span className="flex items-center gap-1"><Bell size={10} />入荷 {fmtDate(order.arrived_date)}</span>}
             {order.delivered_date && <span className="flex items-center gap-1"><Package size={10} />お渡し {fmtDate(order.delivered_date)}</span>}
           </div>
         </div>
       </div>
 
-      {order.status === 'ordered' && (
-        confirmArrive ? (
-          <div className="mt-3 bg-emerald-950/60 border border-emerald-500/30 rounded-xl p-3 space-y-2">
-            <p className="text-xs text-center text-emerald-300 font-bold">📦 入荷通知 · LINEで連絡しますか？</p>
-            <div className="flex gap-2">
-              <button onClick={() => setConfirmArrive(false)}
-                className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-zinc-700 text-zinc-300 active:scale-95 transition-all">
-                キャンセル
-              </button>
-              <button
-                onClick={async () => { setLoading('arrive'); await onArrive(order.id); setLoading(null); setConfirmArrive(false) }}
-                disabled={!!loading}
-                className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-emerald-500 to-teal-500 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
-                {loading === 'arrive' ? <><Loader2 size={13} className="animate-spin" />送信中...</> : <><Bell size={13} />通知する</>}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button onClick={() => setConfirmArrive(true)}
-            className="w-full mt-3 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-emerald-500/80 to-teal-500/80 hover:from-emerald-500 hover:to-teal-500 text-white active:scale-95 transition-all flex items-center justify-center gap-2">
-            <Bell size={14} />入荷確認・LINE通知を送る
+      {/* 依頼受付 → 在庫確保 or メーカー発注 */}
+      {order.status === 'received' && (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            onClick={async () => { setLoading('stock'); await onStock(order.id); setLoading(null) }}
+            disabled={!!loading}
+            className="py-2.5 rounded-xl font-bold text-xs bg-violet-600/80 hover:bg-violet-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
+            {loading === 'stock' ? <Loader2 size={12} className="animate-spin" /> : '在庫確保済み'}
           </button>
-        )
+          <button
+            onClick={async () => { setLoading('backorder'); await onBackOrder(order.id); setLoading(null) }}
+            disabled={!!loading}
+            className="py-2.5 rounded-xl font-bold text-xs bg-orange-600/80 hover:bg-orange-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
+            {loading === 'backorder' ? <Loader2 size={12} className="animate-spin" /> : 'メーカー発注済み'}
+          </button>
+        </div>
       )}
 
-      {order.status === 'arrived' && (
+      {/* 在庫確保済み / メーカー発注済み → 入荷済み */}
+      {(order.status === 'stocked' || order.status === 'on_order') && (
         <div className="mt-3 space-y-2">
-          <button
-            onClick={async () => { setLoading('deliver'); await onDeliver(order.id); setLoading(null) }}
-            disabled={!!loading}
-            className="w-full py-2.5 rounded-xl font-bold text-sm bg-zinc-700/80 hover:bg-zinc-600 text-zinc-200 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
-            {loading === 'deliver' ? <><Loader2 size={14} className="animate-spin" />処理中...</> : <><Package size={14} />お渡し済みにする</>}
-          </button>
+          {confirmArrive ? (
+            <div className="bg-emerald-950/60 border border-emerald-500/30 rounded-xl p-3 space-y-2">
+              <p className="text-xs text-center text-emerald-300 font-bold">📦 入荷通知 · LINEで連絡しますか？</p>
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmArrive(false)}
+                  className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-zinc-700 text-zinc-300 active:scale-95 transition-all">
+                  キャンセル
+                </button>
+                <button
+                  onClick={async () => { setLoading('arrive'); await onArrive(order.id); setLoading(null); setConfirmArrive(false) }}
+                  disabled={!!loading}
+                  className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-emerald-500 to-teal-500 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
+                  {loading === 'arrive' ? <><Loader2 size={13} className="animate-spin" />送信中...</> : <><Bell size={13} />通知する</>}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmArrive(true)}
+              className="w-full py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-emerald-500/80 to-teal-500/80 hover:from-emerald-500 hover:to-teal-500 text-white active:scale-95 transition-all flex items-center justify-center gap-2">
+              <Bell size={14} />入荷確認・LINE通知を送る
+            </button>
+          )}
           {confirmRevert ? (
             <div className="bg-blue-950/50 border border-blue-500/30 rounded-xl p-3 space-y-2">
-              <p className="text-xs text-center text-blue-300 font-bold">注文中に戻しますか？</p>
+              <p className="text-xs text-center text-blue-300 font-bold">依頼受付に戻しますか？</p>
               <div className="flex gap-2">
                 <button onClick={() => setConfirmRevert(false)}
                   className="flex-1 py-2 rounded-xl font-bold text-xs bg-zinc-700 text-zinc-300 active:scale-95">キャンセル</button>
@@ -286,9 +307,21 @@ function PurchaseItem({ order, showCustomer = false, onArrive, onDeliver, onReve
           ) : (
             <button onClick={() => setConfirmRevert(true)}
               className="w-full py-2 rounded-xl font-bold text-xs border border-blue-500/20 text-blue-500/70 hover:text-blue-400 hover:border-blue-500/40 transition-all flex items-center justify-center gap-1.5">
-              <RotateCcw size={12} />注文中に戻す
+              <RotateCcw size={12} />依頼受付に戻す
             </button>
           )}
+        </div>
+      )}
+
+      {/* 入荷済み → お渡し済み */}
+      {order.status === 'arrived' && (
+        <div className="mt-3 space-y-2">
+          <button
+            onClick={async () => { setLoading('deliver'); await onDeliver(order.id); setLoading(null) }}
+            disabled={!!loading}
+            className="w-full py-2.5 rounded-xl font-bold text-sm bg-zinc-700/80 hover:bg-zinc-600 text-zinc-200 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+            {loading === 'deliver' ? <><Loader2 size={14} className="animate-spin" />処理中...</> : <><Package size={14} />お渡し済みにする</>}
+          </button>
         </div>
       )}
     </div>
@@ -391,7 +424,7 @@ function NewPurchaseForm({ customerId, childId, storeId, onSaved, onCancel }: {
       item_name: itemName.trim(),
       notes: notes.trim() || null,
       price: price ? parseInt(price) : null,
-      status: 'ordered', ordered_date: new Date().toISOString().slice(0, 10),
+      status: 'received', ordered_date: new Date().toISOString().slice(0, 10),
     })
     setLoading(false)
     if (err) { setError(`保存失敗: ${err.message}`); return }
@@ -427,7 +460,7 @@ function NewPurchaseForm({ customerId, childId, storeId, onSaved, onCancel }: {
       )}
       <button onClick={handleSave} disabled={loading}
         className="w-full py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
-        {loading ? <><Loader2 size={14} className="animate-spin" />保存中...</> : '注文中として登録する'}
+        {loading ? <><Loader2 size={14} className="animate-spin" />保存中...</> : '依頼として登録する'}
       </button>
     </div>
   )
@@ -439,6 +472,7 @@ function NewPurchaseForm({ customerId, childId, storeId, onSaved, onCancel }: {
 function ChildCard({
   child, customerId, storeId,
   onRepairComplete, onRepairDeliver, onRepairRevert,
+  onPurchaseStock, onPurchaseBackOrder,
   onPurchaseArrive, onPurchaseDeliver, onPurchaseRevert,
   onRefreshStats,
   showToast,
@@ -446,14 +480,16 @@ function ChildCard({
   child: Child
   customerId: string
   storeId: string
-  onRepairComplete:  (id: string) => Promise<void>
-  onRepairDeliver:   (id: string) => Promise<void>
-  onRepairRevert:    (id: string) => Promise<void>
-  onPurchaseArrive:  (id: string) => Promise<void>
-  onPurchaseDeliver: (id: string) => Promise<void>
-  onPurchaseRevert:  (id: string) => Promise<void>
-  onRefreshStats:    () => void
-  showToast:         (type: 'ok' | 'err', msg: string) => void
+  onRepairComplete:    (id: string) => Promise<void>
+  onRepairDeliver:     (id: string) => Promise<void>
+  onRepairRevert:      (id: string) => Promise<void>
+  onPurchaseStock:     (id: string) => Promise<void>
+  onPurchaseBackOrder: (id: string) => Promise<void>
+  onPurchaseArrive:    (id: string) => Promise<void>
+  onPurchaseDeliver:   (id: string) => Promise<void>
+  onPurchaseRevert:    (id: string) => Promise<void>
+  onRefreshStats:      () => void
+  showToast:           (type: 'ok' | 'err', msg: string) => void
 }) {
   const [expanded,       setExpanded]       = useState(false)
   const [repairs,        setRepairs]        = useState<RepairHistory[]>([])
@@ -539,6 +575,7 @@ function ChildCard({
                   <div className="space-y-2">
                     {purchases.map(o => (
                       <PurchaseItem key={o.id} order={o}
+                        onStock={onPurchaseStock} onBackOrder={onPurchaseBackOrder}
                         onArrive={onPurchaseArrive} onDeliver={onPurchaseDeliver} onRevert={onPurchaseRevert} />
                     ))}
                   </div>
@@ -793,7 +830,7 @@ export default function CRMPage() {
   const [showQrModal,      setShowQrModal]      = useState(false)
 
   // 未対応統計
-  const [stats, setStats] = useState({ repairReceived: 0, repairCompleted: 0, purchaseOrdered: 0, purchaseArrived: 0 })
+  const [stats, setStats] = useState({ repairReceived: 0, repairCompleted: 0, purchaseReceived: 0, purchaseInProgress: 0, purchaseArrived: 0 })
 
   // 未対応リスト
   const [showRepairReceived,  setShowRepairReceived]  = useState(false)
@@ -804,9 +841,13 @@ export default function CRMPage() {
   const [repairCompletedList,  setRepairCompletedList]  = useState<RepairWithCustomer[]>([])
   const [repairCompletedLoading, setRepairCompletedLoading] = useState(false)
 
-  const [showPurchaseOrdered,  setShowPurchaseOrdered]  = useState(false)
-  const [purchaseOrderedList,  setPurchaseOrderedList]  = useState<PurchaseWithCustomer[]>([])
-  const [purchaseOrderedLoading, setPurchaseOrderedLoading] = useState(false)
+  const [showPurchaseReceived,  setShowPurchaseReceived]  = useState(false)
+  const [purchaseReceivedList,  setPurchaseReceivedList]  = useState<PurchaseWithCustomer[]>([])
+  const [purchaseReceivedLoading, setPurchaseReceivedLoading] = useState(false)
+
+  const [showPurchaseInProgress,  setShowPurchaseInProgress]  = useState(false)
+  const [purchaseInProgressList,  setPurchaseInProgressList]  = useState<PurchaseWithCustomer[]>([])
+  const [purchaseInProgressLoading, setPurchaseInProgressLoading] = useState(false)
 
   const [showPurchaseArrived,  setShowPurchaseArrived]  = useState(false)
   const [purchaseArrivedList,  setPurchaseArrivedList]  = useState<PurchaseWithCustomer[]>([])
@@ -832,13 +873,14 @@ export default function CRMPage() {
     if (!storeId) return
     const [{ data: rData }, { data: pData }] = await Promise.all([
       supabase.from('repair_histories').select('status').eq('store_id', storeId).in('status', ['received', 'completed']),
-      supabase.from('purchase_orders').select('status').eq('store_id', storeId).in('status', ['ordered', 'arrived']),
+      supabase.from('purchase_orders').select('status').eq('store_id', storeId).in('status', ['received', 'stocked', 'on_order', 'arrived']),
     ])
     setStats({
-      repairReceived:  (rData ?? []).filter(r => r.status === 'received').length,
-      repairCompleted: (rData ?? []).filter(r => r.status === 'completed').length,
-      purchaseOrdered: (pData ?? []).filter(r => r.status === 'ordered').length,
-      purchaseArrived: (pData ?? []).filter(r => r.status === 'arrived').length,
+      repairReceived:     (rData ?? []).filter(r => r.status === 'received').length,
+      repairCompleted:    (rData ?? []).filter(r => r.status === 'completed').length,
+      purchaseReceived:   (pData ?? []).filter(r => r.status === 'received').length,
+      purchaseInProgress: (pData ?? []).filter(r => r.status === 'stocked' || r.status === 'on_order').length,
+      purchaseArrived:    (pData ?? []).filter(r => r.status === 'arrived').length,
     })
   }, [storeId])
 
@@ -962,12 +1004,20 @@ export default function CRMPage() {
     setRepairCompletedList((data ?? []) as RepairWithCustomer[]); setRepairCompletedLoading(false)
   }, [storeId])
 
-  const fetchPurchaseOrdered = useCallback(async () => {
-    if (!storeId) return; setPurchaseOrderedLoading(true)
+  const fetchPurchaseReceived = useCallback(async () => {
+    if (!storeId) return; setPurchaseReceivedLoading(true)
     const { data } = await supabase.from('purchase_orders')
-      .select('*, customer:customers(name, tel)').eq('store_id', storeId).eq('status', 'ordered')
+      .select('*, customer:customers(name, tel)').eq('store_id', storeId).eq('status', 'received')
       .order('ordered_date', { ascending: false })
-    setPurchaseOrderedList((data ?? []) as PurchaseWithCustomer[]); setPurchaseOrderedLoading(false)
+    setPurchaseReceivedList((data ?? []) as PurchaseWithCustomer[]); setPurchaseReceivedLoading(false)
+  }, [storeId])
+
+  const fetchPurchaseInProgress = useCallback(async () => {
+    if (!storeId) return; setPurchaseInProgressLoading(true)
+    const { data } = await supabase.from('purchase_orders')
+      .select('*, customer:customers(name, tel)').eq('store_id', storeId).in('status', ['stocked', 'on_order'])
+      .order('ordered_date', { ascending: false })
+    setPurchaseInProgressList((data ?? []) as PurchaseWithCustomer[]); setPurchaseInProgressLoading(false)
   }, [storeId])
 
   const fetchPurchaseArrived = useCallback(async () => {
@@ -1019,12 +1069,30 @@ export default function CRMPage() {
   }, [showToast, fetchStats, showRepairReceived, fetchRepairReceived])
 
   // ── 追加購入アクション ─────────────────────────────────
+  const handlePurchaseStock = useCallback(async (orderId: string) => {
+    const { error } = await supabase.from('purchase_orders').update({ status: 'stocked' }).eq('id', orderId)
+    if (error) { showToast('err', `更新失敗: ${error.message}`); return }
+    setPurchaseReceivedList(prev => prev.filter(o => o.id !== orderId))
+    showToast('ok', '✅ 在庫確保済みにしました')
+    fetchStats()
+    if (showPurchaseInProgress) fetchPurchaseInProgress()
+  }, [showToast, fetchStats, showPurchaseInProgress, fetchPurchaseInProgress])
+
+  const handlePurchaseBackOrder = useCallback(async (orderId: string) => {
+    const { error } = await supabase.from('purchase_orders').update({ status: 'on_order' }).eq('id', orderId)
+    if (error) { showToast('err', `更新失敗: ${error.message}`); return }
+    setPurchaseReceivedList(prev => prev.filter(o => o.id !== orderId))
+    showToast('ok', '✅ メーカー発注済みにしました')
+    fetchStats()
+    if (showPurchaseInProgress) fetchPurchaseInProgress()
+  }, [showToast, fetchStats, showPurchaseInProgress, fetchPurchaseInProgress])
+
   const handlePurchaseArrive = useCallback(async (orderId: string) => {
     const today = new Date().toISOString().slice(0, 10)
     const { error } = await supabase.from('purchase_orders')
       .update({ status: 'arrived', arrived_date: today }).eq('id', orderId)
     if (error) { showToast('err', `入荷処理失敗: ${error.message}`); return }
-    setPurchaseOrderedList(prev => prev.filter(o => o.id !== orderId))
+    setPurchaseInProgressList(prev => prev.filter(o => o.id !== orderId))
     try {
       const res = await fetch('/api/notify-purchase', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purchaseOrderId: orderId }),
@@ -1050,13 +1118,13 @@ export default function CRMPage() {
 
   const handlePurchaseRevert = useCallback(async (orderId: string) => {
     const { error } = await supabase.from('purchase_orders')
-      .update({ status: 'ordered', arrived_date: null, notified: false }).eq('id', orderId)
+      .update({ status: 'received', arrived_date: null, notified: false }).eq('id', orderId)
     if (error) { showToast('err', `戻し処理失敗: ${error.message}`); return }
-    setPurchaseArrivedList(prev => prev.filter(o => o.id !== orderId))
-    showToast('ok', '🔄 注文中に戻しました')
+    setPurchaseInProgressList(prev => prev.filter(o => o.id !== orderId))
+    showToast('ok', '🔄 依頼受付に戻しました')
     fetchStats()
-    if (showPurchaseOrdered) fetchPurchaseOrdered()
-  }, [showToast, fetchStats, showPurchaseOrdered, fetchPurchaseOrdered])
+    if (showPurchaseReceived) fetchPurchaseReceived()
+  }, [showToast, fetchStats, showPurchaseReceived, fetchPurchaseReceived])
 
   // ── トグル関数 ─────────────────────────────────────────
   const toggleRepairReceived = () => {
@@ -1067,16 +1135,20 @@ export default function CRMPage() {
     if (!showRepairCompleted) fetchRepairCompleted()
     setShowRepairCompleted(v => !v)
   }
-  const togglePurchaseOrdered = () => {
-    if (!showPurchaseOrdered) fetchPurchaseOrdered()
-    setShowPurchaseOrdered(v => !v)
+  const togglePurchaseReceived = () => {
+    if (!showPurchaseReceived) fetchPurchaseReceived()
+    setShowPurchaseReceived(v => !v)
+  }
+  const togglePurchaseInProgress = () => {
+    if (!showPurchaseInProgress) fetchPurchaseInProgress()
+    setShowPurchaseInProgress(v => !v)
   }
   const togglePurchaseArrived = () => {
     if (!showPurchaseArrived) fetchPurchaseArrived()
     setShowPurchaseArrived(v => !v)
   }
 
-  const pendingTotal = stats.repairReceived + stats.repairCompleted + stats.purchaseOrdered + stats.purchaseArrived
+  const pendingTotal = stats.repairReceived + stats.repairCompleted + stats.purchaseReceived + stats.purchaseInProgress + stats.purchaseArrived
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
@@ -1136,26 +1208,36 @@ export default function CRMPage() {
           </div>
 
           {/* 追加購入統計 */}
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <button onClick={togglePurchaseOrdered}
-              className={`rounded-2xl p-3.5 text-center transition-all active:scale-[0.97] border ${
-                showPurchaseOrdered ? 'bg-blue-500/20 border-blue-400/40 ring-1 ring-blue-400/30' : 'bg-blue-950/40 border-blue-500/20'
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            <button onClick={togglePurchaseReceived}
+              className={`rounded-2xl p-3 text-center transition-all active:scale-[0.97] border ${
+                showPurchaseReceived ? 'bg-blue-500/20 border-blue-400/40 ring-1 ring-blue-400/30' : 'bg-blue-950/40 border-blue-500/20'
               }`}>
-              <p className="text-xs text-blue-400/70 font-bold flex items-center justify-center gap-1">
-                <ShoppingBag size={10} />注文中 {showPurchaseOrdered ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+              <p className="text-[10px] text-blue-400/70 font-bold flex items-center justify-center gap-0.5">
+                <ShoppingBag size={9} />依頼受付 {showPurchaseReceived ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
               </p>
-              <p className="text-3xl font-black text-blue-300 leading-none mt-0.5">{stats.purchaseOrdered}</p>
-              <p className="text-xs text-blue-500/50 mt-0.5">件</p>
+              <p className="text-2xl font-black text-blue-300 leading-none mt-0.5">{stats.purchaseReceived}</p>
+              <p className="text-[10px] text-blue-500/50 mt-0.5">件</p>
+            </button>
+            <button onClick={togglePurchaseInProgress}
+              className={`rounded-2xl p-3 text-center transition-all active:scale-[0.97] border ${
+                showPurchaseInProgress ? 'bg-violet-500/20 border-violet-400/40 ring-1 ring-violet-400/30' : 'bg-violet-950/40 border-violet-500/20'
+              }`}>
+              <p className="text-[10px] text-violet-400/70 font-bold flex items-center justify-center gap-0.5">
+                <ShoppingBag size={9} />手配中 {showPurchaseInProgress ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+              </p>
+              <p className="text-2xl font-black text-violet-300 leading-none mt-0.5">{stats.purchaseInProgress}</p>
+              <p className="text-[10px] text-violet-500/50 mt-0.5">件</p>
             </button>
             <button onClick={togglePurchaseArrived}
-              className={`rounded-2xl p-3.5 text-center transition-all active:scale-[0.97] border ${
+              className={`rounded-2xl p-3 text-center transition-all active:scale-[0.97] border ${
                 showPurchaseArrived ? 'bg-emerald-500/20 border-emerald-400/40 ring-1 ring-emerald-400/30' : 'bg-emerald-950/40 border-emerald-500/20'
               }`}>
-              <p className="text-xs text-emerald-400/70 font-bold flex items-center justify-center gap-1">
-                <ShoppingBag size={10} />入荷済み（要お渡し） {showPurchaseArrived ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+              <p className="text-[10px] text-emerald-400/70 font-bold flex items-center justify-center gap-0.5">
+                <ShoppingBag size={9} />入荷済み {showPurchaseArrived ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
               </p>
-              <p className="text-3xl font-black text-emerald-300 leading-none mt-0.5">{stats.purchaseArrived}</p>
-              <p className="text-xs text-emerald-500/50 mt-0.5">件</p>
+              <p className="text-2xl font-black text-emerald-300 leading-none mt-0.5">{stats.purchaseArrived}</p>
+              <p className="text-[10px] text-emerald-500/50 mt-0.5">件</p>
             </button>
           </div>
 
@@ -1193,18 +1275,37 @@ export default function CRMPage() {
             </div>
           )}
 
-          {/* 注文中リスト */}
-          {showPurchaseOrdered && (
+          {/* 依頼受付リスト */}
+          {showPurchaseReceived && (
             <div className="space-y-2 animate-fade-in mb-2">
               <p className="text-xs font-bold text-blue-400/70 uppercase tracking-wider px-1">
-                注文中 — {purchaseOrderedList.length}件
+                依頼受付 — {purchaseReceivedList.length}件
               </p>
-              {purchaseOrderedLoading ? (
+              {purchaseReceivedLoading ? (
                 <div className="flex justify-center py-6"><Loader2 size={24} className="animate-spin text-blue-400" /></div>
-              ) : purchaseOrderedList.length === 0 ? (
-                <div className="text-center py-6 text-zinc-600 text-sm">注文中の商品はありません</div>
-              ) : purchaseOrderedList.map(o => (
+              ) : purchaseReceivedList.length === 0 ? (
+                <div className="text-center py-6 text-zinc-600 text-sm">受付中の依頼はありません</div>
+              ) : purchaseReceivedList.map(o => (
                 <PurchaseItem key={o.id} order={o} showCustomer
+                  onStock={handlePurchaseStock} onBackOrder={handlePurchaseBackOrder}
+                  onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} />
+              ))}
+            </div>
+          )}
+
+          {/* 手配中リスト */}
+          {showPurchaseInProgress && (
+            <div className="space-y-2 animate-fade-in mb-2">
+              <p className="text-xs font-bold text-violet-400/70 uppercase tracking-wider px-1">
+                手配中 — {purchaseInProgressList.length}件
+              </p>
+              {purchaseInProgressLoading ? (
+                <div className="flex justify-center py-6"><Loader2 size={24} className="animate-spin text-violet-400" /></div>
+              ) : purchaseInProgressList.length === 0 ? (
+                <div className="text-center py-6 text-zinc-600 text-sm">手配中の商品はありません</div>
+              ) : purchaseInProgressList.map(o => (
+                <PurchaseItem key={o.id} order={o} showCustomer
+                  onStock={handlePurchaseStock} onBackOrder={handlePurchaseBackOrder}
                   onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} />
               ))}
             </div>
@@ -1222,6 +1323,7 @@ export default function CRMPage() {
                 <div className="text-center py-6 text-zinc-600 text-sm">入荷済みの商品はありません</div>
               ) : purchaseArrivedList.map(o => (
                 <PurchaseItem key={o.id} order={o} showCustomer
+                  onStock={handlePurchaseStock} onBackOrder={handlePurchaseBackOrder}
                   onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} />
               ))}
             </div>
@@ -1388,6 +1490,8 @@ export default function CRMPage() {
                           onRepairComplete={handleRepairComplete}
                           onRepairDeliver={handleRepairDeliver}
                           onRepairRevert={handleRepairRevert}
+                          onPurchaseStock={handlePurchaseStock}
+                          onPurchaseBackOrder={handlePurchaseBackOrder}
                           onPurchaseArrive={handlePurchaseArrive}
                           onPurchaseDeliver={handlePurchaseDeliver}
                           onPurchaseRevert={handlePurchaseRevert}

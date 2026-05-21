@@ -94,7 +94,7 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
           item_name:    `${item.name}（${c.size}）`,
           notes:        `数量：${c.qty}点`,
           price:        item.price * c.qty,
-          status:       'ordered',
+          status:       'received',
           ordered_date: today,
         }
       })
