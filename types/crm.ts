@@ -106,3 +106,9 @@ export const GRADE_OPTIONS = [
   '中学1年', '中学2年', '中学3年',
   '高校1年', '高校2年', '高校3年',
 ]
+
+export const SCHOOL_OPTIONS = [
+  '○○中学校',
+  '○○高等学校',
+  'その他',
+]

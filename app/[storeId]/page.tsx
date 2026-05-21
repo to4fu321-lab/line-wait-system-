@@ -11,7 +11,7 @@ import { supabase, getTodayStart } from '@/lib/supabase'
 import type { Queue, WaitThreshold } from '@/types/database'
 import { DEFAULT_THRESHOLDS, getWaitMessage } from '@/types/database'
 import type { Customer, Child } from '@/types/crm'
-import { GRADE_OPTIONS } from '@/types/crm'
+import { GRADE_OPTIONS, SCHOOL_OPTIONS } from '@/types/crm'
 import { initLiff, getLineProfile, openAddFriend, isInLineApp, type LiffProfile } from '@/lib/liff'
 import { useStoreTheme } from '@/lib/theme-context'
 
@@ -55,12 +55,14 @@ function InitialRegistrationForm({
 
   const onParentNameChange = (v: string) => {
     setParentName(v)
-    if (!parentKanaEdited.current && !isComposingParent.current && !kanaBlockParent.current)
+    if (kanaBlockParent.current) { kanaBlockParent.current = false; return }
+    if (!parentKanaEdited.current && !isComposingParent.current)
       setParentKana(toKatakana(v))
   }
   const onChildNameChange = (v: string) => {
     setChildName(v)
-    if (!childKanaEdited.current && !isComposingChild.current && !kanaBlockChild.current)
+    if (kanaBlockChild.current) { kanaBlockChild.current = false; return }
+    if (!childKanaEdited.current && !isComposingChild.current)
       setChildKana(toKatakana(v))
   }
 
@@ -116,8 +118,10 @@ function InitialRegistrationForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名</label>
-          <input type="text" value={schoolName} placeholder="○○中学校" className={base}
-            onChange={e => setSchoolName(e.target.value)} onFocus={focus} onBlur={blur} />
+          <select value={schoolName} onChange={e => setSchoolName(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
+            <option value="">選択してください</option>
+            {SCHOOL_OPTIONS.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
+          </select>
         </div>
         <div>
           <label className="block text-xs font-bold text-zinc-500 mb-1.5">学年</label>
@@ -169,7 +173,8 @@ function AddChildForm({
 
   const onNameChange = (v: string) => {
     setChildName(v)
-    if (!kanaEdited.current && !isComposing.current && !kanaBlock.current)
+    if (kanaBlock.current) { kanaBlock.current = false; return }
+    if (!kanaEdited.current && !isComposing.current)
       setChildKana(toKatakana(v))
   }
 
@@ -203,8 +208,10 @@ function AddChildForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名</label>
-          <input type="text" value={schoolName} placeholder="○○中学校" className={base}
-            onChange={e => setSchoolName(e.target.value)} onFocus={focus} onBlur={blur} />
+          <select value={schoolName} onChange={e => setSchoolName(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
+            <option value="">選択してください</option>
+            {SCHOOL_OPTIONS.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
+          </select>
         </div>
         <div>
           <label className="block text-xs font-bold text-zinc-500 mb-1.5">学年</label>
@@ -675,7 +682,7 @@ export default function CustomerPage() {
       .select('*', { count: 'exact', head: true })
       .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
     setWaitingCount(count ?? 0)
-    if (customer) { setView('welcome') } else { setView('purpose') }
+    setView('purpose')
   }
 
   // ══════════════════════════════════════════════════════════
@@ -1066,43 +1073,40 @@ export default function CustomerPage() {
               )}
             </div>
           ) : (
-            <div className="bg-white rounded-2xl shadow-sm border border-zinc-100 overflow-hidden">
-              <button onClick={() => setShowQueueRegister(v => !v)}
-                className="w-full flex items-center justify-between px-4 py-3.5 active:bg-zinc-50 transition-colors">
-                <div className="text-left">
-                  <p className="font-bold text-zinc-800 text-sm">お客様情報のご登録</p>
-                  <p className="text-xs text-zinc-400 mt-0.5">登録するとお名前でお呼びできます</p>
+            <div className="rounded-2xl overflow-hidden border-2 border-indigo-400/60"
+              style={{ background: 'linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%)', boxShadow: '0 8px 24px -8px rgba(99,102,241,0.25)' }}>
+              <div className="px-4 pt-4 pb-3 flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="text-white text-lg">📋</span>
                 </div>
-                {showQueueRegister
-                  ? <ChevronUp size={16} className="text-zinc-400 shrink-0" />
-                  : <ChevronDown size={16} className="text-zinc-400 shrink-0" />
-                }
-              </button>
-              {showQueueRegister && (
-                <div className="px-4 pb-5 border-t border-zinc-100">
-                  {queueRegDone ? (
-                    <div className="flex items-center justify-center gap-2 text-emerald-600 text-sm font-bold py-5">
-                      <CheckCircle2 size={16} />ご登録ありがとうございます！
-                    </div>
-                  ) : (
-                    <>
-                      {registerError && (
-                        <div className="flex items-start gap-2 text-red-600 text-xs bg-red-50 rounded-xl px-3 py-2 mt-3 mb-1">
-                          <AlertCircle size={13} className="shrink-0 mt-0.5" />
-                          <div><p className="font-bold">登録エラー</p><p className="mt-0.5">{registerError}</p></div>
-                        </div>
-                      )}
-                      <div className="mt-3">
-                        <InitialRegistrationForm
-                          lineDisplayName={lineProfile?.displayName ?? ''}
-                          onSubmit={handleInitialRegister}
-                          submitting={submitting}
-                        />
+                <div>
+                  <p className="font-black text-indigo-900 text-sm">会員情報のご登録をお願いします</p>
+                  <p className="text-indigo-600/70 text-xs mt-0.5">登録いただくとお名前でお呼びできます。次回からは自動認識します</p>
+                </div>
+              </div>
+              <div className="px-4 pb-5 border-t border-indigo-200/60">
+                {queueRegDone ? (
+                  <div className="flex items-center justify-center gap-2 text-emerald-600 text-sm font-bold py-5">
+                    <CheckCircle2 size={16} />ご登録ありがとうございます！
+                  </div>
+                ) : (
+                  <>
+                    {registerError && (
+                      <div className="flex items-start gap-2 text-red-600 text-xs bg-red-50 rounded-xl px-3 py-2 mt-3 mb-1">
+                        <AlertCircle size={13} className="shrink-0 mt-0.5" />
+                        <div><p className="font-bold">登録エラー</p><p className="mt-0.5">{registerError}</p></div>
                       </div>
-                    </>
-                  )}
-                </div>
-              )}
+                    )}
+                    <div className="mt-3">
+                      <InitialRegistrationForm
+                        lineDisplayName={lineProfile?.displayName ?? ''}
+                        onSubmit={handleInitialRegister}
+                        submitting={submitting}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </div>
