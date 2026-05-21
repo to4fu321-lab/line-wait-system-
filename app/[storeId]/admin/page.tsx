@@ -132,7 +132,7 @@ function WaitingCard({ ticket, onAction, onCheckIn }: {
   const [open, setOpen]       = useState(false)
   const waitMin   = Math.floor((Date.now() - new Date(ticket.created_at).getTime()) / 60000)
   const details   = (ticket.details ?? {}) as Record<string, string>
-  const hasDetail = !!(details.height || details.weight || details.parentPhone)
+  const hasDetail = !!(details.height || details.weight || details.parentPhone || details.note)
   const isRemoteUnchecked = ticket.is_remote && !ticket.checked_in
 
   const act = async (s: QueueStatus) => { setLoading(s); await onAction(ticket.id, s); setLoading(null) }
@@ -197,6 +197,7 @@ function WaitingCard({ ticket, onAction, onCheckIn }: {
           {details.height      && <DetailRow label="身長" value={`${details.height}cm`} />}
           {details.weight      && <DetailRow label="体重" value={`${details.weight}kg`} />}
           {details.parentPhone && <DetailRow label="保護者TEL" value={details.parentPhone} />}
+          {details.note        && <DetailRow label="相談事項" value={details.note} />}
         </div>
       )}
 
@@ -237,7 +238,7 @@ function CallingCard({ ticket, onAction }: { ticket: Queue; onAction: (id: strin
   const [open, setOpen]       = useState(false)
   const waitMin   = Math.floor((Date.now() - new Date(ticket.created_at).getTime()) / 60000)
   const details   = (ticket.details ?? {}) as Record<string, string>
-  const hasDetail = !!(details.height || details.weight || details.parentPhone)
+  const hasDetail = !!(details.height || details.weight || details.parentPhone || details.note)
 
   const act = async (s: QueueStatus) => { setLoading(s); await onAction(ticket.id, s); setLoading(null) }
   const recall = async () => {
@@ -280,6 +281,7 @@ function CallingCard({ ticket, onAction }: { ticket: Queue; onAction: (id: strin
           {details.height      && <DetailRow label="身長" value={`${details.height}cm`} />}
           {details.weight      && <DetailRow label="体重" value={`${details.weight}kg`} />}
           {details.parentPhone && <DetailRow label="保護者TEL" value={details.parentPhone} />}
+          {details.note        && <DetailRow label="相談事項" value={details.note} />}
         </div>
       )}
 
@@ -308,7 +310,7 @@ function HistoryCard({ ticket, onAction }: { ticket: Queue; onAction: (id: strin
   const [loading, setLoading] = useState<string | null>(null)
   const [open, setOpen]       = useState(false)
   const details   = (ticket.details ?? {}) as Record<string, string>
-  const hasDetail = !!(details.height || details.weight || details.parentPhone)
+  const hasDetail = !!(details.height || details.weight || details.parentPhone || details.note)
   const isDone    = ticket.status === 'completed'
   const act = async (s: QueueStatus) => { setLoading(s); await onAction(ticket.id, s); setLoading(null) }
 
@@ -350,6 +352,7 @@ function HistoryCard({ ticket, onAction }: { ticket: Queue; onAction: (id: strin
           {details.height      && <DetailRow label="身長" value={`${details.height}cm`} />}
           {details.weight      && <DetailRow label="体重" value={`${details.weight}kg`} />}
           {details.parentPhone && <DetailRow label="保護者TEL" value={details.parentPhone} />}
+          {details.note        && <DetailRow label="相談事項" value={details.note} />}
         </div>
       )}
     </div>

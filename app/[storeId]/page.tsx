@@ -305,6 +305,11 @@ export default function CustomerPage() {
   const [queueRegDone,      setQueueRegDone]      = useState(false)
   const [showWaitingEdit,   setShowWaitingEdit]   = useState(false)
   const [waitingEditMode,   setWaitingEditMode]   = useState<'child' | 'info' | null>(null)
+  const [detailHeight,  setDetailHeight]  = useState('')
+  const [detailWeight,  setDetailWeight]  = useState('')
+  const [detailNote,    setDetailNote]    = useState('')
+  const [detailSaving,  setDetailSaving]  = useState(false)
+  const [detailSaved,   setDetailSaved]   = useState(false)
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const ticketRef  = useRef<Queue | null>(null)
@@ -406,6 +411,16 @@ export default function CustomerPage() {
 
   useEffect(() => { ticketRef.current = ticket }, [ticket])
 
+  // チケット復元時に既存detailsをフォームに反映
+  useEffect(() => {
+    if (!ticket?.details) return
+    const d = ticket.details as Record<string, string>
+    setDetailHeight(d.height ?? '')
+    setDetailWeight(d.weight ?? '')
+    setDetailNote(d.note ?? '')
+    if (d.height || d.weight || d.note) setDetailSaved(true)
+  }, [ticket?.id])
+
   useEffect(() => {
     if (!ticket || !['queue_waiting', 'queue_calling'].includes(view)) return
     fetchWaitingAhead(ticket)
@@ -487,7 +502,7 @@ export default function CustomerPage() {
       const { data: existingRows } = await supabase.from('customers')
         .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId)
         .order('created_at', { ascending: false }).limit(1)
-      const existing = existingRows?.[0] ?? null
+      const existing = existingRows?.[0] && !existingRows[0].deleted_at ? existingRows[0] : null
 
       let cust
       if (existing) {
@@ -625,6 +640,19 @@ export default function CustomerPage() {
     // 顧客は登録済みのはず（welcome/register経由）
     setRepairLoading(false)
     setView('repair_speak')
+  }
+
+  // ── 伝達事項保存 ──────────────────────────────────────
+  const handleSaveDetails = async () => {
+    if (!ticket) return
+    setDetailSaving(true)
+    const details: Record<string, string> = {}
+    if (detailHeight.trim()) details.height = detailHeight.trim()
+    if (detailWeight.trim()) details.weight = detailWeight.trim()
+    if (detailNote.trim())   details.note   = detailNote.trim()
+    await supabase.from('queues').update({ details }).eq('id', ticket.id)
+    setDetailSaving(false)
+    setDetailSaved(true)
   }
 
   // ── キャンセル ────────────────────────────────────────
@@ -1077,6 +1105,60 @@ export default function CustomerPage() {
               )}
             </div>
           )}
+        </div>
+
+        {/* スタッフへの伝達事項 */}
+        <div className="px-5 pb-6 max-w-md mx-auto">
+          <div className="bg-white rounded-2xl shadow-sm border border-zinc-100 overflow-hidden">
+            <div className="px-4 py-3.5 border-b border-zinc-100">
+              <p className="font-bold text-zinc-800 text-sm">📝 スタッフへの伝達事項（任意）</p>
+              <p className="text-xs text-zinc-400 mt-0.5">待ち時間にご記入ください。お呼びした際にスタッフが確認します</p>
+            </div>
+            <div className="px-4 pt-3 pb-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-zinc-400 mb-1.5">身長</label>
+                  <div className="flex items-center gap-1.5">
+                    <input type="number" inputMode="numeric" value={detailHeight}
+                      onChange={e => { setDetailHeight(e.target.value); setDetailSaved(false) }}
+                      placeholder="165"
+                      className="w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all" />
+                    <span className="text-xs text-zinc-400 shrink-0">cm</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-zinc-400 mb-1.5">体重</label>
+                  <div className="flex items-center gap-1.5">
+                    <input type="number" inputMode="numeric" value={detailWeight}
+                      onChange={e => { setDetailWeight(e.target.value); setDetailSaved(false) }}
+                      placeholder="52"
+                      className="w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all" />
+                    <span className="text-xs text-zinc-400 shrink-0">kg</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-zinc-400 mb-1.5">ご相談・お伝えしたいこと</label>
+                <textarea value={detailNote}
+                  onChange={e => { setDetailNote(e.target.value); setDetailSaved(false) }}
+                  placeholder={'例：去年165Aを購入しました。\n今年サイズアップを検討中です'}
+                  rows={3}
+                  className="w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all resize-none" />
+              </div>
+              {detailSaved ? (
+                <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold bg-emerald-50 rounded-xl px-3 py-2.5">
+                  <CheckCircle2 size={14} />保存しました！スタッフが確認します
+                </div>
+              ) : (
+                <button onClick={handleSaveDetails}
+                  disabled={detailSaving || (!detailHeight.trim() && !detailWeight.trim() && !detailNote.trim())}
+                  className="w-full py-3 rounded-xl text-white font-bold text-sm disabled:opacity-40 flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
+                  style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})` }}>
+                  {detailSaving ? <><Loader2 size={14} className="animate-spin" />保存中...</> : '保存する'}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* キャンセルモーダル */}
