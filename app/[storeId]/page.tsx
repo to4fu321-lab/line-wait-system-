@@ -302,10 +302,11 @@ export default function CustomerPage() {
       const action = urlParams.get('action') as 'queue' | 'repair' | 'purchase' | null
       if (action) setUrlAction(action)
 
-      // 既存顧客チェック（deleted_atはJS側でチェック、カラム未作成でも動く）
-      const { data: custRaw } = await supabase.from('customers')
-        .select('*').eq('store_id', storeId).eq('line_user_id', profile.userId).maybeSingle()
-      const cust = (custRaw && !custRaw.deleted_at) ? custRaw : null
+      // 既存顧客チェック（limit(1)で重複レコードがあっても壊れない）
+      const { data: custRows } = await supabase.from('customers')
+        .select('*').eq('store_id', storeId).eq('line_user_id', profile.userId)
+        .order('created_at', { ascending: false }).limit(1)
+      const cust = custRows?.[0] && !custRows[0].deleted_at ? custRows[0] : null
 
       if (cust) {
         setCustomer(cust)
@@ -377,9 +378,10 @@ export default function CustomerPage() {
     const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
 
     if (lineProfile?.userId) {
-      const { data: custRaw2 } = await supabase.from('customers')
-        .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId).maybeSingle()
-      const cust = (custRaw2 && !custRaw2.deleted_at) ? custRaw2 : null
+      const { data: custRows2 } = await supabase.from('customers')
+        .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId)
+        .order('created_at', { ascending: false }).limit(1)
+      const cust = custRows2?.[0] && !custRows2[0].deleted_at ? custRows2[0] : null
       if (cust) {
         setCustomer(cust)
         const { data: childList } = await supabase.from('children')
@@ -411,9 +413,11 @@ export default function CustomerPage() {
     if (!lineProfile?.userId) return
     setSubmitting(true)
     try {
-      // ソフトデリート済みを含む既存チェック
-      const { data: existing } = await supabase.from('customers')
-        .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId).maybeSingle()
+      // ソフトデリート済みを含む既存チェック（limit(1)で重複対応）
+      const { data: existingRows } = await supabase.from('customers')
+        .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId)
+        .order('created_at', { ascending: false }).limit(1)
+      const existing = existingRows?.[0] ?? null
 
       let cust
       if (existing) {
