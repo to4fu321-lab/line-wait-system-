@@ -37,7 +37,7 @@ function InitialRegistrationForm({
   submitting: boolean
 }) {
   const theme = useStoreTheme()
-  const [parentName, setParentName] = useState('')
+  const [parentName, setParentName] = useState(lineDisplayName)
   const [parentKana, setParentKana] = useState('')
   const [tel,        setTel]        = useState('')
   const [childName,  setChildName]  = useState('')
@@ -360,12 +360,13 @@ export default function CustomerPage() {
       const action = urlParams.get('action') as 'queue' | 'repair' | 'purchase' | null
       if (action) setUrlAction(action)
 
-      // 既存顧客チェック（任意：登録済みなら名前等を表示に活用）
+      // 既存顧客チェック
+      let cust: Customer | null = null
       try {
         const { data: custRows } = await supabase.from('customers')
           .select('*').eq('store_id', storeId).eq('line_user_id', profile.userId)
           .order('created_at', { ascending: false }).limit(1)
-        const cust = custRows?.[0] && !custRows[0].deleted_at ? custRows[0] : null
+        cust = custRows?.[0] && !custRows[0].deleted_at ? custRows[0] : null
         if (cust) {
           setCustomer(cust)
           const { data: childList } = await supabase.from('children')
@@ -376,7 +377,6 @@ export default function CustomerPage() {
         }
       } catch { /* 顧客情報が取れなくても続行 */ }
 
-      // 未登録でも登録済みでも常に目的選択へ（会員登録は必須にしない）
       if (sd && !sd.is_open) { setView('closed'); return }
       const { count } = await supabase.from('queues')
         .select('*', { count: 'exact', head: true })
@@ -384,7 +384,10 @@ export default function CustomerPage() {
       setWaitingCount(count ?? 0)
       if (action === 'repair')   { setView('repair_speak');   return }
       if (action === 'purchase') { setView('purchase_ec');    return }
-      if (action === 'queue')    { setView('confirm_queue');  return }
+      if (action === 'queue') {
+        if (cust) { setView('confirm_queue'); return }
+        setPendingAction('queue'); setView('register'); return
+      }
       setView('purpose')
     } catch (e) {
       console.error('[init] error:', e)
@@ -518,11 +521,15 @@ export default function CustomerPage() {
       const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
       if (sd?.is_open === false) { setView('closed'); return }
 
-      // 順番待ち登録から来た場合はそのまま整理券発行
+      // 順番待ち登録から来た場合は待ち人数確認画面へ
       if (pendingAction === 'queue') {
         setPendingAction(null)
+        const { count: qCount } = await supabase.from('queues')
+          .select('*', { count: 'exact', head: true })
+          .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
+        setWaitingCount(qCount ?? 0)
         setSubmitting(false)
-        await handleIssueTicket()
+        setView('confirm_queue')
         return
       }
 
@@ -812,7 +819,10 @@ export default function CustomerPage() {
 
       <div className="space-y-4">
         <button
-          onClick={() => handleIssueTicket()}
+          onClick={() => {
+            if (!customer) { setPendingAction('queue'); setView('register') }
+            else setView('confirm_queue')
+          }}
           disabled={issuing}
           className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all disabled:opacity-80"
           style={cardStyle}>
@@ -1032,8 +1042,8 @@ export default function CustomerPage() {
               <button onClick={() => setShowQueueRegister(v => !v)}
                 className="w-full flex items-center justify-between px-4 py-3.5 active:bg-zinc-50 transition-colors">
                 <div className="text-left">
-                  <p className="font-bold text-zinc-800 text-sm">お客様情報のご登録（任意）</p>
-                  <p className="text-xs text-zinc-400 mt-0.5">次回からお名前でお呼びできます</p>
+                  <p className="font-bold text-zinc-800 text-sm">お客様情報のご登録</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">登録するとお名前でお呼びできます</p>
                 </div>
                 {showQueueRegister
                   ? <ChevronUp size={16} className="text-zinc-400 shrink-0" />

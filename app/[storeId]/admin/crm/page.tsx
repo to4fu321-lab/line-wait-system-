@@ -886,19 +886,27 @@ export default function CRMPage() {
     if (deleteMode === 'soft') {
       await supabase.from('customers').update({ deleted_at: new Date().toISOString() }).eq('id', deleteTarget.id)
     } else {
-      // 完全削除前に本日の有効な整理券から顧客情報を切り離す
-      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-      await supabase.from('queues')
+      // 1. すべての整理券から顧客・子供の参照を外す
+      const { error: qErr } = await supabase.from('queues')
         .update({ customer_id: null, child_id: null })
         .eq('customer_id', deleteTarget.id)
-        .in('status', ['waiting', 'calling'])
-        .gte('created_at', todayStart.toISOString())
-      await supabase.from('customers').delete().eq('id', deleteTarget.id)
+      if (qErr) { showToast('err', `削除失敗: ${qErr.message}`); setDeleteLoading(false); return }
+      // 2. お直し履歴・購入注文を削除
+      await Promise.all([
+        supabase.from('repair_histories').delete().eq('customer_id', deleteTarget.id),
+        supabase.from('purchase_orders').delete().eq('customer_id', deleteTarget.id),
+      ])
+      // 3. お子様を削除
+      await supabase.from('children').delete().eq('customer_id', deleteTarget.id)
+      // 4. 顧客本体を削除
+      const { error: custErr } = await supabase.from('customers').delete().eq('id', deleteTarget.id)
+      if (custErr) { showToast('err', `削除失敗: ${custErr.message}`); setDeleteLoading(false); return }
     }
     setCustomers(prev => prev.filter(c => c.id !== deleteTarget.id))
     if (selectedCustomer?.id === deleteTarget.id) setSelectedCustomer(null)
     setDeleteTarget(null); setDeleteMode(null); setDeleteLoading(false)
-  }, [deleteTarget, deleteMode, selectedCustomer])
+    showToast('ok', deleteMode === 'soft' ? '非表示にしました' : '完全削除しました')
+  }, [deleteTarget, deleteMode, selectedCustomer, showToast])
 
   // ── 復元処理 ──────────────────────────────────────────
   const handleRestore = useCallback(async (customer: Customer) => {

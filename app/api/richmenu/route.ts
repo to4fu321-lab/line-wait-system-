@@ -24,9 +24,9 @@ async function makeMenuPng(): Promise<Buffer> {
   } catch { /* フォント取得失敗時は続行 */ }
 
   const sections = [
-    { label: '今すぐ順番待ち',   sub: '採寸・ご購入はこちら',   emoji: '📋', bg: '#4f46e5' },
-    { label: 'お直し・ご相談',   sub: '制服の持ち込みはこちら', emoji: '✂️', bg: '#7c3aed' },
-    { label: 'お家でネット注文', sub: '在庫確認・取り置き',     emoji: '🛍️', bg: '#2563eb' },
+    { label: '採寸・ご購入',  emoji: '📋', bg: '#4f46e5' },
+    { label: 'お直し相談',    emoji: '✂️', bg: '#7c3aed' },
+    { label: 'ネット注文',    emoji: '🛍️', bg: '#2563eb' },
   ]
 
   const fontFamily = fontData ? '"Noto Sans JP", sans-serif' : 'sans-serif'
@@ -38,14 +38,13 @@ async function makeMenuPng(): Promise<Buffer> {
           key: i,
           style: {
             flex: 1, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', gap: 20,
+            alignItems: 'center', justifyContent: 'center', gap: 16,
             background: `linear-gradient(160deg, ${s.bg} 0%, ${s.bg}cc 100%)`,
             borderRight: i < 2 ? '4px solid rgba(255,255,255,0.3)' : 'none',
           },
         },
-          h('div', { style: { fontSize: 110, lineHeight: 1 } }, s.emoji),
-          h('div', { style: { fontSize: 82, fontWeight: 700, color: '#fff', letterSpacing: '-1px' } }, s.label),
-          h('div', { style: { fontSize: 54, color: 'rgba(255,255,255,0.80)' } }, s.sub),
+          h('div', { style: { fontSize: 160, lineHeight: 1 } }, s.emoji),
+          h('div', { style: { fontSize: 140, fontWeight: 700, color: '#fff', letterSpacing: '-2px' } }, s.label),
         )
       )
     ),
