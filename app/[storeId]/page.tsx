@@ -254,6 +254,7 @@ export default function CustomerPage() {
   const [urlAction,      setUrlAction]      = useState<'queue' | 'repair' | 'purchase' | null>(null)
   const [cancelModal,    setCancelModal]    = useState(false)
   const [cancelLoading,  setCancelLoading]  = useState(false)
+  const [registerError,  setRegisterError]  = useState('')
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const ticketRef  = useRef<Queue | null>(null)
@@ -302,39 +303,31 @@ export default function CustomerPage() {
       const action = urlParams.get('action') as 'queue' | 'repair' | 'purchase' | null
       if (action) setUrlAction(action)
 
-      // 既存顧客チェック（limit(1)で重複レコードがあっても壊れない）
-      const { data: custRows } = await supabase.from('customers')
-        .select('*').eq('store_id', storeId).eq('line_user_id', profile.userId)
-        .order('created_at', { ascending: false }).limit(1)
-      const cust = custRows?.[0] && !custRows[0].deleted_at ? custRows[0] : null
-
-      if (cust) {
-        setCustomer(cust)
-        const { data: childList } = await supabase.from('children')
-          .select('*').eq('customer_id', cust.id).order('created_at', { ascending: true })
-        const kids = childList ?? []
-        setChildren(kids)
-        if (sd && !sd.is_open) { setView('closed'); return }
-        const { count } = await supabase.from('queues')
-          .select('*', { count: 'exact', head: true })
-          .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
-        setWaitingCount(count ?? 0)
-        if (kids.length === 1) {
-          setSelectedChild(kids[0])
-          if (action === 'repair')   { setView('repair_speak');   return }
-          if (action === 'purchase') { setView('purchase_speak'); return }
-          setView('purpose'); return
+      // 既存顧客チェック（任意：登録済みなら名前等を表示に活用）
+      try {
+        const { data: custRows } = await supabase.from('customers')
+          .select('*').eq('store_id', storeId).eq('line_user_id', profile.userId)
+          .order('created_at', { ascending: false }).limit(1)
+        const cust = custRows?.[0] && !custRows[0].deleted_at ? custRows[0] : null
+        if (cust) {
+          setCustomer(cust)
+          const { data: childList } = await supabase.from('children')
+            .select('*').eq('customer_id', cust.id).order('created_at', { ascending: true })
+          const kids = childList ?? []
+          setChildren(kids)
+          if (kids.length === 1) setSelectedChild(kids[0])
         }
-        setView('welcome')
-      } else {
-        // LINE内の新規ユーザー → 登録フォームへ（友達追加済みとみなす）
-        if (sd && !sd.is_open) { setView('closed'); return }
-        const { count } = await supabase.from('queues')
-          .select('*', { count: 'exact', head: true })
-          .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
-        setWaitingCount(count ?? 0)
-        setView('register')
-      }
+      } catch { /* 顧客情報が取れなくても続行 */ }
+
+      // 未登録でも登録済みでも常に目的選択へ（会員登録は必須にしない）
+      if (sd && !sd.is_open) { setView('closed'); return }
+      const { count } = await supabase.from('queues')
+        .select('*', { count: 'exact', head: true })
+        .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
+      setWaitingCount(count ?? 0)
+      if (action === 'repair')   { setView('repair_speak');   return }
+      if (action === 'purchase') { setView('purchase_speak'); return }
+      setView('purpose')
     } catch (e) {
       console.error('[init] error:', e)
       setView('add_friend')
@@ -378,34 +371,37 @@ export default function CustomerPage() {
   // ── 友達確認後・次へ ──────────────────────────────────
   const handleFriendProceed = async () => {
     setFriendChecking(true)
-    const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
+    try {
+      const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
 
-    if (lineProfile?.userId) {
-      const { data: custRows2 } = await supabase.from('customers')
-        .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId)
-        .order('created_at', { ascending: false }).limit(1)
-      const cust = custRows2?.[0] && !custRows2[0].deleted_at ? custRows2[0] : null
-      if (cust) {
-        setCustomer(cust)
-        const { data: childList } = await supabase.from('children')
-          .select('*').eq('customer_id', cust.id).order('created_at', { ascending: true })
-        const kids = childList ?? []
-        setChildren(kids)
-        setFriendChecking(false)
-        if (sd?.is_open === false) { setView('closed'); return }
-        if (kids.length === 1) { setSelectedChild(kids[0]); setView('purpose'); return }
-        setView('welcome')
-        return
+      if (lineProfile?.userId) {
+        try {
+          const { data: custRows2 } = await supabase.from('customers')
+            .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId)
+            .order('created_at', { ascending: false }).limit(1)
+          const cust = custRows2?.[0] && !custRows2[0].deleted_at ? custRows2[0] : null
+          if (cust) {
+            setCustomer(cust)
+            const { data: childList } = await supabase.from('children')
+              .select('*').eq('customer_id', cust.id).order('created_at', { ascending: true })
+            const kids = childList ?? []
+            setChildren(kids)
+            if (kids.length === 1) setSelectedChild(kids[0])
+          }
+        } catch { /* 顧客情報は任意 */ }
       }
-    }
 
-    const { count } = await supabase.from('queues')
-      .select('*', { count: 'exact', head: true })
-      .eq('store_id', storeId).in('status', ['waiting', 'calling'])
-      .gte('created_at', getTodayStart())
-    setWaitingCount(count ?? 0)
-    setFriendChecking(false)
-    setView(sd?.is_open === false ? 'closed' : 'register')
+      const { count } = await supabase.from('queues')
+        .select('*', { count: 'exact', head: true })
+        .eq('store_id', storeId).in('status', ['waiting', 'calling'])
+        .gte('created_at', getTodayStart())
+      setWaitingCount(count ?? 0)
+      setView(sd?.is_open === false ? 'closed' : 'purpose')
+    } catch (e) {
+      console.error('[friendProceed]', e)
+    } finally {
+      setFriendChecking(false)
+    }
   }
 
   // ── 初回登録（保護者 + お子様）────────────────────────
@@ -588,10 +584,16 @@ export default function CustomerPage() {
           お呼び出しや、お直し完了の通知をLINEで確実に受け取るために、まずは友だち追加をお願いします
         </p>
       </div>
-      <div className="bg-white/75 backdrop-blur-2xl rounded-3xl p-6 w-full max-w-sm border border-white/60 space-y-4" style={cardStyle}>
+      <div className="bg-white/75 backdrop-blur-2xl rounded-3xl p-6 w-full max-w-sm border border-white/60 space-y-3" style={cardStyle}>
         <button onClick={() => openAddFriend(LINE_BASIC_ID)}
           className="w-full bg-[#06C755] text-white text-base font-black py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-green-200">
           <MessageCircle size={20} />LINEで友だち追加する
+        </button>
+        <button onClick={handleFriendProceed} disabled={friendChecking}
+          className="w-full py-3.5 rounded-2xl border-2 border-zinc-200 text-zinc-600 text-sm font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50">
+          {friendChecking
+            ? <><Loader2 size={14} className="animate-spin" />確認中...</>
+            : '友だち追加しました → 次へ'}
         </button>
       </div>
     </main>
