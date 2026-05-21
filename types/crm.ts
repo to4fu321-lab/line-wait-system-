@@ -48,3 +48,37 @@ export const REPAIR_STATUS_COLORS: Record<RepairStatus, string> = {
   completed: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
   delivered: 'bg-zinc-700/60 text-zinc-400 border-zinc-600/50',
 }
+
+// ──────────────────────────────────────────────
+// 追加購入（発注管理）
+// ──────────────────────────────────────────────
+export type PurchaseStatus = 'ordered' | 'arrived' | 'delivered'
+
+export interface PurchaseOrder {
+  id:             string
+  store_id:       string
+  customer_id:    string
+  item_name:      string
+  notes:          string | null
+  status:         PurchaseStatus
+  price:          number | null
+  ordered_date:   string
+  arrived_date:   string | null
+  delivered_date: string | null
+  notified:       boolean
+  created_at:     string
+  updated_at:     string
+  customer?:      Customer
+}
+
+export const PURCHASE_STATUS_LABELS: Record<PurchaseStatus, string> = {
+  ordered:   '注文中',
+  arrived:   '入荷済み',
+  delivered: 'お渡し済み',
+}
+
+export const PURCHASE_STATUS_COLORS: Record<PurchaseStatus, string> = {
+  ordered:   'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  arrived:   'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+  delivered: 'bg-zinc-700/60 text-zinc-400 border-zinc-600/50',
+}
