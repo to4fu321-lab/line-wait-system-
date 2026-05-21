@@ -11,7 +11,7 @@ import type { Queue, WaitThreshold } from '@/types/database'
 import { DEFAULT_THRESHOLDS, getWaitMessage } from '@/types/database'
 import type { Customer, Child } from '@/types/crm'
 import { GRADE_OPTIONS } from '@/types/crm'
-import { initLiff, getLineProfile, openAddFriend, isInLineApp, type LiffProfile } from '@/lib/liff'
+import { initLiff, getLineProfile, checkFriendship, openAddFriend, isInLineApp, type LiffProfile } from '@/lib/liff'
 import { useStoreTheme } from '@/lib/theme-context'
 
 const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
@@ -252,6 +252,7 @@ export default function CustomerPage() {
   const [repairLoading,  setRepairLoading]  = useState(false)
   const [friendChecking, setFriendChecking] = useState(false)
   const [urlAction,      setUrlAction]      = useState<'queue' | 'repair' | 'purchase' | null>(null)
+  const [pendingAction,  setPendingAction]  = useState<'queue' | 'repair' | 'purchase' | null>(null)
   const [cancelModal,    setCancelModal]    = useState(false)
   const [cancelLoading,  setCancelLoading]  = useState(false)
   const [registerError,  setRegisterError]  = useState('')
@@ -368,35 +369,32 @@ export default function CustomerPage() {
     return () => { clearInterval(pollId); supabase.removeChannel(ch) }
   }, [ticket?.id, view, storeId, fetchWaitingAhead])
 
-  // ── 友達確認後・次へ ──────────────────────────────────
+  // ── 友達追加後・次へ（pendingActionがあればそのアクションを実行）──
   const handleFriendProceed = async () => {
     setFriendChecking(true)
     try {
-      const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
+      const action = pendingAction
+      setPendingAction(null)
 
-      if (lineProfile?.userId) {
-        try {
-          const { data: custRows2 } = await supabase.from('customers')
-            .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId)
-            .order('created_at', { ascending: false }).limit(1)
-          const cust = custRows2?.[0] && !custRows2[0].deleted_at ? custRows2[0] : null
-          if (cust) {
-            setCustomer(cust)
-            const { data: childList } = await supabase.from('children')
-              .select('*').eq('customer_id', cust.id).order('created_at', { ascending: true })
-            const kids = childList ?? []
-            setChildren(kids)
-            if (kids.length === 1) setSelectedChild(kids[0])
-          }
-        } catch { /* 顧客情報は任意 */ }
+      const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
+      if (sd?.is_open === false) { setView('closed'); return }
+
+      if (action === 'repair') { setView('repair_speak'); return }
+      if (action === 'purchase') { setView('purchase_speak'); return }
+      if (action === 'queue') {
+        // handleIssueTicketは非同期で実行（friendCheckingとは独立）
+        setFriendChecking(false)
+        await handleIssueTicket()
+        return
       }
 
+      // pendingActionなし → 目的選択へ
       const { count } = await supabase.from('queues')
         .select('*', { count: 'exact', head: true })
         .eq('store_id', storeId).in('status', ['waiting', 'calling'])
         .gte('created_at', getTodayStart())
       setWaitingCount(count ?? 0)
-      setView(sd?.is_open === false ? 'closed' : 'purpose')
+      setView('purpose')
     } catch (e) {
       console.error('[friendProceed]', e)
     } finally {
@@ -481,6 +479,24 @@ export default function CustomerPage() {
       }
     } catch (e) { console.error(e) }
     setSubmitting(false)
+  }
+
+  // ── 友達チェック付きアクション起動 ──────────────────
+  const withFriendCheck = async (action: 'queue' | 'repair' | 'purchase') => {
+    setFriendChecking(true)
+    try {
+      const isFriend = await checkFriendship()
+      if (!isFriend) {
+        setPendingAction(action)
+        setView('add_friend')
+        return
+      }
+    } catch { /* checkFriendship失敗時はそのまま続行 */ } finally {
+      setFriendChecking(false)
+    }
+    if (action === 'queue')    await handleIssueTicket()
+    if (action === 'repair')   setView('repair_speak')
+    if (action === 'purchase') setView('purchase_speak')
   }
 
   // ── 整理券発行（パターンA）────────────────────────────
@@ -581,7 +597,9 @@ export default function CustomerPage() {
         <p className="text-xs font-bold mb-1" style={{ color: theme.colors.primary }}>{theme.storeName}</p>
         <h1 className="text-2xl font-black mb-3 text-zinc-900">友だち追加のお願い</h1>
         <p className="text-zinc-500 text-sm leading-relaxed max-w-xs mx-auto">
-          お呼び出しや、お直し完了の通知をLINEで確実に受け取るために、まずは友だち追加をお願いします
+          {pendingAction
+            ? 'お呼び出し通知をLINEで受け取るために、友だち追加をお願いします'
+            : 'お呼び出しや完了通知をLINEで確実に受け取るために友だち追加をお願いします'}
         </p>
       </div>
       <div className="bg-white/75 backdrop-blur-2xl rounded-3xl p-6 w-full max-w-sm border border-white/60 space-y-3" style={cardStyle}>
@@ -595,6 +613,12 @@ export default function CustomerPage() {
             ? <><Loader2 size={14} className="animate-spin" />確認中...</>
             : '友だち追加しました → 次へ'}
         </button>
+        {pendingAction && (
+          <button onClick={handleFriendProceed} disabled={friendChecking}
+            className="w-full py-2.5 text-zinc-400 text-xs font-medium active:opacity-60 transition-opacity disabled:opacity-30">
+            通知なしでスキップ →
+          </button>
+        )}
       </div>
     </main>
   )
@@ -709,7 +733,7 @@ export default function CustomerPage() {
       </div>
 
       <div className="space-y-4">
-        <button onClick={handleIssueTicket} disabled={issuing}
+        <button onClick={() => withFriendCheck('queue')} disabled={issuing || friendChecking}
           className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all disabled:opacity-80"
           style={cardStyle}>
           <div className="flex items-start gap-4">
@@ -728,7 +752,7 @@ export default function CustomerPage() {
               )}
             </div>
             <div className="pt-1 shrink-0">
-              {issuing ? <Loader2 size={20} className="animate-spin text-zinc-400" /> : <ChevronRight size={20} className="text-zinc-300" />}
+              {(issuing || friendChecking) ? <Loader2 size={20} className="animate-spin text-zinc-400" /> : <ChevronRight size={20} className="text-zinc-300" />}
             </div>
           </div>
           <div className="mt-4 py-2 rounded-xl text-center text-xs font-bold"
@@ -737,7 +761,7 @@ export default function CustomerPage() {
           </div>
         </button>
 
-        <button onClick={handleRepairSelect} disabled={repairLoading}
+        <button onClick={() => withFriendCheck('repair')} disabled={friendChecking}
           className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all disabled:opacity-80"
           style={cardStyle}>
           <div className="flex items-start gap-4">
@@ -750,12 +774,12 @@ export default function CustomerPage() {
               <p className="text-zinc-500 text-sm mt-0.5">スタッフ対応</p>
             </div>
             <div className="pt-1 shrink-0">
-              {repairLoading ? <Loader2 size={20} className="animate-spin text-zinc-400" /> : <ChevronRight size={20} className="text-zinc-300" />}
+              {friendChecking ? <Loader2 size={20} className="animate-spin text-zinc-400" /> : <ChevronRight size={20} className="text-zinc-300" />}
             </div>
           </div>
         </button>
 
-        <button onClick={() => setView('purchase_speak')}
+        <button onClick={() => withFriendCheck('purchase')} disabled={friendChecking}
           className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all"
           style={cardStyle}>
           <div className="flex items-start gap-4">
