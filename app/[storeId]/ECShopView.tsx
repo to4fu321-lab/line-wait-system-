@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { CheckCircle2, Minus, Plus, ShoppingCart, ChevronDown, ChevronUp } from 'lucide-react'
 import { useStoreTheme } from '@/lib/theme-context'
+import { supabase } from '@/lib/supabase'
 import type { LiffProfile } from '@/lib/liff'
 
 // ── モック商品データ ──────────────────────────────────────
@@ -45,15 +46,18 @@ interface Props {
   lineProfile: LiffProfile | null
   storeId: string
   storeName?: string
+  customerId?: string | null
+  childId?: string | null
   onBack: () => void
 }
 
-export default function ECShopView({ lineProfile, storeId, storeName, onBack }: Props) {
+export default function ECShopView({ lineProfile, storeId, storeName, customerId, childId, onBack }: Props) {
   const theme = useStoreTheme()
   const [cart, setCart]     = useState<CartItem[]>([])
   const [selSize, setSelSize] = useState<Record<number, string>>({})
   const [ordered, setOrdered] = useState(false)
   const [ordering, setOrdering] = useState(false)
+  const [orderError, setOrderError] = useState('')
   const [openCart, setOpenCart] = useState(false)
 
   const totalQty   = cart.reduce((s, c) => s + c.qty, 0)
@@ -78,10 +82,31 @@ export default function ECShopView({ lineProfile, storeId, storeName, onBack }: 
   const handleOrder = async () => {
     if (totalQty === 0 || ordering) return
     setOrdering(true)
-    // TODO: INSERT into purchase_orders table
-    await new Promise(r => setTimeout(r, 900))
-    setOrdering(false)
-    setOrdered(true)
+    setOrderError('')
+    try {
+      const today = new Date().toISOString().slice(0, 10)
+      const records = cart.map(c => {
+        const item = ITEMS.find(i => i.id === c.itemId)!
+        return {
+          store_id:     storeId,
+          customer_id:  customerId ?? null,
+          child_id:     childId ?? null,
+          item_name:    `${item.name}（${c.size}）`,
+          notes:        `数量：${c.qty}点`,
+          price:        item.price * c.qty,
+          status:       'ordered',
+          ordered_date: today,
+        }
+      })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from('purchase_orders') as any).insert(records)
+      if (error) throw new Error(error.message)
+      setOrdered(true)
+    } catch (e) {
+      setOrderError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setOrdering(false)
+    }
   }
 
   // ── 注文完了画面 ──────────────────────────────────────
@@ -312,6 +337,9 @@ export default function ECShopView({ lineProfile, storeId, storeName, onBack }: 
                   {openCart ? <ChevronDown size={16} className="text-zinc-400" /> : <ChevronUp size={16} className="text-zinc-400" />}
                 </div>
               </button>
+              {orderError && (
+                <p className="text-red-500 text-xs text-center mb-2">送信失敗: {orderError}</p>
+              )}
               <button onClick={handleOrder} disabled={ordering}
                 className="w-full py-4 rounded-2xl text-white font-black text-base flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
                 style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`,

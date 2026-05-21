@@ -519,13 +519,16 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
     const labels: Record<QueueStatus, string> = { calling:'呼出', completed:'完了', cancelled:'不在', waiting:'待機に戻しました' }
     showToast('ok', labels[status])
     if (status === 'calling') {
-      // 呼出通知を本人に送る
-      const target = queues.find(q => q.id === id)
-      if (target?.line_user_id) {
+      // 呼出通知を本人に送る（DBから最新データを取得してクロージャの古い値を避ける）
+      const { data: freshTicket } = await supabase.from('queues')
+        .select('line_user_id, ticket_number, customer_name').eq('id', id).single()
+      if (freshTicket?.line_user_id) {
         fetch('/api/notify', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lineUserId: target.line_user_id, ticketNumber: target.ticket_number, customerName: target.customer_name, storeName: store.name, storeId: store.id }),
+          body: JSON.stringify({ lineUserId: freshTicket.line_user_id, ticketNumber: freshTicket.ticket_number, customerName: freshTicket.customer_name, storeName: store.name, storeId: store.id }),
         }).then(async r => { const j = await r.json(); if (!j.ok && !j.skipped) showToast('err', 'LINE通知失敗') }).catch(console.error)
+      } else {
+        showToast('err', '📵 LINE未連携のため通知できません')
       }
       // 呼出中は waiting+calling 両方でカウントするため位置は変わらない → threshold通知不要
     }

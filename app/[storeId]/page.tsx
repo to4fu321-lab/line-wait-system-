@@ -1232,6 +1232,8 @@ export default function CustomerPage() {
       lineProfile={lineProfile}
       storeId={storeId}
       storeName={theme.storeName}
+      customerId={customer?.id ?? null}
+      childId={selectedChild?.id ?? null}
       onBack={() => setView('purpose')}
     />
   )
