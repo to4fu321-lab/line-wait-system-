@@ -4,6 +4,7 @@ import { promisify } from 'util'
 
 const deflate = promisify(zlib.deflate)
 
+const STORE_ID  = process.env.STORE_ID || '00000000-0000-0000-0000-000000000010'
 const TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN ||
   'VCdCDq+VcStiwPWbk3nzK59dV1MylArXtvMETswJlGy3IwikR3WNJGk1br86YnzKGqBpHp0kIQbRDaDSPzMphck0TKHwy6MDHW4U2UzbZaYU0Uq+QxhI2pp90x13qHxd8PdgqIIBoq2xq8hFaPXAOQdB04t89/1O/w1cDnyilFU='
 const LIFF_BASE = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || '2010126882-aUahQStD'}`
@@ -76,6 +77,15 @@ async function makeMenuPng(): Promise<Buffer> {
     pngChunk('IDAT', compressed),
     pngChunk('IEND', Buffer.alloc(0)),
   ])
+}
+
+// GET ?storeId=&storeName= → ブラウザから直接設定可能
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const storeId   = searchParams.get('storeId')   ?? STORE_ID
+  const storeName = searchParams.get('storeName')  ?? 'メニュー'
+  const fakeReq = { json: async () => ({ storeId, storeName }) } as unknown as NextRequest
+  return POST(fakeReq)
 }
 
 // POST { storeId, storeName } → リッチメニュー作成・全ユーザー適用
