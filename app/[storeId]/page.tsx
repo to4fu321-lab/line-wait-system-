@@ -302,9 +302,10 @@ export default function CustomerPage() {
       const action = urlParams.get('action') as 'queue' | 'repair' | 'purchase' | null
       if (action) setUrlAction(action)
 
-      // 既存顧客チェック（ソフトデリート除外）
-      const { data: cust } = await supabase.from('customers')
-        .select('*').eq('store_id', storeId).eq('line_user_id', profile.userId).is('deleted_at', null).maybeSingle()
+      // 既存顧客チェック（deleted_atはJS側でチェック、カラム未作成でも動く）
+      const { data: custRaw } = await supabase.from('customers')
+        .select('*').eq('store_id', storeId).eq('line_user_id', profile.userId).maybeSingle()
+      const cust = (custRaw && !custRaw.deleted_at) ? custRaw : null
 
       if (cust) {
         setCustomer(cust)
@@ -376,8 +377,9 @@ export default function CustomerPage() {
     const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
 
     if (lineProfile?.userId) {
-      const { data: cust } = await supabase.from('customers')
-        .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId).is('deleted_at', null).maybeSingle()
+      const { data: custRaw2 } = await supabase.from('customers')
+        .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId).maybeSingle()
+      const cust = (custRaw2 && !custRaw2.deleted_at) ? custRaw2 : null
       if (cust) {
         setCustomer(cust)
         const { data: childList } = await supabase.from('children')
