@@ -94,12 +94,12 @@ export default function ECShopView({ lineProfile, storeId, storeName, onBack }: 
       </div>
       <div>
         <p className="text-xs font-bold mb-1" style={{ color: theme.colors.primary }}>{storeName}</p>
-        <h2 className="text-3xl font-black text-zinc-900 mb-3">ご注文完了！</h2>
+        <h2 className="text-3xl font-black text-zinc-900 mb-3">在庫確認リクエスト完了！</h2>
         <p className="text-zinc-500 text-sm leading-relaxed">
-          お家からのネット注文が完了しました。<br />
-          お店で在庫を確保し、<br />
-          <span className="font-bold text-zinc-700">「お渡し準備完了」のLINE通知</span>が<br />
-          届くまでお待ちください。
+          在庫確認のリクエストを受け付けました。<br />
+          スタッフが在庫を確認し、<br />
+          <span className="font-bold text-zinc-700">「ご用意できました」のLINE通知</span>が<br />
+          届きましたら店頭にてお受け取りください。
         </p>
       </div>
 
@@ -316,7 +316,7 @@ export default function ECShopView({ lineProfile, storeId, storeName, onBack }: 
                 className="w-full py-4 rounded-2xl text-white font-black text-base flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
                 style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`,
                   boxShadow: `0 8px 24px -6px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
-                {ordering ? '送信中...' : `注文を確定する  →`}
+                {ordering ? '送信中...' : `在庫確認を依頼する  →`}
               </button>
             </div>
           </div>

@@ -7,7 +7,7 @@ import {
   CheckCheck, Package, Loader2, X, MessageCircle,
   CalendarDays, Pencil, AlertCircle, ChevronDown, ChevronUp,
   RotateCcw, ShoppingBag, Bell, Scissors, GraduationCap,
-  Trash2, ArchiveRestore, Eye, EyeOff,
+  Trash2, ArchiveRestore, Eye, EyeOff, QrCode,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type {
@@ -790,6 +790,7 @@ export default function CRMPage() {
   const [deleteLoading,    setDeleteLoading]    = useState(false)
   const [deleteChildTarget, setDeleteChildTarget] = useState<Child | null>(null)
   const [deleteChildLoading, setDeleteChildLoading] = useState(false)
+  const [showQrModal,      setShowQrModal]      = useState(false)
 
   // 未対応統計
   const [stats, setStats] = useState({ repairReceived: 0, repairCompleted: 0, purchaseOrdered: 0, purchaseArrived: 0 })
@@ -885,6 +886,13 @@ export default function CRMPage() {
     if (deleteMode === 'soft') {
       await supabase.from('customers').update({ deleted_at: new Date().toISOString() }).eq('id', deleteTarget.id)
     } else {
+      // 完全削除前に本日の有効な整理券から顧客情報を切り離す
+      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+      await supabase.from('queues')
+        .update({ customer_id: null, child_id: null })
+        .eq('customer_id', deleteTarget.id)
+        .in('status', ['waiting', 'calling'])
+        .gte('created_at', todayStart.toISOString())
       await supabase.from('customers').delete().eq('id', deleteTarget.id)
     }
     setCustomers(prev => prev.filter(c => c.id !== deleteTarget.id))
@@ -1218,10 +1226,16 @@ export default function CRMPage() {
         <section className="border-t border-white/5 pt-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-black text-zinc-300">顧客管理</h2>
-            <button onClick={() => { setShowDeleted(v => !v); setSearchQuery(''); setCustomers([]); setSelectedCustomer(null) }}
-              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${showDeleted ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200'}`}>
-              {showDeleted ? <><EyeOff size={12} />削除済みを非表示</> : <><Eye size={12} />削除済みを表示</>}
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setShowQrModal(true)}
+                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border bg-indigo-500/20 border-indigo-500/40 text-indigo-300">
+                <QrCode size={12} />新規登録QR
+              </button>
+              <button onClick={() => { setShowDeleted(v => !v); setSearchQuery(''); setCustomers([]); setSelectedCustomer(null) }}
+                className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${showDeleted ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200'}`}>
+                {showDeleted ? <><EyeOff size={12} />削除済みを非表示</> : <><Eye size={12} />削除済みを表示</>}
+              </button>
+            </div>
           </div>
 
           {/* 検索 */}
@@ -1481,6 +1495,29 @@ export default function CRMPage() {
           </div>
         </div>
       )}
+
+      {/* 新規登録QRモーダル */}
+      {showQrModal && (() => {
+        const liffId = process.env.NEXT_PUBLIC_LIFF_ID || '2010126882-aUahQStD'
+        const url    = `https://liff.line.me/${liffId}/${storeId}`
+        const qrSrc  = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(url)}`
+        return (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+            <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 w-full max-w-xs text-center relative">
+              <button onClick={() => setShowQrModal(false)}
+                className="absolute top-4 right-4 p-1.5 rounded-xl bg-zinc-800 text-zinc-400 hover:text-white">
+                <X size={16} />
+              </button>
+              <p className="font-black text-white text-base mb-1">新規会員登録</p>
+              <p className="text-zinc-500 text-xs mb-4">お客様のLINEでこのQRコードを読み取ってもらってください</p>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={qrSrc} alt="登録QRコード" width={240} height={240}
+                className="mx-auto rounded-2xl bg-white p-2" />
+              <p className="text-zinc-600 text-[10px] mt-4 break-all">{url}</p>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* お子様削除確認モーダル */}
       {deleteChildTarget && (

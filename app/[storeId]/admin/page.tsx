@@ -241,7 +241,9 @@ function CallingCard({ ticket, onAction }: { ticket: Queue; onAction: (id: strin
 
   const act = async (s: QueueStatus) => { setLoading(s); await onAction(ticket.id, s); setLoading(null) }
   const recall = async () => {
-    setLoading('recalling'); await onAction(ticket.id, 'waiting'); await onAction(ticket.id, 'calling'); setLoading(null)
+    setLoading('recalling')
+    await onAction(ticket.id, 'calling')
+    setLoading(null)
   }
 
   return (

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import {
   CheckCircle2, MessageCircle, Loader2, Clock,
-  ChevronRight, ChevronDown, ChevronUp, Users, AlertCircle, Plus, GraduationCap,
+  ChevronRight, ChevronDown, ChevronUp, Users, AlertCircle, Plus, GraduationCap, Pencil,
 } from 'lucide-react'
 import ECShopView from './ECShopView'
 import { supabase, getTodayStart } from '@/lib/supabase'
@@ -18,7 +18,7 @@ import { useStoreTheme } from '@/lib/theme-context'
 const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
 
 type View =
-  | 'loading' | 'add_friend' | 'welcome' | 'register' | 'purpose'
+  | 'loading' | 'add_friend' | 'welcome' | 'register' | 'purpose' | 'confirm_queue'
   | 'queue_waiting' | 'queue_calling' | 'queue_completed' | 'queue_cancelled'
   | 'queue_self_cancelled' | 'repair_speak' | 'purchase_speak' | 'purchase_ec' | 'closed'
 
@@ -233,6 +233,49 @@ function AddChildForm({
   )
 }
 
+// ── 待ち時間中の顧客情報編集フォーム ──────────────────────
+function WaitingCustomerEditForm({
+  customer, onSaved, onClose,
+}: {
+  customer: Customer
+  onSaved: (c: Customer) => void
+  onClose: () => void
+}) {
+  const theme = useStoreTheme()
+  const [name, setName] = useState(customer.name)
+  const [tel,  setTel]  = useState(customer.tel ?? '')
+  const [saving, setSaving] = useState(false)
+
+  const base = 'w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all'
+
+  const handleSave = async () => {
+    if (!name.trim()) return
+    setSaving(true)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase.from('customers') as any)
+      .update({ name: name.trim(), tel: tel.trim() || null })
+      .eq('id', customer.id).select().single()
+    setSaving(false)
+    if (!error && data) onSaved(data as Customer)
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t border-zinc-100 space-y-2">
+      <p className="text-xs font-bold mb-1" style={{ color: theme.colors.primary }}>保護者情報の変更</p>
+      <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="お名前" className={base} />
+      <input type="tel" inputMode="tel" value={tel} onChange={e => setTel(e.target.value)} placeholder="電話番号" className={base} />
+      <div className="flex gap-2 pt-1">
+        <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-zinc-200 text-zinc-500 text-sm font-bold active:scale-95 transition-transform">キャンセル</button>
+        <button onClick={handleSave} disabled={saving || !name.trim()}
+          className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-50 active:scale-95 transition-transform"
+          style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})` }}>
+          {saving ? '保存中...' : '保存する'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── メインコンポーネント ────────────────────────────────────
 export default function CustomerPage() {
   const { storeId } = useParams<{ storeId: string }>()
@@ -260,10 +303,11 @@ export default function CustomerPage() {
   const [friendNotYet,     setFriendNotYet]     = useState(false)
   const [showQueueRegister, setShowQueueRegister] = useState(false)
   const [queueRegDone,      setQueueRegDone]      = useState(false)
+  const [showWaitingEdit,   setShowWaitingEdit]   = useState(false)
+  const [waitingEditMode,   setWaitingEditMode]   = useState<'child' | 'info' | null>(null)
 
-  const channelRef    = useRef<ReturnType<typeof supabase.channel> | null>(null)
-  const ticketRef     = useRef<Queue | null>(null)
-  const autoIssueRef  = useRef(false)
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const ticketRef  = useRef<Queue | null>(null)
   const ticketKey  = `queue_ticket_id_${storeId}`
   const dateKey    = `queue_ticket_date_${storeId}`
 
@@ -340,7 +384,7 @@ export default function CustomerPage() {
       setWaitingCount(count ?? 0)
       if (action === 'repair')   { setView('repair_speak');   return }
       if (action === 'purchase') { setView('purchase_ec');    return }
-      if (action === 'queue') autoIssueRef.current = true
+      if (action === 'queue')    { setView('confirm_queue');  return }
       setView('purpose')
     } catch (e) {
       console.error('[init] error:', e)
@@ -381,13 +425,6 @@ export default function CustomerPage() {
     channelRef.current = ch
     return () => { clearInterval(pollId); supabase.removeChannel(ch) }
   }, [ticket?.id, view, storeId, fetchWaitingAhead])
-
-  // ── リッチメニュー左ボタン → 目的画面表示後に自動整理券発行 ──
-  useEffect(() => {
-    if (!autoIssueRef.current || view !== 'purpose') return
-    autoIssueRef.current = false
-    handleIssueTicket()
-  }, [view]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 友達追加後・再チェックして目的選択へ ────────────
   const handleFriendProceed = async () => {
@@ -523,6 +560,9 @@ export default function CustomerPage() {
         setChildren(prev => [...prev, newChild])
         setSelectedChild(newChild)
         setShowAddChild(false)
+        setShowWaitingEdit(false)
+        setWaitingEditMode(null)
+        if (ticketRef.current) return   // 待ち中なら画面移動しない
         const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
         const { count } = await supabase.from('queues')
           .select('*', { count: 'exact', head: true })
@@ -563,7 +603,7 @@ export default function CustomerPage() {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             lineUserId: t.line_user_id, ticketNumber: t.ticket_number,
-            customerName: t.customer_name, storeId,
+            customerName: t.customer_name, storeId, type: 'registered',
           }),
         }).catch(console.error)
       }
@@ -847,6 +887,44 @@ export default function CustomerPage() {
     </main>
   )
 
+  // ── 整理券発行確認（リッチメニュー左ボタン経由）──────
+  if (view === 'confirm_queue') return (
+    <main className="min-h-screen flex flex-col items-center justify-center px-5 py-10 max-w-md mx-auto gap-6">
+      <div className="text-center">
+        <div className="w-16 h-16 mx-auto mb-3 rounded-2xl flex items-center justify-center text-3xl"
+          style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`,
+            boxShadow: `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
+          📋
+        </div>
+        <p className="text-xs font-bold mb-1" style={{ color: theme.colors.primary }}>{theme.storeName}</p>
+        <h1 className="text-2xl font-black text-zinc-900 mb-1">採寸・ご購入</h1>
+        <p className="text-zinc-500 text-sm">順番待ちリストに追加します</p>
+      </div>
+
+      <div className="bg-white/75 backdrop-blur-2xl rounded-3xl p-6 w-full border border-white/60 text-center" style={cardStyle}>
+        {waitingCount !== null && (
+          <div className="mb-4">
+            <p className="text-zinc-400 text-xs font-bold mb-1">現在の待ち人数</p>
+            <div className="flex items-baseline justify-center gap-1">
+              <span className="text-6xl font-black" style={{ color: theme.colors.primary }}>{waitingCount}</span>
+              <span className="text-lg font-bold text-zinc-500">組</span>
+            </div>
+          </div>
+        )}
+        <button onClick={handleIssueTicket} disabled={issuing}
+          className="w-full py-5 rounded-2xl text-white font-black text-lg flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
+          style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`,
+            boxShadow: `0 8px 24px -6px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
+          {issuing ? <><Loader2 size={20} className="animate-spin" />発行中...</> : '今すぐ並ぶ →'}
+        </button>
+      </div>
+
+      <button onClick={() => setView('purpose')} className="text-zinc-400 text-sm underline active:opacity-60">
+        ← やめる
+      </button>
+    </main>
+  )
+
   // ── 順番待ち ─────────────────────────────────────────
   if (view === 'queue_waiting' && ticket) {
     const waitMsg = getWaitMessage(waitingAhead, waitThresholds.length > 0 ? waitThresholds : DEFAULT_THRESHOLDS)
@@ -902,16 +980,52 @@ export default function CustomerPage() {
         {/* 待ち時間に会員情報ご登録（任意）*/}
         <div className="px-5 pt-5 pb-4 max-w-md mx-auto">
           {customer ? (
-            <div className="flex items-center gap-3 bg-white rounded-2xl p-4 shadow-sm border border-zinc-100">
-              <CheckCircle2 size={18} style={{ color: theme.colors.primary }} />
-              <div>
-                <p className="font-bold text-zinc-800 text-sm">{customer.name} 様</p>
-                {selectedChild && (
-                  <p className="text-xs text-zinc-400 mt-0.5">
-                    {selectedChild.name}{selectedChild.grade ? ` · ${selectedChild.grade}` : ''}
-                  </p>
-                )}
+            <div className="bg-white rounded-2xl shadow-sm border border-zinc-100 overflow-hidden">
+              <div className="flex items-center gap-3 p-4">
+                <CheckCircle2 size={18} style={{ color: theme.colors.primary }} className="shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-zinc-800 text-sm">{customer.name} 様</p>
+                  {selectedChild && (
+                    <p className="text-xs text-zinc-400 mt-0.5">
+                      {selectedChild.name}{selectedChild.grade ? ` · ${selectedChild.grade}` : ''}
+                    </p>
+                  )}
+                </div>
+                <button onClick={() => { setShowWaitingEdit(v => !v); setWaitingEditMode(null) }}
+                  className="shrink-0 flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-zinc-100 text-zinc-500 font-bold active:scale-95 transition-transform">
+                  <Pencil size={11} />{showWaitingEdit ? '閉じる' : '編集'}
+                </button>
               </div>
+              {showWaitingEdit && (
+                <div className="px-4 pb-4 border-t border-zinc-100">
+                  <div className="flex gap-2 pt-3 mb-3">
+                    <button onClick={() => setWaitingEditMode(m => m === 'child' ? null : 'child')}
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition-all ${waitingEditMode === 'child' ? 'border-transparent text-white' : 'border-zinc-200 text-zinc-500'}`}
+                      style={waitingEditMode === 'child' ? { background: theme.colors.primary } : {}}>
+                      お子様を追加
+                    </button>
+                    <button onClick={() => setWaitingEditMode(m => m === 'info' ? null : 'info')}
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition-all ${waitingEditMode === 'info' ? 'border-transparent text-white' : 'border-zinc-200 text-zinc-500'}`}
+                      style={waitingEditMode === 'info' ? { background: theme.colors.primary } : {}}>
+                      情報を変更
+                    </button>
+                  </div>
+                  {waitingEditMode === 'child' && (
+                    <AddChildForm
+                      onSubmit={handleAddChild}
+                      onCancel={() => setWaitingEditMode(null)}
+                      submitting={submitting}
+                    />
+                  )}
+                  {waitingEditMode === 'info' && (
+                    <WaitingCustomerEditForm
+                      customer={customer}
+                      onSaved={updated => { setCustomer(updated); setWaitingEditMode(null) }}
+                      onClose={() => setWaitingEditMode(null)}
+                    />
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="bg-white rounded-2xl shadow-sm border border-zinc-100 overflow-hidden">
