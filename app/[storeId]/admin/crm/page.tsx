@@ -783,10 +783,13 @@ export default function CRMPage() {
   const [editingChild,     setEditingChild]     = useState<Child | null>(null)
   const [showAddChild,     setShowAddChild]     = useState(false)
   const [customerLoading,  setCustomerLoading]  = useState(false)
+  const [childMatchMap,    setChildMatchMap]    = useState<Record<string, string>>({}) // customerId -> matched child name
   const [showDeleted,      setShowDeleted]      = useState(false)
   const [deleteTarget,     setDeleteTarget]     = useState<Customer | null>(null)
   const [deleteMode,       setDeleteMode]       = useState<'soft' | 'hard' | null>(null)
   const [deleteLoading,    setDeleteLoading]    = useState(false)
+  const [deleteChildTarget, setDeleteChildTarget] = useState<Child | null>(null)
+  const [deleteChildLoading, setDeleteChildLoading] = useState(false)
 
   // 未対応統計
   const [stats, setStats] = useState({ repairReceived: 0, repairCompleted: 0, purchaseOrdered: 0, purchaseArrived: 0 })
@@ -854,11 +857,14 @@ export default function CRMPage() {
       .or(`name.ilike.%${q}%,kana.ilike.%${q}%,tel.ilike.%${q.replace(/-/g, '')}%,parent_name.ilike.%${q}%`)
       .order('updated_at', { ascending: false }).limit(20)
 
-    const { data: childHits } = await supabase.from('children').select('customer_id').eq('store_id', storeId)
+    const { data: childHits } = await supabase.from('children').select('customer_id, name').eq('store_id', storeId)
       .or(`name.ilike.%${q}%,kana.ilike.%${q}%`)
 
+    // お子様マッチマップ（customerId → 最初にマッチしたお子様名）
+    const matchMap: Record<string, string> = {}
     let merged = direct ?? []
     if (childHits && childHits.length > 0) {
+      childHits.forEach(ch => { if (!matchMap[ch.customer_id]) matchMap[ch.customer_id] = ch.name })
       const ids = [...new Set(childHits.map(c => c.customer_id))]
       const existingIds = new Set(merged.map(c => c.id))
       const newIds = ids.filter(id => !existingIds.has(id))
@@ -868,6 +874,7 @@ export default function CRMPage() {
       }
     }
 
+    setChildMatchMap(matchMap)
     setCustomers(merged); setCustomerLoading(false)
   }, [storeId])
 
@@ -891,6 +898,21 @@ export default function CRMPage() {
     setCustomers(prev => prev.filter(c => c.id !== customer.id))
     if (selectedCustomer?.id === customer.id) setSelectedCustomer(null)
   }, [selectedCustomer])
+
+  // ── お子様削除 ────────────────────────────────────────
+  const handleDeleteChild = useCallback(async () => {
+    if (!deleteChildTarget) return
+    setDeleteChildLoading(true)
+    // 関連レコードの child_id を NULL に（FK制約対策）
+    await Promise.all([
+      supabase.from('repair_histories').update({ child_id: null }).eq('child_id', deleteChildTarget.id),
+      supabase.from('purchase_orders').update({ child_id: null }).eq('child_id', deleteChildTarget.id),
+      supabase.from('queues').update({ child_id: null }).eq('child_id', deleteChildTarget.id),
+    ])
+    await supabase.from('children').delete().eq('id', deleteChildTarget.id)
+    setCustomerChildren(prev => prev.filter(c => c.id !== deleteChildTarget.id))
+    setDeleteChildTarget(null); setDeleteChildLoading(false)
+  }, [deleteChildTarget])
 
   useEffect(() => {
     const t = setTimeout(() => searchCustomers(searchQuery, showDeleted), 300)
@@ -1242,7 +1264,10 @@ export default function CRMPage() {
                       <div className="flex-1 min-w-0">
                         <p className="font-bold text-sm truncate">{c.name}</p>
                         <p className="text-xs text-zinc-500 truncate">
-                          {c.kana ?? c.tel ?? 'LINE未連携'}
+                          {childMatchMap[c.id]
+                            ? <span className="text-indigo-400">子: {childMatchMap[c.id]}</span>
+                            : (c.kana ?? c.tel ?? 'LINE未連携')
+                          }
                         </p>
                       </div>
                       {c.line_user_id
@@ -1347,11 +1372,16 @@ export default function CRMPage() {
                           onRefreshStats={fetchStats}
                           showToast={showToast}
                         />
-                        <button
-                          onClick={() => setEditingChild(child)}
-                          className="absolute top-3 right-10 p-1.5 rounded-lg bg-zinc-800/60 border border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-700 active:scale-90 transition-all">
-                          <Pencil size={12} />
-                        </button>
+                        <div className="absolute top-3 right-2 flex items-center gap-1">
+                          <button onClick={() => setEditingChild(child)}
+                            className="p-1.5 rounded-lg bg-zinc-800/60 border border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-700 active:scale-90 transition-all">
+                            <Pencil size={12} />
+                          </button>
+                          <button onClick={() => setDeleteChildTarget(child)}
+                            className="p-1.5 rounded-lg bg-zinc-800/60 border border-zinc-700/50 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/30 active:scale-90 transition-all">
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       </div>
                     )
                   ))}
@@ -1432,6 +1462,25 @@ export default function CRMPage() {
                 className={`py-4 rounded-xl font-black text-white flex items-center justify-center gap-2 disabled:opacity-60 transition-all active:scale-95 ${deleteMode === 'soft' ? 'bg-amber-500' : 'bg-red-600'}`}>
                 {deleteLoading && <Loader2 size={16} className="animate-spin" />}
                 {deleteMode === 'soft' ? '非表示にする' : '完全削除する'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* お子様削除確認モーダル */}
+      {deleteChildTarget && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
+          <div className="bg-zinc-900 border border-white/10 rounded-t-3xl p-6 w-full max-w-md">
+            <h3 className="text-white font-black text-lg mb-1">お子様を削除しますか？</h3>
+            <p className="text-zinc-400 text-sm mb-1">{deleteChildTarget.name} さん</p>
+            <p className="text-zinc-600 text-xs mb-5">お直し・追加購入履歴のお子様紐付けが外れます（履歴は保持されます）</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => setDeleteChildTarget(null)} className="py-4 rounded-xl bg-zinc-800 text-white font-bold">キャンセル</button>
+              <button onClick={handleDeleteChild} disabled={deleteChildLoading}
+                className="py-4 rounded-xl bg-red-600 text-white font-black flex items-center justify-center gap-2 disabled:opacity-60 active:scale-95 transition-all">
+                {deleteChildLoading && <Loader2 size={16} className="animate-spin" />}
+                削除する
               </button>
             </div>
           </div>
