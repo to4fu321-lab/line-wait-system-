@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import {
   CheckCircle2, MessageCircle, Loader2, Clock,
-  ChevronRight, Users, AlertCircle, Plus, GraduationCap,
+  ChevronRight, ChevronDown, ChevronUp, Users, AlertCircle, Plus, GraduationCap,
 } from 'lucide-react'
+import ECShopView from './ECShopView'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import type { Queue, WaitThreshold } from '@/types/database'
 import { DEFAULT_THRESHOLDS, getWaitMessage } from '@/types/database'
@@ -19,7 +20,7 @@ const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
 type View =
   | 'loading' | 'add_friend' | 'welcome' | 'register' | 'purpose'
   | 'queue_waiting' | 'queue_calling' | 'queue_completed' | 'queue_cancelled'
-  | 'queue_self_cancelled' | 'repair_speak' | 'purchase_speak' | 'closed'
+  | 'queue_self_cancelled' | 'repair_speak' | 'purchase_speak' | 'purchase_ec' | 'closed'
 
 function toKatakana(s: string) {
   return s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60))
@@ -255,11 +256,14 @@ export default function CustomerPage() {
   const [pendingAction,  setPendingAction]  = useState<'queue' | null>(null)
   const [cancelModal,    setCancelModal]    = useState(false)
   const [cancelLoading,  setCancelLoading]  = useState(false)
-  const [registerError,  setRegisterError]  = useState('')
-  const [friendNotYet,   setFriendNotYet]   = useState(false)
+  const [registerError,    setRegisterError]    = useState('')
+  const [friendNotYet,     setFriendNotYet]     = useState(false)
+  const [showQueueRegister, setShowQueueRegister] = useState(false)
+  const [queueRegDone,      setQueueRegDone]      = useState(false)
 
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
-  const ticketRef  = useRef<Queue | null>(null)
+  const channelRef    = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const ticketRef     = useRef<Queue | null>(null)
+  const autoIssueRef  = useRef(false)
   const ticketKey  = `queue_ticket_id_${storeId}`
   const dateKey    = `queue_ticket_date_${storeId}`
 
@@ -335,7 +339,8 @@ export default function CustomerPage() {
         .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
       setWaitingCount(count ?? 0)
       if (action === 'repair')   { setView('repair_speak');   return }
-      if (action === 'purchase') { setView('purchase_speak'); return }
+      if (action === 'purchase') { setView('purchase_ec');    return }
+      if (action === 'queue') autoIssueRef.current = true
       setView('purpose')
     } catch (e) {
       console.error('[init] error:', e)
@@ -376,6 +381,13 @@ export default function CustomerPage() {
     channelRef.current = ch
     return () => { clearInterval(pollId); supabase.removeChannel(ch) }
   }, [ticket?.id, view, storeId, fetchWaitingAhead])
+
+  // ── リッチメニュー左ボタン → 目的画面表示後に自動整理券発行 ──
+  useEffect(() => {
+    if (!autoIssueRef.current || view !== 'purpose') return
+    autoIssueRef.current = false
+    handleIssueTicket()
+  }, [view]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 友達追加後・再チェックして目的選択へ ────────────
   const handleFriendProceed = async () => {
@@ -477,12 +489,18 @@ export default function CustomerPage() {
         return
       }
 
+      // 既に待ち画面にいる場合（待ちながら登録）は画面移動しない
+      if (ticketRef.current) {
+        setQueueRegDone(true)
+        return
+      }
+
       const { count } = await supabase.from('queues')
         .select('*', { count: 'exact', head: true })
         .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
       setWaitingCount(count ?? 0)
       if (urlAction === 'repair')   { setView('repair_speak'); return }
-      if (urlAction === 'purchase') { setView('purchase_speak'); return }
+      if (urlAction === 'purchase') { setView('purchase_ec');  return }
       setView('purpose')
     } catch (e) {
       setRegisterError(e instanceof Error ? e.message : String(e))
@@ -578,15 +596,11 @@ export default function CustomerPage() {
     if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null }
     const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
     if (sd && !sd.is_open) { setView('closed'); return }
-    if (customer) {
-      setView('welcome')
-    } else {
-      const { count } = await supabase.from('queues')
-        .select('*', { count: 'exact', head: true })
-        .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
-      setWaitingCount(count ?? 0)
-      setView('register')
-    }
+    const { count } = await supabase.from('queues')
+      .select('*', { count: 'exact', head: true })
+      .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
+    setWaitingCount(count ?? 0)
+    if (customer) { setView('welcome') } else { setView('purpose') }
   }
 
   // ══════════════════════════════════════════════════════════
@@ -664,8 +678,8 @@ export default function CustomerPage() {
                 .select('*', { count: 'exact', head: true })
                 .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
               setWaitingCount(count ?? 0)
-              if (urlAction === 'repair')   { setView('repair_speak');   return }
-              if (urlAction === 'purchase') { setView('purchase_speak'); return }
+              if (urlAction === 'repair')   { setView('repair_speak'); return }
+              if (urlAction === 'purchase') { setView('purchase_ec');  return }
               setView('purpose')
             }}
             className="w-full bg-white/70 backdrop-blur-xl rounded-2xl border border-white/50 p-4 text-left active:scale-[0.98] transition-all"
@@ -758,10 +772,7 @@ export default function CustomerPage() {
 
       <div className="space-y-4">
         <button
-          onClick={() => {
-            if (!customer) { setPendingAction('queue'); setView('register') }
-            else handleIssueTicket()
-          }}
+          onClick={() => handleIssueTicket()}
           disabled={issuing}
           className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all disabled:opacity-80"
           style={cardStyle}>
@@ -799,8 +810,8 @@ export default function CustomerPage() {
               ✂️
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-black text-zinc-900 text-lg leading-tight">お直しを依頼する</p>
-              <p className="text-zinc-500 text-sm mt-0.5">スタッフ対応</p>
+              <p className="font-black text-zinc-900 text-lg leading-tight">お直しの受付・ご相談</p>
+              <p className="text-zinc-500 text-sm mt-0.5">制服のお持ち込みはこちら</p>
             </div>
             <div className="pt-1 shrink-0">
               <ChevronRight size={20} className="text-zinc-300" />
@@ -808,7 +819,7 @@ export default function CustomerPage() {
           </div>
         </button>
 
-        <button onClick={() => setView('purchase_speak')}
+        <button onClick={() => setView('purchase_ec')}
           className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all"
           style={cardStyle}>
           <div className="flex items-start gap-4">
@@ -817,8 +828,8 @@ export default function CustomerPage() {
               🛍️
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-black text-zinc-900 text-lg leading-tight">取り置き注文</p>
-              <p className="text-zinc-500 text-sm mt-0.5">スタッフ対応</p>
+              <p className="font-black text-zinc-900 text-lg leading-tight">お家でかんたんネット注文</p>
+              <p className="text-zinc-500 text-sm mt-0.5">在庫確認・取り置き</p>
             </div>
             <div className="pt-1 shrink-0">
               <ChevronRight size={20} className="text-zinc-300" />
@@ -886,6 +897,62 @@ export default function CustomerPage() {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* 待ち時間に会員情報ご登録（任意）*/}
+        <div className="px-5 pt-5 pb-4 max-w-md mx-auto">
+          {customer ? (
+            <div className="flex items-center gap-3 bg-white rounded-2xl p-4 shadow-sm border border-zinc-100">
+              <CheckCircle2 size={18} style={{ color: theme.colors.primary }} />
+              <div>
+                <p className="font-bold text-zinc-800 text-sm">{customer.name} 様</p>
+                {selectedChild && (
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    {selectedChild.name}{selectedChild.grade ? ` · ${selectedChild.grade}` : ''}
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl shadow-sm border border-zinc-100 overflow-hidden">
+              <button onClick={() => setShowQueueRegister(v => !v)}
+                className="w-full flex items-center justify-between px-4 py-3.5 active:bg-zinc-50 transition-colors">
+                <div className="text-left">
+                  <p className="font-bold text-zinc-800 text-sm">お客様情報のご登録（任意）</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">次回からお名前でお呼びできます</p>
+                </div>
+                {showQueueRegister
+                  ? <ChevronUp size={16} className="text-zinc-400 shrink-0" />
+                  : <ChevronDown size={16} className="text-zinc-400 shrink-0" />
+                }
+              </button>
+              {showQueueRegister && (
+                <div className="px-4 pb-5 border-t border-zinc-100">
+                  {queueRegDone ? (
+                    <div className="flex items-center justify-center gap-2 text-emerald-600 text-sm font-bold py-5">
+                      <CheckCircle2 size={16} />ご登録ありがとうございます！
+                    </div>
+                  ) : (
+                    <>
+                      {registerError && (
+                        <div className="flex items-start gap-2 text-red-600 text-xs bg-red-50 rounded-xl px-3 py-2 mt-3 mb-1">
+                          <AlertCircle size={13} className="shrink-0 mt-0.5" />
+                          <div><p className="font-bold">登録エラー</p><p className="mt-0.5">{registerError}</p></div>
+                        </div>
+                      )}
+                      <div className="mt-3">
+                        <InitialRegistrationForm
+                          lineDisplayName={lineProfile?.displayName ?? ''}
+                          onSubmit={handleInitialRegister}
+                          submitting={submitting}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* キャンセルモーダル */}
@@ -1015,14 +1082,14 @@ export default function CustomerPage() {
       </div>
       <div>
         <p className="text-xs font-bold mb-1" style={{ color: theme.colors.primary }}>{theme.storeName}</p>
-        <h1 className="text-3xl font-black text-zinc-900">ご登録を確認しました</h1>
+        <h1 className="text-3xl font-black text-zinc-900">お直しの受付・ご相談</h1>
         {selectedChild && (
           <p className="text-zinc-500 text-sm mt-1">{customer?.name} 様 · {selectedChild.name}</p>
         )}
       </div>
       <div className="bg-white/70 backdrop-blur-xl rounded-2xl px-6 py-5 border border-white/50 max-w-xs w-full" style={cardStyle}>
-        <p className="font-black text-zinc-800 text-lg">スタッフにお声がけください</p>
-        <p className="text-sm text-zinc-500 mt-1">お直しの受付を行います</p>
+        <p className="font-black text-zinc-800 text-lg">制服のお持ち込みはこちら</p>
+        <p className="text-sm text-zinc-500 mt-1">スタッフにお声がけください</p>
       </div>
       <button onClick={() => setView('purpose')} className="text-zinc-400 text-sm underline">← 戻る</button>
     </main>
@@ -1034,6 +1101,15 @@ export default function CustomerPage() {
       <h1 className="text-3xl font-black text-white mb-2">現在受付を停止しています</h1>
       <p className="text-zinc-400 text-lg">店頭スタッフにお声がけください</p>
     </div>
+  )
+
+  if (view === 'purchase_ec') return (
+    <ECShopView
+      lineProfile={lineProfile}
+      storeId={storeId}
+      storeName={theme.storeName}
+      onBack={() => setView('purpose')}
+    />
   )
 
   return null
