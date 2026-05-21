@@ -1415,7 +1415,18 @@ export default function CRMPage() {
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
           <div className="bg-zinc-900 border border-white/10 rounded-t-3xl p-6 w-full max-w-md">
             <h3 className="text-white font-black text-lg mb-1">顧客を削除しますか？</h3>
-            <p className="text-zinc-400 text-sm mb-5">{deleteTarget.name} 様</p>
+            <p className="text-zinc-300 text-sm font-bold mb-2">{deleteTarget.name} 様</p>
+
+            {/* お子様リスト警告 */}
+            {customerChildren.length > 0 && (
+              <div className="mb-4 px-3 py-2.5 bg-red-500/10 border border-red-500/20 rounded-xl">
+                <p className="text-red-400 text-xs font-bold mb-1.5">⚠️ 以下のお子様も一緒に削除されます</p>
+                {customerChildren.map(ch => (
+                  <p key={ch.id} className="text-zinc-300 text-xs ml-2">・{ch.name}{ch.school_name ? `（${ch.school_name}）` : ''}</p>
+                ))}
+              </div>
+            )}
+
             <div className="space-y-2.5">
               <button onClick={() => setDeleteMode('soft')}
                 className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-left active:scale-[0.98] transition-all">
@@ -1450,8 +1461,11 @@ export default function CRMPage() {
             <h3 className="text-white font-black text-lg mb-1">
               {deleteMode === 'soft' ? '通常削除しますか？' : '完全削除しますか？'}
             </h3>
-            <p className="text-zinc-400 text-sm mb-1">{deleteTarget.name} 様</p>
-            <p className="text-zinc-600 text-xs mb-5">
+            <p className="text-zinc-300 text-sm font-bold mb-1">{deleteTarget.name} 様</p>
+            {customerChildren.length > 0 && (
+              <p className="text-red-400 text-xs mb-1">お子様 {customerChildren.length}人（{customerChildren.map(c => c.name).join('・')}）も削除されます</p>
+            )}
+            <p className="text-zinc-600 text-xs mb-5 mt-1">
               {deleteMode === 'soft'
                 ? 'データは保持されます。「削除済みを表示」から復元できます'
                 : '⚠️ お直し・購入履歴・整理券も全て削除されます。この操作は取り消せません'}
