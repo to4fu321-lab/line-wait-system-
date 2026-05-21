@@ -554,12 +554,7 @@ export default function CustomerPage() {
       <div className="bg-white/75 backdrop-blur-2xl rounded-3xl p-6 w-full max-w-sm border border-white/60 space-y-4" style={cardStyle}>
         <button onClick={() => openAddFriend(LINE_BASIC_ID)}
           className="w-full bg-[#06C755] text-white text-base font-black py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-green-200">
-          <MessageCircle size={20} />① LINEで友だち追加する
-        </button>
-        <button onClick={handleFriendProceed} disabled={friendChecking}
-          className="w-full text-white text-base font-bold py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
-          style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`, boxShadow: `0 8px 24px -8px rgb(${theme.colors.primaryRgb} / 0.45)` }}>
-          {friendChecking ? <><Loader2 size={16} className="animate-spin" />確認中...</> : '② 追加済み → 次へ進む'}
+          <MessageCircle size={20} />LINEで友だち追加する
         </button>
       </div>
     </main>
