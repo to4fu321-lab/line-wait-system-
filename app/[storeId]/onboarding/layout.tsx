@@ -3,12 +3,11 @@ import { getStoreTheme } from '@/config/themes'
 
 type Props = {
   children: React.ReactNode
-  params:   Promise<{ storeId: string }>
+  params:   { storeId: string }
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { storeId } = await params
-  const theme = getStoreTheme(storeId)
+  const theme = getStoreTheme(params.storeId)
   return {
     title: `お客様登録 | ${theme.storeName}`,
   }

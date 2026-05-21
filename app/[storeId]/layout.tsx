@@ -1,32 +1,22 @@
-import type { Metadata, Viewport } from 'next'
+import type { Metadata } from 'next'
 import { getStoreTheme } from '@/config/themes'
 import { ThemeProvider, themeCssVars } from '@/lib/theme-context'
 
 type Props = {
   children: React.ReactNode
-  params:   Promise<{ storeId: string }>
+  params:   { storeId: string }
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { storeId } = await params
-  const theme = getStoreTheme(storeId)
+  const theme = getStoreTheme(params.storeId)
   return {
     title:       `${theme.storeName} | ${theme.tagline}`,
     description: `${theme.storeName} のWeb受付システム`,
   }
 }
 
-export async function generateViewport({ params }: Props): Promise<Viewport> {
-  const { storeId } = await params
-  const theme = getStoreTheme(storeId)
-  return {
-    themeColor: theme.colors.primary,
-  }
-}
-
-export default async function StoreLayout({ children, params }: Props) {
-  const { storeId } = await params
-  const theme = getStoreTheme(storeId)
+export default function StoreLayout({ children, params }: Props) {
+  const theme = getStoreTheme(params.storeId)
 
   return (
     <ThemeProvider theme={theme}>
@@ -34,13 +24,13 @@ export default async function StoreLayout({ children, params }: Props) {
         className="min-h-screen relative"
         style={{
           ...themeCssVars(theme),
-          background: `
-            radial-gradient(circle at 0% 0%, rgb(${theme.colors.primaryRgb} / 0.18), transparent 55%),
-            radial-gradient(circle at 100% 100%, rgb(${theme.colors.accentRgb} / 0.12), transparent 55%),
-            radial-gradient(circle at 50% 50%, rgb(${theme.colors.primaryRgb} / 0.04), transparent 70%),
-            #fafafa
-          `,
-        }}
+          background: [
+            `radial-gradient(circle at 0% 0%, rgb(${theme.colors.primaryRgb} / 0.18), transparent 55%)`,
+            `radial-gradient(circle at 100% 100%, rgb(${theme.colors.accentRgb} / 0.12), transparent 55%)`,
+            `radial-gradient(circle at 50% 50%, rgb(${theme.colors.primaryRgb} / 0.04), transparent 70%)`,
+            '#fafafa',
+          ].join(', '),
+        } as React.CSSProperties}
       >
         {children}
       </div>
