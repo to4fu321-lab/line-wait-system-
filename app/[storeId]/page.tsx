@@ -172,7 +172,6 @@ export default function CustomerPage() {
   const [issuing,        setIssuing]        = useState(false)
   const [repairLoading,  setRepairLoading]  = useState(false)
   const [friendChecking, setFriendChecking] = useState(false)
-  const [friendFailed,   setFriendFailed]   = useState(false)
   const [cancelModal,    setCancelModal]    = useState(false)
   const [cancelLoading,  setCancelLoading]  = useState(false)
 
@@ -272,18 +271,9 @@ export default function CustomerPage() {
 
   // ── 友達確認後・次へ ──────────────────────────────────
   const handleFriendProceed = async () => {
-    setFriendChecking(true); setFriendFailed(false)
-    try {
-      if (lineProfile?.userId) {
-        const res = await fetch(`/api/check-friend?userId=${lineProfile.userId}`)
-        const { friend } = await res.json()
-        if (!friend) { setFriendFailed(true); setFriendChecking(false); return }
-      }
-    } catch { /* 失敗しても進む */ }
-
+    setFriendChecking(true)
     const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
     if (sd && !sd.is_open) { setView('closed'); setFriendChecking(false); return }
-
     const { count } = await supabase.from('queues')
       .select('*', { count: 'exact', head: true })
       .eq('store_id', storeId).in('status', ['waiting', 'calling'])
@@ -440,9 +430,6 @@ export default function CustomerPage() {
           style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`, boxShadow: `0 8px 24px -8px rgb(${theme.colors.primaryRgb} / 0.45)` }}>
           {friendChecking ? <><Loader2 size={16} className="animate-spin" />確認中...</> : '② 追加済み → 次へ進む'}
         </button>
-        {friendFailed && (
-          <p className="text-red-500 text-xs text-center">友だち追加が確認できません。①を押してから②をお試しください。</p>
-        )}
       </div>
     </main>
   )
