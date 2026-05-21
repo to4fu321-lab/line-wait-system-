@@ -49,12 +49,16 @@ export default function OnboardingPage() {
   const [checking,        setChecking]        = useState(false)
   const [friendFailed,    setFriendFailed]    = useState(false)
 
-  const kanaEditedRef = useRef(false)
+  const kanaEditedRef   = useRef(false)
+  const isComposingRef  = useRef(false)
+  const kanaBlockRef    = useRef(false)
   const finalSchool = showCustomInput ? customSchool : schoolName
 
   const handleNameChange = (val: string) => {
     setName(val)
-    if (!kanaEditedRef.current) setKana(toKatakana(val))
+    if (!kanaEditedRef.current && !isComposingRef.current && !kanaBlockRef.current) {
+      setKana(toKatakana(val))
+    }
   }
   const handleKanaChange = (val: string) => {
     kanaEditedRef.current = true
@@ -308,9 +312,9 @@ export default function OnboardingPage() {
             type="text" value={name} onChange={e => handleNameChange(e.target.value)}
             placeholder="例：山田 花子"
             className={inputBase}
-            style={{
-              outlineColor: theme.colors.primary,
-            }}
+            style={{ outlineColor: theme.colors.primary }}
+            onCompositionStart={() => { isComposingRef.current = true }}
+            onCompositionEnd={() => { isComposingRef.current = false; kanaBlockRef.current = true }}
             onFocus={e => (e.currentTarget.style.borderColor = theme.colors.primary)}
             onBlur={e => (e.currentTarget.style.borderColor = '')}
           />

@@ -18,7 +18,7 @@ export function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL(decoded, request.url))
       }
     }
-    return NextResponse.redirect(new URL(`/${STORE_ID}/home`, request.url))
+    return NextResponse.redirect(new URL(`/${STORE_ID}`, request.url))
   }
 
   // ── ② 非LINEブラウザで / にアクセス ────────────────────
@@ -51,6 +51,8 @@ export const config = {
     '/',
     '/:storeId([0-9a-f-]{36})',
     '/:storeId([0-9a-f-]{36})/home',
+    '/:storeId([0-9a-f-]{36})/queue',
+    '/:storeId([0-9a-f-]{36})/repair',
     '/:storeId([0-9a-f-]{36})/onboarding',
     '/:storeId([0-9a-f-]{36})/crm-register',
   ],

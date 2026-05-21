@@ -34,8 +34,8 @@ export async function POST(req: NextRequest) {
               title: 'ご来店ありがとうございます',
               text: '下のボタンからお手続きをお選びください。',
               actions: [
-                { type: 'uri', label: '📋 順番待ち受付', uri: `${LIFF_BASE}/${STORE_ID}` },
-                { type: 'uri', label: '✂️ お直し登録', uri: `${LIFF_BASE}/${STORE_ID}/crm-register` },
+                { type: 'uri', label: '📋 順番待ち受付', uri: `${LIFF_BASE}/${STORE_ID}/queue` },
+                { type: 'uri', label: '✂️ お直し受付', uri: `${LIFF_BASE}/${STORE_ID}/repair` },
               ],
             },
           }],
