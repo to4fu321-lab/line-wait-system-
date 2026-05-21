@@ -354,6 +354,8 @@ export default function CustomerPage() {
   // ── 友達確認後・次へ ──────────────────────────────────
   const handleFriendProceed = async () => {
     setFriendChecking(true)
+    const isFriend = await checkFriendship()
+    if (!isFriend) { setFriendChecking(false); return }
     const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
 
     if (lineProfile?.userId) {
