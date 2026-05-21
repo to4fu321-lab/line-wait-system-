@@ -52,9 +52,8 @@ export async function getLineProfile(): Promise<LiffProfile | null> {
 
   try {
     if (!liff.isLoggedIn()) {
-      // 外部ブラウザでは LINE Login にリダイレクトされる
-      // LINE内ブラウザでは自動的にログイン済み
-      liff.login({ redirectUri: window.location.href })
+      // 未ログイン（外部ブラウザ等）→ nullを返してadd_friend画面へ
+      // liff.login()でリダイレクトするとループになるため呼ばない
       return null
     }
 
