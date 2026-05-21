@@ -4,60 +4,53 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import {
   CheckCircle2, MessageCircle, Loader2, Clock,
-  ChevronRight, Users, AlertCircle,
+  ChevronRight, Users, AlertCircle, Plus, GraduationCap,
 } from 'lucide-react'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import type { Queue, WaitThreshold } from '@/types/database'
 import { DEFAULT_THRESHOLDS, getWaitMessage } from '@/types/database'
+import type { Customer, Child } from '@/types/crm'
+import { GRADE_OPTIONS } from '@/types/crm'
 import { initLiff, getLineProfile, openAddFriend, type LiffProfile } from '@/lib/liff'
 import { useStoreTheme } from '@/lib/theme-context'
 
 const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
 
 type View =
-  | 'loading'
-  | 'add_friend'
-  | 'purpose'
-  | 'queue_waiting'
-  | 'queue_calling'
-  | 'queue_completed'
-  | 'queue_cancelled'
-  | 'queue_self_cancelled'
-  | 'repair_speak'
-  | 'repair_form'
-  | 'repair_done'
-  | 'closed'
+  | 'loading' | 'add_friend' | 'welcome' | 'register' | 'purpose'
+  | 'queue_waiting' | 'queue_calling' | 'queue_completed' | 'queue_cancelled'
+  | 'queue_self_cancelled' | 'repair_speak' | 'closed'
 
 function toKatakana(s: string) {
   return s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60))
 }
 
-// ──────────────────────────────────────────────────────────
-// 統一会員登録フォーム
-// ──────────────────────────────────────────────────────────
-function RegistrationForm({
+// ── 初回登録フォーム（保護者 + お子様）──────────────────────
+function InitialRegistrationForm({
   lineDisplayName,
   onSubmit,
   submitting,
 }: {
   lineDisplayName: string
-  onSubmit: (d: { parentName: string; parentKana: string; childName: string; childKana: string; tel: string }) => Promise<void>
+  onSubmit: (d: { parentName: string; parentKana: string; tel: string; childName: string; childKana: string; schoolName: string; grade: string }) => Promise<void>
   submitting: boolean
 }) {
   const theme = useStoreTheme()
-  const [parentName, setParentName] = useState(lineDisplayName)
-  const [parentKana, setParentKana] = useState(toKatakana(lineDisplayName))
+  const [parentName, setParentName] = useState('')
+  const [parentKana, setParentKana] = useState('')
+  const [tel,        setTel]        = useState('')
   const [childName,  setChildName]  = useState('')
   const [childKana,  setChildKana]  = useState('')
-  const [tel,        setTel]        = useState('')
+  const [schoolName, setSchoolName] = useState('')
+  const [grade,      setGrade]      = useState('')
   const [error,      setError]      = useState('')
 
-  const parentKanaEdited  = useRef(false)
   const isComposingParent = useRef(false)
   const kanaBlockParent   = useRef(false)
-  const childKanaEdited   = useRef(false)
   const isComposingChild  = useRef(false)
   const kanaBlockChild    = useRef(false)
+  const parentKanaEdited  = useRef(false)
+  const childKanaEdited   = useRef(false)
 
   const onParentNameChange = (v: string) => {
     setParentName(v)
@@ -74,66 +67,64 @@ function RegistrationForm({
     if (!parentName.trim()) { setError('保護者のお名前を入力してください'); return }
     if (!childName.trim())  { setError('お子様のお名前を入力してください'); return }
     setError('')
-    await onSubmit({
-      parentName: parentName.trim(), parentKana: parentKana.trim(),
-      childName:  childName.trim(),  childKana:  childKana.trim(),
-      tel:        tel.trim(),
-    })
+    await onSubmit({ parentName: parentName.trim(), parentKana: parentKana.trim(), tel: tel.trim(), childName: childName.trim(), childKana: childKana.trim(), schoolName: schoolName.trim(), grade })
   }
 
   const base = 'w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50/80 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all'
-  const focus = (e: React.FocusEvent<HTMLInputElement>) => (e.currentTarget.style.borderColor = theme.colors.primary)
-  const blur  = (e: React.FocusEvent<HTMLInputElement>) => (e.currentTarget.style.borderColor = '')
+  const focus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = theme.colors.primary)
+  const blur  = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = '')
 
   return (
-    <div className="space-y-4">
-      {/* 保護者名 */}
+    <div className="space-y-5">
+      <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider pt-1">保護者情報</div>
       <div>
-        <label className="block text-xs font-bold text-zinc-500 mb-1.5">
-          保護者のお名前 <span className="text-red-500">*</span>
-        </label>
-        <input type="text" value={parentName} placeholder="例：山田 太郎"
-          className={base}
+        <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
+        <input type="text" value={parentName} placeholder="例：山田 太郎" className={base}
           onChange={e => onParentNameChange(e.target.value)}
           onCompositionStart={() => { isComposingParent.current = true }}
           onCompositionEnd={() => { isComposingParent.current = false; kanaBlockParent.current = true }}
           onFocus={focus} onBlur={blur} />
       </div>
-      {/* 保護者ふりがな */}
       <div>
-        <label className="block text-xs font-bold text-zinc-500 mb-1.5">ふりがな（保護者）</label>
-        <input type="text" value={parentKana} placeholder="ヤマダ タロウ"
-          className={base}
+        <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
+        <input type="text" value={parentKana} placeholder="ヤマダ タロウ" className={base}
           onChange={e => { parentKanaEdited.current = true; setParentKana(e.target.value) }}
           onFocus={focus} onBlur={blur} />
       </div>
-      {/* お子様名 */}
       <div>
-        <label className="block text-xs font-bold text-zinc-500 mb-1.5">
-          お子様のお名前 <span className="text-red-500">*</span>
-        </label>
-        <input type="text" value={childName} placeholder="例：山田 花子"
-          className={base}
+        <label className="block text-xs font-bold text-zinc-500 mb-1.5">電話番号</label>
+        <input type="tel" inputMode="tel" value={tel} placeholder="例：090-1234-5678" className={base}
+          onChange={e => setTel(e.target.value)} onFocus={focus} onBlur={blur} />
+      </div>
+
+      <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider pt-2 border-t border-zinc-100">お子様情報</div>
+      <div>
+        <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
+        <input type="text" value={childName} placeholder="例：山田 花子" className={base}
           onChange={e => onChildNameChange(e.target.value)}
           onCompositionStart={() => { isComposingChild.current = true }}
           onCompositionEnd={() => { isComposingChild.current = false; kanaBlockChild.current = true }}
           onFocus={focus} onBlur={blur} />
       </div>
-      {/* お子様ふりがな */}
       <div>
-        <label className="block text-xs font-bold text-zinc-500 mb-1.5">ふりがな（お子様）</label>
-        <input type="text" value={childKana} placeholder="ヤマダ ハナコ"
-          className={base}
+        <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
+        <input type="text" value={childKana} placeholder="ヤマダ ハナコ" className={base}
           onChange={e => { childKanaEdited.current = true; setChildKana(e.target.value) }}
           onFocus={focus} onBlur={blur} />
       </div>
-      {/* 電話番号 */}
-      <div>
-        <label className="block text-xs font-bold text-zinc-500 mb-1.5">電話番号</label>
-        <input type="tel" inputMode="tel" value={tel} placeholder="例：090-1234-5678"
-          className={base}
-          onChange={e => setTel(e.target.value)}
-          onFocus={focus} onBlur={blur} />
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名</label>
+          <input type="text" value={schoolName} placeholder="○○中学校" className={base}
+            onChange={e => setSchoolName(e.target.value)} onFocus={focus} onBlur={blur} />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-zinc-500 mb-1.5">学年</label>
+          <select value={grade} onChange={e => setGrade(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
+            <option value="">選択</option>
+            {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+        </div>
       </div>
 
       {error && (
@@ -145,29 +136,117 @@ function RegistrationForm({
       <button onClick={handleSubmit} disabled={submitting || !parentName.trim() || !childName.trim()}
         className="w-full text-white text-base font-black py-4 rounded-2xl disabled:opacity-50 flex items-center justify-center gap-2 active:scale-95 transition-transform"
         style={{
-          background:  `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`,
-          boxShadow:   `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.45)`,
+          background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`,
+          boxShadow:  `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.45)`,
         }}>
-        {submitting ? <><Loader2 size={18} className="animate-spin" />登録中...</> : '登録する'}
+        {submitting ? <><Loader2 size={18} className="animate-spin" />登録中...</> : '登録して進む'}
       </button>
     </div>
   )
 }
 
-// ──────────────────────────────────────────────────────────
-// メインコンポーネント
-// ──────────────────────────────────────────────────────────
+// ── お子様追加フォーム ──────────────────────────────────────
+function AddChildForm({
+  onSubmit,
+  onCancel,
+  submitting,
+}: {
+  onSubmit: (d: { childName: string; childKana: string; schoolName: string; grade: string }) => Promise<void>
+  onCancel: () => void
+  submitting: boolean
+}) {
+  const theme = useStoreTheme()
+  const [childName,  setChildName]  = useState('')
+  const [childKana,  setChildKana]  = useState('')
+  const [schoolName, setSchoolName] = useState('')
+  const [grade,      setGrade]      = useState('')
+  const [error,      setError]      = useState('')
+
+  const isComposing = useRef(false)
+  const kanaBlock   = useRef(false)
+  const kanaEdited  = useRef(false)
+
+  const onNameChange = (v: string) => {
+    setChildName(v)
+    if (!kanaEdited.current && !isComposing.current && !kanaBlock.current)
+      setChildKana(toKatakana(v))
+  }
+
+  const handleSubmit = async () => {
+    if (!childName.trim()) { setError('お名前を入力してください'); return }
+    setError('')
+    await onSubmit({ childName: childName.trim(), childKana: childKana.trim(), schoolName: schoolName.trim(), grade })
+  }
+
+  const base = 'w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50/80 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all'
+  const focus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = theme.colors.primary)
+  const blur  = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = '')
+
+  return (
+    <div className="space-y-3 pt-3 border-t border-zinc-100 mt-3">
+      <p className="text-xs font-bold" style={{ color: theme.colors.primary }}>新しいお子様の情報</p>
+      <div>
+        <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
+        <input type="text" value={childName} placeholder="例：山田 次郎" className={base}
+          onChange={e => onNameChange(e.target.value)}
+          onCompositionStart={() => { isComposing.current = true }}
+          onCompositionEnd={() => { isComposing.current = false; kanaBlock.current = true }}
+          onFocus={focus} onBlur={blur} />
+      </div>
+      <div>
+        <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
+        <input type="text" value={childKana} placeholder="ヤマダ ジロウ" className={base}
+          onChange={e => { kanaEdited.current = true; setChildKana(e.target.value) }}
+          onFocus={focus} onBlur={blur} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名</label>
+          <input type="text" value={schoolName} placeholder="○○中学校" className={base}
+            onChange={e => setSchoolName(e.target.value)} onFocus={focus} onBlur={blur} />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-zinc-500 mb-1.5">学年</label>
+          <select value={grade} onChange={e => setGrade(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
+            <option value="">選択</option>
+            {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+        </div>
+      </div>
+      {error && (
+        <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 rounded-xl px-3 py-2">
+          <AlertCircle size={13} />{error}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <button onClick={onCancel} className="flex-1 py-3 rounded-xl border border-zinc-200 text-zinc-500 font-bold text-sm active:scale-95 transition-transform">
+          キャンセル
+        </button>
+        <button onClick={handleSubmit} disabled={submitting || !childName.trim()}
+          className="flex-1 py-3 rounded-xl text-white font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
+          style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})` }}>
+          {submitting ? <Loader2 size={14} className="animate-spin" /> : '追加する'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── メインコンポーネント ────────────────────────────────────
 export default function CustomerPage() {
   const { storeId } = useParams<{ storeId: string }>()
   const theme = useStoreTheme()
 
   const [view,           setView]           = useState<View>('loading')
   const [lineProfile,    setLineProfile]    = useState<LiffProfile | null>(null)
+  const [customer,       setCustomer]       = useState<Customer | null>(null)
+  const [children,       setChildren]       = useState<Child[]>([])
+  const [selectedChild,  setSelectedChild]  = useState<Child | null>(null)
+  const [showAddChild,   setShowAddChild]   = useState(false)
   const [ticket,         setTicket]         = useState<Queue | null>(null)
   const [waitingAhead,   setWaitingAhead]   = useState(0)
   const [waitingCount,   setWaitingCount]   = useState<number | null>(null)
   const [waitThresholds, setWaitThresholds] = useState<WaitThreshold[]>(DEFAULT_THRESHOLDS)
-  const [formDone,       setFormDone]       = useState(false)
   const [submitting,     setSubmitting]     = useState(false)
   const [issuing,        setIssuing]        = useState(false)
   const [repairLoading,  setRepairLoading]  = useState(false)
@@ -223,15 +302,21 @@ export default function CustomerPage() {
         if (!friend) { setView('add_friend'); return }
       } catch { /* 失敗しても進む */ }
 
-      if (sd && !sd.is_open) { setView('closed'); return }
+      // 既存顧客チェック
+      const { data: cust } = await supabase.from('customers')
+        .select('*').eq('store_id', storeId).eq('line_user_id', profile.userId).maybeSingle()
 
-      // 待ち人数を取得してから目的選択へ
-      const { count } = await supabase.from('queues')
-        .select('*', { count: 'exact', head: true })
-        .eq('store_id', storeId).in('status', ['waiting', 'calling'])
-        .gte('created_at', getTodayStart())
-      setWaitingCount(count ?? 0)
-      setView('purpose')
+      if (cust) {
+        setCustomer(cust)
+        const { data: childList } = await supabase.from('children')
+          .select('*').eq('customer_id', cust.id).order('created_at', { ascending: true })
+        setChildren(childList ?? [])
+        if (sd && !sd.is_open) { setView('closed'); return }
+        setView('welcome')
+      } else {
+        if (sd && !sd.is_open) { setView('closed'); return }
+        setView('register')
+      }
     })()
   }, [storeId, ticketKey, dateKey])
 
@@ -273,17 +358,99 @@ export default function CustomerPage() {
   const handleFriendProceed = async () => {
     setFriendChecking(true)
     const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
-    if (sd && !sd.is_open) { setView('closed'); setFriendChecking(false); return }
+
+    if (lineProfile?.userId) {
+      const { data: cust } = await supabase.from('customers')
+        .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId).maybeSingle()
+      if (cust) {
+        setCustomer(cust)
+        const { data: childList } = await supabase.from('children')
+          .select('*').eq('customer_id', cust.id).order('created_at', { ascending: true })
+        setChildren(childList ?? [])
+        setFriendChecking(false)
+        setView(sd?.is_open === false ? 'closed' : 'welcome')
+        return
+      }
+    }
+
     const { count } = await supabase.from('queues')
       .select('*', { count: 'exact', head: true })
       .eq('store_id', storeId).in('status', ['waiting', 'calling'])
       .gte('created_at', getTodayStart())
     setWaitingCount(count ?? 0)
     setFriendChecking(false)
-    setView('purpose')
+    setView(sd?.is_open === false ? 'closed' : 'register')
   }
 
-  // ── 整理券即時発行（パターンA） ──────────────────────
+  // ── 初回登録（保護者 + お子様）────────────────────────
+  const handleInitialRegister = async (d: {
+    parentName: string; parentKana: string; tel: string
+    childName: string; childKana: string; schoolName: string; grade: string
+  }) => {
+    if (!lineProfile?.userId) return
+    setSubmitting(true)
+    try {
+      // 既存チェック（念のため）
+      const { data: existing } = await supabase.from('customers')
+        .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId).maybeSingle()
+
+      let cust = existing
+      if (!cust) {
+        const { data: newCust } = await supabase.from('customers').insert({
+          store_id: storeId, line_user_id: lineProfile.userId,
+          name: d.parentName, kana: d.parentKana || null, tel: d.tel || null,
+        }).select().single()
+        cust = newCust
+      }
+      if (!cust) { setSubmitting(false); return }
+      setCustomer(cust)
+
+      const { data: newChild } = await supabase.from('children').insert({
+        customer_id: cust.id, store_id: storeId,
+        name: d.childName, kana: d.childKana || null,
+        school_name: d.schoolName || null, grade: d.grade || null,
+      }).select().single()
+
+      const updatedChildren = [...children, ...(newChild ? [newChild] : [])]
+      setChildren(updatedChildren)
+      if (newChild) setSelectedChild(newChild)
+
+      const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
+      const { count } = await supabase.from('queues')
+        .select('*', { count: 'exact', head: true })
+        .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
+      setWaitingCount(count ?? 0)
+      setView(sd?.is_open === false ? 'closed' : 'purpose')
+    } catch (e) { console.error(e) }
+    setSubmitting(false)
+  }
+
+  // ── お子様追加 ────────────────────────────────────────
+  const handleAddChild = async (d: { childName: string; childKana: string; schoolName: string; grade: string }) => {
+    if (!customer) return
+    setSubmitting(true)
+    try {
+      const { data: newChild } = await supabase.from('children').insert({
+        customer_id: customer.id, store_id: storeId,
+        name: d.childName, kana: d.childKana || null,
+        school_name: d.schoolName || null, grade: d.grade || null,
+      }).select().single()
+      if (newChild) {
+        setChildren(prev => [...prev, newChild])
+        setSelectedChild(newChild)
+        setShowAddChild(false)
+        const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
+        const { count } = await supabase.from('queues')
+          .select('*', { count: 'exact', head: true })
+          .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
+        setWaitingCount(count ?? 0)
+        setView(sd?.is_open === false ? 'closed' : 'purpose')
+      }
+    } catch (e) { console.error(e) }
+    setSubmitting(false)
+  }
+
+  // ── 整理券発行（パターンA）────────────────────────────
   const handleIssueTicket = async () => {
     if (issuing) return
     setIssuing(true)
@@ -293,11 +460,15 @@ export default function CustomerPage() {
         store_id:      storeId,
         ticket_number: nextNum as number,
         status:        'waiting',
-        customer_name: lineProfile?.displayName ?? '未登録',
+        customer_name: customer?.name ?? lineProfile?.displayName ?? '未登録',
+        child_name:    selectedChild?.name ?? null,
+        school_name:   selectedChild?.school_name ?? null,
         category:      'other',
         gender:        'other',
         line_user_id:  lineProfile?.userId ?? null,
         checked_in:    true,
+        customer_id:   customer?.id ?? null,
+        child_id:      selectedChild?.id ?? null,
       }).select().single()
       if (error || !t) throw error
       localStorage.setItem(ticketKey, t.id)
@@ -308,64 +479,21 @@ export default function CustomerPage() {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             lineUserId: t.line_user_id, ticketNumber: t.ticket_number,
-            customerName: t.customer_name, storeName: theme.storeName,
-            storeId, type: 'registered',
+            customerName: t.customer_name, storeId,
           }),
         }).catch(console.error)
       }
       setView('queue_waiting')
-    } catch { setIssuing(false) }
-  }
-
-  // ── お直し選択（パターンB） ───────────────────────────
-  const handleRepairSelect = async () => {
-    if (!lineProfile?.userId) { setView('repair_form'); return }
-    setRepairLoading(true)
-    const { data } = await supabase.from('customers')
-      .select('id').eq('store_id', storeId).eq('line_user_id', lineProfile.userId).limit(1)
-    setRepairLoading(false)
-    setView(data && data.length > 0 ? 'repair_speak' : 'repair_form')
-  }
-
-  // ── 会員登録（共通） ──────────────────────────────────
-  const handleRegister = async (d: {
-    parentName: string; parentKana: string
-    childName:  string; childKana:  string; tel: string
-  }) => {
-    if (!lineProfile?.userId) return
-    setSubmitting(true)
-    try {
-      // customers upsert
-      const { data: existing } = await supabase.from('customers')
-        .select('id').eq('store_id', storeId).eq('line_user_id', lineProfile.userId).maybeSingle()
-      if (existing) {
-        await supabase.from('customers').update({
-          name: d.childName, kana: d.childKana || null,
-          parent_name: d.parentName, parent_kana: d.parentKana || null,
-          tel: d.tel || null,
-        }).eq('id', existing.id)
-      } else {
-        await supabase.from('customers').insert({
-          store_id: storeId, line_user_id: lineProfile.userId,
-          name: d.childName, kana: d.childKana || null,
-          parent_name: d.parentName, parent_kana: d.parentKana || null,
-          tel: d.tel || null,
-        })
-      }
-      // queues に顧客情報を反映（キュー待機中の場合）
-      if (ticket) {
-        await supabase.from('queues').update({
-          customer_name: d.parentName,
-          customer_kana: d.parentKana || null,
-          child_name:    d.childName,
-        }).eq('id', ticket.id)
-        setTicket(prev => prev ? { ...prev, customer_name: d.parentName, child_name: d.childName } : null)
-        setFormDone(true)
-      } else {
-        setView('repair_done')
-      }
     } catch (e) { console.error(e) }
-    setSubmitting(false)
+    setIssuing(false)
+  }
+
+  // ── お直し選択（パターンB）────────────────────────────
+  const handleRepairSelect = async () => {
+    setRepairLoading(true)
+    // 顧客は登録済みのはず（welcome/register経由）
+    setRepairLoading(false)
+    setView('repair_speak')
   }
 
   // ── キャンセル ────────────────────────────────────────
@@ -380,15 +508,19 @@ export default function CustomerPage() {
 
   const handleReset = async () => {
     localStorage.removeItem(ticketKey); localStorage.removeItem(dateKey)
-    setTicket(null); setWaitingAhead(0); setFormDone(false); setIssuing(false)
+    setTicket(null); setWaitingAhead(0); setIssuing(false); setSelectedChild(null)
     if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null }
     const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
     if (sd && !sd.is_open) { setView('closed'); return }
-    const { count } = await supabase.from('queues')
-      .select('*', { count: 'exact', head: true })
-      .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
-    setWaitingCount(count ?? 0)
-    setView('purpose')
+    if (customer) {
+      setView('welcome')
+    } else {
+      const { count } = await supabase.from('queues')
+        .select('*', { count: 'exact', head: true })
+        .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
+      setWaitingCount(count ?? 0)
+      setView('register')
+    }
   }
 
   // ══════════════════════════════════════════════════════════
@@ -419,7 +551,6 @@ export default function CustomerPage() {
           お呼び出しや、お直し完了の通知をLINEで確実に受け取るために、まずは友だち追加をお願いします
         </p>
       </div>
-
       <div className="bg-white/75 backdrop-blur-2xl rounded-3xl p-6 w-full max-w-sm border border-white/60 space-y-4" style={cardStyle}>
         <button onClick={() => openAddFriend(LINE_BASIC_ID)}
           className="w-full bg-[#06C755] text-white text-base font-black py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-green-200">
@@ -434,7 +565,94 @@ export default function CustomerPage() {
     </main>
   )
 
-  // ── ステップ2：目的選択 ───────────────────────────────
+  // ── ウェルカム：既存顧客・子供選択 ───────────────────
+  if (view === 'welcome') return (
+    <main className="min-h-screen px-5 py-10 max-w-md mx-auto">
+      <div className="text-center mb-6">
+        <div className="w-14 h-14 mx-auto mb-3 rounded-2xl flex items-center justify-center text-2xl"
+          style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
+          {theme.logoEmoji}
+        </div>
+        <p className="text-xs font-bold mb-1" style={{ color: theme.colors.primary }}>{theme.storeName}</p>
+        <h1 className="text-2xl font-black text-zinc-900">
+          ようこそ、{customer?.name ?? ''} 様
+        </h1>
+        <p className="text-zinc-500 text-sm mt-1">ご来店のお子様をお選びください</p>
+      </div>
+
+      <div className="space-y-3">
+        {children.map(child => (
+          <button key={child.id}
+            onClick={async () => {
+              setSelectedChild(child)
+              const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
+              if (sd && !sd.is_open) { setView('closed'); return }
+              const { count } = await supabase.from('queues')
+                .select('*', { count: 'exact', head: true })
+                .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
+              setWaitingCount(count ?? 0)
+              setView('purpose')
+            }}
+            className="w-full bg-white/70 backdrop-blur-xl rounded-2xl border border-white/50 p-4 text-left active:scale-[0.98] transition-all"
+            style={cardStyle}>
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl shrink-0"
+                style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})` }}>
+                <GraduationCap size={22} className="text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-black text-zinc-900 text-base">{child.name}</p>
+                <p className="text-zinc-500 text-sm mt-0.5">
+                  {[child.school_name, child.grade].filter(Boolean).join(' · ') || 'お子様'}
+                </p>
+              </div>
+              <ChevronRight size={18} className="text-zinc-300 shrink-0" />
+            </div>
+          </button>
+        ))}
+
+        {showAddChild ? (
+          <div className="bg-white/75 backdrop-blur-2xl rounded-2xl border border-white/60 p-5" style={cardStyle}>
+            <AddChildForm
+              onSubmit={handleAddChild}
+              onCancel={() => setShowAddChild(false)}
+              submitting={submitting}
+            />
+          </div>
+        ) : (
+          <button onClick={() => setShowAddChild(true)}
+            className="w-full py-4 rounded-2xl border-2 border-dashed text-sm font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+            style={{ borderColor: `rgb(${theme.colors.primaryRgb} / 0.3)`, color: theme.colors.primary }}>
+            <Plus size={16} />新しいお子様を追加
+          </button>
+        )}
+      </div>
+    </main>
+  )
+
+  // ── 初回登録 ─────────────────────────────────────────
+  if (view === 'register') return (
+    <main className="min-h-screen px-5 py-10 max-w-md mx-auto">
+      <div className="text-center mb-6">
+        <div className="w-14 h-14 mx-auto mb-3 rounded-2xl flex items-center justify-center text-2xl"
+          style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
+          {theme.logoEmoji}
+        </div>
+        <p className="text-xs font-bold mb-1" style={{ color: theme.colors.primary }}>{theme.storeName}</p>
+        <h1 className="text-2xl font-black text-zinc-900">お客様情報の登録</h1>
+        <p className="text-zinc-500 text-xs mt-1">初回のみご入力ください。次回は自動で認識します</p>
+      </div>
+      <div className="bg-white/75 backdrop-blur-2xl rounded-3xl border border-white/60 p-5" style={cardStyle}>
+        <InitialRegistrationForm
+          lineDisplayName={lineProfile?.displayName ?? ''}
+          onSubmit={handleInitialRegister}
+          submitting={submitting}
+        />
+      </div>
+    </main>
+  )
+
+  // ── 目的選択 ─────────────────────────────────────────
   if (view === 'purpose') return (
     <main className="min-h-screen px-5 py-10 max-w-md mx-auto">
       <div className="text-center mb-8">
@@ -442,13 +660,19 @@ export default function CustomerPage() {
           style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
           {theme.logoEmoji}
         </div>
+        {selectedChild && (
+          <div className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-bold mb-2"
+            style={{ background: `rgb(${theme.colors.primaryRgb} / 0.1)`, color: theme.colors.primary }}>
+            <GraduationCap size={14} />{selectedChild.name}
+            {selectedChild.grade && ` · ${selectedChild.grade}`}
+          </div>
+        )}
         <p className="text-xs font-bold mb-1" style={{ color: theme.colors.primary }}>{theme.storeName}</p>
         <h1 className="text-2xl font-black text-zinc-900">本日のご用件は？</h1>
         <p className="text-zinc-500 text-sm mt-1">タップして選択してください</p>
       </div>
 
       <div className="space-y-4">
-        {/* カードA：順番待ち */}
         <button onClick={handleIssueTicket} disabled={issuing}
           className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all disabled:opacity-80"
           style={cardStyle}>
@@ -477,7 +701,6 @@ export default function CustomerPage() {
           </div>
         </button>
 
-        {/* カードB：お直し */}
         <button onClick={handleRepairSelect} disabled={repairLoading}
           className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all disabled:opacity-80"
           style={cardStyle}>
@@ -495,16 +718,22 @@ export default function CustomerPage() {
             </div>
           </div>
         </button>
+
+        {customer && (
+          <button onClick={() => setView('welcome')}
+            className="w-full py-3 text-zinc-400 text-sm text-center active:opacity-60 transition-opacity">
+            ← お子様を選び直す
+          </button>
+        )}
       </div>
     </main>
   )
 
-  // ── ステップ3A：順番待ち ＋ インライン登録フォーム ────
+  // ── 順番待ち ─────────────────────────────────────────
   if (view === 'queue_waiting' && ticket) {
     const waitMsg = getWaitMessage(waitingAhead, waitThresholds.length > 0 ? waitThresholds : DEFAULT_THRESHOLDS)
     return (
       <div className="min-h-screen">
-        {/* 待ち状況カード */}
         <div style={{ background: `linear-gradient(135deg, ${theme.colors.primary} 0%, ${theme.colors.primaryDark} 100%)` }}
           className="px-5 pt-8 pb-12">
           <div className="max-w-md mx-auto">
@@ -518,6 +747,11 @@ export default function CustomerPage() {
               <div className="text-[80px] font-black text-white leading-none tracking-tight">
                 {String(ticket.ticket_number).padStart(3, '0')}
               </div>
+              {ticket.customer_name && ticket.customer_name !== '未登録' && (
+                <p className="text-white/70 text-sm mt-2 font-medium">
+                  {ticket.customer_name} 様{ticket.child_name && ` · ${ticket.child_name}`}
+                </p>
+              )}
               <div className="mt-5 bg-white/10 rounded-2xl p-4">
                 <p className="text-white/60 text-sm mb-1">現在の順番</p>
                 <div className="flex items-baseline justify-center gap-1">
@@ -544,34 +778,6 @@ export default function CustomerPage() {
                 並ぶのをやめる
               </button>
             </div>
-          </div>
-        </div>
-
-        {/* インライン登録フォーム */}
-        <div className="px-5 py-8 max-w-md mx-auto -mt-4">
-          <div className="bg-white/80 backdrop-blur-xl rounded-3xl border border-white/50 p-6" style={cardStyle}>
-            {formDone ? (
-              <div className="text-center py-4">
-                <CheckCircle2 size={44} className="mx-auto mb-3" style={{ color: theme.colors.primary }} />
-                <p className="font-black text-zinc-900 text-lg">ご登録ありがとうございます</p>
-                <p className="text-zinc-500 text-sm mt-1">お呼び出しまでそのままお待ちください</p>
-              </div>
-            ) : (
-              <>
-                <div className="text-center mb-5">
-                  <p className="text-[11px] font-bold mb-1" style={{ color: theme.colors.primary }}>任意・後からでも可</p>
-                  <h2 className="text-base font-black text-zinc-900">お客様情報のご登録</h2>
-                  <p className="text-zinc-400 text-xs mt-1 leading-relaxed">
-                    お呼び出しをお待ちの間に、お客様情報のご登録をお願いします
-                  </p>
-                </div>
-                <RegistrationForm
-                  lineDisplayName={lineProfile?.displayName ?? ''}
-                  onSubmit={handleRegister}
-                  submitting={submitting}
-                />
-              </>
-            )}
           </div>
         </div>
 
@@ -624,7 +830,6 @@ export default function CustomerPage() {
     </div>
   )
 
-  // ── 対応完了 ──────────────────────────────────────────
   if (view === 'queue_completed') return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center gap-6">
       <div className="w-28 h-28 rounded-full flex items-center justify-center"
@@ -643,7 +848,6 @@ export default function CustomerPage() {
     </div>
   )
 
-  // ── 自分でキャンセル ──────────────────────────────────
   if (view === 'queue_self_cancelled') return (
     <div className="min-h-screen bg-zinc-900 flex flex-col items-center justify-center px-6 text-center gap-5">
       <div className="text-7xl">👋</div>
@@ -659,7 +863,6 @@ export default function CustomerPage() {
     </div>
   )
 
-  // ── 不在キャンセル ────────────────────────────────────
   if (view === 'queue_cancelled') return (
     <div className="min-h-screen bg-zinc-900 flex flex-col items-center justify-center px-6 text-center gap-5">
       <div className="text-7xl">😔</div>
@@ -676,7 +879,6 @@ export default function CustomerPage() {
     </div>
   )
 
-  // ── ステップ3B：お直し・既存顧客 ─────────────────────
   if (view === 'repair_speak') return (
     <main className="min-h-screen flex flex-col items-center justify-center px-6 text-center gap-6">
       <div className="w-24 h-24 rounded-full flex items-center justify-center"
@@ -686,6 +888,9 @@ export default function CustomerPage() {
       <div>
         <p className="text-xs font-bold mb-1" style={{ color: theme.colors.primary }}>{theme.storeName}</p>
         <h1 className="text-3xl font-black text-zinc-900">ご登録を確認しました</h1>
+        {selectedChild && (
+          <p className="text-zinc-500 text-sm mt-1">{customer?.name} 様 · {selectedChild.name}</p>
+        )}
       </div>
       <div className="bg-white/70 backdrop-blur-xl rounded-2xl px-6 py-5 border border-white/50 max-w-xs w-full" style={cardStyle}>
         <p className="font-black text-zinc-800 text-lg">スタッフにお声がけください</p>
@@ -695,46 +900,6 @@ export default function CustomerPage() {
     </main>
   )
 
-  // ── ステップ3B：お直し・新規登録フォーム ─────────────
-  if (view === 'repair_form') return (
-    <main className="min-h-screen px-5 py-10 max-w-md mx-auto">
-      <div className="text-center mb-6">
-        <div className="w-14 h-14 mx-auto mb-3 rounded-2xl flex items-center justify-center text-2xl"
-          style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
-          ✂️
-        </div>
-        <p className="text-xs font-bold mb-1" style={{ color: theme.colors.primary }}>{theme.storeName}</p>
-        <h1 className="text-2xl font-black text-zinc-900">お客様情報の登録</h1>
-        <p className="text-zinc-500 text-xs mt-1">初回のみご入力ください</p>
-      </div>
-      <div className="bg-white/75 backdrop-blur-2xl rounded-3xl border border-white/60 p-5" style={cardStyle}>
-        <RegistrationForm
-          lineDisplayName={lineProfile?.displayName ?? ''}
-          onSubmit={handleRegister}
-          submitting={submitting}
-        />
-      </div>
-    </main>
-  )
-
-  // ── ステップ3B：お直し・登録完了 ─────────────────────
-  if (view === 'repair_done') return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-6 text-center gap-6">
-      <div className="w-24 h-24 rounded-full flex items-center justify-center"
-        style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 20px 50px -12px rgb(${theme.colors.primaryRgb} / 0.55)` }}>
-        <CheckCircle2 size={56} className="text-white" />
-      </div>
-      <div>
-        <h1 className="text-3xl font-black text-zinc-900 mb-2">ご登録完了！</h1>
-      </div>
-      <div className="bg-white/70 backdrop-blur-xl rounded-2xl px-6 py-5 border border-white/50 max-w-xs w-full" style={cardStyle}>
-        <p className="font-black text-zinc-800 text-lg">スタッフにお声がけください</p>
-        <p className="text-sm text-zinc-500 mt-1">お直しの受付を行います</p>
-      </div>
-    </main>
-  )
-
-  // ── 受付停止中 ────────────────────────────────────────
   if (view === 'closed') return (
     <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-6 text-center">
       <div className="text-7xl mb-5">🚪</div>

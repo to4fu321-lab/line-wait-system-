@@ -82,3 +82,25 @@ export const PURCHASE_STATUS_COLORS: Record<PurchaseStatus, string> = {
   arrived:   'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
   delivered: 'bg-zinc-700/60 text-zinc-400 border-zinc-600/50',
 }
+
+// ──────────────────────────────────────────────
+// お子様
+// ──────────────────────────────────────────────
+export interface Child {
+  id:          string
+  customer_id: string
+  store_id:    string
+  name:        string
+  kana:        string | null
+  school_name: string | null
+  grade:       string | null
+  created_at:  string
+  updated_at:  string
+}
+
+export const GRADE_OPTIONS = [
+  '小1', '小2', '小3', '小4', '小5', '小6',
+  '中1', '中2', '中3',
+  '高1', '高2', '高3',
+  'その他',
+]

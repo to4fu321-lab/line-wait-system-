@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import {
   BellRing, CheckCheck, UserX, RefreshCw, Clock, Users,
   Loader2, Store, Settings, Plus, Trash2,
-  ChevronRight, LayoutDashboard, X, MapPin, Scissors, ShoppingBag,
+  ChevronRight, LayoutDashboard, X, MapPin,
 } from 'lucide-react'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import type { Queue, QueueStatus, WaitThreshold } from '@/types/database'
@@ -633,21 +633,13 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
           </div>
         )}
 
-        <a href={`/${store.id}/admin/repair`}
-          className="mt-2 flex items-center gap-3 px-4 py-3 bg-violet-500/10 border border-violet-500/20 rounded-xl hover:bg-violet-500/20 active:scale-[0.98] transition-all">
-          <div className="w-7 h-7 rounded-lg bg-violet-500/20 border border-violet-500/30 flex items-center justify-center shrink-0">
-            <Scissors size={14} className="text-violet-400" />
+        <a href={`/${store.id}/admin/crm`}
+          className="mt-2 flex items-center gap-3 px-4 py-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl hover:bg-indigo-500/20 active:scale-[0.98] transition-all">
+          <div className="w-7 h-7 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
+            <Users size={14} className="text-indigo-400" />
           </div>
-          <span className="text-violet-300 text-sm font-bold flex-1">お直し管理</span>
-          <ChevronRight size={14} className="text-violet-500" />
-        </a>
-        <a href={`/${store.id}/admin/purchase`}
-          className="mt-2 flex items-center gap-3 px-4 py-3 bg-blue-500/10 border border-blue-500/20 rounded-xl hover:bg-blue-500/20 active:scale-[0.98] transition-all">
-          <div className="w-7 h-7 rounded-lg bg-blue-500/20 border border-blue-500/30 flex items-center justify-center shrink-0">
-            <ShoppingBag size={14} className="text-blue-400" />
-          </div>
-          <span className="text-blue-300 text-sm font-bold flex-1">追加購入管理</span>
-          <ChevronRight size={14} className="text-blue-500" />
+          <span className="text-indigo-300 text-sm font-bold flex-1">顧客管理（お直し・追加購入）</span>
+          <ChevronRight size={14} className="text-indigo-500" />
         </a>
       </div>
 
