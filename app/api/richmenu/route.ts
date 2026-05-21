@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import zlib from 'zlib'
-import { promisify } from 'util'
-
-const deflate = promisify(zlib.deflate)
+import { ImageResponse } from 'next/og'
+import { createElement as h } from 'react'
 
 const STORE_ID  = process.env.STORE_ID || '00000000-0000-0000-0000-000000000010'
 const TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN ||
@@ -11,72 +9,55 @@ const LIFF_BASE = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || '20
 const LINE_API  = 'https://api.line.me/v2/bot'
 const authHeader = { Authorization: `Bearer ${TOKEN}` }
 
-// ── PNG生成（純Node.js、外部ライブラリ不要）──────────────
-function crc32(buf: Buffer): number {
-  const t = new Uint32Array(256)
-  for (let i = 0; i < 256; i++) {
-    let c = i
-    for (let j = 0; j < 8; j++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1)
-    t[i] = c
-  }
-  let crc = 0xFFFFFFFF
-  for (let i = 0; i < buf.length; i++) crc = t[(crc ^ buf[i]) & 0xFF] ^ (crc >>> 8)
-  return (crc ^ 0xFFFFFFFF) >>> 0
-}
-
-function pngChunk(type: string, data: Buffer): Buffer {
-  const len = Buffer.alloc(4); len.writeUInt32BE(data.length, 0)
-  const tb  = Buffer.from(type, 'ascii')
-  const crcBuf = Buffer.alloc(4)
-  crcBuf.writeUInt32BE(crc32(Buffer.concat([tb, data])), 0)
-  return Buffer.concat([len, tb, data, crcBuf])
-}
-
+// ── リッチメニュー画像生成（next/og + Google Fonts）──────────
 async function makeMenuPng(): Promise<Buffer> {
-  const W = 2500, H = 843
+  // Google Fonts から Noto Sans JP サブセットを取得（日本語テキスト用）
+  let fontData: ArrayBuffer | null = null
+  try {
+    const chars = encodeURIComponent('採寸ご購入お直し取り置き注文')
+    const css = await fetch(
+      `https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@700&text=${chars}`,
+      { headers: { 'User-Agent': 'Mozilla/5.0 (compatible)' } }
+    ).then(r => r.text())
+    const m = css.match(/src: url\((.+?)\) format/)
+    if (m) fontData = await fetch(m[1]).then(r => r.arrayBuffer())
+  } catch { /* フォント取得失敗時は続行 */ }
+
   const sections = [
-    { from: 0,    to: 833,  r: 79,  g: 70,  b: 229 }, // indigo  順番待ち
-    { from: 833,  to: 1667, r: 124, g: 58,  b: 237 }, // violet  お直し
-    { from: 1667, to: 2500, r: 37,  g: 99,  b: 235 }, // blue    取り置き
+    { label: '採寸・ご購入', sub: '順番待ち',   emoji: '📋', bg: '#4f46e5' },
+    { label: 'お直し',       sub: 'スタッフ対応', emoji: '✂️', bg: '#7c3aed' },
+    { label: '取り置き注文', sub: 'スタッフ対応', emoji: '🛍️', bg: '#2563eb' },
   ]
 
-  const raw = Buffer.alloc(H * (1 + W * 3))
-  for (let y = 0; y < H; y++) {
-    const base = y * (1 + W * 3)
-    raw[base] = 0 // filter: None
-    for (let x = 0; x < W; x++) {
-      const s = sections.find(s => x >= s.from && x < s.to)!
-      const p = base + 1 + x * 3
-      // 上下に薄いグラデーション
-      const shade = 1 - (y / H) * 0.25
-      raw[p]     = Math.round(s.r * shade)
-      raw[p + 1] = Math.round(s.g * shade)
-      raw[p + 2] = Math.round(s.b * shade)
-    }
-    // 区切り線（白）
-    const dividers = [833, 1667]
-    for (const dx of dividers) {
-      for (let d = -2; d <= 2; d++) {
-        const x = dx + d
-        if (x >= 0 && x < W) {
-          const p = base + 1 + x * 3
-          raw[p] = raw[p + 1] = raw[p + 2] = 255
-        }
-      }
-    }
-  }
+  const fontFamily = fontData ? '"Noto Sans JP", sans-serif' : 'sans-serif'
 
-  const compressed = await deflate(raw)
-  const ihdr = Buffer.alloc(13)
-  ihdr.writeUInt32BE(W, 0); ihdr.writeUInt32BE(H, 4)
-  ihdr[8] = 8; ihdr[9] = 2 // 8bit RGB
+  const img = new ImageResponse(
+    h('div', { style: { display: 'flex', width: 2500, height: 843, fontFamily } },
+      ...sections.map((s, i) =>
+        h('div', {
+          key: i,
+          style: {
+            flex: 1, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: 20,
+            background: `linear-gradient(160deg, ${s.bg} 0%, ${s.bg}cc 100%)`,
+            borderRight: i < 2 ? '4px solid rgba(255,255,255,0.3)' : 'none',
+          },
+        },
+          h('div', { style: { fontSize: 130, lineHeight: 1 } }, s.emoji),
+          h('div', { style: { fontSize: 68, fontWeight: 700, color: '#fff', letterSpacing: '-1px' } }, s.label),
+          h('div', { style: { fontSize: 42, color: 'rgba(255,255,255,0.72)' } }, s.sub),
+        )
+      )
+    ),
+    {
+      width: 2500, height: 843,
+      fonts: fontData
+        ? [{ name: 'Noto Sans JP', data: fontData, weight: 700, style: 'normal' as const }]
+        : [],
+    }
+  )
 
-  return Buffer.concat([
-    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-    pngChunk('IHDR', ihdr),
-    pngChunk('IDAT', compressed),
-    pngChunk('IEND', Buffer.alloc(0)),
-  ])
+  return Buffer.from(await img.arrayBuffer())
 }
 
 // GET ?storeId=&storeName= → ブラウザから直接設定可能
@@ -115,9 +96,9 @@ export async function POST(req: NextRequest) {
         name: storeName ?? 'メニュー',
         chatBarText: 'メニュー',
         areas: [
-          { bounds: { x: 0,    y: 0, width: 833,  height: 843 }, action: { type: 'uri', uri: base, label: '順番待ち' } },
-          { bounds: { x: 833,  y: 0, width: 834,  height: 843 }, action: { type: 'uri', uri: base, label: 'お直し' } },
-          { bounds: { x: 1667, y: 0, width: 833,  height: 843 }, action: { type: 'uri', uri: base, label: '取り置き注文' } },
+          { bounds: { x: 0,    y: 0, width: 833,  height: 843 }, action: { type: 'uri', uri: `${base}?action=queue`,    label: '採寸・ご購入' } },
+          { bounds: { x: 833,  y: 0, width: 834,  height: 843 }, action: { type: 'uri', uri: `${base}?action=repair`,   label: 'お直し' } },
+          { bounds: { x: 1667, y: 0, width: 833,  height: 843 }, action: { type: 'uri', uri: `${base}?action=purchase`, label: '取り置き注文' } },
         ],
       }),
     })
@@ -132,7 +113,7 @@ export async function POST(req: NextRequest) {
     const imgRes = await fetch(`https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`, {
       method: 'POST',
       headers: { ...authHeader, 'Content-Type': 'image/png' },
-      body: png,
+      body: png as unknown as BodyInit,
     })
     if (!imgRes.ok) console.warn('[richmenu] image upload:', await imgRes.text())
 
