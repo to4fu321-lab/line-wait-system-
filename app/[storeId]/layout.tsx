@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
-import { getStoreTheme } from '@/config/themes'
-import { ThemeProvider, themeCssVars } from '@/lib/theme-context'
+import { getStoreTheme, themeCssVars } from '@/config/themes'
+import { ThemeProvider } from '@/lib/theme-context'
 
 type Props = {
   children: React.ReactNode

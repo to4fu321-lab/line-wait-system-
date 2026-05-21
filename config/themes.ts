@@ -93,3 +93,19 @@ export function getStoreTheme(storeId: string | null | undefined): StoreTheme {
 export function listStoreThemes(): StoreTheme[] {
   return themes
 }
+
+/**
+ * テーマカラーを CSS 変数として返す。
+ * サーバーコンポーネントの style prop に渡すことで
+ * 子コンポーネントから var(--theme-primary) 等で参照可能。
+ */
+export function themeCssVars(theme: StoreTheme): Record<string, string> {
+  return {
+    '--theme-primary':       theme.colors.primary,
+    '--theme-primary-dark':  theme.colors.primaryDark,
+    '--theme-primary-light': theme.colors.primaryLight,
+    '--theme-primary-rgb':   theme.colors.primaryRgb,
+    '--theme-accent':        theme.colors.accent,
+    '--theme-accent-rgb':    theme.colors.accentRgb,
+  }
+}
