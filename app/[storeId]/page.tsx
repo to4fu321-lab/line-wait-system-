@@ -11,7 +11,7 @@ import type { Queue, WaitThreshold } from '@/types/database'
 import { DEFAULT_THRESHOLDS, getWaitMessage } from '@/types/database'
 import type { Customer, Child } from '@/types/crm'
 import { GRADE_OPTIONS } from '@/types/crm'
-import { initLiff, getLineProfile, openAddFriend, type LiffProfile } from '@/lib/liff'
+import { initLiff, getLineProfile, openAddFriend, isInLineApp, type LiffProfile } from '@/lib/liff'
 import { useStoreTheme } from '@/lib/theme-context'
 
 const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
@@ -293,7 +293,8 @@ export default function CustomerPage() {
         }
       }
 
-      if (!profile) { setView('add_friend'); return }
+      // LINEアプリ外（外部ブラウザ）または未ログインなら友達追加を促す
+      if (!profile || !isInLineApp()) { setView('add_friend'); return }
 
       // 既存顧客チェック
       const { data: cust } = await supabase.from('customers')
@@ -303,8 +304,11 @@ export default function CustomerPage() {
         setCustomer(cust)
         const { data: childList } = await supabase.from('children')
           .select('*').eq('customer_id', cust.id).order('created_at', { ascending: true })
-        setChildren(childList ?? [])
+        const kids = childList ?? []
+        setChildren(kids)
         if (sd && !sd.is_open) { setView('closed'); return }
+        // お子様1人だけなら即選択して purpose へ（最速）
+        if (kids.length === 1) { setSelectedChild(kids[0]); setView('purpose'); return }
         setView('welcome')
       } else {
         if (sd && !sd.is_open) { setView('closed'); return }
@@ -359,9 +363,12 @@ export default function CustomerPage() {
         setCustomer(cust)
         const { data: childList } = await supabase.from('children')
           .select('*').eq('customer_id', cust.id).order('created_at', { ascending: true })
-        setChildren(childList ?? [])
+        const kids = childList ?? []
+        setChildren(kids)
         setFriendChecking(false)
-        setView(sd?.is_open === false ? 'closed' : 'welcome')
+        if (sd?.is_open === false) { setView('closed'); return }
+        if (kids.length === 1) { setSelectedChild(kids[0]); setView('purpose'); return }
+        setView('welcome')
         return
       }
     }
