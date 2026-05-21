@@ -835,14 +835,33 @@ export default function CRMPage() {
 
   useEffect(() => { fetchStats() }, [fetchStats])
 
-  // ── 顧客検索 ──────────────────────────────────────────
+  // ── 顧客検索（お子様名でもヒット）──────────────────────
   const searchCustomers = useCallback(async (q: string) => {
     if (!storeId || !q.trim()) { setCustomers([]); setCustomerLoading(false); return }
     setCustomerLoading(true)
-    const { data } = await supabase.from('customers').select('*').eq('store_id', storeId)
+
+    // 保護者名・フリガナ・電話番号で検索
+    const { data: direct } = await supabase.from('customers').select('*').eq('store_id', storeId)
       .or(`name.ilike.%${q}%,kana.ilike.%${q}%,tel.ilike.%${q.replace(/-/g, '')}%,parent_name.ilike.%${q}%`)
       .order('updated_at', { ascending: false }).limit(20)
-    setCustomers(data ?? []); setCustomerLoading(false)
+
+    // お子様名・フリガナで検索 → 親顧客IDを取得
+    const { data: childHits } = await supabase.from('children').select('customer_id').eq('store_id', storeId)
+      .or(`name.ilike.%${q}%,kana.ilike.%${q}%`)
+
+    let merged = direct ?? []
+    if (childHits && childHits.length > 0) {
+      const ids = [...new Set(childHits.map(c => c.customer_id))]
+      const existingIds = new Set(merged.map(c => c.id))
+      const newIds = ids.filter(id => !existingIds.has(id))
+      if (newIds.length > 0) {
+        const { data: fromChildren } = await supabase.from('customers').select('*')
+          .in('id', newIds).order('updated_at', { ascending: false })
+        merged = [...merged, ...(fromChildren ?? [])]
+      }
+    }
+
+    setCustomers(merged); setCustomerLoading(false)
   }, [storeId])
 
   useEffect(() => {
@@ -1154,7 +1173,7 @@ export default function CRMPage() {
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
             <input type="text" value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="名前・フリガナ・電話番号で検索"
+              placeholder="保護者名・お子様名・フリガナ・電話番号"
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-10 pr-9 py-3 text-sm text-white placeholder-zinc-600 focus:border-indigo-500 focus:outline-none transition-colors" />
             {searchQuery && (
               <button onClick={() => { setSearchQuery(''); setCustomers([]); setSelectedCustomer(null) }}
