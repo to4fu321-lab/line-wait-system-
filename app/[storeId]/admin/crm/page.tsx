@@ -7,6 +7,7 @@ import {
   CheckCheck, Package, Loader2, X, MessageCircle,
   CalendarDays, Pencil, AlertCircle, ChevronDown, ChevronUp,
   RotateCcw, ShoppingBag, Bell, Scissors, GraduationCap,
+  Trash2, ArchiveRestore, Eye, EyeOff,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type {
@@ -782,6 +783,10 @@ export default function CRMPage() {
   const [editingChild,     setEditingChild]     = useState<Child | null>(null)
   const [showAddChild,     setShowAddChild]     = useState(false)
   const [customerLoading,  setCustomerLoading]  = useState(false)
+  const [showDeleted,      setShowDeleted]      = useState(false)
+  const [deleteTarget,     setDeleteTarget]     = useState<Customer | null>(null)
+  const [deleteMode,       setDeleteMode]       = useState<'soft' | 'hard' | null>(null)
+  const [deleteLoading,    setDeleteLoading]    = useState(false)
 
   // 未対応統計
   const [stats, setStats] = useState({ repairReceived: 0, repairCompleted: 0, purchaseOrdered: 0, purchaseArrived: 0 })
@@ -835,17 +840,20 @@ export default function CRMPage() {
 
   useEffect(() => { fetchStats() }, [fetchStats])
 
-  // ── 顧客検索（お子様名でもヒット）──────────────────────
-  const searchCustomers = useCallback(async (q: string) => {
+  // ── 顧客検索（お子様名でもヒット・削除済み切替対応）──
+  const searchCustomers = useCallback(async (q: string, deleted = false) => {
     if (!storeId || !q.trim()) { setCustomers([]); setCustomerLoading(false); return }
     setCustomerLoading(true)
 
-    // 保護者名・フリガナ・電話番号で検索
-    const { data: direct } = await supabase.from('customers').select('*').eq('store_id', storeId)
+    const baseQuery = () => {
+      const q2 = supabase.from('customers').select('*').eq('store_id', storeId)
+      return deleted ? q2.not('deleted_at', 'is', null) : q2.is('deleted_at', null)
+    }
+
+    const { data: direct } = await baseQuery()
       .or(`name.ilike.%${q}%,kana.ilike.%${q}%,tel.ilike.%${q.replace(/-/g, '')}%,parent_name.ilike.%${q}%`)
       .order('updated_at', { ascending: false }).limit(20)
 
-    // お子様名・フリガナで検索 → 親顧客IDを取得
     const { data: childHits } = await supabase.from('children').select('customer_id').eq('store_id', storeId)
       .or(`name.ilike.%${q}%,kana.ilike.%${q}%`)
 
@@ -855,8 +863,7 @@ export default function CRMPage() {
       const existingIds = new Set(merged.map(c => c.id))
       const newIds = ids.filter(id => !existingIds.has(id))
       if (newIds.length > 0) {
-        const { data: fromChildren } = await supabase.from('customers').select('*')
-          .in('id', newIds).order('updated_at', { ascending: false })
+        const { data: fromChildren } = await baseQuery().in('id', newIds).order('updated_at', { ascending: false })
         merged = [...merged, ...(fromChildren ?? [])]
       }
     }
@@ -864,10 +871,31 @@ export default function CRMPage() {
     setCustomers(merged); setCustomerLoading(false)
   }, [storeId])
 
+  // ── 削除処理 ──────────────────────────────────────────
+  const handleDelete = useCallback(async () => {
+    if (!deleteTarget || !deleteMode) return
+    setDeleteLoading(true)
+    if (deleteMode === 'soft') {
+      await supabase.from('customers').update({ deleted_at: new Date().toISOString() }).eq('id', deleteTarget.id)
+    } else {
+      await supabase.from('customers').delete().eq('id', deleteTarget.id)
+    }
+    setCustomers(prev => prev.filter(c => c.id !== deleteTarget.id))
+    if (selectedCustomer?.id === deleteTarget.id) setSelectedCustomer(null)
+    setDeleteTarget(null); setDeleteMode(null); setDeleteLoading(false)
+  }, [deleteTarget, deleteMode, selectedCustomer])
+
+  // ── 復元処理 ──────────────────────────────────────────
+  const handleRestore = useCallback(async (customer: Customer) => {
+    await supabase.from('customers').update({ deleted_at: null }).eq('id', customer.id)
+    setCustomers(prev => prev.filter(c => c.id !== customer.id))
+    if (selectedCustomer?.id === customer.id) setSelectedCustomer(null)
+  }, [selectedCustomer])
+
   useEffect(() => {
-    const t = setTimeout(() => searchCustomers(searchQuery), 300)
+    const t = setTimeout(() => searchCustomers(searchQuery, showDeleted), 300)
     return () => clearTimeout(t)
-  }, [searchQuery, searchCustomers])
+  }, [searchQuery, showDeleted, searchCustomers])
 
   const fetchCustomerChildren = useCallback(async (customerId: string) => {
     const { data } = await supabase.from('children').select('*').eq('customer_id', customerId).order('created_at', { ascending: true })
@@ -1166,7 +1194,13 @@ export default function CRMPage() {
             顧客管理セクション
            ══════════════════════════════════════════════════ */}
         <section className="border-t border-white/5 pt-4">
-          <h2 className="text-sm font-black text-zinc-300 mb-3">顧客管理</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-black text-zinc-300">顧客管理</h2>
+            <button onClick={() => { setShowDeleted(v => !v); setSearchQuery(''); setCustomers([]); setSelectedCustomer(null) }}
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${showDeleted ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200'}`}>
+              {showDeleted ? <><EyeOff size={12} />削除済みを非表示</> : <><Eye size={12} />削除済みを表示</>}
+            </button>
+          </div>
 
           {/* 検索 */}
           <div className="relative mb-3">
@@ -1260,10 +1294,25 @@ export default function CRMPage() {
                         <p className="text-zinc-500 text-xs mt-1 bg-zinc-800/50 rounded-lg px-2 py-1">📝 {selectedCustomer.notes}</p>
                       )}
                     </div>
-                    <button onClick={() => setEditingCustomer(true)}
-                      className="p-2 rounded-xl bg-zinc-800/60 border border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-700 active:scale-90 transition-all shrink-0">
-                      <Pencil size={14} />
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {showDeleted ? (
+                        <button onClick={() => handleRestore(selectedCustomer)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30 active:scale-90 transition-all text-xs font-bold">
+                          <ArchiveRestore size={13} />復元
+                        </button>
+                      ) : (
+                        <button onClick={() => setDeleteTarget(selectedCustomer)}
+                          className="p-2 rounded-xl bg-zinc-800/60 border border-zinc-700/50 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/30 active:scale-90 transition-all">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                      {!showDeleted && (
+                        <button onClick={() => setEditingCustomer(true)}
+                          className="p-2 rounded-xl bg-zinc-800/60 border border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-700 active:scale-90 transition-all">
+                          <Pencil size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1330,6 +1379,64 @@ export default function CRMPage() {
           )}
         </section>
       </div>
+
+      {/* 削除確認モーダル */}
+      {deleteTarget && !deleteMode && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
+          <div className="bg-zinc-900 border border-white/10 rounded-t-3xl p-6 w-full max-w-md">
+            <h3 className="text-white font-black text-lg mb-1">顧客を削除しますか？</h3>
+            <p className="text-zinc-400 text-sm mb-5">{deleteTarget.name} 様</p>
+            <div className="space-y-2.5">
+              <button onClick={() => setDeleteMode('soft')}
+                className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-left active:scale-[0.98] transition-all">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
+                  <EyeOff size={16} className="text-amber-400" />
+                </div>
+                <div>
+                  <p className="font-bold text-amber-300 text-sm">通常削除（非表示）</p>
+                  <p className="text-zinc-500 text-xs mt-0.5">データは保持されます。「削除済みを表示」から復元可能です</p>
+                </div>
+              </button>
+              <button onClick={() => setDeleteMode('hard')}
+                className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-left active:scale-[0.98] transition-all">
+                <div className="w-9 h-9 rounded-xl bg-red-500/20 flex items-center justify-center shrink-0">
+                  <Trash2 size={16} className="text-red-400" />
+                </div>
+                <div>
+                  <p className="font-bold text-red-400 text-sm">完全削除</p>
+                  <p className="text-zinc-500 text-xs mt-0.5">データベースから完全に削除されます。復元不可</p>
+                </div>
+              </button>
+            </div>
+            <button onClick={() => setDeleteTarget(null)} className="w-full mt-3 py-3 rounded-2xl bg-zinc-800 text-zinc-400 font-bold text-sm">キャンセル</button>
+          </div>
+        </div>
+      )}
+
+      {/* 削除最終確認 */}
+      {deleteTarget && deleteMode && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
+          <div className="bg-zinc-900 border border-white/10 rounded-t-3xl p-6 w-full max-w-md">
+            <h3 className="text-white font-black text-lg mb-1">
+              {deleteMode === 'soft' ? '通常削除しますか？' : '完全削除しますか？'}
+            </h3>
+            <p className="text-zinc-400 text-sm mb-1">{deleteTarget.name} 様</p>
+            <p className="text-zinc-600 text-xs mb-5">
+              {deleteMode === 'soft'
+                ? 'データは保持されます。「削除済みを表示」から復元できます'
+                : '⚠️ お直し・購入履歴・整理券も全て削除されます。この操作は取り消せません'}
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => setDeleteMode(null)} className="py-4 rounded-xl bg-zinc-800 text-white font-bold">戻る</button>
+              <button onClick={handleDelete} disabled={deleteLoading}
+                className={`py-4 rounded-xl font-black text-white flex items-center justify-center gap-2 disabled:opacity-60 transition-all active:scale-95 ${deleteMode === 'soft' ? 'bg-amber-500' : 'bg-red-600'}`}>
+                {deleteLoading && <Loader2 size={16} className="animate-spin" />}
+                {deleteMode === 'soft' ? '非表示にする' : '完全削除する'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
