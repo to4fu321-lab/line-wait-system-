@@ -19,7 +19,7 @@ const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
 type View =
   | 'loading' | 'add_friend' | 'welcome' | 'register' | 'purpose'
   | 'queue_waiting' | 'queue_calling' | 'queue_completed' | 'queue_cancelled'
-  | 'queue_self_cancelled' | 'repair_speak' | 'closed'
+  | 'queue_self_cancelled' | 'repair_speak' | 'purchase_speak' | 'closed'
 
 function toKatakana(s: string) {
   return s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60))
@@ -251,6 +251,7 @@ export default function CustomerPage() {
   const [issuing,        setIssuing]        = useState(false)
   const [repairLoading,  setRepairLoading]  = useState(false)
   const [friendChecking, setFriendChecking] = useState(false)
+  const [urlAction,      setUrlAction]      = useState<'queue' | 'repair' | 'purchase' | null>(null)
   const [cancelModal,    setCancelModal]    = useState(false)
   const [cancelLoading,  setCancelLoading]  = useState(false)
 
@@ -296,6 +297,11 @@ export default function CustomerPage() {
       // LINEアプリ外または未ログインは友達追加画面へ
       if (!profile || !isInLineApp()) { setView('add_friend'); return }
 
+      // URLアクションパラメータを読み取る（リッチメニュー経由）
+      const urlParams = new URLSearchParams(window.location.search)
+      const action = urlParams.get('action') as 'queue' | 'repair' | 'purchase' | null
+      if (action) setUrlAction(action)
+
       // 既存顧客チェック（ソフトデリート除外）
       const { data: cust } = await supabase.from('customers')
         .select('*').eq('store_id', storeId).eq('line_user_id', profile.userId).is('deleted_at', null).maybeSingle()
@@ -307,11 +313,24 @@ export default function CustomerPage() {
         const kids = childList ?? []
         setChildren(kids)
         if (sd && !sd.is_open) { setView('closed'); return }
-        if (kids.length === 1) { setSelectedChild(kids[0]); setView('purpose'); return }
+        const { count } = await supabase.from('queues')
+          .select('*', { count: 'exact', head: true })
+          .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
+        setWaitingCount(count ?? 0)
+        if (kids.length === 1) {
+          setSelectedChild(kids[0])
+          if (action === 'repair')   { setView('repair_speak');   return }
+          if (action === 'purchase') { setView('purchase_speak'); return }
+          setView('purpose'); return
+        }
         setView('welcome')
       } else {
         // LINE内の新規ユーザー → 登録フォームへ（友達追加済みとみなす）
         if (sd && !sd.is_open) { setView('closed'); return }
+        const { count } = await supabase.from('queues')
+          .select('*', { count: 'exact', head: true })
+          .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
+        setWaitingCount(count ?? 0)
         setView('register')
       }
     })()
@@ -390,12 +409,18 @@ export default function CustomerPage() {
     if (!lineProfile?.userId) return
     setSubmitting(true)
     try {
-      // 既存チェック（念のため）
+      // ソフトデリート済みを含む既存チェック
       const { data: existing } = await supabase.from('customers')
         .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId).maybeSingle()
 
-      let cust = existing
-      if (!cust) {
+      let cust
+      if (existing) {
+        // 既存顧客（ソフトデリート済みでも）→ 情報更新 & 復元
+        const { data: updated } = await supabase.from('customers').update({
+          name: d.parentName, kana: d.parentKana || null, tel: d.tel || null, deleted_at: null,
+        }).eq('id', existing.id).select().single()
+        cust = updated ?? existing
+      } else {
         const { data: newCust } = await supabase.from('customers').insert({
           store_id: storeId, line_user_id: lineProfile.userId,
           name: d.parentName, kana: d.parentKana || null, tel: d.tel || null,
@@ -420,7 +445,10 @@ export default function CustomerPage() {
         .select('*', { count: 'exact', head: true })
         .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
       setWaitingCount(count ?? 0)
-      setView(sd?.is_open === false ? 'closed' : 'purpose')
+      if (sd?.is_open === false) { setSubmitting(false); setView('closed'); return }
+      if (urlAction === 'repair')   { setSubmitting(false); setView('repair_speak');   return }
+      if (urlAction === 'purchase') { setSubmitting(false); setView('purchase_speak'); return }
+      setView('purpose')
     } catch (e) { console.error(e) }
     setSubmitting(false)
   }
@@ -586,6 +614,8 @@ export default function CustomerPage() {
                 .select('*', { count: 'exact', head: true })
                 .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
               setWaitingCount(count ?? 0)
+              if (urlAction === 'repair')   { setView('repair_speak');   return }
+              if (urlAction === 'purchase') { setView('purchase_speak'); return }
               setView('purpose')
             }}
             className="w-full bg-white/70 backdrop-blur-xl rounded-2xl border border-white/50 p-4 text-left active:scale-[0.98] transition-all"
@@ -710,6 +740,24 @@ export default function CustomerPage() {
             </div>
             <div className="pt-1 shrink-0">
               {repairLoading ? <Loader2 size={20} className="animate-spin text-zinc-400" /> : <ChevronRight size={20} className="text-zinc-300" />}
+            </div>
+          </div>
+        </button>
+
+        <button onClick={() => setView('purchase_speak')}
+          className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all"
+          style={cardStyle}>
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0"
+              style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})` }}>
+              🛍️
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-black text-zinc-900 text-lg leading-tight">取り置き注文</p>
+              <p className="text-zinc-500 text-sm mt-0.5">スタッフ対応</p>
+            </div>
+            <div className="pt-1 shrink-0">
+              <ChevronRight size={20} className="text-zinc-300" />
             </div>
           </div>
         </button>
@@ -872,6 +920,27 @@ export default function CustomerPage() {
         もう一度並ぶ
       </button>
     </div>
+  )
+
+  if (view === 'purchase_speak') return (
+    <main className="min-h-screen flex flex-col items-center justify-center px-6 text-center gap-6">
+      <div className="w-24 h-24 rounded-full flex items-center justify-center"
+        style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 20px 50px -12px rgb(${theme.colors.primaryRgb} / 0.55)` }}>
+        <CheckCircle2 size={56} className="text-white" />
+      </div>
+      <div>
+        <p className="text-xs font-bold mb-1" style={{ color: theme.colors.primary }}>{theme.storeName}</p>
+        <h1 className="text-3xl font-black text-zinc-900">取り置き注文</h1>
+        {selectedChild && (
+          <p className="text-zinc-500 text-sm mt-1">{customer?.name} 様 · {selectedChild.name}</p>
+        )}
+      </div>
+      <div className="bg-white/70 backdrop-blur-xl rounded-2xl px-6 py-5 border border-white/50 max-w-xs w-full" style={cardStyle}>
+        <p className="font-black text-zinc-800 text-lg">スタッフにお声がけください</p>
+        <p className="text-sm text-zinc-500 mt-1">取り置き注文の受付を行います</p>
+      </div>
+      <button onClick={() => setView('purpose')} className="text-zinc-400 text-sm underline">← 戻る</button>
+    </main>
   )
 
   if (view === 'repair_speak') return (
