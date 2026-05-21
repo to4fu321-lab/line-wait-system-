@@ -11,7 +11,7 @@ import type { Queue, WaitThreshold } from '@/types/database'
 import { DEFAULT_THRESHOLDS, getWaitMessage } from '@/types/database'
 import type { Customer, Child } from '@/types/crm'
 import { GRADE_OPTIONS } from '@/types/crm'
-import { initLiff, getLineProfile, openAddFriend, type LiffProfile } from '@/lib/liff'
+import { initLiff, getLineProfile, openAddFriend, checkFriendship, type LiffProfile } from '@/lib/liff'
 import { useStoreTheme } from '@/lib/theme-context'
 
 const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
@@ -294,6 +294,10 @@ export default function CustomerPage() {
       }
 
       if (!profile) { setView('add_friend'); return }
+
+      // 友達チェック（liff.getFriendship() — 追加直後でも正確）
+      const isFriend = await checkFriendship()
+      if (!isFriend) { setView('add_friend'); return }
 
       // 既存顧客チェック
       const { data: cust } = await supabase.from('customers')
