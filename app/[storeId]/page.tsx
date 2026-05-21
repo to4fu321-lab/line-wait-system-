@@ -296,9 +296,9 @@ export default function CustomerPage() {
       // LINEアプリ外または未ログインは必ず友達追加画面へ
       if (!profile || !isInLineApp()) { setView('add_friend'); return }
 
-      // 既存顧客チェック
+      // 既存顧客チェック（ソフトデリート除外）
       const { data: cust } = await supabase.from('customers')
-        .select('*').eq('store_id', storeId).eq('line_user_id', profile.userId).maybeSingle()
+        .select('*').eq('store_id', storeId).eq('line_user_id', profile.userId).is('deleted_at', null).maybeSingle()
 
       if (cust) {
         // 登録済み → 友達追加画面スキップして最速フローへ
@@ -358,7 +358,7 @@ export default function CustomerPage() {
 
     if (lineProfile?.userId) {
       const { data: cust } = await supabase.from('customers')
-        .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId).maybeSingle()
+        .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId).is('deleted_at', null).maybeSingle()
       if (cust) {
         setCustomer(cust)
         const { data: childList } = await supabase.from('children')
