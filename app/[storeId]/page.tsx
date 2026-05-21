@@ -108,7 +108,7 @@ function InitialRegistrationForm({
         <input type="text" value={parentName} placeholder="例：山田 太郎" className={base}
           onChange={e => onParentNameChange(e.target.value)}
           onCompositionStart={() => { isComposingParent.current = true }}
-          onCompositionEnd={() => { isComposingParent.current = false }}
+          onCompositionEnd={e => { isComposingParent.current = false; if (!parentKanaEdited.current) setParentKana(toKatakana(e.currentTarget.value)) }}
           onFocus={focus} onBlur={blur} />
       </div>
       <div>
@@ -129,7 +129,7 @@ function InitialRegistrationForm({
         <input type="text" value={childName} placeholder="例：山田 花子" className={base}
           onChange={e => onChildNameChange(e.target.value)}
           onCompositionStart={() => { isComposingChild.current = true }}
-          onCompositionEnd={() => { isComposingChild.current = false }}
+          onCompositionEnd={e => { isComposingChild.current = false; if (!childKanaEdited.current) setChildKana(toKatakana(e.currentTarget.value)) }}
           onFocus={focus} onBlur={blur} />
       </div>
       <div>
@@ -218,7 +218,7 @@ function AddChildForm({
         <input type="text" value={childName} placeholder="例：山田 次郎" className={base}
           onChange={e => onNameChange(e.target.value)}
           onCompositionStart={() => { isComposing.current = true }}
-          onCompositionEnd={() => { isComposing.current = false }}
+          onCompositionEnd={e => { isComposing.current = false; if (!kanaEdited.current) setChildKana(toKatakana(e.currentTarget.value)) }}
           onFocus={focus} onBlur={blur} />
       </div>
       <div>
@@ -465,6 +465,15 @@ export default function CustomerPage() {
             setView('queue_calling')
             playAlertSound()
             if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300])
+            if (updated.line_user_id) {
+              fetch('/api/notify', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  lineUserId: updated.line_user_id, ticketNumber: updated.ticket_number,
+                  customerName: updated.customer_name, storeId, type: 'calling',
+                }),
+              }).catch(console.error)
+            }
           }
           if (updated.status === 'completed') setView('queue_completed')
           if (updated.status === 'cancelled') setView('queue_cancelled')

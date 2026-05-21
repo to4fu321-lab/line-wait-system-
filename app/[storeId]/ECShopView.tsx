@@ -426,7 +426,7 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
                   className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all"
                   onChange={e => { setRegName(e.target.value); if (!regKanaEdited.current && !isComposingParent.current) setRegKana(toKatakana(e.target.value)) }}
                   onCompositionStart={() => { isComposingParent.current = true }}
-                  onCompositionEnd={() => { isComposingParent.current = false }} />
+                  onCompositionEnd={e => { isComposingParent.current = false; if (!regKanaEdited.current) setRegKana(toKatakana(e.currentTarget.value)) }} />
               </div>
               <div>
                 <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
@@ -447,7 +447,7 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
                   className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all"
                   onChange={e => { setRegChildName(e.target.value); if (!regChildKanaEdited.current && !isComposingChild.current) setRegChildKana(toKatakana(e.target.value)) }}
                   onCompositionStart={() => { isComposingChild.current = true }}
-                  onCompositionEnd={() => { isComposingChild.current = false }} />
+                  onCompositionEnd={e => { isComposingChild.current = false; if (!regChildKanaEdited.current) setRegChildKana(toKatakana(e.currentTarget.value)) }} />
               </div>
               <div>
                 <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
