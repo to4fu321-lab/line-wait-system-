@@ -295,13 +295,6 @@ export default function CustomerPage() {
 
       if (!profile) { setView('add_friend'); return }
 
-      // 友達チェック
-      try {
-        const res = await fetch(`/api/check-friend?userId=${profile.userId}`)
-        const { friend } = await res.json()
-        if (!friend) { setView('add_friend'); return }
-      } catch { /* 失敗しても進む */ }
-
       // 既存顧客チェック
       const { data: cust } = await supabase.from('customers')
         .select('*').eq('store_id', storeId).eq('line_user_id', profile.userId).maybeSingle()
