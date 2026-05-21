@@ -252,9 +252,11 @@ export default function CustomerPage() {
   const [repairLoading,  setRepairLoading]  = useState(false)
   const [friendChecking, setFriendChecking] = useState(false)
   const [urlAction,      setUrlAction]      = useState<'queue' | 'repair' | 'purchase' | null>(null)
+  const [pendingAction,  setPendingAction]  = useState<'queue' | null>(null)
   const [cancelModal,    setCancelModal]    = useState(false)
   const [cancelLoading,  setCancelLoading]  = useState(false)
   const [registerError,  setRegisterError]  = useState('')
+  const [friendNotYet,   setFriendNotYet]   = useState(false)
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const ticketRef  = useRef<Queue | null>(null)
@@ -297,6 +299,13 @@ export default function CustomerPage() {
 
       // LINEアプリ外または未ログインは友達追加画面へ
       if (!profile || !isInLineApp()) { setView('add_friend'); return }
+
+      // 友達チェック（Messaging API経由でバックエンドから確認）
+      try {
+        const friendRes = await fetch(`/api/check-friend?userId=${profile.userId}`)
+        const { friend } = await friendRes.json()
+        if (!friend) { setView('add_friend'); return }
+      } catch { /* ネットワークエラー時は続行 */ }
 
       // URLアクションパラメータを読み取る（リッチメニュー経由）
       const urlParams = new URLSearchParams(window.location.search)
@@ -368,10 +377,37 @@ export default function CustomerPage() {
     return () => { clearInterval(pollId); supabase.removeChannel(ch) }
   }, [ticket?.id, view, storeId, fetchWaitingAhead])
 
-  // ── 友達追加後・目的選択へ ────────────────────────────
+  // ── 友達追加後・再チェックして目的選択へ ────────────
   const handleFriendProceed = async () => {
+    if (!lineProfile?.userId) return
     setFriendChecking(true)
     try {
+      // 友達追加されたか再確認
+      const friendRes = await fetch(`/api/check-friend?userId=${lineProfile.userId}`)
+      const { friend } = await friendRes.json()
+      if (!friend) {
+        setFriendNotYet(true)
+        setFriendChecking(false)
+        return
+      }
+      setFriendNotYet(false)
+
+      // 顧客情報を取得（任意）
+      try {
+        const { data: custRows } = await supabase.from('customers')
+          .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId)
+          .order('created_at', { ascending: false }).limit(1)
+        const cust = custRows?.[0] && !custRows[0].deleted_at ? custRows[0] : null
+        if (cust) {
+          setCustomer(cust)
+          const { data: childList } = await supabase.from('children')
+            .select('*').eq('customer_id', cust.id).order('created_at', { ascending: true })
+          const kids = childList ?? []
+          setChildren(kids)
+          if (kids.length === 1) setSelectedChild(kids[0])
+        }
+      } catch { /* 顧客情報は任意 */ }
+
       const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
       if (sd?.is_open === false) { setView('closed'); return }
       const { count } = await supabase.from('queues')
@@ -394,8 +430,8 @@ export default function CustomerPage() {
   }) => {
     if (!lineProfile?.userId) return
     setSubmitting(true)
+    setRegisterError('')
     try {
-      // ソフトデリート済みを含む既存チェック（limit(1)で重複対応）
       const { data: existingRows } = await supabase.from('customers')
         .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId)
         .order('created_at', { ascending: false }).limit(1)
@@ -403,42 +439,56 @@ export default function CustomerPage() {
 
       let cust
       if (existing) {
-        // 既存顧客（ソフトデリート済みでも）→ 情報更新 & 復元
-        const { data: updated } = await supabase.from('customers').update({
+        const { data: updated, error: updateErr } = await supabase.from('customers').update({
           name: d.parentName, kana: d.parentKana || null, tel: d.tel || null, deleted_at: null,
         }).eq('id', existing.id).select().single()
+        if (updateErr) throw new Error(updateErr.message)
         cust = updated ?? existing
       } else {
-        const { data: newCust } = await supabase.from('customers').insert({
+        const { data: newCust, error: insertErr } = await supabase.from('customers').insert({
           store_id: storeId, line_user_id: lineProfile.userId,
           name: d.parentName, kana: d.parentKana || null, tel: d.tel || null,
         }).select().single()
+        if (insertErr) throw new Error(insertErr.message)
         cust = newCust
       }
-      if (!cust) { setSubmitting(false); return }
+      if (!cust) throw new Error('登録に失敗しました（不明なエラー）')
       setCustomer(cust)
 
-      const { data: newChild } = await supabase.from('children').insert({
+      const { data: newChild, error: childErr } = await supabase.from('children').insert({
         customer_id: cust.id, store_id: storeId,
         name: d.childName, kana: d.childKana || null,
         school_name: d.schoolName || null, grade: d.grade || null,
       }).select().single()
+      if (childErr) throw new Error(childErr.message)
 
       const updatedChildren = [...children, ...(newChild ? [newChild] : [])]
       setChildren(updatedChildren)
       if (newChild) setSelectedChild(newChild)
 
       const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
+      if (sd?.is_open === false) { setView('closed'); return }
+
+      // 順番待ち登録から来た場合はそのまま整理券発行
+      if (pendingAction === 'queue') {
+        setPendingAction(null)
+        setSubmitting(false)
+        await handleIssueTicket()
+        return
+      }
+
       const { count } = await supabase.from('queues')
         .select('*', { count: 'exact', head: true })
         .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
       setWaitingCount(count ?? 0)
-      if (sd?.is_open === false) { setSubmitting(false); setView('closed'); return }
-      if (urlAction === 'repair')   { setSubmitting(false); setView('repair_speak');   return }
-      if (urlAction === 'purchase') { setSubmitting(false); setView('purchase_speak'); return }
+      if (urlAction === 'repair')   { setView('repair_speak'); return }
+      if (urlAction === 'purchase') { setView('purchase_speak'); return }
       setView('purpose')
-    } catch (e) { console.error(e) }
-    setSubmitting(false)
+    } catch (e) {
+      setRegisterError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   // ── お子様追加 ────────────────────────────────────────
@@ -578,6 +628,12 @@ export default function CustomerPage() {
             ? <><Loader2 size={14} className="animate-spin" />確認中...</>
             : '追加しました → メニューへ'}
         </button>
+        {friendNotYet && (
+          <div className="flex items-center gap-2 text-amber-600 text-xs bg-amber-50 rounded-xl px-3 py-2">
+            <AlertCircle size={13} className="shrink-0" />
+            まだ友だち追加が確認できません。上のボタンから追加してください。
+          </div>
+        )}
       </div>
     </main>
   )
@@ -662,6 +718,15 @@ export default function CustomerPage() {
         <p className="text-zinc-500 text-xs mt-1">初回のみご入力ください。次回は自動で認識します</p>
       </div>
       <div className="bg-white/75 backdrop-blur-2xl rounded-3xl border border-white/60 p-5" style={cardStyle}>
+        {registerError && (
+          <div className="flex items-start gap-2 text-red-600 text-xs bg-red-50 rounded-xl px-3 py-2 mb-4">
+            <AlertCircle size={13} className="shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">登録エラー</p>
+              <p className="mt-0.5">{registerError}</p>
+            </div>
+          </div>
+        )}
         <InitialRegistrationForm
           lineDisplayName={lineProfile?.displayName ?? ''}
           onSubmit={handleInitialRegister}
@@ -692,7 +757,12 @@ export default function CustomerPage() {
       </div>
 
       <div className="space-y-4">
-        <button onClick={handleIssueTicket} disabled={issuing}
+        <button
+          onClick={() => {
+            if (!customer) { setPendingAction('queue'); setView('register') }
+            else handleIssueTicket()
+          }}
+          disabled={issuing}
           className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all disabled:opacity-80"
           style={cardStyle}>
           <div className="flex items-start gap-4">
