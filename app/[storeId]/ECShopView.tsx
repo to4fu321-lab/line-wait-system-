@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { CheckCircle2, Minus, Plus, ShoppingCart, ChevronDown, ChevronUp, Loader2, AlertCircle, X } from 'lucide-react'
 import { useStoreTheme } from '@/lib/theme-context'
 import { supabase } from '@/lib/supabase'
@@ -81,6 +81,12 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
   const regKanaEdited     = useRef(false)
   const regChildKanaEdited= useRef(false)
 
+  // マウント時にLINE表示名からフリガナを初期設定
+  useEffect(() => {
+    if (regName && !regKanaEdited.current) setRegKana(toKatakana(regName))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const totalQty   = cart.reduce((s, c) => s + c.qty, 0)
   const totalPrice = cart.reduce((s, c) => {
     const item = ITEMS.find(i => i.id === c.itemId)
@@ -110,7 +116,7 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
         return {
           store_id: storeId, customer_id: cId, child_id: chId ?? null,
           item_name: `${item.name}（${c.size}）`, notes: `数量：${c.qty}点`,
-          price: item.price * c.qty, status: 'received', ordered_date: today,
+          price: item.price * c.qty, status: 'ordered', ordered_date: today,
         }
       })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -248,7 +248,7 @@ function PurchaseItem({ order, showCustomer = false, onStock, onBackOrder, onArr
       </div>
 
       {/* 依頼受付 → 在庫確保 or メーカー発注 */}
-      {order.status === 'received' && (
+      {(order.status === 'received' || order.status === 'ordered') && (
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button
             onClick={async () => { setLoading('stock'); await onStock(order.id); setLoading(null) }}
@@ -424,7 +424,7 @@ function NewPurchaseForm({ customerId, childId, storeId, onSaved, onCancel }: {
       item_name: itemName.trim(),
       notes: notes.trim() || null,
       price: price ? parseInt(price) : null,
-      status: 'received', ordered_date: new Date().toISOString().slice(0, 10),
+      status: 'ordered', ordered_date: new Date().toISOString().slice(0, 10),
     })
     setLoading(false)
     if (err) { setError(`保存失敗: ${err.message}`); return }
@@ -879,12 +879,12 @@ export default function CRMPage() {
     if (!storeId) return
     const [{ data: rData }, { data: pData }] = await Promise.all([
       supabase.from('repair_histories').select('status').eq('store_id', storeId).in('status', ['received', 'completed']),
-      supabase.from('purchase_orders').select('status').eq('store_id', storeId).in('status', ['received', 'stocked', 'on_order', 'arrived']),
+      supabase.from('purchase_orders').select('status').eq('store_id', storeId).in('status', ['ordered', 'received', 'stocked', 'on_order', 'arrived']),
     ])
     setStats({
       repairReceived:     (rData ?? []).filter(r => r.status === 'received').length,
       repairCompleted:    (rData ?? []).filter(r => r.status === 'completed').length,
-      purchaseReceived:   (pData ?? []).filter(r => r.status === 'received').length,
+      purchaseReceived:   (pData ?? []).filter(r => r.status === 'received' || r.status === 'ordered').length,
       purchaseInProgress: (pData ?? []).filter(r => r.status === 'stocked' || r.status === 'on_order').length,
       purchaseArrived:    (pData ?? []).filter(r => r.status === 'arrived').length,
     })
@@ -1013,7 +1013,7 @@ export default function CRMPage() {
   const fetchPurchaseReceived = useCallback(async () => {
     if (!storeId) return; setPurchaseReceivedLoading(true)
     const { data } = await supabase.from('purchase_orders')
-      .select('*, customer:customers(name, tel)').eq('store_id', storeId).eq('status', 'received')
+      .select('*, customer:customers(name, tel)').eq('store_id', storeId).in('status', ['ordered', 'received'])
       .order('ordered_date', { ascending: false })
     setPurchaseReceivedList((data ?? []) as PurchaseWithCustomer[]); setPurchaseReceivedLoading(false)
   }, [storeId])
@@ -1124,7 +1124,7 @@ export default function CRMPage() {
 
   const handlePurchaseRevert = useCallback(async (orderId: string) => {
     const { error } = await supabase.from('purchase_orders')
-      .update({ status: 'received', arrived_date: null, notified: false }).eq('id', orderId)
+      .update({ status: 'ordered', arrived_date: null, notified: false }).eq('id', orderId)
     if (error) { showToast('err', `戻し処理失敗: ${error.message}`); return }
     setPurchaseInProgressList(prev => prev.filter(o => o.id !== orderId))
     showToast('ok', '🔄 依頼受付に戻しました')

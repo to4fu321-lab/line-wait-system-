@@ -52,7 +52,7 @@ export const REPAIR_STATUS_COLORS: Record<RepairStatus, string> = {
 // ──────────────────────────────────────────────
 // 追加購入（発注管理）
 // ──────────────────────────────────────────────
-export type PurchaseStatus = 'received' | 'stocked' | 'on_order' | 'arrived' | 'delivered'
+export type PurchaseStatus = 'ordered' | 'received' | 'stocked' | 'on_order' | 'arrived' | 'delivered'
 
 export interface PurchaseOrder {
   id:             string
@@ -72,6 +72,7 @@ export interface PurchaseOrder {
 }
 
 export const PURCHASE_STATUS_LABELS: Record<PurchaseStatus, string> = {
+  ordered:   '依頼受付',
   received:  '依頼受付',
   stocked:   '在庫確保済み',
   on_order:  'メーカー発注済み',
@@ -80,6 +81,7 @@ export const PURCHASE_STATUS_LABELS: Record<PurchaseStatus, string> = {
 }
 
 export const PURCHASE_STATUS_COLORS: Record<PurchaseStatus, string> = {
+  ordered:   'bg-blue-500/20 text-blue-300 border-blue-500/30',
   received:  'bg-blue-500/20 text-blue-300 border-blue-500/30',
   stocked:   'bg-violet-500/20 text-violet-300 border-violet-500/30',
   on_order:  'bg-orange-500/20 text-orange-300 border-orange-500/30',

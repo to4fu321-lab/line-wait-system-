@@ -26,6 +26,25 @@ function toKatakana(s: string) {
   return s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60))
 }
 
+function playAlertSound() {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const AC = (window as any).AudioContext || (window as any).webkitAudioContext
+    if (!AC) return
+    const ctx = new AC()
+    ;[0, 0.4, 0.8].forEach(delay => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain); gain.connect(ctx.destination)
+      osc.frequency.value = 880; osc.type = 'sine'
+      gain.gain.setValueAtTime(0.4, ctx.currentTime + delay)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.25)
+      osc.start(ctx.currentTime + delay)
+      osc.stop(ctx.currentTime + delay + 0.3)
+    })
+  } catch { /* unsupported */ }
+}
+
 // ── 初回登録フォーム（保護者 + お子様）──────────────────────
 function InitialRegistrationForm({
   lineDisplayName,
@@ -52,6 +71,12 @@ function InitialRegistrationForm({
   const kanaBlockChild    = useRef(false)
   const parentKanaEdited  = useRef(false)
   const childKanaEdited   = useRef(false)
+
+  // マウント時にLINE表示名からフリガナを初期設定
+  useEffect(() => {
+    if (lineDisplayName && !parentKanaEdited.current) setParentKana(toKatakana(lineDisplayName))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const onParentNameChange = (v: string) => {
     setParentName(v)
@@ -438,6 +463,7 @@ export default function CustomerPage() {
           setTicket(updated)
           if (updated.status === 'calling') {
             setView('queue_calling')
+            playAlertSound()
             if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300])
           }
           if (updated.status === 'completed') setView('queue_completed')
