@@ -19,6 +19,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, skipped: true, reason: 'disabled' })
   }
 
+  // 店舗がテストモードの場合はスキップ
+  if (storeId) {
+    const { data: st } = await (supabase.from('stores') as any)
+      .select('is_test_mode').eq('id', storeId).single()
+    if (st?.is_test_mode) {
+      console.log(`[LINE通知スキップ] テストモード中 No.${ticketNumber} ${customerName}`)
+      return NextResponse.json({ ok: true, skipped: true, reason: 'test_mode' })
+    }
+  }
+
   // storeName が空の場合はDBから取得
   let storeName = rawStoreName
   if (!storeName && storeId) {

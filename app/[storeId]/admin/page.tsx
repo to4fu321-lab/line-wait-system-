@@ -373,7 +373,8 @@ function HistoryCard({ ticket, onAction }: { ticket: Queue; onAction: (id: strin
 // ============================================================
 function SettingsPanel({
   noticeThreshold, waitThresholds, allowRemote, notificationPlan, pushSettings,
-  onNoticeChange, onThresholdsChange, onRemoteChange, onPlanChange, onPushSettingsChange, onSave, saving,
+  onNoticeChange, onThresholdsChange, onRemoteChange, onPlanChange, onPushSettingsChange,
+  onSave, saving, isTestMode, testLoading, onTestModeToggle, onTestSeed, onTestClear,
 }: {
   noticeThreshold: number; waitThresholds: WaitThreshold[]; allowRemote: boolean
   notificationPlan: 'calling_only' | 'full'
@@ -384,6 +385,8 @@ function SettingsPanel({
   onPlanChange: (v: 'calling_only' | 'full') => void
   onPushSettingsChange: (v: { queue_new: boolean; purchase_new: boolean }) => void
   onSave: () => void; saving: boolean
+  isTestMode: boolean; testLoading: string | null
+  onTestModeToggle: () => void; onTestSeed: () => void; onTestClear: () => void
 }) {
   return (
     <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 space-y-6">
@@ -519,6 +522,44 @@ function SettingsPanel({
         className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-indigo-900/40">
         {saving ? <><Loader2 size={16} className="animate-spin inline mr-2" />保存中...</> : '設定を保存'}
       </button>
+
+      {/* テストモード */}
+      <div className="border-t border-white/10 pt-5">
+        <label className="text-sm font-bold text-zinc-300 mb-3 block">🧪 テストモード</label>
+        <button type="button" onClick={onTestModeToggle} disabled={testLoading === 'toggle'}
+          className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl border-2 transition-all mb-3 ${
+            isTestMode ? 'border-amber-500 bg-amber-500/10' : 'border-zinc-700 bg-zinc-800/50'
+          }`}>
+          <div className="text-left">
+            <p className={`font-bold text-base ${isTestMode ? 'text-amber-300' : 'text-zinc-400'}`}>
+              ⚠️ テストモード {isTestMode ? 'ON' : 'OFF'}
+            </p>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              {isTestMode ? 'LINE・ブラウザ通知をすべてスキップ中' : 'ONにすると通知が送信されなくなります'}
+            </p>
+          </div>
+          <div className={`w-14 h-7 rounded-full transition-colors shrink-0 ${isTestMode ? 'bg-amber-500' : 'bg-zinc-600'}`}>
+            <div className={`w-6 h-6 bg-white rounded-full mt-0.5 shadow-lg transition-transform ${isTestMode ? 'translate-x-7' : 'translate-x-0.5'}`} />
+          </div>
+        </button>
+
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={onTestSeed} disabled={!!testLoading}
+            className="flex flex-col items-center gap-1 py-3 px-3 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs font-bold hover:bg-blue-500/20 active:scale-95 transition-all disabled:opacity-40">
+            {testLoading === 'seed' ? <Loader2 size={16} className="animate-spin" /> : <span className="text-lg">📥</span>}
+            <span>テストデータ投入</span>
+            <span className="text-zinc-500 font-normal">顧客5人・待ち3件</span>
+            <span className="text-zinc-500 font-normal">取置き3件・お直し2件</span>
+          </button>
+          <button type="button" onClick={onTestClear} disabled={!!testLoading}
+            className="flex flex-col items-center gap-1 py-3 px-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-bold hover:bg-red-500/20 active:scale-95 transition-all disabled:opacity-40">
+            {testLoading === 'clear' ? <Loader2 size={16} className="animate-spin" /> : <span className="text-lg">🗑</span>}
+            <span>テストデータ削除</span>
+            <span className="text-zinc-500 font-normal">【テスト】タグの</span>
+            <span className="text-zinc-500 font-normal">データを全消去</span>
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -537,6 +578,8 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
   const [allowRemote,       setAllowRemote]       = useState(false)
   const [notificationPlan,  setNotificationPlan]  = useState<'calling_only' | 'full'>('calling_only')
   const [pushSettings,      setPushSettings]      = useState({ queue_new: true, purchase_new: true })
+  const [isTestMode,        setIsTestMode]        = useState(false)
+  const [testLoading,       setTestLoading]       = useState<'seed'|'clear'|'toggle'|null>(null)
   const [saving,            setSaving]            = useState(false)
   const [showSettings,      setShowSettings]      = useState(false)
   const [pushStatus,        setPushStatus]        = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle')
@@ -576,7 +619,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
 
   const fetchStoreStatus = useCallback(async () => {
     const { data } = await supabase.from('stores')
-      .select('is_open, notice_threshold, wait_thresholds, allow_remote, notification_plan, push_settings')
+      .select('is_open, notice_threshold, wait_thresholds, allow_remote, notification_plan, push_settings, is_test_mode')
       .eq('id', store.id).single()
     if (data) {
       setIsOpen(data.is_open ?? false)
@@ -588,6 +631,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
       if ((data as any).notification_plan) setNotificationPlan((data as any).notification_plan)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if ((data as any).push_settings) setPushSettings((data as any).push_settings)
+      if ((data as any).is_test_mode != null) setIsTestMode((data as any).is_test_mode)
     }
   }, [store.id])
 
@@ -675,6 +719,45 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
     showToast('ok', '代理チェックイン済みにしました')
   }
 
+  const handleTestModeToggle = async () => {
+    setTestLoading('toggle')
+    const next = !isTestMode
+    const r = await fetch('/api/test/mode', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storeId: store.id, enabled: next }),
+    })
+    const j = await r.json()
+    if (j.ok) { setIsTestMode(next); showToast('ok', next ? '⚠️ テストモードON — 通知は送信されません' : '✅ テストモードOFF — 通常運用に戻りました', 4000) }
+    else showToast('err', '切替失敗: ' + j.error)
+    setTestLoading(null)
+  }
+
+  const handleTestSeed = async () => {
+    if (!confirm('テストデータを投入します。よろしいですか？')) return
+    setTestLoading('seed')
+    const r = await fetch('/api/test/seed', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storeId: store.id }),
+    })
+    const j = await r.json()
+    if (j.ok) { showToast('ok', `✅ 投入完了 (${j.created?.length ?? 0}件)`, 4000); fetchQueues() }
+    else showToast('err', '投入失敗: ' + j.error)
+    setTestLoading(null)
+  }
+
+  const handleTestClear = async () => {
+    if (!confirm('【テスト】タグのデータをすべて削除します。よろしいですか？')) return
+    setTestLoading('clear')
+    const r = await fetch('/api/test/clear', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storeId: store.id }),
+    })
+    const j = await r.json()
+    if (j.ok) { showToast('ok', `🗑 削除完了 (${j.deleted?.join('・') ?? '0件'})`, 4000); fetchQueues() }
+    else showToast('err', '削除失敗: ' + j.error)
+    setTestLoading(null)
+  }
+
   const handleSaveSettings = async () => {
     setSaving(true)
     const { error } = await (supabase.from('stores') as any).update({
@@ -744,6 +827,14 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
           {isOpen === null ? '⏳ 読み込み中...' : isOpen ? '✅ 受付中 — タップして停止' : '🚫 受付停止中 — タップして開始'}
         </button>
 
+        {/* テストモードバナー */}
+        {isTestMode && (
+          <div className="flex items-center gap-2 bg-amber-500/20 border border-amber-500/40 rounded-xl px-4 py-2.5 text-amber-300 text-sm font-bold">
+            <span>⚠️</span>
+            <span className="flex-1">テストモード中 — LINE・ブラウザ通知は送信されません</span>
+          </div>
+        )}
+
         <div className="grid grid-cols-4 gap-2">
           {[
             { label: '本日合計', value: total,                 color: 'text-white' },
@@ -798,6 +889,9 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
                 onNoticeChange={setNoticeThreshold} onThresholdsChange={setWaitThresholds} onRemoteChange={setAllowRemote}
                 onPlanChange={setNotificationPlan} onPushSettingsChange={setPushSettings}
                 onSave={handleSaveSettings} saving={saving}
+                isTestMode={isTestMode} testLoading={testLoading}
+                onTestModeToggle={handleTestModeToggle}
+                onTestSeed={handleTestSeed} onTestClear={handleTestClear}
               />
             </div>
           )}

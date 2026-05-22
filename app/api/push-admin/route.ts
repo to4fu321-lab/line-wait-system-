@@ -17,7 +17,14 @@ export async function POST(req: NextRequest) {
 
   // 店舗の push_settings を確認してタイプが無効なら送信しない
   const { data: store } = await (supabase.from('stores') as any)
-    .select('push_settings').eq('id', storeId).single()
+    .select('push_settings, is_test_mode').eq('id', storeId).single()
+
+  // テストモード中はブラウザ通知もスキップ
+  if (store?.is_test_mode) {
+    console.log(`[push-admin] テストモード中 type=${type} → skip`)
+    return NextResponse.json({ ok: true, sent: 0, skipped: true, reason: 'test_mode' })
+  }
+
   const settings: Record<string, boolean> = store?.push_settings ?? {}
   // デフォルトは true（カラムが未設定の店舗でも通知する）
   if (type && settings[type] === false) {
