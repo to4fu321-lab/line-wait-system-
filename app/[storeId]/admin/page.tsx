@@ -543,12 +543,15 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const setupPush = useCallback(async (storeId: string) => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    if (typeof window === 'undefined'
+      || !('serviceWorker' in navigator)
+      || !('PushManager' in window)
+      || !('Notification' in window)) {
       setPushStatus('unsupported'); return
     }
     try {
       const reg  = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
-      const perm = await Notification.requestPermission()
+      const perm = await (window as any).Notification.requestPermission()
       if (perm !== 'granted') { setPushStatus('denied'); return }
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
@@ -600,7 +603,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
   useEffect(() => {
     fetchStoreStatus(); fetchQueues()
     // 通知が既に許可済みなら自動サブスクリプション（ユーザー操作不要で再登録）
-    if (typeof window !== 'undefined' && Notification.permission === 'granted') {
+    if (typeof window !== 'undefined' && 'Notification' in window && (window as any).Notification.permission === 'granted') {
       setupPush(store.id)
     }
     const channel = supabase.channel(`admin-${store.id}`)
