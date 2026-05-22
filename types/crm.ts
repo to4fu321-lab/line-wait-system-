@@ -21,6 +21,7 @@ export interface RepairHistory {
   id:             string
   store_id:       string
   customer_id:    string
+  child_id:       string | null
   slip_number:    string | null
   item_name:      string
   content:        string
@@ -33,13 +34,12 @@ export interface RepairHistory {
   notified:       boolean
   created_at:     string
   updated_at:     string
-  // JOIN用（APIレスポンスで付与）
   customer?:      Customer
 }
 
 export const REPAIR_STATUS_LABELS: Record<RepairStatus, string> = {
   received:  '預かり中',
-  completed: 'お直し完了',
+  completed: 'お直し完了連絡済み',
   delivered: 'お渡し済み',
 }
 
@@ -58,6 +58,7 @@ export interface PurchaseOrder {
   id:             string
   store_id:       string
   customer_id:    string
+  child_id:       string | null
   item_name:      string
   notes:          string | null
   status:         PurchaseStatus
@@ -76,7 +77,7 @@ export const PURCHASE_STATUS_LABELS: Record<PurchaseStatus, string> = {
   received:  '依頼受付',
   stocked:   '在庫確保済み',
   on_order:  'メーカー発注済み',
-  arrived:   '入荷済み',
+  arrived:   '入荷連絡済み',
   delivered: 'お渡し済み',
 }
 

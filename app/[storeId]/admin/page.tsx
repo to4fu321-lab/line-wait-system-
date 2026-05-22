@@ -571,6 +571,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
   const [queues,          setQueues]          = useState<Queue[]>([])
   const [refreshing,      setRefreshing]      = useState(false)
   const [historyTab,      setHistoryTab]      = useState<HistoryTab>('completed')
+  const [historyVisible,  setHistoryVisible]  = useState(false)
   const [toast,           setToast]           = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [isOpen,            setIsOpen]            = useState<boolean | null>(null)
   const [noticeThreshold,   setNoticeThreshold]   = useState(3)
@@ -771,12 +772,22 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
     showToast(error ? 'err' : 'ok', error ? '保存失敗: ' + error.message : '設定を保存しました')
   }
 
-  const waitingTickets = queues.filter(q => q.status === 'waiting')
-  const callingTickets = queues.filter(q => q.status === 'calling')
-  const historyTickets = queues.filter(q => q.status === historyTab)
-  const remoteCount    = waitingTickets.filter(q => q.is_remote && !q.checked_in).length
-  const total          = queues.length
-  const completed      = queues.filter(q => q.status === 'completed').length
+  const waitingTickets  = queues.filter(q => q.status === 'waiting')
+  const callingTickets  = queues.filter(q => q.status === 'calling')
+  const historyTickets  = queues.filter(q => q.status === historyTab)
+  const remoteCount     = waitingTickets.filter(q => q.is_remote && !q.checked_in).length
+  const total           = queues.length
+  const completed       = queues.filter(q => q.status === 'completed').length
+  const cancelledCount  = queues.filter(q => q.status === 'cancelled').length
+
+  const toggleHistory = (tab: HistoryTab) => {
+    if (historyVisible && historyTab === tab) {
+      setHistoryVisible(false)
+    } else {
+      setHistoryTab(tab)
+      setHistoryVisible(true)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white flex flex-col">
@@ -835,18 +846,36 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
           </div>
         )}
 
-        <div className="grid grid-cols-4 gap-2">
-          {[
-            { label: '本日合計', value: total,                 color: 'text-white' },
-            { label: '待機',     value: waitingTickets.length, color: 'text-blue-400' },
-            { label: '呼出中',   value: callingTickets.length, color: 'text-amber-400' },
-            { label: '完了',     value: completed,             color: 'text-emerald-400' },
-          ].map(s => (
-            <div key={s.label} className="bg-white/5 backdrop-blur-sm border border-white/5 rounded-xl p-2.5 text-center">
-              <div className={`text-2xl font-black tabular-nums ${s.color}`}>{s.value}</div>
-              <div className="text-zinc-500 text-xs mt-0.5">{s.label}</div>
-            </div>
-          ))}
+        <div className="space-y-2">
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: '本日合計', value: total,                 color: 'text-white' },
+              { label: '待機',     value: waitingTickets.length, color: 'text-blue-400' },
+              { label: '呼出中',   value: callingTickets.length, color: 'text-amber-400' },
+            ].map(s => (
+              <div key={s.label} className="bg-white/5 backdrop-blur-sm border border-white/5 rounded-xl p-2.5 text-center">
+                <div className={`text-2xl font-black tabular-nums ${s.color}`}>{s.value}</div>
+                <div className="text-zinc-500 text-xs mt-0.5">{s.label}</div>
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { key: 'completed' as HistoryTab, label: '完了', value: completed,      color: 'text-emerald-400', activeBorder: 'border-emerald-500/50 bg-emerald-500/10' },
+              { key: 'cancelled' as HistoryTab, label: '不在', value: cancelledCount, color: 'text-zinc-300',    activeBorder: 'border-zinc-500/50 bg-zinc-500/10' },
+            ]).map(s => (
+              <button key={s.key} onClick={() => toggleHistory(s.key)}
+                className={`backdrop-blur-sm border rounded-xl p-2.5 text-center transition-all active:scale-95 ${
+                  historyVisible && historyTab === s.key ? s.activeBorder : 'bg-white/5 border-white/5 hover:bg-white/8'
+                }`}>
+                <div className={`text-2xl font-black tabular-nums ${s.color}`}>{s.value}</div>
+                <div className="text-zinc-500 text-xs mt-0.5 flex items-center justify-center gap-0.5">
+                  {s.label}
+                  {historyVisible && historyTab === s.key ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
 
         {remoteCount > 0 && (
@@ -934,28 +963,30 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
             </div>
           </div>
 
-          {/* 履歴 */}
-          <div className="bg-white/3 border border-white/5 rounded-2xl overflow-hidden">
-            <div className="flex border-b border-white/5">
-              {([
-                { key: 'completed', label: '完了', color: 'text-emerald-400' },
-                { key: 'cancelled', label: '不在', color: 'text-zinc-400' },
-              ] as { key: HistoryTab; label: string; color: string }[]).map(tab => (
-                <button key={tab.key} onClick={() => setHistoryTab(tab.key)}
-                  className={`flex-1 py-3 text-sm font-bold transition-colors ${
-                    historyTab === tab.key ? `${tab.color} border-b-2 border-current bg-white/5` : 'text-zinc-600 hover:text-zinc-400'
-                  }`}>
-                  {tab.label} ({queues.filter(q => q.status === tab.key).length})
-                </button>
-              ))}
+          {/* 履歴（完了・不在 — 上の数字タップで表示） */}
+          {historyVisible && (
+            <div className="bg-white/3 border border-white/5 rounded-2xl overflow-hidden animate-fade-in">
+              <div className="flex border-b border-white/5">
+                {([
+                  { key: 'completed', label: '完了', color: 'text-emerald-400' },
+                  { key: 'cancelled', label: '不在', color: 'text-zinc-400' },
+                ] as { key: HistoryTab; label: string; color: string }[]).map(tab => (
+                  <button key={tab.key} onClick={() => setHistoryTab(tab.key)}
+                    className={`flex-1 py-3 text-sm font-bold transition-colors ${
+                      historyTab === tab.key ? `${tab.color} border-b-2 border-current bg-white/5` : 'text-zinc-600 hover:text-zinc-400'
+                    }`}>
+                    {tab.label} ({queues.filter(q => q.status === tab.key).length})
+                  </button>
+                ))}
+              </div>
+              <div className="p-3 space-y-2 max-h-80 overflow-y-auto">
+                {historyTickets.length === 0
+                  ? <div className="text-center py-8 text-zinc-600 text-sm">該当する受付はありません</div>
+                  : historyTickets.map(t => <HistoryCard key={t.id} ticket={t} onAction={handleAction} />)
+                }
+              </div>
             </div>
-            <div className="p-3 space-y-2 max-h-80 overflow-y-auto">
-              {historyTickets.length === 0
-                ? <div className="text-center py-8 text-zinc-600 text-sm">該当する受付はありません</div>
-                : historyTickets.map(t => <HistoryCard key={t.id} ticket={t} onAction={handleAction} />)
-              }
-            </div>
-          </div>
+          )}
 
         </div>
       </div>

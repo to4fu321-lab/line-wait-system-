@@ -54,11 +54,17 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. 整理券（待ち）を3件
+    const todayJst = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
+    const { data: maxRows } = await supabase.from('queues')
+      .select('ticket_number').eq('store_id', storeId)
+      .gte('created_at', todayJst + 'T00:00:00+09:00')
+      .order('ticket_number', { ascending: false }).limit(1)
+    const baseTicket = (maxRows?.[0]?.ticket_number ?? 0)
     for (let i = 0; i < 3; i++) {
-      const { data: nextNum } = await supabase.rpc('get_next_ticket_number', { p_store_id: storeId })
+      const ticketNum = baseTicket + i + 1
       const tc = TEST_CUSTOMERS[i]
-      await supabase.from('queues').insert({
-        store_id: storeId, ticket_number: nextNum as number, status: 'waiting',
+      const { error: qErr } = await supabase.from('queues').insert({
+        store_id: storeId, ticket_number: ticketNum, status: 'waiting',
         customer_name: tc.name.replace('【テスト】', ''),
         child_name: tc.child.name,
         school_name: tc.child.school,
@@ -67,7 +73,8 @@ export async function POST(req: NextRequest) {
         customer_id: customerIds[i] ?? null,
         child_id: childIds[i] ?? null,
       })
-      created.push(`整理券: No.${String(nextNum).padStart(3,'0')} ${tc.name.replace('【テスト】','')}`)
+      if (qErr) { console.error('[seed] queue insert error:', qErr.message); continue }
+      created.push(`整理券: No.${String(ticketNum).padStart(3,'0')} ${tc.name.replace('【テスト】','')}`)
     }
 
     // 3. 取置き依頼
