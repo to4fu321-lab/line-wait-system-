@@ -528,8 +528,12 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
       if (freshTicket?.line_user_id) {
         fetch('/api/notify', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lineUserId: freshTicket.line_user_id, ticketNumber: freshTicket.ticket_number, customerName: freshTicket.customer_name, storeName: store.name, storeId: store.id }),
-        }).then(async r => { const j = await r.json(); if (!j.ok && !j.skipped) showToast('err', 'LINE通知失敗') }).catch(console.error)
+          body: JSON.stringify({ lineUserId: freshTicket.line_user_id, ticketNumber: freshTicket.ticket_number, customerName: freshTicket.customer_name, storeName: store.name, storeId: store.id, type: 'calling' }),
+        }).then(async r => {
+          const j = await r.json()
+          if (j.ok && !j.skipped) showToast('ok', '📱 LINE通知を送信しました')
+          else if (!j.ok) showToast('err', `LINE通知失敗: ${j.error ?? '不明'}`)
+        }).catch(e => showToast('err', `LINE通知エラー: ${e}`))
       } else {
         showToast('err', '📵 LINE未連携のため通知できません')
       }
