@@ -13,6 +13,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, skipped: true, reason: 'no_line_user_id' })
   }
 
+  // LINE_NOTIFY_DISABLED=true で通知を無効化（開発中の通数節約用）
+  if (process.env.LINE_NOTIFY_DISABLED === 'true') {
+    console.log(`[LINE通知無効] No.${ticketNumber} ${customerName} 様 – LINE_NOTIFY_DISABLED=true`)
+    return NextResponse.json({ ok: true, skipped: true, reason: 'disabled' })
+  }
+
   // storeName が空の場合はDBから取得
   let storeName = rawStoreName
   if (!storeName && storeId) {
