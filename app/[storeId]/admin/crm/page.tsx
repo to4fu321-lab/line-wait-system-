@@ -880,6 +880,11 @@ export default function CRMPage() {
   const [purchaseArrivedList,  setPurchaseArrivedList]  = useState<PurchaseWithCustomer[]>([])
   const [purchaseArrivedLoading, setPurchaseArrivedLoading] = useState(false)
 
+  const [showDelivered,       setShowDelivered]       = useState(false)
+  const [deliveredRepairs,    setDeliveredRepairs]    = useState<RepairWithCustomer[]>([])
+  const [deliveredPurchases,  setDeliveredPurchases]  = useState<PurchaseWithCustomer[]>([])
+  const [deliveredLoading,    setDeliveredLoading]    = useState(false)
+
   const [toast,   setToast]   = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -1186,6 +1191,28 @@ export default function CRMPage() {
     setShowPurchaseArrived(v => !v)
   }
 
+  const fetchDeliveredHistory = useCallback(async () => {
+    if (!storeId) return; setDeliveredLoading(true)
+    const [{ data: rData }, { data: pData }] = await Promise.all([
+      supabase.from('repair_histories')
+        .select('*, customer:customers(name, tel), child:children(name)')
+        .eq('store_id', storeId).eq('status', 'delivered')
+        .order('delivered_date', { ascending: false }).limit(50),
+      supabase.from('purchase_orders')
+        .select('*, customer:customers(name, tel), child:children(name)')
+        .eq('store_id', storeId).eq('status', 'delivered')
+        .order('delivered_date', { ascending: false }).limit(50),
+    ])
+    setDeliveredRepairs((rData ?? []) as RepairWithCustomer[])
+    setDeliveredPurchases((pData ?? []) as PurchaseWithCustomer[])
+    setDeliveredLoading(false)
+  }, [storeId])
+
+  const toggleDelivered = () => {
+    if (!showDelivered) fetchDeliveredHistory()
+    setShowDelivered(v => !v)
+  }
+
   const pendingTotal = stats.repairReceived + stats.repairCompleted + stats.purchaseReceived + stats.purchaseInProgress + stats.purchaseArrived
 
   return (
@@ -1366,6 +1393,48 @@ export default function CRMPage() {
               ))}
             </div>
           )}
+
+          {/* 完了済み履歴（お渡し済み） */}
+          <div className="border-t border-white/10 pt-3 mt-2">
+            <button onClick={toggleDelivered}
+              className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 text-sm font-bold transition-colors w-full">
+              <Package size={14} />
+              完了済み履歴（お渡し済み）
+              {showDelivered ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+            {showDelivered && (
+              <div className="mt-3 space-y-4 animate-fade-in">
+                {deliveredLoading ? (
+                  <div className="flex justify-center py-6"><Loader2 size={24} className="animate-spin text-zinc-500" /></div>
+                ) : (
+                  <>
+                    {deliveredRepairs.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider px-1">お直しお渡し済み — {deliveredRepairs.length}件</p>
+                        {deliveredRepairs.map(r => (
+                          <RepairItem key={r.id} repair={r} showCustomer
+                            onComplete={handleRepairComplete} onDeliver={handleRepairDeliver} onRevert={handleRepairRevert} />
+                        ))}
+                      </div>
+                    )}
+                    {deliveredPurchases.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider px-1">取置きお渡し済み — {deliveredPurchases.length}件</p>
+                        {deliveredPurchases.map(o => (
+                          <PurchaseItem key={o.id} order={o} showCustomer
+                            onStock={handlePurchaseStock} onBackOrder={handlePurchaseBackOrder}
+                            onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} />
+                        ))}
+                      </div>
+                    )}
+                    {deliveredRepairs.length === 0 && deliveredPurchases.length === 0 && (
+                      <div className="text-center py-6 text-zinc-600 text-sm">完了済みのデータはありません</div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </section>
 
         {/* ══════════════════════════════════════════════════
