@@ -269,7 +269,8 @@ export default function CustomerPage() {
   const [ticket,         setTicket]         = useState<Queue | null>(null)
   const [waitingAhead,   setWaitingAhead]   = useState(0)
   const [waitingCount,   setWaitingCount]   = useState<number | null>(null)
-  const [waitThresholds, setWaitThresholds] = useState<WaitThreshold[]>(DEFAULT_THRESHOLDS)
+  const [waitThresholds,    setWaitThresholds]    = useState<WaitThreshold[]>(DEFAULT_THRESHOLDS)
+  const notificationPlanRef = useRef<'calling_only' | 'full'>('calling_only')
   const [submitting,     setSubmitting]     = useState(false)
   const [issuing,        setIssuing]        = useState(false)
   const [repairLoading,  setRepairLoading]  = useState(false)
@@ -303,10 +304,11 @@ export default function CustomerPage() {
   useEffect(() => {
     if (!storeId) return
     ;(async () => { try {
-      const { data: sd } = await supabase.from('stores')
-        .select('is_open, wait_thresholds').eq('id', storeId).single()
+      const { data: sd } = await (supabase.from('stores') as any)
+        .select('is_open, wait_thresholds, notification_plan').eq('id', storeId).single()
       if (sd && Array.isArray(sd.wait_thresholds) && sd.wait_thresholds.length > 0)
         setWaitThresholds(sd.wait_thresholds as WaitThreshold[])
+      if (sd?.notification_plan) notificationPlanRef.current = sd.notification_plan
 
       await initLiff()
       const profile = await getLineProfile()
@@ -602,7 +604,7 @@ export default function CustomerPage() {
       localStorage.setItem(ticketKey, t.id)
       localStorage.setItem(dateKey, new Date().toDateString())
       setTicket(t)
-      if (t.line_user_id) {
+      if (t.line_user_id && notificationPlanRef.current === 'full') {
         fetch('/api/notify', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

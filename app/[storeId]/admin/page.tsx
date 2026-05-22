@@ -363,13 +363,15 @@ function HistoryCard({ ticket, onAction }: { ticket: Queue; onAction: (id: strin
 // 設定パネル
 // ============================================================
 function SettingsPanel({
-  noticeThreshold, waitThresholds, allowRemote,
-  onNoticeChange, onThresholdsChange, onRemoteChange, onSave, saving,
+  noticeThreshold, waitThresholds, allowRemote, notificationPlan,
+  onNoticeChange, onThresholdsChange, onRemoteChange, onPlanChange, onSave, saving,
 }: {
   noticeThreshold: number; waitThresholds: WaitThreshold[]; allowRemote: boolean
+  notificationPlan: 'calling_only' | 'full'
   onNoticeChange: (v: number) => void
   onThresholdsChange: (v: WaitThreshold[]) => void
   onRemoteChange: (v: boolean) => void
+  onPlanChange: (v: 'calling_only' | 'full') => void
   onSave: () => void; saving: boolean
 }) {
   return (
@@ -378,6 +380,32 @@ function SettingsPanel({
         <Settings size={16} className="text-indigo-400" />
         通知・メッセージ設定
       </h3>
+
+      {/* LINE通知プラン */}
+      <div>
+        <label className="text-sm font-bold text-zinc-300 mb-3 block">LINE通知プラン</label>
+        <div className="grid grid-cols-2 gap-2">
+          {([
+            { value: 'calling_only', label: '呼出のみ', desc: '1通/人・月200人対応', icon: '🔔' },
+            { value: 'full',         label: '全通知',   desc: '3通/人・受付＋もうすぐ＋呼出', icon: '📲' },
+          ] as const).map(opt => (
+            <button key={opt.value} type="button" onClick={() => onPlanChange(opt.value)}
+              className={`flex flex-col items-start px-4 py-3 rounded-2xl border-2 transition-all text-left ${
+                notificationPlan === opt.value
+                  ? 'border-indigo-500 bg-indigo-500/10'
+                  : 'border-zinc-700 bg-zinc-800/50'
+              }`}>
+              <span className="text-base mb-0.5">{opt.icon} <span className={`font-bold ${notificationPlan === opt.value ? 'text-indigo-300' : 'text-zinc-400'}`}>{opt.label}</span></span>
+              <span className="text-xs text-zinc-500">{opt.desc}</span>
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-zinc-500 mt-2">
+          {notificationPlan === 'calling_only'
+            ? '受付完了・もうすぐ通知は送信しません。呼出時のみLINEメッセージを送ります。'
+            : '受付完了・もうすぐ・呼出の3種類を送信します。月間通数が多くなります。'}
+        </p>
+      </div>
 
       {/* 遠隔チェックイン許可 */}
       <div>
@@ -462,11 +490,12 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
   const [refreshing,      setRefreshing]      = useState(false)
   const [historyTab,      setHistoryTab]      = useState<HistoryTab>('completed')
   const [toast,           setToast]           = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
-  const [isOpen,          setIsOpen]          = useState<boolean | null>(null)
-  const [noticeThreshold, setNoticeThreshold] = useState(3)
-  const [waitThresholds,  setWaitThresholds]  = useState<WaitThreshold[]>(DEFAULT_THRESHOLDS)
-  const [allowRemote,     setAllowRemote]     = useState(false)
-  const [saving,          setSaving]          = useState(false)
+  const [isOpen,            setIsOpen]            = useState<boolean | null>(null)
+  const [noticeThreshold,   setNoticeThreshold]   = useState(3)
+  const [waitThresholds,    setWaitThresholds]    = useState<WaitThreshold[]>(DEFAULT_THRESHOLDS)
+  const [allowRemote,       setAllowRemote]       = useState(false)
+  const [notificationPlan,  setNotificationPlan]  = useState<'calling_only' | 'full'>('calling_only')
+  const [saving,            setSaving]            = useState(false)
   const [showSettings,    setShowSettings]    = useState(false)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -478,7 +507,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
 
   const fetchStoreStatus = useCallback(async () => {
     const { data } = await supabase.from('stores')
-      .select('is_open, notice_threshold, wait_thresholds, allow_remote')
+      .select('is_open, notice_threshold, wait_thresholds, allow_remote, notification_plan')
       .eq('id', store.id).single()
     if (data) {
       setIsOpen(data.is_open ?? false)
@@ -486,6 +515,8 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
       if (Array.isArray(data.wait_thresholds) && data.wait_thresholds.length > 0)
         setWaitThresholds(data.wait_thresholds as WaitThreshold[])
       if (data.allow_remote != null) setAllowRemote(data.allow_remote)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((data as any).notification_plan) setNotificationPlan((data as any).notification_plan)
     }
   }, [store.id])
 
@@ -542,6 +573,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
     if (status === 'completed' || status === 'cancelled') {
       // 少し待ってからトースト表示（直前の「完了」トーストと競合しないよう）
       await new Promise(res => setTimeout(res, 800))
+      if (notificationPlan !== 'full') return  // 呼出のみプランは threshold 通知しない
       try {
         const r = await fetch('/api/notify-threshold', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -570,10 +602,11 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
 
   const handleSaveSettings = async () => {
     setSaving(true)
-    const { error } = await supabase.from('stores').update({
-      notice_threshold: noticeThreshold,
-      wait_thresholds:  waitThresholds,
-      allow_remote:     allowRemote,
+    const { error } = await (supabase.from('stores') as any).update({
+      notice_threshold:  noticeThreshold,
+      wait_thresholds:   waitThresholds,
+      allow_remote:      allowRemote,
+      notification_plan: notificationPlan,
     }).eq('id', store.id)
     setSaving(false)
     showToast(error ? 'err' : 'ok', error ? '保存失敗: ' + error.message : '設定を保存しました')
@@ -673,7 +706,9 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
             <div className="animate-fade-in">
               <SettingsPanel
                 noticeThreshold={noticeThreshold} waitThresholds={waitThresholds} allowRemote={allowRemote}
+                notificationPlan={notificationPlan}
                 onNoticeChange={setNoticeThreshold} onThresholdsChange={setWaitThresholds} onRemoteChange={setAllowRemote}
+                onPlanChange={setNotificationPlan}
                 onSave={handleSaveSettings} saving={saving}
               />
             </div>
