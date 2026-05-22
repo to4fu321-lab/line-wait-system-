@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
         customer_name: tc.name.replace('【テスト】', ''),
         child_name: tc.child.name,
         school_name: tc.child.school,
-        category: 'school', gender: tc.child.gender === 'male' ? 'male' : 'female',
+        category: 'fitting', gender: tc.child.gender === 'male' ? 'male' : 'female',
         line_user_id: null, checked_in: true,
         customer_id: customerIds[i] ?? null,
         child_id: childIds[i] ?? null,

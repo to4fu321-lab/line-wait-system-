@@ -54,11 +54,52 @@ type RepairWithCustomer   = RepairHistory   & { customer: Pick<Customer, 'name' 
 type PurchaseWithCustomer = PurchaseOrder   & { customer: Pick<Customer, 'name' | 'tel'> | null; child: { name: string } | null }
 
 // ============================================================
+// 顧客情報インラインパネル（お直し・取置きカード内）
+// ============================================================
+type CustomerInfoData = {
+  id: string; name: string; kana: string | null; tel: string | null
+  children: { id: string; name: string; school_name: string | null; grade: string | null }[]
+}
+function CustomerInfoPanel({ customerId, storeId }: { customerId: string; storeId: string }) {
+  const [data, setData]       = useState<CustomerInfoData | null>(null)
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    supabase.from('customers').select('id, name, kana, tel, children(id, name, school_name, grade)')
+      .eq('id', customerId).single()
+      .then(({ data: d }) => { setData(d as CustomerInfoData | null); setLoading(false) })
+  }, [customerId])
+  if (loading) return <div className="flex justify-center py-2"><Loader2 size={14} className="animate-spin text-zinc-500" /></div>
+  if (!data)   return <p className="text-zinc-600 text-xs">顧客情報なし</p>
+  return (
+    <div className="space-y-1.5">
+      {data.kana && <p className="text-zinc-400 text-xs">{data.kana}</p>}
+      {data.tel  && (
+        <a href={`tel:${data.tel}`} className="flex items-center gap-1.5 text-blue-400 text-xs font-bold">
+          <Phone size={11} />{data.tel}
+        </a>
+      )}
+      {(data.children ?? []).map(c => (
+        <div key={c.id} className="flex items-center gap-1.5">
+          <GraduationCap size={11} className="text-amber-400 shrink-0" />
+          <span className="text-amber-300 text-xs font-bold">{c.name}</span>
+          {c.school_name && <span className="text-zinc-500 text-xs truncate">{c.school_name}{c.grade && ` ${c.grade}`}</span>}
+        </div>
+      ))}
+      <a href={`/${storeId}/admin/crm?customerId=${customerId}`}
+        className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 mt-0.5">
+        <User size={10} />顧客管理で編集
+      </a>
+    </div>
+  )
+}
+
+// ============================================================
 // お直しアイテム
 // ============================================================
-function RepairItem({ repair, showCustomer = false, onComplete, onDeliver, onRevert }: {
+function RepairItem({ repair, showCustomer = false, storeId, onComplete, onDeliver, onRevert }: {
   repair: RepairHistory | RepairWithCustomer
   showCustomer?: boolean
+  storeId?: string
   onComplete: (id: string) => Promise<void>
   onDeliver:  (id: string) => Promise<void>
   onRevert:   (id: string) => Promise<void>
@@ -66,6 +107,7 @@ function RepairItem({ repair, showCustomer = false, onComplete, onDeliver, onRev
   const [loading,         setLoading]         = useState<string | null>(null)
   const [confirmComplete, setConfirmComplete] = useState(false)
   const [confirmRevert,   setConfirmRevert]   = useState(false)
+  const [custOpen,        setCustOpen]        = useState(false)
   const customerName = showCustomer ? (repair as RepairWithCustomer).customer?.name : null
   const childName    = showCustomer ? (repair as RepairWithCustomer).child?.name    : null
 
@@ -89,9 +131,11 @@ function RepairItem({ repair, showCustomer = false, onComplete, onDeliver, onRev
         </div>
         <div className="flex-1 min-w-0">
           {(customerName || childName) && (
-            <p className="text-xs font-bold text-indigo-300 mb-1 flex items-center gap-1">
+            <button onClick={() => repair.customer_id && setCustOpen(v => !v)}
+              className="text-xs font-bold text-indigo-300 mb-1 flex items-center gap-1 w-full text-left active:opacity-70">
               <User size={10} />{customerName}{childName && <span className="text-amber-300">（{childName}）</span>}
-            </p>
+              {repair.customer_id && <ChevronDown size={10} className={`ml-auto shrink-0 transition-transform ${custOpen ? 'rotate-180' : ''}`} />}
+            </button>
           )}
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${REPAIR_STATUS_COLORS[repair.status]}`}>
@@ -117,6 +161,12 @@ function RepairItem({ repair, showCustomer = false, onComplete, onDeliver, onRev
           </div>
         </div>
       </div>
+
+      {custOpen && repair.customer_id && storeId && (
+        <div className="mt-3 pt-3 border-t border-white/10 animate-fade-in">
+          <CustomerInfoPanel customerId={repair.customer_id} storeId={storeId} />
+        </div>
+      )}
 
       {repair.status === 'received' && (
         confirmComplete ? (
@@ -180,9 +230,10 @@ function RepairItem({ repair, showCustomer = false, onComplete, onDeliver, onRev
 // ============================================================
 // 追加購入アイテム
 // ============================================================
-function PurchaseItem({ order, showCustomer = false, onStock, onBackOrder, onArrive, onDeliver, onRevert }: {
+function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrder, onArrive, onDeliver, onRevert }: {
   order: PurchaseOrder | PurchaseWithCustomer
   showCustomer?: boolean
+  storeId?: string
   onStock:     (id: string) => Promise<void>
   onBackOrder: (id: string) => Promise<void>
   onArrive:    (id: string) => Promise<void>
@@ -193,6 +244,7 @@ function PurchaseItem({ order, showCustomer = false, onStock, onBackOrder, onArr
   const [confirmStock,  setConfirmStock]  = useState(false)
   const [confirmArrive, setConfirmArrive] = useState(false)
   const [confirmRevert, setConfirmRevert] = useState(false)
+  const [custOpen,      setCustOpen]      = useState(false)
   const customerName = showCustomer ? (order as PurchaseWithCustomer).customer?.name : null
   const childName    = showCustomer ? (order as PurchaseWithCustomer).child?.name    : null
 
@@ -225,9 +277,11 @@ function PurchaseItem({ order, showCustomer = false, onStock, onBackOrder, onArr
         </div>
         <div className="flex-1 min-w-0">
           {(customerName || childName) && (
-            <p className="text-xs font-bold text-indigo-300 mb-1 flex items-center gap-1">
+            <button onClick={() => order.customer_id && setCustOpen(v => !v)}
+              className="text-xs font-bold text-indigo-300 mb-1 flex items-center gap-1 w-full text-left active:opacity-70">
               <User size={10} />{customerName}{childName && <span className="text-amber-300">（{childName}）</span>}
-            </p>
+              {order.customer_id && <ChevronDown size={10} className={`ml-auto shrink-0 transition-transform ${custOpen ? 'rotate-180' : ''}`} />}
+            </button>
           )}
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${PURCHASE_STATUS_COLORS[order.status]}`}>
@@ -249,6 +303,12 @@ function PurchaseItem({ order, showCustomer = false, onStock, onBackOrder, onArr
           </div>
         </div>
       </div>
+
+      {custOpen && order.customer_id && storeId && (
+        <div className="mt-3 pt-3 border-t border-white/10 animate-fade-in">
+          <CustomerInfoPanel customerId={order.customer_id} storeId={storeId} />
+        </div>
+      )}
 
       {/* 依頼受付 → 在庫確保（即入荷連絡）or メーカー発注 */}
       {(order.status === 'received' || order.status === 'ordered') && (
@@ -1317,7 +1377,7 @@ export default function CRMPage() {
               ) : repairReceivedList.length === 0 ? (
                 <div className="text-center py-6 text-zinc-600 text-sm">預かり中のお直しはありません</div>
               ) : repairReceivedList.map(r => (
-                <RepairItem key={r.id} repair={r} showCustomer
+                <RepairItem key={r.id} repair={r} showCustomer storeId={storeId}
                   onComplete={handleRepairComplete} onDeliver={handleRepairDeliver} onRevert={handleRepairRevert} />
               ))}
             </div>
@@ -1334,7 +1394,7 @@ export default function CRMPage() {
               ) : repairCompletedList.length === 0 ? (
                 <div className="text-center py-6 text-zinc-600 text-sm">完了済みのお直しはありません</div>
               ) : repairCompletedList.map(r => (
-                <RepairItem key={r.id} repair={r} showCustomer
+                <RepairItem key={r.id} repair={r} showCustomer storeId={storeId}
                   onComplete={handleRepairComplete} onDeliver={handleRepairDeliver} onRevert={handleRepairRevert} />
               ))}
             </div>
@@ -1351,7 +1411,7 @@ export default function CRMPage() {
               ) : purchaseReceivedList.length === 0 ? (
                 <div className="text-center py-6 text-zinc-600 text-sm">受付中の依頼はありません</div>
               ) : purchaseReceivedList.map(o => (
-                <PurchaseItem key={o.id} order={o} showCustomer
+                <PurchaseItem key={o.id} order={o} showCustomer storeId={storeId}
                   onStock={handlePurchaseStock} onBackOrder={handlePurchaseBackOrder}
                   onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} />
               ))}
@@ -1369,7 +1429,7 @@ export default function CRMPage() {
               ) : purchaseInProgressList.length === 0 ? (
                 <div className="text-center py-6 text-zinc-600 text-sm">手配中の商品はありません</div>
               ) : purchaseInProgressList.map(o => (
-                <PurchaseItem key={o.id} order={o} showCustomer
+                <PurchaseItem key={o.id} order={o} showCustomer storeId={storeId}
                   onStock={handlePurchaseStock} onBackOrder={handlePurchaseBackOrder}
                   onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} />
               ))}
@@ -1387,7 +1447,7 @@ export default function CRMPage() {
               ) : purchaseArrivedList.length === 0 ? (
                 <div className="text-center py-6 text-zinc-600 text-sm">入荷連絡済みの商品はありません</div>
               ) : purchaseArrivedList.map(o => (
-                <PurchaseItem key={o.id} order={o} showCustomer
+                <PurchaseItem key={o.id} order={o} showCustomer storeId={storeId}
                   onStock={handlePurchaseStock} onBackOrder={handlePurchaseBackOrder}
                   onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} />
               ))}
@@ -1412,7 +1472,7 @@ export default function CRMPage() {
                       <div className="space-y-2">
                         <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider px-1">お直しお渡し済み — {deliveredRepairs.length}件</p>
                         {deliveredRepairs.map(r => (
-                          <RepairItem key={r.id} repair={r} showCustomer
+                          <RepairItem key={r.id} repair={r} showCustomer storeId={storeId}
                             onComplete={handleRepairComplete} onDeliver={handleRepairDeliver} onRevert={handleRepairRevert} />
                         ))}
                       </div>
@@ -1421,7 +1481,7 @@ export default function CRMPage() {
                       <div className="space-y-2">
                         <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider px-1">取置きお渡し済み — {deliveredPurchases.length}件</p>
                         {deliveredPurchases.map(o => (
-                          <PurchaseItem key={o.id} order={o} showCustomer
+                          <PurchaseItem key={o.id} order={o} showCustomer storeId={storeId}
                             onStock={handlePurchaseStock} onBackOrder={handlePurchaseBackOrder}
                             onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} />
                         ))}
