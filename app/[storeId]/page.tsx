@@ -14,6 +14,7 @@ import type { Customer, Child } from '@/types/crm'
 import { GRADE_OPTIONS, SCHOOL_OPTIONS } from '@/types/crm'
 import { initLiff, getLineProfile, openAddFriend, isInLineApp, type LiffProfile } from '@/lib/liff'
 import { useStoreTheme } from '@/lib/theme-context'
+import { useKanaAutoFill } from '@/lib/useKanaAutoFill'
 
 const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
 
@@ -55,48 +56,26 @@ function InitialRegistrationForm({
   onSubmit: (d: { parentName: string; parentKana: string; tel: string; childName: string; childKana: string; schoolName: string; grade: string }) => Promise<void>
   submitting: boolean
 }) {
-  const theme = useStoreTheme()
-  const [parentName, setParentName] = useState(lineDisplayName)
-  const [parentKana, setParentKana] = useState('')
+  const theme  = useStoreTheme()
+  const parent = useKanaAutoFill(lineDisplayName)
+  const child  = useKanaAutoFill('')
   const [tel,        setTel]        = useState('')
-  const [childName,  setChildName]  = useState('')
-  const [childKana,  setChildKana]  = useState('')
   const [schoolName, setSchoolName] = useState('')
   const [grade,      setGrade]      = useState('')
   const [error,      setError]      = useState('')
 
-  const isComposingParent = useRef(false)
-  const kanaBlockParent   = useRef(false)
-  const isComposingChild  = useRef(false)
-  const kanaBlockChild    = useRef(false)
-  const parentKanaEdited  = useRef(false)
-  const childKanaEdited   = useRef(false)
-
-  // マウント時にLINE表示名からフリガナを初期設定
-  useEffect(() => {
-    if (lineDisplayName && !parentKanaEdited.current) setParentKana(toKatakana(lineDisplayName))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const onParentNameChange = (v: string) => {
-    setParentName(v)
-    if (!parentKanaEdited.current && !isComposingParent.current)
-      setParentKana(toKatakana(v))
-  }
-  const onChildNameChange = (v: string) => {
-    setChildName(v)
-    if (!childKanaEdited.current && !isComposingChild.current)
-      setChildKana(toKatakana(v))
-  }
-
   const handleSubmit = async () => {
-    if (!parentName.trim()) { setError('保護者のお名前を入力してください'); return }
-    if (!childName.trim())  { setError('お子様のお名前を入力してください'); return }
+    if (!parent.name.trim()) { setError('保護者のお名前を入力してください'); return }
+    if (!child.name.trim())  { setError('お子様のお名前を入力してください'); return }
     setError('')
-    await onSubmit({ parentName: parentName.trim(), parentKana: parentKana.trim(), tel: tel.trim(), childName: childName.trim(), childKana: childKana.trim(), schoolName: schoolName.trim(), grade })
+    await onSubmit({
+      parentName: parent.name.trim(), parentKana: parent.kana.trim(),
+      tel: tel.trim(), childName: child.name.trim(), childKana: child.kana.trim(),
+      schoolName: schoolName.trim(), grade,
+    })
   }
 
-  const base = 'w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50/80 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all'
+  const base  = 'w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50/80 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all'
   const focus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = theme.colors.primary)
   const blur  = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = '')
 
@@ -105,17 +84,11 @@ function InitialRegistrationForm({
       <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider pt-1">保護者情報</div>
       <div>
         <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
-        <input type="text" value={parentName} placeholder="例：山田 太郎" className={base}
-          onChange={e => onParentNameChange(e.target.value)}
-          onCompositionStart={() => { isComposingParent.current = true }}
-          onCompositionEnd={e => { isComposingParent.current = false; if (!parentKanaEdited.current) setParentKana(toKatakana(e.currentTarget.value)) }}
-          onFocus={focus} onBlur={blur} />
+        <input type="text" {...parent.nameProps} placeholder="例：山田 太郎" className={base} onFocus={focus} onBlur={blur} />
       </div>
       <div>
         <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
-        <input type="text" value={parentKana} placeholder="ヤマダ タロウ" className={base}
-          onChange={e => { parentKanaEdited.current = true; setParentKana(e.target.value) }}
-          onFocus={focus} onBlur={blur} />
+        <input type="text" {...parent.kanaProps} placeholder="ヤマダ タロウ" className={base} onFocus={focus} onBlur={blur} />
       </div>
       <div>
         <label className="block text-xs font-bold text-zinc-500 mb-1.5">電話番号</label>
@@ -126,17 +99,11 @@ function InitialRegistrationForm({
       <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider pt-2 border-t border-zinc-100">お子様情報</div>
       <div>
         <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
-        <input type="text" value={childName} placeholder="例：山田 花子" className={base}
-          onChange={e => onChildNameChange(e.target.value)}
-          onCompositionStart={() => { isComposingChild.current = true }}
-          onCompositionEnd={e => { isComposingChild.current = false; if (!childKanaEdited.current) setChildKana(toKatakana(e.currentTarget.value)) }}
-          onFocus={focus} onBlur={blur} />
+        <input type="text" {...child.nameProps} placeholder="例：山田 花子" className={base} onFocus={focus} onBlur={blur} />
       </div>
       <div>
         <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
-        <input type="text" value={childKana} placeholder="ヤマダ ハナコ" className={base}
-          onChange={e => { childKanaEdited.current = true; setChildKana(e.target.value) }}
-          onFocus={focus} onBlur={blur} />
+        <input type="text" {...child.kanaProps} placeholder="ヤマダ ハナコ" className={base} onFocus={focus} onBlur={blur} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -161,7 +128,7 @@ function InitialRegistrationForm({
         </div>
       )}
 
-      <button onClick={handleSubmit} disabled={submitting || !parentName.trim() || !childName.trim()}
+      <button onClick={handleSubmit} disabled={submitting || !parent.name.trim() || !child.name.trim()}
         className="w-full text-white text-base font-black py-4 rounded-2xl disabled:opacity-50 flex items-center justify-center gap-2 active:scale-95 transition-transform"
         style={{
           background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`,
@@ -184,29 +151,18 @@ function AddChildForm({
   submitting: boolean
 }) {
   const theme = useStoreTheme()
-  const [childName,  setChildName]  = useState('')
-  const [childKana,  setChildKana]  = useState('')
+  const child = useKanaAutoFill('')
   const [schoolName, setSchoolName] = useState('')
   const [grade,      setGrade]      = useState('')
   const [error,      setError]      = useState('')
 
-  const isComposing = useRef(false)
-  const kanaBlock   = useRef(false)
-  const kanaEdited  = useRef(false)
-
-  const onNameChange = (v: string) => {
-    setChildName(v)
-    if (!kanaEdited.current && !isComposing.current)
-      setChildKana(toKatakana(v))
-  }
-
   const handleSubmit = async () => {
-    if (!childName.trim()) { setError('お名前を入力してください'); return }
+    if (!child.name.trim()) { setError('お名前を入力してください'); return }
     setError('')
-    await onSubmit({ childName: childName.trim(), childKana: childKana.trim(), schoolName: schoolName.trim(), grade })
+    await onSubmit({ childName: child.name.trim(), childKana: child.kana.trim(), schoolName: schoolName.trim(), grade })
   }
 
-  const base = 'w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50/80 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all'
+  const base  = 'w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50/80 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all'
   const focus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = theme.colors.primary)
   const blur  = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = '')
 
@@ -215,17 +171,11 @@ function AddChildForm({
       <p className="text-xs font-bold" style={{ color: theme.colors.primary }}>新しいお子様の情報</p>
       <div>
         <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
-        <input type="text" value={childName} placeholder="例：山田 次郎" className={base}
-          onChange={e => onNameChange(e.target.value)}
-          onCompositionStart={() => { isComposing.current = true }}
-          onCompositionEnd={e => { isComposing.current = false; if (!kanaEdited.current) setChildKana(toKatakana(e.currentTarget.value)) }}
-          onFocus={focus} onBlur={blur} />
+        <input type="text" {...child.nameProps} placeholder="例：山田 次郎" className={base} onFocus={focus} onBlur={blur} />
       </div>
       <div>
         <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
-        <input type="text" value={childKana} placeholder="ヤマダ ジロウ" className={base}
-          onChange={e => { kanaEdited.current = true; setChildKana(e.target.value) }}
-          onFocus={focus} onBlur={blur} />
+        <input type="text" {...child.kanaProps} placeholder="ヤマダ ジロウ" className={base} onFocus={focus} onBlur={blur} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -252,7 +202,7 @@ function AddChildForm({
         <button onClick={onCancel} className="flex-1 py-3 rounded-xl border border-zinc-200 text-zinc-500 font-bold text-sm active:scale-95 transition-transform">
           キャンセル
         </button>
-        <button onClick={handleSubmit} disabled={submitting || !childName.trim()}
+        <button onClick={handleSubmit} disabled={submitting || !child.name.trim()}
           className="flex-1 py-3 rounded-xl text-white font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
           style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})` }}>
           {submitting ? <Loader2 size={14} className="animate-spin" /> : '追加する'}

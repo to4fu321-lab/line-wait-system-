@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { CheckCircle2, Minus, Plus, ShoppingCart, ChevronDown, ChevronUp, Loader2, AlertCircle, X } from 'lucide-react'
 import { useStoreTheme } from '@/lib/theme-context'
 import { supabase } from '@/lib/supabase'
 import { SCHOOL_OPTIONS, GRADE_OPTIONS } from '@/types/crm'
+import { useKanaAutoFill } from '@/lib/useKanaAutoFill'
 import type { LiffProfile } from '@/lib/liff'
 
 function toKatakana(s: string) {
@@ -67,25 +68,13 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
 
   // 登録モーダル用 state
   const [showRegModal, setShowRegModal] = useState(false)
-  const [regName,      setRegName]      = useState(lineProfile?.displayName ?? '')
-  const [regKana,      setRegKana]      = useState('')
-  const [regTel,       setRegTel]       = useState('')
-  const [regChildName, setRegChildName] = useState('')
-  const [regChildKana, setRegChildKana] = useState('')
-  const [regSchool,    setRegSchool]    = useState('')
-  const [regGrade,     setRegGrade]     = useState('')
-  const [regError,     setRegError]     = useState('')
-  const [registering,  setRegistering]  = useState(false)
-  const isComposingParent = useRef(false)
-  const isComposingChild  = useRef(false)
-  const regKanaEdited     = useRef(false)
-  const regChildKanaEdited= useRef(false)
-
-  // マウント時にLINE表示名からフリガナを初期設定
-  useEffect(() => {
-    if (regName && !regKanaEdited.current) setRegKana(toKatakana(regName))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const regParent = useKanaAutoFill(lineProfile?.displayName ?? '')
+  const regChild  = useKanaAutoFill('')
+  const [regTel,      setRegTel]      = useState('')
+  const [regSchool,   setRegSchool]   = useState('')
+  const [regGrade,    setRegGrade]    = useState('')
+  const [regError,    setRegError]    = useState('')
+  const [registering, setRegistering] = useState(false)
 
   const totalQty   = cart.reduce((s, c) => s + c.qty, 0)
   const totalPrice = cart.reduce((s, c) => {
@@ -138,21 +127,21 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
 
   // 登録して注文
   const handleRegisterAndOrder = async () => {
-    if (!regName.trim())      { setRegError('保護者のお名前を入力してください'); return }
-    if (!regChildName.trim()) { setRegError('お子様のお名前を入力してください'); return }
-    if (!lineProfile?.userId) { setRegError('LINE情報が取得できませんでした'); return }
+    if (!regParent.name.trim()) { setRegError('保護者のお名前を入力してください'); return }
+    if (!regChild.name.trim())  { setRegError('お子様のお名前を入力してください'); return }
+    if (!lineProfile?.userId)   { setRegError('LINE情報が取得できませんでした'); return }
     setRegistering(true); setRegError('')
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: newCust, error: custErr } = await (supabase.from('customers') as any).insert({
         store_id: storeId, line_user_id: lineProfile.userId,
-        name: regName.trim(), kana: regKana.trim() || null, tel: regTel.trim() || null,
+        name: regParent.name.trim(), kana: regParent.kana.trim() || null, tel: regTel.trim() || null,
       }).select().single()
       if (custErr) throw new Error(custErr.message)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: newChild, error: childErr } = await (supabase.from('children') as any).insert({
         customer_id: newCust.id, store_id: storeId,
-        name: regChildName.trim(), kana: regChildKana.trim() || null,
+        name: regChild.name.trim(), kana: regChild.kana.trim() || null,
         school_name: regSchool || null, grade: regGrade || null,
       }).select().single()
       if (childErr) throw new Error(childErr.message)
@@ -422,17 +411,13 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
               <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider">保護者情報</p>
               <div>
                 <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
-                <input type="text" value={regName} placeholder="例：山田 太郎"
-                  className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all"
-                  onChange={e => { setRegName(e.target.value); if (!regKanaEdited.current && !isComposingParent.current) setRegKana(toKatakana(e.target.value)) }}
-                  onCompositionStart={() => { isComposingParent.current = true }}
-                  onCompositionEnd={e => { isComposingParent.current = false; if (!regKanaEdited.current) setRegKana(toKatakana(e.currentTarget.value)) }} />
+                <input type="text" {...regParent.nameProps} placeholder="例：山田 太郎"
+                  className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
-                <input type="text" value={regKana} placeholder="ヤマダ タロウ"
-                  className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all"
-                  onChange={e => { regKanaEdited.current = true; setRegKana(e.target.value) }} />
+                <input type="text" {...regParent.kanaProps} placeholder="ヤマダ タロウ"
+                  className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-zinc-500 mb-1.5">電話番号</label>
@@ -443,17 +428,13 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
               <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider pt-2 border-t border-zinc-100">お子様情報</p>
               <div>
                 <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
-                <input type="text" value={regChildName} placeholder="例：山田 花子"
-                  className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all"
-                  onChange={e => { setRegChildName(e.target.value); if (!regChildKanaEdited.current && !isComposingChild.current) setRegChildKana(toKatakana(e.target.value)) }}
-                  onCompositionStart={() => { isComposingChild.current = true }}
-                  onCompositionEnd={e => { isComposingChild.current = false; if (!regChildKanaEdited.current) setRegChildKana(toKatakana(e.currentTarget.value)) }} />
+                <input type="text" {...regChild.nameProps} placeholder="例：山田 花子"
+                  className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
-                <input type="text" value={regChildKana} placeholder="ヤマダ ハナコ"
-                  className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all"
-                  onChange={e => { regChildKanaEdited.current = true; setRegChildKana(e.target.value) }} />
+                <input type="text" {...regChild.kanaProps} placeholder="ヤマダ ハナコ"
+                  className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -478,7 +459,7 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
                   <AlertCircle size={13} />{regError}
                 </div>
               )}
-              <button onClick={handleRegisterAndOrder} disabled={registering || !regName.trim() || !regChildName.trim()}
+              <button onClick={handleRegisterAndOrder} disabled={registering || !regParent.name.trim() || !regChild.name.trim()}
                 className="w-full py-4 rounded-2xl text-white font-black text-base flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50"
                 style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})` }}>
                 {registering ? <><Loader2 size={18} className="animate-spin" />登録・注文中...</> : '登録して注文する →'}
