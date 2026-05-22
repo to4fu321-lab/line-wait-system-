@@ -7,9 +7,23 @@ const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY            || 'C_FaNHSoxtJik
 
 webpush.setVapidDetails('mailto:to4fu321@gmail.com', VAPID_PUBLIC, VAPID_PRIVATE)
 
+type PushType = 'queue_new' | 'purchase_new'
+
 export async function POST(req: NextRequest) {
-  const { storeId, title, body, url } = await req.json()
+  const { storeId, type, title, body, url } = await req.json() as {
+    storeId: string; type: PushType; title: string; body: string; url: string
+  }
   if (!storeId) return NextResponse.json({ ok: false, error: 'no storeId' }, { status: 400 })
+
+  // 店舗の push_settings を確認してタイプが無効なら送信しない
+  const { data: store } = await (supabase.from('stores') as any)
+    .select('push_settings').eq('id', storeId).single()
+  const settings: Record<string, boolean> = store?.push_settings ?? {}
+  // デフォルトは true（カラムが未設定の店舗でも通知する）
+  if (type && settings[type] === false) {
+    console.log(`[push-admin] type=${type} disabled for store=${storeId}`)
+    return NextResponse.json({ ok: true, sent: 0, skipped: true })
+  }
 
   const { data: subs } = await (supabase.from('push_subscriptions') as any)
     .select('endpoint, p256dh, auth').eq('store_id', storeId)
@@ -40,6 +54,6 @@ export async function POST(req: NextRequest) {
   }
 
   const sent = results.filter(r => r.status === 'fulfilled').length
-  console.log(`[push-admin] storeId=${storeId} sent=${sent}/${subs.length}`)
+  console.log(`[push-admin] type=${type} storeId=${storeId} sent=${sent}/${subs.length}`)
   return NextResponse.json({ ok: true, sent })
 }

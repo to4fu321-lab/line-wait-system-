@@ -372,15 +372,17 @@ function HistoryCard({ ticket, onAction }: { ticket: Queue; onAction: (id: strin
 // 設定パネル
 // ============================================================
 function SettingsPanel({
-  noticeThreshold, waitThresholds, allowRemote, notificationPlan,
-  onNoticeChange, onThresholdsChange, onRemoteChange, onPlanChange, onSave, saving,
+  noticeThreshold, waitThresholds, allowRemote, notificationPlan, pushSettings,
+  onNoticeChange, onThresholdsChange, onRemoteChange, onPlanChange, onPushSettingsChange, onSave, saving,
 }: {
   noticeThreshold: number; waitThresholds: WaitThreshold[]; allowRemote: boolean
   notificationPlan: 'calling_only' | 'full'
+  pushSettings: { queue_new: boolean; purchase_new: boolean }
   onNoticeChange: (v: number) => void
   onThresholdsChange: (v: WaitThreshold[]) => void
   onRemoteChange: (v: boolean) => void
   onPlanChange: (v: 'calling_only' | 'full') => void
+  onPushSettingsChange: (v: { queue_new: boolean; purchase_new: boolean }) => void
   onSave: () => void; saving: boolean
 }) {
   return (
@@ -389,6 +391,36 @@ function SettingsPanel({
         <Settings size={16} className="text-indigo-400" />
         通知・メッセージ設定
       </h3>
+
+      {/* ブラウザ通知設定 */}
+      <div>
+        <label className="text-sm font-bold text-zinc-300 mb-3 block flex items-center gap-2">
+          <Bell size={14} className="text-indigo-400" />ブラウザ通知（端末への通知）
+        </label>
+        <div className="space-y-2">
+          {([
+            { key: 'queue_new',    icon: '🔔', label: '新規受付',    desc: 'お客様が受付した時' },
+            { key: 'purchase_new', icon: '📦', label: '取置き依頼', desc: 'ECショップから依頼が届いた時' },
+          ] as const).map(({ key, icon, label, desc }) => (
+            <button key={key} type="button"
+              onClick={() => onPushSettingsChange({ ...pushSettings, [key]: !pushSettings[key] })}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border-2 transition-all ${
+                pushSettings[key] ? 'border-indigo-500 bg-indigo-500/10' : 'border-zinc-700 bg-zinc-800/50'
+              }`}>
+              <div className="text-left">
+                <p className={`font-bold text-sm ${pushSettings[key] ? 'text-indigo-300' : 'text-zinc-400'}`}>
+                  {icon} {label}
+                </p>
+                <p className="text-xs text-zinc-500 mt-0.5">{desc}</p>
+              </div>
+              <div className={`w-12 h-6 rounded-full transition-colors shrink-0 ${pushSettings[key] ? 'bg-indigo-500' : 'bg-zinc-600'}`}>
+                <div className={`w-5 h-5 bg-white rounded-full mt-0.5 shadow transition-transform ${pushSettings[key] ? 'translate-x-6' : 'translate-x-0.5'}`} />
+              </div>
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-zinc-500 mt-2">ヘッダーの🔔ボタンで端末の通知を許可してください</p>
+      </div>
 
       {/* LINE通知プラン */}
       <div>
@@ -504,6 +536,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
   const [waitThresholds,    setWaitThresholds]    = useState<WaitThreshold[]>(DEFAULT_THRESHOLDS)
   const [allowRemote,       setAllowRemote]       = useState(false)
   const [notificationPlan,  setNotificationPlan]  = useState<'calling_only' | 'full'>('calling_only')
+  const [pushSettings,      setPushSettings]      = useState({ queue_new: true, purchase_new: true })
   const [saving,            setSaving]            = useState(false)
   const [showSettings,      setShowSettings]      = useState(false)
   const [pushStatus,        setPushStatus]        = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle')
@@ -540,7 +573,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
 
   const fetchStoreStatus = useCallback(async () => {
     const { data } = await supabase.from('stores')
-      .select('is_open, notice_threshold, wait_thresholds, allow_remote, notification_plan')
+      .select('is_open, notice_threshold, wait_thresholds, allow_remote, notification_plan, push_settings')
       .eq('id', store.id).single()
     if (data) {
       setIsOpen(data.is_open ?? false)
@@ -550,6 +583,8 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
       if (data.allow_remote != null) setAllowRemote(data.allow_remote)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if ((data as any).notification_plan) setNotificationPlan((data as any).notification_plan)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((data as any).push_settings) setPushSettings((data as any).push_settings)
     }
   }, [store.id])
 
@@ -644,6 +679,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
       wait_thresholds:   waitThresholds,
       allow_remote:      allowRemote,
       notification_plan: notificationPlan,
+      push_settings:     pushSettings,
     }).eq('id', store.id)
     setSaving(false)
     showToast(error ? 'err' : 'ok', error ? '保存失敗: ' + error.message : '設定を保存しました')
@@ -755,9 +791,9 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
             <div className="animate-fade-in">
               <SettingsPanel
                 noticeThreshold={noticeThreshold} waitThresholds={waitThresholds} allowRemote={allowRemote}
-                notificationPlan={notificationPlan}
+                notificationPlan={notificationPlan} pushSettings={pushSettings}
                 onNoticeChange={setNoticeThreshold} onThresholdsChange={setWaitThresholds} onRemoteChange={setAllowRemote}
-                onPlanChange={setNotificationPlan}
+                onPlanChange={setNotificationPlan} onPushSettingsChange={setPushSettings}
                 onSave={handleSaveSettings} saving={saving}
               />
             </div>

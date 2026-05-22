@@ -111,6 +111,18 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase.from('purchase_orders') as any).insert(records)
       if (error) throw new Error(error.message)
+      // 管理者へ取置き依頼通知
+      const itemNames = records.map(r => r.item_name).join('・')
+      fetch('/api/push-admin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storeId,
+          type:  'purchase_new',
+          title: '📦 取置き依頼が届きました',
+          body:  itemNames,
+          url:   `/${storeId}/admin/crm`,
+        }),
+      }).catch(console.error)
       setOrdered(true)
     } catch (e) {
       setOrderError(e instanceof Error ? e.message : String(e))
