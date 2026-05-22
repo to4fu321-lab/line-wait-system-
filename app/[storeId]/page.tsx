@@ -346,6 +346,23 @@ export default function CustomerPage() {
             : t.status === 'cancelled' ? 'queue_cancelled'
             : 'queue_waiting'
           )
+          // チケット復元時も既存顧客を読み込む（二重登録防止）
+          if (profile?.userId) {
+            try {
+              const { data: custRows } = await supabase.from('customers')
+                .select('*').eq('store_id', storeId).eq('line_user_id', profile.userId)
+                .order('created_at', { ascending: false }).limit(1)
+              const cust = custRows?.[0] && !custRows[0].deleted_at ? custRows[0] : null
+              if (cust) {
+                setCustomer(cust)
+                const { data: childList } = await supabase.from('children')
+                  .select('*').eq('customer_id', cust.id).order('created_at', { ascending: true })
+                const kids = childList ?? []
+                setChildren(kids)
+                if (kids.length === 1) setSelectedChild(kids[0])
+              }
+            } catch { /* 顧客情報が取れなくても続行 */ }
+          }
           return
         }
       }
