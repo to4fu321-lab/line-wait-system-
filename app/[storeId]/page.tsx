@@ -613,6 +613,16 @@ export default function CustomerPage() {
           }),
         }).catch(console.error)
       }
+      // 管理者デバイスへブラウザプッシュ通知
+      fetch('/api/push-admin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storeId,
+          title: `🔔 新規受付 No.${String(t.ticket_number).padStart(3, '0')}`,
+          body:  `${t.customer_name} 様が受付しました`,
+          url:   `/${storeId}/admin`,
+        }),
+      }).catch(console.error)
       setView('queue_waiting')
     } catch (e) { console.error(e) }
     setIssuing(false)

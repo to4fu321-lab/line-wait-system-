@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: '順番待ち受付 | 学生服',
   description: '学生服販売店 順番待ち受付システム',
   robots: 'noindex,nofollow',
+  manifest: '/manifest.json',
 }
 
 export const viewport: Viewport = {

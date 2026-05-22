@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import {
   BellRing, CheckCheck, UserX, RefreshCw, Clock, Users,
   Loader2, Store, Settings, Plus, Trash2,
-  ChevronRight, LayoutDashboard, X, MapPin,
+  ChevronRight, LayoutDashboard, X, MapPin, BellOff, Bell,
 } from 'lucide-react'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import type { Queue, QueueStatus, WaitThreshold } from '@/types/database'
@@ -13,6 +13,15 @@ import {
   CATEGORY_LABELS, CATEGORY_ICONS, STATUS_LABELS,
   GENDER_LABELS, GENDER_STYLES, DEFAULT_THRESHOLDS,
 } from '@/types/database'
+
+const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BAmZx5b8ScrgrqWa822FdQhtfHV2CSyqvxNeQX-Ds1KsqztPPRtZRyBP_LaQZmCLejg8Ivd7Gu4cBxKtNwodb3o'
+
+function urlBase64ToUint8Array(base64: string) {
+  const pad = '='.repeat((4 - base64.length % 4) % 4)
+  const b64 = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/')
+  const raw = window.atob(b64)
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
+}
 
 type AdminView  = 'loading' | 'select_store' | 'pin' | 'dashboard'
 type HistoryTab = 'completed' | 'cancelled'
@@ -496,8 +505,32 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
   const [allowRemote,       setAllowRemote]       = useState(false)
   const [notificationPlan,  setNotificationPlan]  = useState<'calling_only' | 'full'>('calling_only')
   const [saving,            setSaving]            = useState(false)
-  const [showSettings,    setShowSettings]    = useState(false)
+  const [showSettings,      setShowSettings]      = useState(false)
+  const [pushStatus,        setPushStatus]        = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle')
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const setupPush = useCallback(async (storeId: string) => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+      setPushStatus('unsupported'); return
+    }
+    try {
+      const reg  = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      const perm = await Notification.requestPermission()
+      if (perm !== 'granted') { setPushStatus('denied'); return }
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
+      })
+      await fetch('/api/push-subscribe', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId, subscription: sub.toJSON() }),
+      })
+      setPushStatus('granted')
+    } catch (e) {
+      console.error('[push setup]', e)
+      setPushStatus('denied')
+    }
+  }, [])
 
   const showToast = useCallback((type: 'ok' | 'err', msg: string, duration = 3500) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
@@ -531,6 +564,10 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
 
   useEffect(() => {
     fetchStoreStatus(); fetchQueues()
+    // 通知が既に許可済みなら自動サブスクリプション（ユーザー操作不要で再登録）
+    if (typeof window !== 'undefined' && Notification.permission === 'granted') {
+      setupPush(store.id)
+    }
     const channel = supabase.channel(`admin-${store.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'queues', filter: `store_id=eq.${store.id}` },
         () => fetchQueues())
@@ -635,6 +672,18 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
             <button onClick={fetchQueues} disabled={refreshing}
               className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:scale-90 transition-all disabled:opacity-50">
               <RefreshCw size={18} className={refreshing ? 'animate-spin text-indigo-400' : 'text-zinc-400'} />
+            </button>
+            {/* ブラウザ通知ボタン */}
+            <button
+              onClick={() => pushStatus !== 'granted' && setupPush(store.id)}
+              title={pushStatus === 'granted' ? 'ブラウザ通知: ON' : pushStatus === 'denied' ? '通知がブロックされています' : pushStatus === 'unsupported' ? '非対応ブラウザ' : '通知を許可する'}
+              className={`p-2 rounded-xl border active:scale-90 transition-all ${
+                pushStatus === 'granted'     ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' :
+                pushStatus === 'denied'      ? 'bg-red-500/20 border-red-500/40 text-red-400' :
+                pushStatus === 'unsupported' ? 'bg-zinc-800 border-zinc-700 text-zinc-600 cursor-not-allowed' :
+                'bg-white/5 border-white/10 text-zinc-400 hover:bg-white/10'
+              }`}>
+              {pushStatus === 'denied' ? <BellOff size={18} /> : <Bell size={18} />}
             </button>
             <button onClick={() => setShowSettings(v => !v)}
               className={`p-2 rounded-xl border active:scale-90 transition-all ${showSettings ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-white/5 border-white/10 text-zinc-400 hover:bg-white/10'}`}>
