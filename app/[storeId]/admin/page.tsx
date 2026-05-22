@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import {
   BellRing, CheckCheck, UserX, RefreshCw, Clock, Users,
-  Loader2, Store, Settings, Plus, Trash2,
+  Loader2, Store, Settings, Plus, Trash2, Phone, User, GraduationCap,
   ChevronRight, ChevronDown, ChevronUp, LayoutDashboard, X, MapPin, BellOff, Bell,
 } from 'lucide-react'
 import { supabase, getTodayStart } from '@/lib/supabase'
@@ -130,15 +130,57 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 // ============================================================
+// 顧客情報インラインパネル
+// ============================================================
+type CustomerInfo = {
+  id: string; name: string; kana: string | null; tel: string | null
+  children: { id: string; name: string; school_name: string | null; grade: string | null }[]
+}
+
+function CustomerInfoPanel({ customerId, storeId }: { customerId: string; storeId: string }) {
+  const [data, setData]       = useState<CustomerInfo | null>(null)
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    supabase.from('customers').select('id, name, kana, tel, children(id, name, school_name, grade)')
+      .eq('id', customerId).single()
+      .then(({ data: d }) => { setData(d as CustomerInfo | null); setLoading(false) })
+  }, [customerId])
+  if (loading) return <div className="flex justify-center py-2"><Loader2 size={14} className="animate-spin text-zinc-500" /></div>
+  if (!data)   return <p className="text-zinc-600 text-xs">顧客情報なし</p>
+  return (
+    <div className="space-y-1.5">
+      {data.kana && <p className="text-zinc-400 text-xs">{data.kana}</p>}
+      {data.tel  && (
+        <a href={`tel:${data.tel}`} className="flex items-center gap-1.5 text-blue-400 text-xs font-bold">
+          <Phone size={11} />{data.tel}
+        </a>
+      )}
+      {(data.children ?? []).map(c => (
+        <div key={c.id} className="flex items-center gap-1.5">
+          <GraduationCap size={11} className="text-amber-400 shrink-0" />
+          <span className="text-amber-300 text-xs font-bold">{c.name}</span>
+          {c.school_name && <span className="text-zinc-500 text-xs truncate">{c.school_name}{c.grade && ` ${c.grade}`}</span>}
+        </div>
+      ))}
+      <a href={`/${storeId}/admin/crm`}
+        className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 mt-0.5">
+        <User size={10} />顧客管理で編集
+      </a>
+    </div>
+  )
+}
+
+// ============================================================
 // 待ちカード
 // ============================================================
-function WaitingCard({ ticket, onAction, onCheckIn }: {
-  ticket: Queue
+function WaitingCard({ ticket, storeId, onAction, onCheckIn }: {
+  ticket: Queue; storeId: string
   onAction: (id: string, s: QueueStatus) => Promise<void>
   onCheckIn: (id: string) => Promise<void>
 }) {
-  const [loading, setLoading] = useState<string | null>(null)
-  const [open, setOpen]       = useState(false)
+  const [loading, setLoading]   = useState<string | null>(null)
+  const [open, setOpen]         = useState(false)
+  const [custOpen, setCustOpen] = useState(false)
   const waitMin   = Math.floor((Date.now() - new Date(ticket.created_at).getTime()) / 60000)
   const details   = (ticket.details ?? {}) as Record<string, string>
   const hasDetail = !!(details.height || details.weight || details.parentPhone || details.note)
@@ -188,9 +230,11 @@ function WaitingCard({ ticket, onAction, onCheckIn }: {
               ? <span className="text-xs bg-emerald-900/50 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-full">LINE✓</span>
               : <span className="text-xs bg-zinc-800 text-zinc-500 px-1.5 py-0.5 rounded-full">LINE×</span>}
           </div>
-          <p className={`font-bold text-base leading-tight truncate ${isRemoteUnchecked ? 'text-zinc-400' : 'text-white'}`}>
+          <button onClick={() => ticket.customer_id && setCustOpen(v => !v)}
+            className={`font-bold text-base leading-tight truncate text-left w-full flex items-center gap-1 ${isRemoteUnchecked ? 'text-zinc-400' : 'text-white'}`}>
             {ticket.customer_name} 様
-          </p>
+            {ticket.customer_id && <User size={11} className={`shrink-0 ${custOpen ? 'text-indigo-400' : 'text-zinc-600'}`} />}
+          </button>
           {ticket.child_name && <p className="text-zinc-400 text-xs truncate">お子様: {ticket.child_name}</p>}
           <p className="text-zinc-500 text-xs truncate mt-0.5">{ticket.school_name}</p>
         </div>
@@ -207,6 +251,12 @@ function WaitingCard({ ticket, onAction, onCheckIn }: {
           {details.weight      && <DetailRow label="体重" value={`${details.weight}kg`} />}
           {details.parentPhone && <DetailRow label="保護者TEL" value={details.parentPhone} />}
           {details.note        && <DetailRow label="相談事項" value={details.note} />}
+        </div>
+      )}
+
+      {custOpen && ticket.customer_id && (
+        <div className="mt-3 pt-3 border-t border-white/5 animate-fade-in">
+          <CustomerInfoPanel customerId={ticket.customer_id} storeId={storeId} />
         </div>
       )}
 
@@ -242,9 +292,10 @@ function WaitingCard({ ticket, onAction, onCheckIn }: {
 // ============================================================
 // 呼出中カード（常時アクションボタン表示）
 // ============================================================
-function CallingCard({ ticket, onAction }: { ticket: Queue; onAction: (id: string, s: QueueStatus) => Promise<void> }) {
-  const [loading, setLoading] = useState<string | null>(null)
-  const [open, setOpen]       = useState(false)
+function CallingCard({ ticket, storeId, onAction }: { ticket: Queue; storeId: string; onAction: (id: string, s: QueueStatus) => Promise<void> }) {
+  const [loading, setLoading]   = useState<string | null>(null)
+  const [open, setOpen]         = useState(false)
+  const [custOpen, setCustOpen] = useState(false)
   const waitMin   = Math.floor((Date.now() - new Date(ticket.created_at).getTime()) / 60000)
   const details   = (ticket.details ?? {}) as Record<string, string>
   const hasDetail = !!(details.height || details.weight || details.parentPhone || details.note)
@@ -275,7 +326,11 @@ function CallingCard({ ticket, onAction }: { ticket: Queue; onAction: (id: strin
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${GENDER_STYLES[ticket.gender]}`}>{GENDER_LABELS[ticket.gender]}</span>
             )}
           </div>
-          <p className="font-bold text-white text-base leading-tight truncate">{ticket.customer_name} 様</p>
+          <button onClick={() => ticket.customer_id && setCustOpen(v => !v)}
+            className="font-bold text-white text-base leading-tight truncate text-left w-full flex items-center gap-1">
+            {ticket.customer_name} 様
+            {ticket.customer_id && <User size={11} className={`shrink-0 ${custOpen ? 'text-indigo-400' : 'text-zinc-600'}`} />}
+          </button>
           {ticket.child_name && <p className="text-zinc-400 text-xs truncate">お子様: {ticket.child_name}</p>}
           <p className="text-zinc-500 text-xs truncate mt-0.5">{ticket.school_name}</p>
         </div>
@@ -284,6 +339,12 @@ function CallingCard({ ticket, onAction }: { ticket: Queue; onAction: (id: strin
             hasDetail ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-zinc-800/80 text-zinc-600'
           }`}>{open ? '閉' : '詳'}</button>
       </div>
+
+      {custOpen && ticket.customer_id && (
+        <div className="mt-3 pt-3 border-t border-white/5 animate-fade-in">
+          <CustomerInfoPanel customerId={ticket.customer_id} storeId={storeId} />
+        </div>
+      )}
 
       {open && hasDetail && (
         <div className="mt-3 pt-3 border-t border-white/5 space-y-1.5">
@@ -846,32 +907,36 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
           </div>
         )}
 
-        <div className="space-y-2">
-          <div className="grid grid-cols-3 gap-2">
+        <div className="space-y-1.5">
+          {/* 待機・呼出中（大） */}
+          <div className="grid grid-cols-2 gap-2">
             {[
-              { label: '本日合計', value: total,                 color: 'text-white' },
-              { label: '待機',     value: waitingTickets.length, color: 'text-blue-400' },
-              { label: '呼出中',   value: callingTickets.length, color: 'text-amber-400' },
+              { label: '待機',   value: waitingTickets.length, color: 'text-blue-400',  bg: 'bg-blue-500/10 border-blue-500/20' },
+              { label: '呼出中', value: callingTickets.length, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
             ].map(s => (
-              <div key={s.label} className="bg-white/5 backdrop-blur-sm border border-white/5 rounded-xl p-2.5 text-center">
-                <div className={`text-2xl font-black tabular-nums ${s.color}`}>{s.value}</div>
-                <div className="text-zinc-500 text-xs mt-0.5">{s.label}</div>
+              <div key={s.label} className={`backdrop-blur-sm border rounded-xl p-3 text-center ${s.bg}`}>
+                <div className={`text-4xl font-black tabular-nums ${s.color}`}>{s.value}</div>
+                <div className="text-zinc-400 text-xs mt-0.5 font-bold">{s.label}</div>
               </div>
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          {/* 本日合計・完了・不在（小、完了/不在はタップで履歴） */}
+          <div className="grid grid-cols-3 gap-1.5">
+            <div className="bg-white/4 border border-white/5 rounded-xl px-2 py-1.5 text-center">
+              <div className="text-lg font-black tabular-nums text-zinc-300">{total}</div>
+              <div className="text-zinc-600 text-[10px]">本日合計</div>
+            </div>
             {([
-              { key: 'completed' as HistoryTab, label: '完了', value: completed,      color: 'text-emerald-400', activeBorder: 'border-emerald-500/50 bg-emerald-500/10' },
-              { key: 'cancelled' as HistoryTab, label: '不在', value: cancelledCount, color: 'text-zinc-300',    activeBorder: 'border-zinc-500/50 bg-zinc-500/10' },
+              { key: 'completed' as HistoryTab, label: '完了', value: completed,      color: 'text-emerald-400', activeBg: 'bg-emerald-500/10 border-emerald-500/30' },
+              { key: 'cancelled' as HistoryTab, label: '不在', value: cancelledCount, color: 'text-zinc-400',    activeBg: 'bg-zinc-500/10 border-zinc-500/30' },
             ]).map(s => (
               <button key={s.key} onClick={() => toggleHistory(s.key)}
-                className={`backdrop-blur-sm border rounded-xl p-2.5 text-center transition-all active:scale-95 ${
-                  historyVisible && historyTab === s.key ? s.activeBorder : 'bg-white/5 border-white/5 hover:bg-white/8'
+                className={`border rounded-xl px-2 py-1.5 text-center transition-all active:scale-95 ${
+                  historyVisible && historyTab === s.key ? s.activeBg : 'bg-white/4 border-white/5'
                 }`}>
-                <div className={`text-2xl font-black tabular-nums ${s.color}`}>{s.value}</div>
-                <div className="text-zinc-500 text-xs mt-0.5 flex items-center justify-center gap-0.5">
-                  {s.label}
-                  {historyVisible && historyTab === s.key ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                <div className={`text-lg font-black tabular-nums ${s.color}`}>{s.value}</div>
+                <div className="text-zinc-600 text-[10px] flex items-center justify-center gap-0.5">
+                  {s.label}{historyVisible && historyTab === s.key ? <ChevronUp size={9}/> : <ChevronDown size={9}/>}
                 </div>
               </button>
             ))}
@@ -942,7 +1007,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
                   <BellRing size={32} className="mx-auto mb-2 opacity-30" />
                   <p className="text-sm">呼出中はいません</p>
                 </div>
-              ) : callingTickets.map(t => <CallingCard key={t.id} ticket={t} onAction={handleAction} />)}
+              ) : callingTickets.map(t => <CallingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} />)}
             </div>
 
             {/* 待ち: モバイル下、デスクトップ左 */}
@@ -959,7 +1024,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
                   <Users size={32} className="mx-auto mb-2 opacity-30" />
                   <p className="text-sm">待ちはいません</p>
                 </div>
-              ) : waitingTickets.map(t => <WaitingCard key={t.id} ticket={t} onAction={handleAction} onCheckIn={handleCheckIn} />)}
+              ) : waitingTickets.map(t => <WaitingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onCheckIn={handleCheckIn} />)}
             </div>
           </div>
 
