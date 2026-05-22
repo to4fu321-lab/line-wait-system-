@@ -46,14 +46,16 @@ git add . && git commit -m "fix: ○○を修正" && git push origin main
 
 ---
 
-## 担当エリア（目安）
+## 担当エリア（基本ルール）
 
-| エージェント | 主な担当 |
-|-------------|---------|
-| **Claude Code** | `app/api/` `lib/` `types/` Supabase・LINE・デプロイ |
-| **AntiGravity** | `app/[storeId]/` のUI・デザイン・レイアウト調整 |
+| エージェント | 担当 | 主なファイル |
+|-------------|------|------------|
+| **Claude Code** | API・バックエンド・DB・Vercelデプロイ | `app/api/` `lib/` `types/` `middleware.ts` |
+| **AntiGravity** | UI・画面デザイン・フロントエンド調整 | `app/[storeId]/**/*.tsx` `app/*/page.tsx` `globals.css` |
 
-※ 担当外でも作業可能。ただし `WORKING.md` で宣言してから着手すること。
+**この担当分けを基本とし、担当外のファイルは原則触らないこと。**
+
+やむを得ず担当外のファイルを変更する場合は、必ず `WORKING.md` に理由を明記してから着手する。
 
 ---
 
