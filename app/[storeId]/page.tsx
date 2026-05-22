@@ -415,15 +415,6 @@ export default function CustomerPage() {
             setView('queue_calling')
             playAlertSound()
             if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300])
-            if (updated.line_user_id) {
-              fetch('/api/notify', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  lineUserId: updated.line_user_id, ticketNumber: updated.ticket_number,
-                  customerName: updated.customer_name, storeId, type: 'calling',
-                }),
-              }).catch(console.error)
-            }
           }
           if (updated.status === 'completed') setView('queue_completed')
           if (updated.status === 'cancelled') setView('queue_cancelled')

@@ -5,12 +5,18 @@ function toKatakana(s: string) {
   return s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60))
 }
 
+// ひらがな・長音符・スペースのみか判定（漢字候補が出る前の状態）
+function isHiragana(s: string) {
+  return s.length > 0 && /^[ぁ-ゖー\s]*$/.test(s)
+}
+
 /**
  * vanilla-autokana インスパイア。
  *
  * ・compositionStart  : kana を snapshot する
- * ・compositionUpdate : IME 入力中のひらがなをリアルタイムで反映 (live preview)
- * ・compositionEnd    : IME 確定後に reading でフリガナを確定
+ * ・compositionUpdate : ひらがなの間だけリアルタイム反映。漢字候補が出た後は
+ *                       最後のひらがな読みを lastHiragana に保持（iOS 対策）
+ * ・compositionEnd    : lastHiragana があればそれを使う（iOS では e.data が漢字になる）
  * ・onChange (非IME)  : 前回値との差分を検出し、挿入文字列をカタカナ変換して追記
  *                       削除時は文字数比率でフリガナをトリム
  *
@@ -20,11 +26,12 @@ export function useKanaAutoFill(initialName = '') {
   const [name, _setName] = useState(initialName)
   const [kana, _setKana] = useState('')
 
-  const kanaRef   = useRef('')           // stale closure を避けるための kana 鏡
-  const edited    = useRef(false)        // ユーザーが kana 欄を手動編集済み
-  const composing = useRef(false)        // IME 変換中フラグ
-  const kanaSnap  = useRef('')           // compositionStart 時点の kana
-  const prevName  = useRef(initialName)  // 差分計算用の前回 name 値
+  const kanaRef      = useRef('')           // stale closure を避けるための kana 鏡
+  const edited       = useRef(false)        // ユーザーが kana 欄を手動編集済み
+  const composing    = useRef(false)        // IME 変換中フラグ
+  const kanaSnap     = useRef('')           // compositionStart 時点の kana
+  const prevName     = useRef(initialName)  // 差分計算用の前回 name 値
+  const lastHiragana = useRef('')           // compositionUpdate で保持した最後のひらがな読み
 
   const setKana = (v: string) => { _setKana(v); kanaRef.current = v }
 
@@ -60,20 +67,29 @@ export function useKanaAutoFill(initialName = '') {
     },
 
     onCompositionStart() {
-      composing.current = true
-      kanaSnap.current  = kanaRef.current
+      composing.current    = true
+      kanaSnap.current     = kanaRef.current
+      lastHiragana.current = ''
     },
 
     onCompositionUpdate(e: React.CompositionEvent<HTMLInputElement>) {
-      // e.data: 変換候補確定前のひらがな文字列
       if (edited.current || !e.data) return
-      setKana(kanaSnap.current + toKatakana(e.data))
+      if (isHiragana(e.data)) {
+        // まだひらがな段階 → 読みを保存してリアルタイム反映
+        lastHiragana.current = e.data
+        setKana(kanaSnap.current + toKatakana(e.data))
+      }
+      // 漢字候補が表示されている間は何もしない（lastHiragana に読みが残っている）
     },
 
     onCompositionEnd(e: React.CompositionEvent<HTMLInputElement>) {
       composing.current = false
-      // e.data: 最終的に確定したひらがな（漢字変換前の読み）
-      if (!edited.current) setKana(kanaSnap.current + toKatakana(e.data))
+      if (!edited.current) {
+        // iOS では e.data が確定した漢字になるため lastHiragana（読み）を優先する
+        const reading = lastHiragana.current || e.data
+        setKana(kanaSnap.current + toKatakana(reading))
+      }
+      lastHiragana.current = ''
       prevName.current = e.currentTarget.value
     },
   }
