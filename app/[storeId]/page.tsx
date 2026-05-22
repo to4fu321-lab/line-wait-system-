@@ -11,9 +11,10 @@ import { supabase, getTodayStart } from '@/lib/supabase'
 import type { Queue, WaitThreshold } from '@/types/database'
 import { DEFAULT_THRESHOLDS, getWaitMessage } from '@/types/database'
 import type { Customer, Child } from '@/types/crm'
-import { GRADE_OPTIONS } from '@/types/crm'
+import { GRADE_OPTIONS, SCHOOL_OPTIONS } from '@/types/crm'
 import { initLiff, getLineProfile, openAddFriend, isInLineApp, type LiffProfile } from '@/lib/liff'
 import { useStoreTheme } from '@/lib/theme-context'
+import { useKanaAutoFill } from '@/lib/useKanaAutoFill'
 
 const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
 
@@ -26,6 +27,25 @@ function toKatakana(s: string) {
   return s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60))
 }
 
+function playAlertSound() {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const AC = (window as any).AudioContext || (window as any).webkitAudioContext
+    if (!AC) return
+    const ctx = new AC()
+    ;[0, 0.4, 0.8].forEach(delay => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain); gain.connect(ctx.destination)
+      osc.frequency.value = 880; osc.type = 'sine'
+      gain.gain.setValueAtTime(0.4, ctx.currentTime + delay)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.25)
+      osc.start(ctx.currentTime + delay)
+      osc.stop(ctx.currentTime + delay + 0.3)
+    })
+  } catch { /* unsupported */ }
+}
+
 // ── 初回登録フォーム（保護者 + お子様）──────────────────────
 function InitialRegistrationForm({
   lineDisplayName,
@@ -36,42 +56,26 @@ function InitialRegistrationForm({
   onSubmit: (d: { parentName: string; parentKana: string; tel: string; childName: string; childKana: string; schoolName: string; grade: string }) => Promise<void>
   submitting: boolean
 }) {
-  const theme = useStoreTheme()
-  const [parentName, setParentName] = useState(lineDisplayName)
-  const [parentKana, setParentKana] = useState('')
+  const theme  = useStoreTheme()
+  const parent = useKanaAutoFill(lineDisplayName)
+  const child  = useKanaAutoFill('')
   const [tel,        setTel]        = useState('')
-  const [childName,  setChildName]  = useState('')
-  const [childKana,  setChildKana]  = useState('')
   const [schoolName, setSchoolName] = useState('')
   const [grade,      setGrade]      = useState('')
   const [error,      setError]      = useState('')
 
-  const isComposingParent = useRef(false)
-  const kanaBlockParent   = useRef(false)
-  const isComposingChild  = useRef(false)
-  const kanaBlockChild    = useRef(false)
-  const parentKanaEdited  = useRef(false)
-  const childKanaEdited   = useRef(false)
-
-  const onParentNameChange = (v: string) => {
-    setParentName(v)
-    if (!parentKanaEdited.current && !isComposingParent.current && !kanaBlockParent.current)
-      setParentKana(toKatakana(v))
-  }
-  const onChildNameChange = (v: string) => {
-    setChildName(v)
-    if (!childKanaEdited.current && !isComposingChild.current && !kanaBlockChild.current)
-      setChildKana(toKatakana(v))
-  }
-
   const handleSubmit = async () => {
-    if (!parentName.trim()) { setError('保護者のお名前を入力してください'); return }
-    if (!childName.trim())  { setError('お子様のお名前を入力してください'); return }
+    if (!parent.name.trim()) { setError('保護者のお名前を入力してください'); return }
+    if (!child.name.trim())  { setError('お子様のお名前を入力してください'); return }
     setError('')
-    await onSubmit({ parentName: parentName.trim(), parentKana: parentKana.trim(), tel: tel.trim(), childName: childName.trim(), childKana: childKana.trim(), schoolName: schoolName.trim(), grade })
+    await onSubmit({
+      parentName: parent.name.trim(), parentKana: parent.kana.trim(),
+      tel: tel.trim(), childName: child.name.trim(), childKana: child.kana.trim(),
+      schoolName: schoolName.trim(), grade,
+    })
   }
 
-  const base = 'w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50/80 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all'
+  const base  = 'w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50/80 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all'
   const focus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = theme.colors.primary)
   const blur  = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = '')
 
@@ -80,17 +84,11 @@ function InitialRegistrationForm({
       <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider pt-1">保護者情報</div>
       <div>
         <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
-        <input type="text" value={parentName} placeholder="例：山田 太郎" className={base}
-          onChange={e => onParentNameChange(e.target.value)}
-          onCompositionStart={() => { isComposingParent.current = true }}
-          onCompositionEnd={() => { isComposingParent.current = false; kanaBlockParent.current = true }}
-          onFocus={focus} onBlur={blur} />
+        <input type="text" {...parent.nameProps} placeholder="例：山田 太郎" className={base} onFocus={focus} onBlur={blur} />
       </div>
       <div>
         <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
-        <input type="text" value={parentKana} placeholder="ヤマダ タロウ" className={base}
-          onChange={e => { parentKanaEdited.current = true; setParentKana(e.target.value) }}
-          onFocus={focus} onBlur={blur} />
+        <input type="text" {...parent.kanaProps} placeholder="ヤマダ タロウ" className={base} onFocus={focus} onBlur={blur} />
       </div>
       <div>
         <label className="block text-xs font-bold text-zinc-500 mb-1.5">電話番号</label>
@@ -101,23 +99,19 @@ function InitialRegistrationForm({
       <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider pt-2 border-t border-zinc-100">お子様情報</div>
       <div>
         <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
-        <input type="text" value={childName} placeholder="例：山田 花子" className={base}
-          onChange={e => onChildNameChange(e.target.value)}
-          onCompositionStart={() => { isComposingChild.current = true }}
-          onCompositionEnd={() => { isComposingChild.current = false; kanaBlockChild.current = true }}
-          onFocus={focus} onBlur={blur} />
+        <input type="text" {...child.nameProps} placeholder="例：山田 花子" className={base} onFocus={focus} onBlur={blur} />
       </div>
       <div>
         <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
-        <input type="text" value={childKana} placeholder="ヤマダ ハナコ" className={base}
-          onChange={e => { childKanaEdited.current = true; setChildKana(e.target.value) }}
-          onFocus={focus} onBlur={blur} />
+        <input type="text" {...child.kanaProps} placeholder="ヤマダ ハナコ" className={base} onFocus={focus} onBlur={blur} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名</label>
-          <input type="text" value={schoolName} placeholder="○○中学校" className={base}
-            onChange={e => setSchoolName(e.target.value)} onFocus={focus} onBlur={blur} />
+          <select value={schoolName} onChange={e => setSchoolName(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
+            <option value="">選択してください</option>
+            {SCHOOL_OPTIONS.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
+          </select>
         </div>
         <div>
           <label className="block text-xs font-bold text-zinc-500 mb-1.5">学年</label>
@@ -134,7 +128,7 @@ function InitialRegistrationForm({
         </div>
       )}
 
-      <button onClick={handleSubmit} disabled={submitting || !parentName.trim() || !childName.trim()}
+      <button onClick={handleSubmit} disabled={submitting || !parent.name.trim() || !child.name.trim()}
         className="w-full text-white text-base font-black py-4 rounded-2xl disabled:opacity-50 flex items-center justify-center gap-2 active:scale-95 transition-transform"
         style={{
           background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`,
@@ -157,29 +151,18 @@ function AddChildForm({
   submitting: boolean
 }) {
   const theme = useStoreTheme()
-  const [childName,  setChildName]  = useState('')
-  const [childKana,  setChildKana]  = useState('')
+  const child = useKanaAutoFill('')
   const [schoolName, setSchoolName] = useState('')
   const [grade,      setGrade]      = useState('')
   const [error,      setError]      = useState('')
 
-  const isComposing = useRef(false)
-  const kanaBlock   = useRef(false)
-  const kanaEdited  = useRef(false)
-
-  const onNameChange = (v: string) => {
-    setChildName(v)
-    if (!kanaEdited.current && !isComposing.current && !kanaBlock.current)
-      setChildKana(toKatakana(v))
-  }
-
   const handleSubmit = async () => {
-    if (!childName.trim()) { setError('お名前を入力してください'); return }
+    if (!child.name.trim()) { setError('お名前を入力してください'); return }
     setError('')
-    await onSubmit({ childName: childName.trim(), childKana: childKana.trim(), schoolName: schoolName.trim(), grade })
+    await onSubmit({ childName: child.name.trim(), childKana: child.kana.trim(), schoolName: schoolName.trim(), grade })
   }
 
-  const base = 'w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50/80 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all'
+  const base  = 'w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50/80 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all'
   const focus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = theme.colors.primary)
   const blur  = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = '')
 
@@ -188,23 +171,19 @@ function AddChildForm({
       <p className="text-xs font-bold" style={{ color: theme.colors.primary }}>新しいお子様の情報</p>
       <div>
         <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
-        <input type="text" value={childName} placeholder="例：山田 次郎" className={base}
-          onChange={e => onNameChange(e.target.value)}
-          onCompositionStart={() => { isComposing.current = true }}
-          onCompositionEnd={() => { isComposing.current = false; kanaBlock.current = true }}
-          onFocus={focus} onBlur={blur} />
+        <input type="text" {...child.nameProps} placeholder="例：山田 次郎" className={base} onFocus={focus} onBlur={blur} />
       </div>
       <div>
         <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
-        <input type="text" value={childKana} placeholder="ヤマダ ジロウ" className={base}
-          onChange={e => { kanaEdited.current = true; setChildKana(e.target.value) }}
-          onFocus={focus} onBlur={blur} />
+        <input type="text" {...child.kanaProps} placeholder="ヤマダ ジロウ" className={base} onFocus={focus} onBlur={blur} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名</label>
-          <input type="text" value={schoolName} placeholder="○○中学校" className={base}
-            onChange={e => setSchoolName(e.target.value)} onFocus={focus} onBlur={blur} />
+          <select value={schoolName} onChange={e => setSchoolName(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
+            <option value="">選択してください</option>
+            {SCHOOL_OPTIONS.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
+          </select>
         </div>
         <div>
           <label className="block text-xs font-bold text-zinc-500 mb-1.5">学年</label>
@@ -223,7 +202,7 @@ function AddChildForm({
         <button onClick={onCancel} className="flex-1 py-3 rounded-xl border border-zinc-200 text-zinc-500 font-bold text-sm active:scale-95 transition-transform">
           キャンセル
         </button>
-        <button onClick={handleSubmit} disabled={submitting || !childName.trim()}
+        <button onClick={handleSubmit} disabled={submitting || !child.name.trim()}
           className="flex-1 py-3 rounded-xl text-white font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
           style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})` }}>
           {submitting ? <Loader2 size={14} className="animate-spin" /> : '追加する'}
@@ -290,7 +269,8 @@ export default function CustomerPage() {
   const [ticket,         setTicket]         = useState<Queue | null>(null)
   const [waitingAhead,   setWaitingAhead]   = useState(0)
   const [waitingCount,   setWaitingCount]   = useState<number | null>(null)
-  const [waitThresholds, setWaitThresholds] = useState<WaitThreshold[]>(DEFAULT_THRESHOLDS)
+  const [waitThresholds,    setWaitThresholds]    = useState<WaitThreshold[]>(DEFAULT_THRESHOLDS)
+  const notificationPlanRef = useRef<'calling_only' | 'full'>('calling_only')
   const [submitting,     setSubmitting]     = useState(false)
   const [issuing,        setIssuing]        = useState(false)
   const [repairLoading,  setRepairLoading]  = useState(false)
@@ -324,10 +304,11 @@ export default function CustomerPage() {
   useEffect(() => {
     if (!storeId) return
     ;(async () => { try {
-      const { data: sd } = await supabase.from('stores')
-        .select('is_open, wait_thresholds').eq('id', storeId).single()
+      const { data: sd } = await (supabase.from('stores') as any)
+        .select('is_open, wait_thresholds, notification_plan').eq('id', storeId).single()
       if (sd && Array.isArray(sd.wait_thresholds) && sd.wait_thresholds.length > 0)
         setWaitThresholds(sd.wait_thresholds as WaitThreshold[])
+      if (sd?.notification_plan) notificationPlanRef.current = sd.notification_plan
 
       await initLiff()
       const profile = await getLineProfile()
@@ -407,8 +388,7 @@ export default function CustomerPage() {
       if (action === 'repair')   { setView('repair_speak');   return }
       if (action === 'purchase') { setView('purchase_ec');    return }
       if (action === 'queue') {
-        if (cust) { setView('confirm_queue'); return }
-        setPendingAction('queue'); setView('register'); return
+        setView('confirm_queue'); return
       }
       setView('purpose')
     } catch (e) {
@@ -450,7 +430,11 @@ export default function CustomerPage() {
         payload => {
           const updated = payload.new as Queue
           setTicket(updated)
-          if (updated.status === 'calling')   setView('queue_calling')
+          if (updated.status === 'calling') {
+            setView('queue_calling')
+            playAlertSound()
+            if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300])
+          }
           if (updated.status === 'completed') setView('queue_completed')
           if (updated.status === 'cancelled') setView('queue_cancelled')
         })
@@ -637,7 +621,7 @@ export default function CustomerPage() {
       localStorage.setItem(ticketKey, t.id)
       localStorage.setItem(dateKey, new Date().toDateString())
       setTicket(t)
-      if (t.line_user_id) {
+      if (t.line_user_id && notificationPlanRef.current === 'full') {
         fetch('/api/notify', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -646,6 +630,17 @@ export default function CustomerPage() {
           }),
         }).catch(console.error)
       }
+      // 管理者デバイスへブラウザプッシュ通知
+      fetch('/api/push-admin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storeId,
+          type:  'queue_new',
+          title: `🔔 新規受付 No.${String(t.ticket_number).padStart(3, '0')}`,
+          body:  `${t.customer_name} 様が受付しました`,
+          url:   `/${storeId}/admin`,
+        }),
+      }).catch(console.error)
       setView('queue_waiting')
     } catch (e) { console.error(e) }
     setIssuing(false)
@@ -692,7 +687,7 @@ export default function CustomerPage() {
       .select('*', { count: 'exact', head: true })
       .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
     setWaitingCount(count ?? 0)
-    if (customer) { setView('welcome') } else { setView('purpose') }
+    setView('purpose')
   }
 
   // ══════════════════════════════════════════════════════════
@@ -864,10 +859,7 @@ export default function CustomerPage() {
 
       <div className="space-y-4">
         <button
-          onClick={() => {
-            if (!customer) { setPendingAction('queue'); setView('register') }
-            else setView('confirm_queue')
-          }}
+          onClick={() => setView('confirm_queue')}
           disabled={issuing}
           className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all disabled:opacity-80"
           style={cardStyle}>
@@ -1083,43 +1075,40 @@ export default function CustomerPage() {
               )}
             </div>
           ) : (
-            <div className="bg-white rounded-2xl shadow-sm border border-zinc-100 overflow-hidden">
-              <button onClick={() => setShowQueueRegister(v => !v)}
-                className="w-full flex items-center justify-between px-4 py-3.5 active:bg-zinc-50 transition-colors">
-                <div className="text-left">
-                  <p className="font-bold text-zinc-800 text-sm">お客様情報のご登録</p>
-                  <p className="text-xs text-zinc-400 mt-0.5">登録するとお名前でお呼びできます</p>
+            <div className="rounded-2xl overflow-hidden border-2 border-indigo-400/60"
+              style={{ background: 'linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%)', boxShadow: '0 8px 24px -8px rgba(99,102,241,0.25)' }}>
+              <div className="px-4 pt-4 pb-3 flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="text-white text-lg">📋</span>
                 </div>
-                {showQueueRegister
-                  ? <ChevronUp size={16} className="text-zinc-400 shrink-0" />
-                  : <ChevronDown size={16} className="text-zinc-400 shrink-0" />
-                }
-              </button>
-              {showQueueRegister && (
-                <div className="px-4 pb-5 border-t border-zinc-100">
-                  {queueRegDone ? (
-                    <div className="flex items-center justify-center gap-2 text-emerald-600 text-sm font-bold py-5">
-                      <CheckCircle2 size={16} />ご登録ありがとうございます！
-                    </div>
-                  ) : (
-                    <>
-                      {registerError && (
-                        <div className="flex items-start gap-2 text-red-600 text-xs bg-red-50 rounded-xl px-3 py-2 mt-3 mb-1">
-                          <AlertCircle size={13} className="shrink-0 mt-0.5" />
-                          <div><p className="font-bold">登録エラー</p><p className="mt-0.5">{registerError}</p></div>
-                        </div>
-                      )}
-                      <div className="mt-3">
-                        <InitialRegistrationForm
-                          lineDisplayName={lineProfile?.displayName ?? ''}
-                          onSubmit={handleInitialRegister}
-                          submitting={submitting}
-                        />
+                <div>
+                  <p className="font-black text-indigo-900 text-sm">会員情報のご登録をお願いします</p>
+                  <p className="text-indigo-600/70 text-xs mt-0.5">登録いただくとお名前でお呼びできます。次回からは自動認識します</p>
+                </div>
+              </div>
+              <div className="px-4 pb-5 border-t border-indigo-200/60">
+                {queueRegDone ? (
+                  <div className="flex items-center justify-center gap-2 text-emerald-600 text-sm font-bold py-5">
+                    <CheckCircle2 size={16} />ご登録ありがとうございます！
+                  </div>
+                ) : (
+                  <>
+                    {registerError && (
+                      <div className="flex items-start gap-2 text-red-600 text-xs bg-red-50 rounded-xl px-3 py-2 mt-3 mb-1">
+                        <AlertCircle size={13} className="shrink-0 mt-0.5" />
+                        <div><p className="font-bold">登録エラー</p><p className="mt-0.5">{registerError}</p></div>
                       </div>
-                    </>
-                  )}
-                </div>
-              )}
+                    )}
+                    <div className="mt-3">
+                      <InitialRegistrationForm
+                        lineDisplayName={lineProfile?.displayName ?? ''}
+                        onSubmit={handleInitialRegister}
+                        submitting={submitting}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </div>
