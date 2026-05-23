@@ -241,7 +241,7 @@ function RepairItem({ repair, showCustomer = false, storeId, onComplete, onDeliv
 // ============================================================
 // 追加購入アイテム
 // ============================================================
-function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrder, onArrive, onDeliver, onRevert }: {
+function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrder, onArrive, onDeliver, onRevert, alertDays }: {
   order: PurchaseOrder | PurchaseWithCustomer
   showCustomer?: boolean
   storeId?: string
@@ -250,6 +250,7 @@ function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrd
   onArrive:    (id: string) => Promise<void>
   onDeliver:   (id: string) => Promise<void>
   onRevert:    (id: string) => Promise<void>
+  alertDays?: number
 }) {
   const [loading,       setLoading]       = useState<string | null>(null)
   const [confirmStock,  setConfirmStock]  = useState(false)
@@ -258,6 +259,11 @@ function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrd
   const [custOpen,      setCustOpen]      = useState(false)
   const customerName = showCustomer ? (order as PurchaseWithCustomer).customer?.name : null
   const childName    = showCustomer ? (order as PurchaseWithCustomer).child?.name    : null
+  const isOverdue = alertDays != null && order.status === 'arrived' && order.arrived_date &&
+    (Date.now() - new Date(order.arrived_date).getTime()) / 86400000 > alertDays
+  const overdueDays = isOverdue
+    ? Math.floor((Date.now() - new Date(order.arrived_date!).getTime()) / 86400000)
+    : 0
 
   const cardBg =
     order.status === 'delivered' ? 'bg-zinc-900/30 border-zinc-800/40' :
@@ -301,6 +307,11 @@ function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrd
             {order.notified && (
               <span className="text-xs bg-emerald-900/50 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">
                 LINE通知済み
+              </span>
+            )}
+            {isOverdue && (
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1">
+                <AlertCircle size={10} />お渡し{overdueDays}日超過
               </span>
             )}
           </div>
@@ -1403,7 +1414,7 @@ export default function CRMPage() {
                 <div className="text-center py-6 text-zinc-600 text-sm">預かり中のお直しはありません</div>
               ) : repairReceivedList.map(r => (
                 <RepairItem key={r.id} repair={r} showCustomer storeId={storeId}
-                  onComplete={handleRepairComplete} onDeliver={handleRepairDeliver} onRevert={handleRepairRevert} />
+                  onComplete={handleRepairComplete} onDeliver={handleRepairDeliver} onRevert={handleRepairRevert} alertDays={alertDaysRepair} />
               ))}
             </div>
           )}
@@ -1420,7 +1431,7 @@ export default function CRMPage() {
                 <div className="text-center py-6 text-zinc-600 text-sm">完了済みのお直しはありません</div>
               ) : repairCompletedList.map(r => (
                 <RepairItem key={r.id} repair={r} showCustomer storeId={storeId}
-                  onComplete={handleRepairComplete} onDeliver={handleRepairDeliver} onRevert={handleRepairRevert} />
+                  onComplete={handleRepairComplete} onDeliver={handleRepairDeliver} onRevert={handleRepairRevert} alertDays={alertDaysRepair} />
               ))}
             </div>
           )}
@@ -1438,7 +1449,7 @@ export default function CRMPage() {
               ) : purchaseReceivedList.map(o => (
                 <PurchaseItem key={o.id} order={o} showCustomer storeId={storeId}
                   onStock={handlePurchaseStock} onBackOrder={handlePurchaseBackOrder}
-                  onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} />
+                  onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} alertDays={alertDaysPurchase} />
               ))}
             </div>
           )}
@@ -1456,7 +1467,7 @@ export default function CRMPage() {
               ) : purchaseInProgressList.map(o => (
                 <PurchaseItem key={o.id} order={o} showCustomer storeId={storeId}
                   onStock={handlePurchaseStock} onBackOrder={handlePurchaseBackOrder}
-                  onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} />
+                  onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} alertDays={alertDaysPurchase} />
               ))}
             </div>
           )}
@@ -1474,7 +1485,7 @@ export default function CRMPage() {
               ) : purchaseArrivedList.map(o => (
                 <PurchaseItem key={o.id} order={o} showCustomer storeId={storeId}
                   onStock={handlePurchaseStock} onBackOrder={handlePurchaseBackOrder}
-                  onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} />
+                  onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} alertDays={alertDaysPurchase} />
               ))}
             </div>
           )}
@@ -1498,7 +1509,7 @@ export default function CRMPage() {
                         <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider px-1">お直しお渡し済み — {deliveredRepairs.length}件</p>
                         {deliveredRepairs.map(r => (
                           <RepairItem key={r.id} repair={r} showCustomer storeId={storeId}
-                            onComplete={handleRepairComplete} onDeliver={handleRepairDeliver} onRevert={handleRepairRevert} />
+                            onComplete={handleRepairComplete} onDeliver={handleRepairDeliver} onRevert={handleRepairRevert} alertDays={alertDaysRepair} />
                         ))}
                       </div>
                     )}
@@ -1508,7 +1519,7 @@ export default function CRMPage() {
                         {deliveredPurchases.map(o => (
                           <PurchaseItem key={o.id} order={o} showCustomer storeId={storeId}
                             onStock={handlePurchaseStock} onBackOrder={handlePurchaseBackOrder}
-                            onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} />
+                            onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} alertDays={alertDaysPurchase} />
                         ))}
                       </div>
                     )}
