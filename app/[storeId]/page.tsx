@@ -12,7 +12,7 @@ import type { Queue, WaitThreshold } from '@/types/database'
 import { DEFAULT_THRESHOLDS, getWaitMessage } from '@/types/database'
 import type { Customer, Child } from '@/types/crm'
 import { GRADE_OPTIONS, SCHOOL_OPTIONS } from '@/types/crm'
-import { initLiff, getLineProfile, openAddFriend, isInLineApp, type LiffProfile } from '@/lib/liff'
+import { initLiff, getLineProfile, openAddFriend, isInLineApp, checkFriendshipLiff, type LiffProfile } from '@/lib/liff'
 import { useStoreTheme } from '@/lib/theme-context'
 import { useKanaAutoFill } from '@/lib/useKanaAutoFill'
 
@@ -349,14 +349,29 @@ export default function CustomerPage() {
       }
 
       // LINEアプリ外または未ログインは友達追加画面へ
-      if (!profile || !isInLineApp()) { setView('add_friend'); return }
+      // ※ profileが取れなくてもLINE内ブラウザなら先に進む（リダイレクトループ防止）
+      if (!isInLineApp()) { setView('add_friend'); return }
+      if (!profile) {
+        // LINE内ブラウザだがLIFF未認証（直URLアクセス等）→ メニューへ通す
+        setView('purpose'); return
+      }
 
-      // 友達チェック（Messaging API経由でバックエンドから確認）
+      // 友達チェック（LIFF Friendship API優先、失敗時はbot API、両方失敗は通す）
       try {
-        const friendRes = await fetch(`/api/check-friend?userId=${profile.userId}`)
-        const { friend } = await friendRes.json()
-        if (!friend) { setView('add_friend'); return }
-      } catch { /* ネットワークエラー時は続行 */ }
+        const liffFriend = await checkFriendshipLiff()
+        if (liffFriend === false) {
+          // LIFF APIで明確に「未追加」と確認できた場合のみ add_friend へ
+          setView('add_friend'); return
+        } else if (liffFriend === null) {
+          // LIFF外など確認できない場合はbot APIにフォールバック
+          try {
+            const friendRes = await fetch(`/api/check-friend?userId=${profile.userId}`)
+            const { friend } = await friendRes.json()
+            if (friend === false) { setView('add_friend'); return }
+          } catch { /* API失敗時は通す */ }
+        }
+        // liffFriend === true → 友達確認済み、続行
+      } catch { /* チェック失敗時は通す（ブロックしない） */ }
 
       // URLアクションパラメータを読み取る（リッチメニュー経由）
       const urlParams = new URLSearchParams(window.location.search)
@@ -393,7 +408,8 @@ export default function CustomerPage() {
       setView('purpose')
     } catch (e) {
       console.error('[init] error:', e)
-      setView('add_friend')
+      // initエラー時はメニューを表示（add_friendループ防止）
+      setView('purpose')
     } })()
   }, [storeId, ticketKey, dateKey])
 

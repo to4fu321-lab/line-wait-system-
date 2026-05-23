@@ -12,19 +12,23 @@ export interface LiffProfile {
 }
 
 /**
- * LIFFを初期化する（多重初期化防止つき）
- * LIFF_IDが設定されていない場合・初期化失敗時は null を返す（システムは継続動作）
+ * LIFFを初期化する（多重初期化防止・リダイレクトループ防止つき）
  */
 export async function initLiff(): Promise<Liff | null> {
   if (typeof window === 'undefined') return null
   if (liffInstance) return liffInstance
   if (initPromise) return initPromise
 
-  const liffId = process.env.NEXT_PUBLIC_LIFF_ID || '2010126882-aUahQStD'
-  if (!liffId) {
-    console.warn('[LIFF] NEXT_PUBLIC_LIFF_ID is not set — LIFF disabled')
+  // リダイレクトループ検出: 直近1秒以内に既にLIFF initしていたらスキップ
+  const lastInit = sessionStorage.getItem('liff_init_ts')
+  const now = Date.now()
+  if (lastInit && now - parseInt(lastInit) < 1500) {
+    console.warn('[LIFF] init too fast — possible redirect loop, skipping')
     return null
   }
+  sessionStorage.setItem('liff_init_ts', String(now))
+
+  const liffId = process.env.NEXT_PUBLIC_LIFF_ID || '2010126882-aUahQStD'
 
   initPromise = (async () => {
     try {
@@ -32,9 +36,11 @@ export async function initLiff(): Promise<Liff | null> {
       const liff = liffModule.default
       await liff.init({ liffId, withLoginOnExternalBrowser: false })
       liffInstance = liff
+      sessionStorage.removeItem('liff_init_ts') // 正常完了 → ガード解除
       return liff
     } catch (e) {
       console.error('[LIFF] init failed:', e)
+      initPromise = null
       return null
     }
   })()
@@ -44,18 +50,13 @@ export async function initLiff(): Promise<Liff | null> {
 
 /**
  * LINEプロフィール（userId含む）を取得
- * LINE未ログイン時は自動でログイン誘導
  */
 export async function getLineProfile(): Promise<LiffProfile | null> {
   const liff = await initLiff()
   if (!liff) return null
 
   try {
-    if (!liff.isLoggedIn()) {
-      // 未ログイン（外部ブラウザ等）→ nullを返してadd_friend画面へ
-      // liff.login()でリダイレクトするとループになるため呼ばない
-      return null
-    }
+    if (!liff.isLoggedIn()) return null
 
     const profile = await liff.getProfile()
     return {
@@ -69,30 +70,31 @@ export async function getLineProfile(): Promise<LiffProfile | null> {
   }
 }
 
-/** LINE内ブラウザで開かれているか */
+/** LINE内ブラウザ（LIFFクライアント含む）で開かれているか */
 export function isInLineApp(): boolean {
-  // LIFFが初期化済みならSDKで判定
   if (liffInstance) {
     try { return liffInstance.isInClient() } catch { /* fall through */ }
   }
-  // フォールバック: UserAgentでLINE内ブラウザを判定
   if (typeof navigator !== 'undefined') {
     return /\bLine\b/i.test(navigator.userAgent)
   }
   return false
 }
 
-/** LINE公式アカウントを友達追加しているか */
-export async function checkFriendship(): Promise<boolean> {
+/**
+ * LIFFのFriendship APIで友達チェック（最も信頼性が高い）
+ * LIFF外では null を返す（スキップ）
+ */
+export async function checkFriendshipLiff(): Promise<boolean | null> {
   const liff = await initLiff()
-  if (!liff) return false
-  if (!liff.isLoggedIn()) return false
+  if (!liff || !liff.isLoggedIn()) return null
+  if (!liff.isInClient()) return null // LIFF外ではgetFriendship不可
   try {
     const { friendFlag } = await liff.getFriendship()
     return friendFlag
   } catch (e) {
     console.warn('[LIFF] getFriendship failed:', e)
-    return false
+    return null
   }
 }
 
