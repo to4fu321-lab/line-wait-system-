@@ -28,6 +28,25 @@ function fmtDate(d: string | null) {
   return new Date(d).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })
 }
 
+const KANA_ROWS = ['ア','カ','サ','タ','ナ','ハ','マ','ヤ','ラ','ワ','他'] as const
+type KanaRow = typeof KANA_ROWS[number]
+
+function getKanaRow(kana: string | null | undefined): KanaRow {
+  if (!kana) return '他'
+  const code = kana.charCodeAt(0)
+  if (code >= 0x30A2 && code <= 0x30AA) return 'ア'
+  if (code >= 0x30AB && code <= 0x30B4) return 'カ'
+  if (code >= 0x30B5 && code <= 0x30BE) return 'サ'
+  if (code >= 0x30BF && code <= 0x30C9) return 'タ'
+  if (code >= 0x30CA && code <= 0x30CE) return 'ナ'
+  if (code >= 0x30CF && code <= 0x30DD) return 'ハ'
+  if (code >= 0x30DE && code <= 0x30E2) return 'マ'
+  if (code >= 0x30E4 && code <= 0x30E8) return 'ヤ'
+  if (code >= 0x30E9 && code <= 0x30ED) return 'ラ'
+  if (code >= 0x30EF && code <= 0x30F3) return 'ワ'
+  return '他'
+}
+
 function Toast({ msg, type }: { msg: string; type: 'ok' | 'err' }) {
   return (
     <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl text-white text-sm font-bold shadow-2xl animate-fade-in max-w-xs text-center ${
@@ -938,6 +957,10 @@ export default function CRMPage() {
   const [deleteChildLoading, setDeleteChildLoading] = useState(false)
   const [showQrModal,      setShowQrModal]      = useState(false)
 
+  const [allCustomers,      setAllCustomers]      = useState<Customer[]>([])
+  const [allLoading,        setAllLoading]        = useState(true)
+  const [kanaFilter,        setKanaFilter]        = useState<KanaRow | null>(null)
+
   const [alertDaysRepair,   setAlertDaysRepair]   = useState(7)
   const [alertDaysPurchase, setAlertDaysPurchase] = useState(7)
 
@@ -1013,6 +1036,18 @@ export default function CRMPage() {
   }, [storeId])
 
   useEffect(() => { fetchStats() }, [fetchStats])
+
+  const fetchAllCustomers = useCallback(async () => {
+    if (!storeId) return
+    setAllLoading(true)
+    const q = supabase.from('customers').select('*').eq('store_id', storeId)
+    const { data } = await (showDeleted ? q.not('deleted_at', 'is', null) : q.is('deleted_at', null))
+      .order('kana', { ascending: true }).limit(500)
+    setAllCustomers(data ?? [])
+    setAllLoading(false)
+  }, [storeId, showDeleted])
+
+  useEffect(() => { fetchAllCustomers() }, [fetchAllCustomers])
 
   // ── 顧客検索（お子様名でもヒット・削除済み切替対応）──
   const searchCustomers = useCallback(async (q: string, deleted = false) => {
@@ -1544,7 +1579,7 @@ export default function CRMPage() {
                 className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border bg-indigo-500/20 border-indigo-500/40 text-indigo-300">
                 <QrCode size={12} />新規登録QR
               </button>
-              <button onClick={() => { setShowDeleted(v => !v); setSearchQuery(''); setCustomers([]); setSelectedCustomer(null) }}
+              <button onClick={() => { setShowDeleted(v => !v); setSearchQuery(''); setCustomers([]); setAllCustomers([]); setSelectedCustomer(null); setKanaFilter(null) }}
                 className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${showDeleted ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200'}`}>
                 {showDeleted ? <><EyeOff size={12} />削除済みを非表示</> : <><Eye size={12} />削除済みを表示</>}
               </button>
@@ -1552,10 +1587,10 @@ export default function CRMPage() {
           </div>
 
           {/* 検索 */}
-          <div className="relative mb-3">
+          <div className="relative mb-2">
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
             <input type="text" value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+              onChange={e => { setSearchQuery(e.target.value); setKanaFilter(null) }}
               placeholder="保護者名・お子様名・フリガナ・電話番号"
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-10 pr-9 py-3 text-sm text-white placeholder-zinc-600 focus:border-indigo-500 focus:outline-none transition-colors" />
             {searchQuery && (
@@ -1566,18 +1601,53 @@ export default function CRMPage() {
             )}
           </div>
 
+          {/* あいうえおインデックス */}
+          {!searchQuery.trim() && (
+            <div className="flex gap-1 mb-3 flex-wrap">
+              {KANA_ROWS.map(row => {
+                const count = allCustomers.filter(c => getKanaRow(c.kana) === row).length
+                const active = kanaFilter === row
+                return (
+                  <button key={row}
+                    onClick={() => setKanaFilter(active ? null : row)}
+                    disabled={count === 0}
+                    className={`min-w-[2.25rem] h-9 px-2 rounded-lg text-sm font-black transition-all active:scale-90 disabled:opacity-25 disabled:cursor-default ${
+                      active
+                        ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-900/40'
+                        : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                    }`}>
+                    {row}
+                    {count > 0 && !active && (
+                      <span className="block text-[9px] text-zinc-600 font-normal leading-none -mt-0.5">{count}</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
           {/* 顧客リスト */}
-          {searchQuery.trim() && (
-            customerLoading ? (
+          {(() => {
+            const isSearchMode = !!searchQuery.trim()
+            const list = isSearchMode
+              ? customers
+              : kanaFilter
+                ? allCustomers.filter(c => getKanaRow(c.kana) === kanaFilter)
+                : allCustomers
+            const loading = isSearchMode ? customerLoading : allLoading
+
+            if (loading) return (
               <div className="flex justify-center py-6"><Loader2 size={24} className="animate-spin text-indigo-400" /></div>
-            ) : customers.length === 0 ? (
+            )
+            if (list.length === 0) return (
               <div className="text-center py-6 text-zinc-600">
                 <User size={28} className="mx-auto mb-2 opacity-40" />
-                <p className="text-sm">該当する顧客が見つかりません</p>
+                <p className="text-sm">{isSearchMode ? '該当する顧客が見つかりません' : '顧客がいません'}</p>
               </div>
-            ) : (
+            )
+            return (
               <div className="space-y-2 mb-4 animate-fade-in">
-                {customers.map(c => (
+                {list.map(c => (
                   <button key={c.id} onClick={() => { setSelectedCustomer(prev => prev?.id === c.id ? null : c); setEditingCustomer(false); setShowAddChild(false) }}
                     className={`w-full text-left px-4 py-3 rounded-xl border transition-all active:scale-[0.98] ${
                       selectedCustomer?.id === c.id
@@ -1606,7 +1676,7 @@ export default function CRMPage() {
                 ))}
               </div>
             )
-          )}
+          })()}
 
           {/* 選択中顧客詳細 */}
           {selectedCustomer && (
