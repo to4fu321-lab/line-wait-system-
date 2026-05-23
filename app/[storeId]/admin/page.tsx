@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import {
   BellRing, CheckCheck, UserX, RefreshCw, Clock, Users,
   Loader2, Store, Settings, Plus, Trash2, Phone, User, GraduationCap,
-  ChevronRight, ChevronDown, ChevronUp, LayoutDashboard, X, MapPin, BellOff, Bell,
+  ChevronRight, ChevronDown, ChevronUp, LayoutDashboard, X, MapPin, BellOff, Bell, AlertCircle,
 } from 'lucide-react'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import type { Queue, QueueStatus, WaitThreshold } from '@/types/database'
@@ -436,6 +436,7 @@ function SettingsPanel({
   noticeThreshold, waitThresholds, allowRemote, notificationPlan, pushSettings,
   onNoticeChange, onThresholdsChange, onRemoteChange, onPlanChange, onPushSettingsChange,
   onSave, saving, isTestMode, testLoading, onTestModeToggle, onTestSeed, onTestClear,
+  alertDaysRepair, alertDaysPurchase, onAlertRepairChange, onAlertPurchaseChange,
 }: {
   noticeThreshold: number; waitThresholds: WaitThreshold[]; allowRemote: boolean
   notificationPlan: 'calling_only' | 'full'
@@ -448,6 +449,10 @@ function SettingsPanel({
   onSave: () => void; saving: boolean
   isTestMode: boolean; testLoading: string | null
   onTestModeToggle: () => void; onTestSeed: () => void; onTestClear: () => void
+  alertDaysRepair: number
+  alertDaysPurchase: number
+  onAlertRepairChange: (v: number) => void
+  onAlertPurchaseChange: (v: number) => void
 }) {
   return (
     <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 space-y-6">
@@ -584,6 +589,34 @@ function SettingsPanel({
         {saving ? <><Loader2 size={16} className="animate-spin inline mr-2" />保存中...</> : '設定を保存'}
       </button>
 
+      {/* 期限アラート設定 */}
+      <div className="mt-4 pt-4 border-t border-white/10">
+        <p className="text-xs font-bold text-zinc-400 mb-3 flex items-center gap-1.5">
+          <AlertCircle size={12} className="text-amber-400" />未お渡し期限アラート（日数）
+        </p>
+        {[
+          { label: 'お直し完了→未お渡し', value: alertDaysRepair,   onChange: onAlertRepairChange },
+          { label: '取置き入荷→未お渡し', value: alertDaysPurchase, onChange: onAlertPurchaseChange },
+        ].map(({ label, value, onChange }) => (
+          <div key={label} className="flex items-center gap-3 mb-2">
+            <span className="text-xs text-zinc-400 flex-1">{label}</span>
+            <div className="flex items-center gap-1">
+              {[3, 5, 7, 14, 30].map(d => (
+                <button key={d} onClick={() => onChange(d)}
+                  className={`w-9 h-7 rounded-lg text-xs font-bold transition-all ${
+                    value === d
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-zinc-800 text-zinc-500 hover:bg-zinc-700'
+                  }`}>
+                  {d}
+                </button>
+              ))}
+              <span className="text-xs text-zinc-600 ml-1">日</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* テストモード */}
       <div className="border-t border-white/10 pt-5">
         <label className="text-sm font-bold text-zinc-300 mb-3 block">🧪 テストモード</label>
@@ -641,6 +674,9 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
   const [notificationPlan,  setNotificationPlan]  = useState<'calling_only' | 'full'>('calling_only')
   const [pushSettings,      setPushSettings]      = useState({ queue_new: true, purchase_new: true })
   const [isTestMode,        setIsTestMode]        = useState(false)
+  const [activeFittings,    setActiveFittings]    = useState(1)
+  const [alertDaysRepair,   setAlertDaysRepair]   = useState(7)
+  const [alertDaysPurchase, setAlertDaysPurchase] = useState(7)
   const [testLoading,       setTestLoading]       = useState<'seed'|'clear'|'toggle'|null>(null)
   const [saving,            setSaving]            = useState(false)
   const [showSettings,      setShowSettings]      = useState(false)
@@ -681,7 +717,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
 
   const fetchStoreStatus = useCallback(async () => {
     const { data } = await supabase.from('stores')
-      .select('is_open, notice_threshold, wait_thresholds, allow_remote, notification_plan, push_settings, is_test_mode')
+      .select('is_open, notice_threshold, wait_thresholds, allow_remote, notification_plan, push_settings, is_test_mode, active_fittings, alert_days_repair, alert_days_purchase')
       .eq('id', store.id).single()
     if (data) {
       setIsOpen(data.is_open ?? false)
@@ -694,6 +730,9 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if ((data as any).push_settings) setPushSettings((data as any).push_settings)
       if ((data as any).is_test_mode != null) setIsTestMode((data as any).is_test_mode)
+      if ((data as any).active_fittings != null) setActiveFittings((data as any).active_fittings)
+      if ((data as any).alert_days_repair   != null) setAlertDaysRepair((data as any).alert_days_repair)
+      if ((data as any).alert_days_purchase != null) setAlertDaysPurchase((data as any).alert_days_purchase)
     }
   }, [store.id])
 
@@ -781,6 +820,11 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
     showToast('ok', '代理チェックイン済みにしました')
   }
 
+  const handleFittingsChange = async (n: number) => {
+    setActiveFittings(n)
+    await (supabase.from('stores') as any).update({ active_fittings: n }).eq('id', store.id)
+  }
+
   const handleTestModeToggle = async () => {
     setTestLoading('toggle')
     const next = !isTestMode
@@ -823,11 +867,13 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
   const handleSaveSettings = async () => {
     setSaving(true)
     const { error } = await (supabase.from('stores') as any).update({
-      notice_threshold:  noticeThreshold,
-      wait_thresholds:   waitThresholds,
-      allow_remote:      allowRemote,
-      notification_plan: notificationPlan,
-      push_settings:     pushSettings,
+      notice_threshold:   noticeThreshold,
+      wait_thresholds:    waitThresholds,
+      allow_remote:       allowRemote,
+      notification_plan:  notificationPlan,
+      push_settings:      pushSettings,
+      alert_days_repair:  alertDaysRepair,
+      alert_days_purchase: alertDaysPurchase,
     }).eq('id', store.id)
     setSaving(false)
     showToast(error ? 'err' : 'ok', error ? '保存失敗: ' + error.message : '設定を保存しました')
@@ -941,6 +987,22 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
               </button>
             ))}
           </div>
+          {/* 稼働フィッティング数 */}
+          <div className="flex items-center gap-2 bg-white/4 border border-white/5 rounded-xl px-3 py-2">
+            <span className="text-zinc-500 text-xs font-bold shrink-0">稼働フィッティング</span>
+            <div className="flex gap-1 ml-auto">
+              {[1, 2, 3].map(n => (
+                <button key={n} onClick={() => handleFittingsChange(n)}
+                  className={`w-8 h-8 rounded-lg text-sm font-black transition-all active:scale-90 ${
+                    activeFittings === n
+                      ? 'bg-indigo-500 text-white'
+                      : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                  }`}>
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {remoteCount > 0 && (
@@ -986,6 +1048,10 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
                 isTestMode={isTestMode} testLoading={testLoading}
                 onTestModeToggle={handleTestModeToggle}
                 onTestSeed={handleTestSeed} onTestClear={handleTestClear}
+                alertDaysRepair={alertDaysRepair}
+                alertDaysPurchase={alertDaysPurchase}
+                onAlertRepairChange={setAlertDaysRepair}
+                onAlertPurchaseChange={setAlertDaysPurchase}
               />
             </div>
           )}

@@ -96,13 +96,14 @@ function CustomerInfoPanel({ customerId, storeId }: { customerId: string; storeI
 // ============================================================
 // お直しアイテム
 // ============================================================
-function RepairItem({ repair, showCustomer = false, storeId, onComplete, onDeliver, onRevert }: {
+function RepairItem({ repair, showCustomer = false, storeId, onComplete, onDeliver, onRevert, alertDays }: {
   repair: RepairHistory | RepairWithCustomer
   showCustomer?: boolean
   storeId?: string
   onComplete: (id: string) => Promise<void>
   onDeliver:  (id: string) => Promise<void>
   onRevert:   (id: string) => Promise<void>
+  alertDays?: number
 }) {
   const [loading,         setLoading]         = useState<string | null>(null)
   const [confirmComplete, setConfirmComplete] = useState(false)
@@ -110,6 +111,11 @@ function RepairItem({ repair, showCustomer = false, storeId, onComplete, onDeliv
   const [custOpen,        setCustOpen]        = useState(false)
   const customerName = showCustomer ? (repair as RepairWithCustomer).customer?.name : null
   const childName    = showCustomer ? (repair as RepairWithCustomer).child?.name    : null
+  const isOverdue = alertDays != null && repair.status === 'completed' && repair.completed_date &&
+    (Date.now() - new Date(repair.completed_date).getTime()) / 86400000 > alertDays
+  const overdueDays = isOverdue
+    ? Math.floor((Date.now() - new Date(repair.completed_date!).getTime()) / 86400000)
+    : 0
 
   return (
     <div className={`rounded-2xl border p-4 transition-all ${
@@ -147,6 +153,11 @@ function RepairItem({ repair, showCustomer = false, storeId, onComplete, onDeliv
             {repair.notified && (
               <span className="text-xs bg-emerald-900/50 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">
                 LINE通知済み
+              </span>
+            )}
+            {isOverdue && (
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1">
+                <AlertCircle size={10} />お渡し{overdueDays}日超過
               </span>
             )}
           </div>
@@ -916,6 +927,9 @@ export default function CRMPage() {
   const [deleteChildLoading, setDeleteChildLoading] = useState(false)
   const [showQrModal,      setShowQrModal]      = useState(false)
 
+  const [alertDaysRepair,   setAlertDaysRepair]   = useState(7)
+  const [alertDaysPurchase, setAlertDaysPurchase] = useState(7)
+
   // 未対応統計
   const [stats, setStats] = useState({ repairReceived: 0, repairCompleted: 0, purchaseReceived: 0, purchaseInProgress: 0, purchaseArrived: 0 })
 
@@ -959,6 +973,17 @@ export default function CRMPage() {
     if (!storeId) return
     supabase.from('stores').select('name').eq('id', storeId).single()
       .then(({ data }) => { if (data) setStoreName(data.name ?? '') })
+  }, [storeId])
+
+  useEffect(() => {
+    if (!storeId) return
+    ;(supabase.from('stores') as any)
+      .select('alert_days_repair, alert_days_purchase')
+      .eq('id', storeId).single()
+      .then(({ data }: { data: any }) => {
+        if (data?.alert_days_repair   != null) setAlertDaysRepair(data.alert_days_repair)
+        if (data?.alert_days_purchase != null) setAlertDaysPurchase(data.alert_days_purchase)
+      })
   }, [storeId])
 
   const fetchStats = useCallback(async () => {
