@@ -290,6 +290,7 @@ export default function CustomerPage() {
   const [detailNote,    setDetailNote]    = useState('')
   const [detailSaving,  setDetailSaving]  = useState(false)
   const [detailSaved,   setDetailSaved]   = useState(false)
+  const [activeFittings, setActiveFittings] = useState(1)
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const ticketRef  = useRef<Queue | null>(null)
@@ -305,10 +306,11 @@ export default function CustomerPage() {
     if (!storeId) return
     ;(async () => { try {
       const { data: sd } = await (supabase.from('stores') as any)
-        .select('is_open, wait_thresholds, notification_plan').eq('id', storeId).single()
+        .select('is_open, wait_thresholds, notification_plan, active_fittings').eq('id', storeId).single()
       if (sd && Array.isArray(sd.wait_thresholds) && sd.wait_thresholds.length > 0)
         setWaitThresholds(sd.wait_thresholds as WaitThreshold[])
       if (sd?.notification_plan) notificationPlanRef.current = sd.notification_plan
+      if (sd?.active_fittings != null) setActiveFittings(sd.active_fittings)
 
       await initLiff()
       const profile = await getLineProfile()
@@ -1017,6 +1019,11 @@ export default function CustomerPage() {
                   <span className="text-5xl font-black text-white">{waitingAhead + 1}</span>
                   <span className="text-base font-bold text-white/70 ml-1">番目</span>
                 </div>
+                {waitingAhead >= 0 && (
+                  <p className="text-white/70 text-sm mt-1 font-medium">
+                    あと約{Math.ceil((waitingAhead + 1) / activeFittings) * 35}分
+                  </p>
+                )}
                 {waitMsg && <p className="text-white/80 text-sm mt-2 leading-relaxed">{waitMsg}</p>}
               </div>
               {ticket.line_user_id
