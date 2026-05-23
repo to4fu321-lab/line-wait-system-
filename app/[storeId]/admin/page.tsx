@@ -376,16 +376,22 @@ function CallingCard({ ticket, storeId, onAction }: { ticket: Queue; storeId: st
 // ============================================================
 // 履歴カード
 // ============================================================
-function HistoryCard({ ticket, onAction }: { ticket: Queue; onAction: (id: string, s: QueueStatus) => Promise<void> }) {
-  const [loading, setLoading] = useState<string | null>(null)
-  const [open, setOpen]       = useState(false)
+function HistoryCard({ ticket, storeId, onAction }: {
+  ticket: Queue; storeId: string; onAction: (id: string, s: QueueStatus) => Promise<void>
+}) {
+  const [loading,  setLoading]  = useState<string | null>(null)
+  const [open,     setOpen]     = useState(false)
+  const [custOpen, setCustOpen] = useState(false)
   const details   = (ticket.details ?? {}) as Record<string, string>
   const hasDetail = !!(details.height || details.weight || details.parentPhone || details.note)
   const isDone    = ticket.status === 'completed'
   const act = async (s: QueueStatus) => { setLoading(s); await onAction(ticket.id, s); setLoading(null) }
 
+  const waitMin = Math.floor((Date.now() - new Date(ticket.created_at).getTime()) / 60000)
+  const recvTime = new Date(ticket.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+
   return (
-    <div className={`backdrop-blur-sm border rounded-xl p-3 transition-all opacity-70 hover:opacity-100 ${
+    <div className={`backdrop-blur-sm border rounded-xl p-3 transition-all opacity-75 hover:opacity-100 ${
       isDone ? 'bg-emerald-950/30 border-emerald-500/20' : 'bg-zinc-900/60 border-zinc-700/50'
     }`}>
       <div className="flex items-center gap-3">
@@ -393,15 +399,21 @@ function HistoryCard({ ticket, onAction }: { ticket: Queue; onAction: (id: strin
           {String(ticket.ticket_number).padStart(3,'0')}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
               isDone ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
             }`}>{STATUS_LABELS[ticket.status]}</span>
             {ticket.is_remote && <span className="text-xs text-zinc-500">🏠</span>}
             <span className="text-xs text-zinc-500">{CATEGORY_ICONS[ticket.category]} {CATEGORY_LABELS[ticket.category]}</span>
+            {/* 受付時刻 + 待ち時間 */}
+            <span className="text-xs text-zinc-600">{recvTime}受付 · {waitMin}分</span>
           </div>
-          <p className="font-bold text-zinc-300 text-sm truncate mt-0.5">{ticket.customer_name} 様</p>
-          <p className="text-zinc-500 text-xs truncate">{ticket.school_name}</p>
+          <button onClick={() => (ticket as any).customer_id && setCustOpen(v => !v)}
+            className="font-bold text-zinc-300 text-sm truncate mt-0.5 text-left w-full flex items-center gap-1">
+            {ticket.customer_name} 様
+            {(ticket as any).customer_id && <User size={10} className={`shrink-0 ${custOpen ? 'text-indigo-400' : 'text-zinc-600'}`} />}
+          </button>
+          {ticket.child_name && <p className="text-zinc-500 text-xs truncate">お子様: {ticket.child_name}</p>}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {ticket.status === 'cancelled' && (
@@ -417,6 +429,13 @@ function HistoryCard({ ticket, onAction }: { ticket: Queue; onAction: (id: strin
           )}
         </div>
       </div>
+
+      {custOpen && (ticket as any).customer_id && (
+        <div className="mt-2 pt-2 border-t border-white/5 animate-fade-in">
+          <CustomerInfoPanel customerId={(ticket as any).customer_id} storeId={storeId} />
+        </div>
+      )}
+
       {open && hasDetail && (
         <div className="mt-2 pt-2 border-t border-white/5 space-y-1">
           {details.height      && <DetailRow label="身長" value={`${details.height}cm`} />}
@@ -455,104 +474,85 @@ function SettingsPanel({
   onAlertPurchaseChange: (v: number) => void
 }) {
   return (
-    <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 space-y-6">
+    <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 space-y-5">
       <h3 className="font-black text-white flex items-center gap-2 text-base">
-        <Settings size={16} className="text-indigo-400" />
-        通知・メッセージ設定
+        <Settings size={16} className="text-indigo-400" />設定
       </h3>
 
-      {/* ブラウザ通知設定 */}
+      {/* ① LINE通知プラン */}
       <div>
-        <label className="text-sm font-bold text-zinc-300 mb-3 block flex items-center gap-2">
-          <Bell size={14} className="text-indigo-400" />ブラウザ通知（端末への通知）
-        </label>
-        <div className="space-y-2">
+        <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">LINE通知</label>
+        <div className="grid grid-cols-2 gap-2 mb-2">
           {([
-            { key: 'queue_new',    icon: '🔔', label: '新規受付',    desc: 'お客様が受付した時' },
-            { key: 'purchase_new', icon: '📦', label: '取置き依頼', desc: 'ECショップから依頼が届いた時' },
-          ] as const).map(({ key, icon, label, desc }) => (
-            <button key={key} type="button"
-              onClick={() => onPushSettingsChange({ ...pushSettings, [key]: !pushSettings[key] })}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border-2 transition-all ${
-                pushSettings[key] ? 'border-indigo-500 bg-indigo-500/10' : 'border-zinc-700 bg-zinc-800/50'
-              }`}>
-              <div className="text-left">
-                <p className={`font-bold text-sm ${pushSettings[key] ? 'text-indigo-300' : 'text-zinc-400'}`}>
-                  {icon} {label}
-                </p>
-                <p className="text-xs text-zinc-500 mt-0.5">{desc}</p>
-              </div>
-              <div className={`w-12 h-6 rounded-full transition-colors shrink-0 ${pushSettings[key] ? 'bg-indigo-500' : 'bg-zinc-600'}`}>
-                <div className={`w-5 h-5 bg-white rounded-full mt-0.5 shadow transition-transform ${pushSettings[key] ? 'translate-x-6' : 'translate-x-0.5'}`} />
-              </div>
-            </button>
-          ))}
-        </div>
-        <p className="text-xs text-zinc-500 mt-2">ヘッダーの🔔ボタンで端末の通知を許可してください</p>
-      </div>
-
-      {/* LINE通知プラン */}
-      <div>
-        <label className="text-sm font-bold text-zinc-300 mb-3 block">LINE通知プラン</label>
-        <div className="grid grid-cols-2 gap-2">
-          {([
-            { value: 'calling_only', label: '呼出のみ', desc: '1通/人・月200人対応', icon: '🔔' },
-            { value: 'full',         label: '全通知',   desc: '3通/人・受付＋もうすぐ＋呼出', icon: '📲' },
+            { value: 'calling_only', label: '呼出のみ', desc: '1通/人 — 呼出時のみ', icon: '🔔' },
+            { value: 'full',         label: '全通知',   desc: '3通/人 — 受付・もうすぐ・呼出', icon: '📲' },
           ] as const).map(opt => (
             <button key={opt.value} type="button" onClick={() => onPlanChange(opt.value)}
-              className={`flex flex-col items-start px-4 py-3 rounded-2xl border-2 transition-all text-left ${
-                notificationPlan === opt.value
-                  ? 'border-indigo-500 bg-indigo-500/10'
-                  : 'border-zinc-700 bg-zinc-800/50'
+              className={`flex flex-col items-start px-3 py-2.5 rounded-xl border-2 transition-all text-left ${
+                notificationPlan === opt.value ? 'border-indigo-500 bg-indigo-500/10' : 'border-zinc-700 bg-zinc-800/50'
               }`}>
-              <span className="text-base mb-0.5">{opt.icon} <span className={`font-bold ${notificationPlan === opt.value ? 'text-indigo-300' : 'text-zinc-400'}`}>{opt.label}</span></span>
-              <span className="text-xs text-zinc-500">{opt.desc}</span>
+              <span className="text-sm font-bold mb-0.5">
+                {opt.icon} <span className={notificationPlan === opt.value ? 'text-indigo-300' : 'text-zinc-400'}>{opt.label}</span>
+              </span>
+              <span className="text-[11px] text-zinc-500">{opt.desc}</span>
             </button>
           ))}
         </div>
-        <p className="text-xs text-zinc-500 mt-2">
-          {notificationPlan === 'calling_only'
-            ? '受付完了・もうすぐ通知は送信しません。呼出時のみLINEメッセージを送ります。'
-            : '受付完了・もうすぐ・呼出の3種類を送信します。月間通数が多くなります。'}
-        </p>
+        {/* まもなく通知: 全通知プランのみ表示 */}
+        {notificationPlan === 'full' && (
+          <div className="bg-zinc-800/60 rounded-xl px-3 py-2.5 flex items-center gap-3">
+            <span className="text-xs text-zinc-400 flex-1">もうすぐ通知 — 残り</span>
+            <input type="number" min={1} max={20} value={noticeThreshold}
+              onChange={e => onNoticeChange(Number(e.target.value))}
+              className="w-14 bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-center font-black text-base text-white focus:border-indigo-500 focus:outline-none" />
+            <span className="text-xs text-zinc-500">番目で通知</span>
+          </div>
+        )}
       </div>
 
-      {/* 遠隔チェックイン許可 */}
+      {/* ② ブラウザ通知（新規受付のみ — 実装済み） */}
       <div>
-        <label className="text-sm font-bold text-zinc-300 mb-3 block">遠隔チェックイン（来店前の順番待ち）</label>
+        <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">ブラウザ通知（端末）</label>
+        <button type="button"
+          onClick={() => onPushSettingsChange({ ...pushSettings, queue_new: !pushSettings.queue_new })}
+          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${
+            pushSettings.queue_new ? 'border-indigo-500 bg-indigo-500/10' : 'border-zinc-700 bg-zinc-800/50'
+          }`}>
+          <div className="text-left">
+            <p className={`font-bold text-sm ${pushSettings.queue_new ? 'text-indigo-300' : 'text-zinc-400'}`}>🔔 新規受付</p>
+            <p className="text-xs text-zinc-500 mt-0.5">お客様が受付した時に端末へ通知</p>
+          </div>
+          <div className={`w-12 h-6 rounded-full transition-colors shrink-0 ${pushSettings.queue_new ? 'bg-indigo-500' : 'bg-zinc-600'}`}>
+            <div className={`w-5 h-5 bg-white rounded-full mt-0.5 shadow transition-transform ${pushSettings.queue_new ? 'translate-x-6' : 'translate-x-0.5'}`} />
+          </div>
+        </button>
+        <p className="text-xs text-zinc-600 mt-1.5">ヘッダーの🔔ボタンで端末通知を許可してください</p>
+      </div>
+
+      {/* ③ 遠隔チェックイン */}
+      <div>
+        <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">遠隔チェックイン</label>
         <button type="button" onClick={() => onRemoteChange(!allowRemote)}
-          className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl border-2 transition-all ${
+          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${
             allowRemote ? 'border-indigo-500 bg-indigo-500/10' : 'border-zinc-700 bg-zinc-800/50'
           }`}>
           <div className="text-left">
-            <p className={`font-bold text-base ${allowRemote ? 'text-indigo-300' : 'text-zinc-400'}`}>
-              🏠 遠隔チェックインを許可する
+            <p className={`font-bold text-sm ${allowRemote ? 'text-indigo-300' : 'text-zinc-400'}`}>
+              🏠 来店前の順番取りを許可
             </p>
             <p className="text-xs text-zinc-500 mt-0.5">
               {allowRemote ? 'OFFにすると現地受付のみになります' : '顧客が自宅から順番取りできるようになります'}
             </p>
           </div>
-          <div className={`w-14 h-7 rounded-full transition-colors shrink-0 ${allowRemote ? 'bg-indigo-500' : 'bg-zinc-600'}`}>
-            <div className={`w-6 h-6 bg-white rounded-full mt-0.5 shadow-lg transition-transform ${allowRemote ? 'translate-x-7' : 'translate-x-0.5'}`} />
+          <div className={`w-12 h-6 rounded-full transition-colors shrink-0 ${allowRemote ? 'bg-indigo-500' : 'bg-zinc-600'}`}>
+            <div className={`w-5 h-5 bg-white rounded-full mt-0.5 shadow-lg transition-transform ${allowRemote ? 'translate-x-6' : 'translate-x-0.5'}`} />
           </div>
         </button>
       </div>
 
-      {/* 通知閾値 */}
+      {/* ④ 待ち案内メッセージ */}
       <div>
-        <label className="text-sm font-bold text-zinc-300 mb-3 block">まもなく通知（N番目になったらLINE通知）</label>
-        <div className="flex items-center gap-3">
-          <input type="number" min={1} max={20} value={noticeThreshold}
-            onChange={e => onNoticeChange(Number(e.target.value))}
-            className="w-20 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-center font-black text-xl text-white focus:border-indigo-500 focus:outline-none" />
-          <span className="text-zinc-400 text-sm">番目の方に通知</span>
-        </div>
-        <p className="text-xs text-zinc-500 mt-2">例）3に設定 → 3番目の順番になった方へ「まもなくお呼びします」を自動送信</p>
-      </div>
-
-      {/* 待ちメッセージ */}
-      <div>
-        <label className="text-sm font-bold text-zinc-300 mb-3 block">待ち案内メッセージ（顧客画面に表示）</label>
+        <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">待ち案内メッセージ（顧客画面表示）</label>
         <div className="space-y-2">
           {waitThresholds.map((t, i) => (
             <div key={i} className="flex items-center gap-2">
@@ -562,54 +562,45 @@ function SettingsPanel({
                     const val = e.target.value === '' ? null : Number(e.target.value)
                     const up = [...waitThresholds]; up[i] = { ...up[i], max_wait: val }; onThresholdsChange(up)
                   }}
-                  className="w-14 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-center text-sm text-white focus:border-indigo-500 focus:outline-none" />
-                <span className="text-zinc-500 text-xs">組↓</span>
+                  className="w-12 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-center text-xs text-white focus:border-indigo-500 focus:outline-none" />
+                <span className="text-zinc-500 text-[10px]">組↓</span>
               </div>
               <input type="text" value={t.text}
                 onChange={e => {
                   const up = [...waitThresholds]; up[i] = { ...up[i], text: e.target.value }; onThresholdsChange(up)
                 }}
-                className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-zinc-600 focus:border-indigo-500 focus:outline-none"
+                className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-zinc-600 focus:border-indigo-500 focus:outline-none"
                 placeholder="表示するメッセージ" />
               <button onClick={() => onThresholdsChange(waitThresholds.filter((_,j) => j !== i))}
                 className="shrink-0 p-1.5 rounded-lg bg-red-900/40 text-red-400 hover:bg-red-900/60 transition-colors">
-                <Trash2 size={13} />
+                <Trash2 size={12} />
               </button>
             </div>
           ))}
           <button onClick={() => onThresholdsChange([...waitThresholds, { max_wait: null, text: '' }])}
-            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-dashed border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 transition-colors text-sm">
-            <Plus size={13} />行を追加
+            className="w-full flex items-center justify-center gap-2 py-1.5 rounded-xl border border-dashed border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 transition-colors text-xs">
+            <Plus size={12} />行を追加
           </button>
         </div>
       </div>
 
-      <button onClick={onSave} disabled={saving}
-        className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-indigo-900/40">
-        {saving ? <><Loader2 size={16} className="animate-spin inline mr-2" />保存中...</> : '設定を保存'}
-      </button>
-
-      {/* 期限アラート設定 */}
-      <div className="mt-4 pt-4 border-t border-white/10">
-        <p className="text-xs font-bold text-zinc-400 mb-3 flex items-center gap-1.5">
-          <AlertCircle size={12} className="text-amber-400" />未お渡し期限アラート（日数）
-        </p>
+      {/* ⑤ 未お渡しアラート */}
+      <div>
+        <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block flex items-center gap-1.5">
+          <AlertCircle size={11} className="text-amber-400" />未お渡しアラート（入荷・完了から N日後に警告）
+        </label>
         {[
-          { label: 'お直し完了→未お渡し', value: alertDaysRepair,   onChange: onAlertRepairChange },
-          { label: '取置き入荷→未お渡し', value: alertDaysPurchase, onChange: onAlertPurchaseChange },
+          { label: 'お直し完了', value: alertDaysRepair,   onChange: onAlertRepairChange },
+          { label: '取置き入荷', value: alertDaysPurchase, onChange: onAlertPurchaseChange },
         ].map(({ label, value, onChange }) => (
-          <div key={label} className="flex items-center gap-3 mb-2">
-            <span className="text-xs text-zinc-400 flex-1">{label}</span>
+          <div key={label} className="flex items-center gap-2 mb-1.5">
+            <span className="text-xs text-zinc-400 w-20 shrink-0">{label}</span>
             <div className="flex items-center gap-1">
               {[3, 5, 7, 14, 30].map(d => (
                 <button key={d} onClick={() => onChange(d)}
                   className={`w-9 h-7 rounded-lg text-xs font-bold transition-all ${
-                    value === d
-                      ? 'bg-amber-500 text-white'
-                      : 'bg-zinc-800 text-zinc-500 hover:bg-zinc-700'
-                  }`}>
-                  {d}
-                </button>
+                    value === d ? 'bg-amber-500 text-white' : 'bg-zinc-800 text-zinc-500 hover:bg-zinc-700'
+                  }`}>{d}</button>
               ))}
               <span className="text-xs text-zinc-600 ml-1">日</span>
             </div>
@@ -617,40 +608,42 @@ function SettingsPanel({
         ))}
       </div>
 
-      {/* テストモード */}
-      <div className="border-t border-white/10 pt-5">
-        <label className="text-sm font-bold text-zinc-300 mb-3 block">🧪 テストモード</label>
+      <button onClick={onSave} disabled={saving}
+        className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-indigo-900/40">
+        {saving ? <><Loader2 size={16} className="animate-spin inline mr-2" />保存中...</> : '設定を保存'}
+      </button>
+
+      {/* ⑥ テストモード */}
+      <div className="border-t border-white/10 pt-4">
+        <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">🧪 テストモード</label>
         <button type="button" onClick={onTestModeToggle} disabled={testLoading === 'toggle'}
-          className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl border-2 transition-all mb-3 ${
+          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all mb-2 ${
             isTestMode ? 'border-amber-500 bg-amber-500/10' : 'border-zinc-700 bg-zinc-800/50'
           }`}>
           <div className="text-left">
-            <p className={`font-bold text-base ${isTestMode ? 'text-amber-300' : 'text-zinc-400'}`}>
+            <p className={`font-bold text-sm ${isTestMode ? 'text-amber-300' : 'text-zinc-400'}`}>
               ⚠️ テストモード {isTestMode ? 'ON' : 'OFF'}
             </p>
             <p className="text-xs text-zinc-500 mt-0.5">
-              {isTestMode ? 'LINE・ブラウザ通知をすべてスキップ中' : 'ONにすると通知が送信されなくなります'}
+              {isTestMode ? 'LINE・ブラウザ通知をすべてスキップ中' : 'ONにすると通知が送信されません'}
             </p>
           </div>
-          <div className={`w-14 h-7 rounded-full transition-colors shrink-0 ${isTestMode ? 'bg-amber-500' : 'bg-zinc-600'}`}>
-            <div className={`w-6 h-6 bg-white rounded-full mt-0.5 shadow-lg transition-transform ${isTestMode ? 'translate-x-7' : 'translate-x-0.5'}`} />
+          <div className={`w-12 h-6 rounded-full transition-colors shrink-0 ${isTestMode ? 'bg-amber-500' : 'bg-zinc-600'}`}>
+            <div className={`w-5 h-5 bg-white rounded-full mt-0.5 shadow-lg transition-transform ${isTestMode ? 'translate-x-6' : 'translate-x-0.5'}`} />
           </div>
         </button>
-
         <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={onTestSeed} disabled={!!testLoading}
-            className="flex flex-col items-center gap-1 py-3 px-3 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs font-bold hover:bg-blue-500/20 active:scale-95 transition-all disabled:opacity-40">
+            className="flex flex-col items-center gap-1 py-3 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs font-bold hover:bg-blue-500/20 active:scale-95 disabled:opacity-40 transition-all">
             {testLoading === 'seed' ? <Loader2 size={16} className="animate-spin" /> : <span className="text-lg">📥</span>}
             <span>テストデータ投入</span>
-            <span className="text-zinc-500 font-normal">顧客5人・待ち3件</span>
-            <span className="text-zinc-500 font-normal">取置き3件・お直し2件</span>
+            <span className="text-zinc-500 font-normal text-[10px]">顧客5人・待ち3件・取置き&お直し各5件</span>
           </button>
           <button type="button" onClick={onTestClear} disabled={!!testLoading}
-            className="flex flex-col items-center gap-1 py-3 px-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-bold hover:bg-red-500/20 active:scale-95 transition-all disabled:opacity-40">
+            className="flex flex-col items-center gap-1 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-bold hover:bg-red-500/20 active:scale-95 disabled:opacity-40 transition-all">
             {testLoading === 'clear' ? <Loader2 size={16} className="animate-spin" /> : <span className="text-lg">🗑</span>}
             <span>テストデータ削除</span>
-            <span className="text-zinc-500 font-normal">【テスト】タグの</span>
-            <span className="text-zinc-500 font-normal">データを全消去</span>
+            <span className="text-zinc-500 font-normal text-[10px]">【テスト】タグを全消去</span>
           </button>
         </div>
       </div>
@@ -1156,7 +1149,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
               <div className="p-3 space-y-2 max-h-80 overflow-y-auto">
                 {historyTickets.length === 0
                   ? <div className="text-center py-8 text-zinc-600 text-sm">該当する受付はありません</div>
-                  : historyTickets.map(t => <HistoryCard key={t.id} ticket={t} onAction={handleAction} />)
+                  : historyTickets.map(t => <HistoryCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} />)
                 }
               </div>
             </div>

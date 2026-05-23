@@ -39,28 +39,24 @@ export async function POST(req: NextRequest) {
       }).select('id').single()
 
       if (newCust) {
+        // 新規顧客: お子様も挿入
         custId = newCust.id
         created.push(`顧客: ${tc.name}`)
-      } else {
-        // 再実行時：既存の同名顧客を検索
-        console.warn('[seed] customer insert skipped, looking up existing:', custErr?.message)
-        const { data: existing } = await supabase.from('customers')
-          .select('id').eq('store_id', storeId).eq('name', tc.name).single()
-        if (existing) custId = existing.id
-      }
-
-      if (custId) {
         const { data: newChild } = await supabase.from('children').insert({
           customer_id: custId, store_id: storeId,
           name: tc.child.name, kana: tc.child.kana,
           school_name: tc.child.school, grade: tc.child.grade,
         }).select('id').single()
-
-        if (newChild) {
-          childId = newChild.id
-        } else {
+        childId = newChild?.id ?? null
+      } else {
+        // 既存顧客: IDと既存のお子様を検索のみ（新規挿入しない＝重複防止）
+        console.warn('[seed] customer insert skipped, looking up existing:', custErr?.message)
+        const { data: existing } = await supabase.from('customers')
+          .select('id').eq('store_id', storeId).eq('name', tc.name).single()
+        if (existing) {
+          custId = existing.id
           const { data: existChild } = await supabase.from('children')
-            .select('id').eq('customer_id', custId).single()
+            .select('id').eq('customer_id', custId).limit(1).single()
           if (existChild) childId = existChild.id
         }
       }
