@@ -77,7 +77,7 @@ export default function RootPage() {
               {stores.map(s => (
                 <Link
                   key={s.storeId}
-                  href={`/${s.storeId}/home`}
+                  href={`/${s.storeId}`}
                   className="flex items-center gap-3 rounded-2xl px-3 py-2.5 hover:bg-white/80 transition-colors group"
                 >
                   <div

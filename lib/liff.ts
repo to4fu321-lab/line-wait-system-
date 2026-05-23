@@ -19,14 +19,20 @@ export async function initLiff(): Promise<Liff | null> {
   if (liffInstance) return liffInstance
   if (initPromise) return initPromise
 
-  // リダイレクトループ検出: 直近1秒以内に既にLIFF initしていたらスキップ
-  const lastInit = sessionStorage.getItem('liff_init_ts')
-  const now = Date.now()
-  if (lastInit && now - parseInt(lastInit) < 1500) {
-    console.warn('[LIFF] init too fast — possible redirect loop, skipping')
-    return null
+  // LIFF認証コールバック（URL に liff.state がある）はガード不要
+  const isLiffCallback = window.location.search.includes('liff.state') ||
+                         window.location.hash.includes('liff.state')
+
+  if (!isLiffCallback) {
+    // リダイレクトループ検出: 直近2秒以内に既にLIFF initしていたらスキップ
+    const lastInit = localStorage.getItem('liff_init_ts')
+    const now = Date.now()
+    if (lastInit && now - parseInt(lastInit) < 2000) {
+      console.warn('[LIFF] init too fast — possible redirect loop, skipping')
+      return null
+    }
+    localStorage.setItem('liff_init_ts', String(now))
   }
-  sessionStorage.setItem('liff_init_ts', String(now))
 
   const liffId = process.env.NEXT_PUBLIC_LIFF_ID || '2010126882-aUahQStD'
 
@@ -36,7 +42,7 @@ export async function initLiff(): Promise<Liff | null> {
       const liff = liffModule.default
       await liff.init({ liffId, withLoginOnExternalBrowser: false })
       liffInstance = liff
-      sessionStorage.removeItem('liff_init_ts') // 正常完了 → ガード解除
+      localStorage.removeItem('liff_init_ts') // 正常完了 → ガード解除
       return liff
     } catch (e) {
       console.error('[LIFF] init failed:', e)
