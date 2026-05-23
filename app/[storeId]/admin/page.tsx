@@ -675,9 +675,11 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
   const [pushSettings,      setPushSettings]      = useState({ queue_new: true, purchase_new: true })
   const [isTestMode,        setIsTestMode]        = useState(false)
   const [activeFittings,    setActiveFittings]    = useState(1)
-  const [alertDaysRepair,   setAlertDaysRepair]   = useState(7)
-  const [alertDaysPurchase, setAlertDaysPurchase] = useState(7)
-  const [testLoading,       setTestLoading]       = useState<'seed'|'clear'|'toggle'|null>(null)
+  const [alertDaysRepair,     setAlertDaysRepair]     = useState(7)
+  const [alertDaysPurchase,   setAlertDaysPurchase]   = useState(7)
+  const [pendingRepairCount,  setPendingRepairCount]  = useState(0)
+  const [pendingPurchaseCount,setPendingPurchaseCount]= useState(0)
+  const [testLoading,         setTestLoading]         = useState<'seed'|'clear'|'toggle'|null>(null)
   const [saving,            setSaving]            = useState(false)
   const [showSettings,      setShowSettings]      = useState(false)
   const [pushStatus,        setPushStatus]        = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle')
@@ -745,8 +747,19 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
     setRefreshing(false)
   }, [store.id])
 
+  const fetchPendingCounts = useCallback(async () => {
+    const [repairRes, purchaseRes] = await Promise.all([
+      supabase.from('repair_histories').select('id', { count: 'exact', head: true })
+        .eq('store_id', store.id).in('status', ['received', 'completed']),
+      (supabase.from('purchase_orders') as any).select('id', { count: 'exact', head: true })
+        .eq('store_id', store.id).in('status', ['ordered', 'on_order', 'arrived']),
+    ])
+    setPendingRepairCount(repairRes.count ?? 0)
+    setPendingPurchaseCount(purchaseRes.count ?? 0)
+  }, [store.id])
+
   useEffect(() => {
-    fetchStoreStatus(); fetchQueues()
+    fetchStoreStatus(); fetchQueues(); fetchPendingCounts()
     // 通知が既に許可済みなら自動サブスクリプション（ユーザー操作不要で再登録）
     if (typeof window !== 'undefined' && 'Notification' in window && (window as any).Notification.permission === 'granted') {
       setupPush(store.id)
@@ -754,11 +767,15 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
     const channel = supabase.channel(`admin-${store.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'queues', filter: `store_id=eq.${store.id}` },
         () => fetchQueues())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'repair_histories', filter: `store_id=eq.${store.id}` },
+        () => fetchPendingCounts())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_orders', filter: `store_id=eq.${store.id}` },
+        () => fetchPendingCounts())
       .subscribe()
     // Realtime が動かない環境向けのポーリングフォールバック
-    const pollId = setInterval(() => fetchQueues(), 10000)
+    const pollId = setInterval(() => { fetchQueues(); fetchPendingCounts() }, 10000)
     return () => { supabase.removeChannel(channel); clearInterval(pollId) }
-  }, [store.id, fetchQueues, fetchStoreStatus])
+  }, [store.id, fetchQueues, fetchStoreStatus, fetchPendingCounts])
 
   const handleToggleOpen = async () => {
     if (isOpen === null) return
@@ -846,7 +863,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
       body: JSON.stringify({ storeId: store.id }),
     })
     const j = await r.json()
-    if (j.ok) { showToast('ok', `✅ 投入完了 (${j.created?.length ?? 0}件)`, 4000); fetchQueues() }
+    if (j.ok) { showToast('ok', `✅ 投入完了 (${j.created?.length ?? 0}件)`, 4000); fetchQueues(); fetchPendingCounts() }
     else showToast('err', '投入失敗: ' + j.error)
     setTestLoading(null)
   }
@@ -859,7 +876,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
       body: JSON.stringify({ storeId: store.id }),
     })
     const j = await r.json()
-    if (j.ok) { showToast('ok', `🗑 削除完了 (${j.deleted?.join('・') ?? '0件'})`, 4000); fetchQueues() }
+    if (j.ok) { showToast('ok', `🗑 削除完了 (${j.deleted?.join('・') ?? '0件'})`, 4000); fetchQueues(); fetchPendingCounts() }
     else showToast('err', '削除失敗: ' + j.error)
     setTestLoading(null)
   }
@@ -1013,15 +1030,6 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
           </div>
         )}
 
-        <a href={`/${store.id}/admin/crm`}
-          className="mt-2 flex items-center gap-3 px-4 py-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl hover:bg-indigo-500/20 active:scale-[0.98] transition-all">
-          <div className="w-7 h-7 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
-            <Users size={14} className="text-indigo-400" />
-          </div>
-          <span className="text-indigo-300 text-sm font-bold flex-1">顧客管理（お直し・追加購入）</span>
-          <ChevronRight size={14} className="text-indigo-500" />
-        </a>
-
       </div>
 
       {/* トースト */}
@@ -1055,6 +1063,31 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
               />
             </div>
           )}
+
+          {/* 顧客管理リンク — 未作業数バッジ付き */}
+          <a href={`/${store.id}/admin/crm`}
+            className="flex items-center gap-3 px-4 py-3.5 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl hover:bg-indigo-500/20 active:scale-[0.98] transition-all">
+            <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
+              <Users size={16} className="text-indigo-400" />
+            </div>
+            <span className="text-indigo-300 text-sm font-bold flex-1">顧客管理（お直し・追加購入）</span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {pendingRepairCount > 0 && (
+                <span className="bg-amber-500 text-white text-xs font-black px-2 py-0.5 rounded-full">
+                  お直し {pendingRepairCount}
+                </span>
+              )}
+              {pendingPurchaseCount > 0 && (
+                <span className="bg-blue-500 text-white text-xs font-black px-2 py-0.5 rounded-full">
+                  取置き {pendingPurchaseCount}
+                </span>
+              )}
+              {pendingRepairCount === 0 && pendingPurchaseCount === 0 && (
+                <span className="text-zinc-600 text-xs">未作業なし</span>
+              )}
+            </div>
+            <ChevronRight size={14} className="text-indigo-500 shrink-0" />
+          </a>
 
           {/* 待ち ＋ 呼出中 — 2カラム */}
           <div className="flex flex-col md:flex-row gap-4">

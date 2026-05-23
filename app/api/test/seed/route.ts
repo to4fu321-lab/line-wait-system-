@@ -26,24 +26,48 @@ export async function POST(req: NextRequest) {
   const created: string[] = []
 
   try {
-    // 1. 顧客・お子様を作成
-    const customerIds: string[] = []
-    const childIds: (string | null)[] = []
+    // 1. 顧客・お子様を作成（再実行時は既存レコードを検索してIDを使う）
+    const customerIds: (string | null)[] = []
+    const childIds:    (string | null)[] = []
 
     for (const tc of TEST_CUSTOMERS) {
-      const { data: cust } = await supabase.from('customers').insert({
+      let custId:  string | null = null
+      let childId: string | null = null
+
+      const { data: newCust, error: custErr } = await supabase.from('customers').insert({
         store_id: storeId, name: tc.name, kana: tc.kana, tel: tc.tel,
       }).select('id').single()
-      if (!cust) continue
-      customerIds.push(cust.id)
 
-      const { data: child } = await supabase.from('children').insert({
-        customer_id: cust.id, store_id: storeId,
-        name: tc.child.name, kana: tc.child.kana,
-        school_name: tc.child.school, grade: tc.child.grade,
-      }).select('id').single()
-      childIds.push(child?.id ?? null)
-      created.push(`顧客: ${tc.name}`)
+      if (newCust) {
+        custId = newCust.id
+        created.push(`顧客: ${tc.name}`)
+      } else {
+        // 再実行時：既存の同名顧客を検索
+        console.warn('[seed] customer insert skipped, looking up existing:', custErr?.message)
+        const { data: existing } = await supabase.from('customers')
+          .select('id').eq('store_id', storeId).eq('name', tc.name).single()
+        if (existing) custId = existing.id
+      }
+
+      if (custId) {
+        const { data: newChild } = await supabase.from('children').insert({
+          customer_id: custId, store_id: storeId,
+          name: tc.child.name, kana: tc.child.kana,
+          school_name: tc.child.school, grade: tc.child.grade,
+        }).select('id').single()
+
+        if (newChild) {
+          childId = newChild.id
+        } else {
+          const { data: existChild } = await supabase.from('children')
+            .select('id').eq('customer_id', custId).single()
+          if (existChild) childId = existChild.id
+        }
+      }
+
+      // 必ず5要素を維持（インデックスがズレないよう常にpush）
+      customerIds.push(custId)
+      childIds.push(childId)
     }
 
     // 2. 整理券（待ち）3件 — 身長・体重の事前入力テスト用
@@ -98,7 +122,7 @@ export async function POST(req: NextRequest) {
     for (const p of purchases) {
       const cId  = customerIds[p.idx]
       const chId = childIds[p.idx]
-      if (!cId) continue
+      if (!cId) { console.warn('[seed] purchase skip: no customer for idx', p.idx); continue }
       const row: Record<string, unknown> = {
         store_id: storeId, customer_id: cId, child_id: chId ?? null,
         item_name: p.item, notes: p.note || null, price: p.price,
@@ -106,7 +130,8 @@ export async function POST(req: NextRequest) {
       }
       if (p.arrived)                row.arrived_date   = p.arrived
       if (p.status === 'delivered') row.delivered_date = today
-      await (supabase.from('purchase_orders') as any).insert(row)
+      const { error: pErr } = await (supabase.from('purchase_orders') as any).insert(row)
+      if (pErr) { console.error('[seed] purchase_orders insert error:', pErr.message, 'item:', p.item); continue }
       created.push(`取置き[${p.status}]: ${p.item}`)
     }
 
@@ -126,7 +151,7 @@ export async function POST(req: NextRequest) {
     for (const r of repairs) {
       const cId  = customerIds[r.idx]
       const chId = childIds[r.idx]
-      if (!cId) continue
+      if (!cId) { console.warn('[seed] repair skip: no customer for idx', r.idx); continue }
       const row: Record<string, unknown> = {
         store_id: storeId, customer_id: cId, child_id: chId ?? null,
         item_name: r.item, content: r.content, price: r.price,
@@ -134,7 +159,8 @@ export async function POST(req: NextRequest) {
       }
       if (r.completed)  row.completed_date  = r.completed
       if (r.delivered)  row.delivered_date  = r.delivered
-      await supabase.from('repair_histories').insert(row)
+      const { error: rErr } = await supabase.from('repair_histories').insert(row)
+      if (rErr) { console.error('[seed] repair_histories insert error:', rErr.message, 'item:', r.item); continue }
       created.push(`お直し[${r.status}]: ${r.item}`)
     }
 
