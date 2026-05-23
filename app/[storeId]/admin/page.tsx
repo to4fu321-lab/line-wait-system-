@@ -681,8 +681,9 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
   const [pendingPurchaseCount,setPendingPurchaseCount]= useState(0)
   const [testLoading,         setTestLoading]         = useState<'seed'|'clear'|'toggle'|null>(null)
   const [saving,            setSaving]            = useState(false)
-  const [showSettings,      setShowSettings]      = useState(false)
-  const [pushStatus,        setPushStatus]        = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle')
+  const [showSettings,        setShowSettings]        = useState(false)
+  const [showDetails,         setShowDetails]         = useState(false)
+  const [pushStatus,          setPushStatus]          = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle')
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const setupPush = useCallback(async (storeId: string) => {
@@ -916,23 +917,23 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
   return (
     <div className="min-h-screen bg-zinc-950 text-white flex flex-col">
 
-      {/* ヘッダー */}
-      <div className="bg-gradient-to-br from-indigo-950 via-zinc-900 to-zinc-950 border-b border-white/5 px-4 pt-4 pb-4">
-        <div className="flex items-center justify-between mb-3">
+      {/* ヘッダー — コンパクト化 */}
+      <div className="bg-gradient-to-br from-indigo-950 via-zinc-900 to-zinc-950 border-b border-white/5 px-4 pt-safe-top pt-4 pb-3">
+
+        {/* 行1: 店舗名 / ボタン群 */}
+        <div className="flex items-center justify-between mb-2">
           <div>
-            <h1 className="text-lg font-black tracking-tight text-white">{store.name}</h1>
-            <p className="text-zinc-500 text-xs">
+            <h1 className="text-base font-black tracking-tight text-white leading-tight">{store.name}</h1>
+            <p className="text-zinc-600 text-[11px]">
               {new Date().toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button onClick={fetchQueues} disabled={refreshing}
               className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:scale-90 transition-all disabled:opacity-50">
-              <RefreshCw size={18} className={refreshing ? 'animate-spin text-indigo-400' : 'text-zinc-400'} />
+              <RefreshCw size={16} className={refreshing ? 'animate-spin text-indigo-400' : 'text-zinc-400'} />
             </button>
-            {/* ブラウザ通知ボタン */}
-            <button
-              onClick={() => pushStatus !== 'granted' && setupPush(store.id)}
+            <button onClick={() => pushStatus !== 'granted' && setupPush(store.id)}
               title={pushStatus === 'granted' ? 'ブラウザ通知: ON' : pushStatus === 'denied' ? '通知がブロックされています' : pushStatus === 'unsupported' ? '非対応ブラウザ' : '通知を許可する'}
               className={`p-2 rounded-xl border active:scale-90 transition-all ${
                 pushStatus === 'granted'     ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' :
@@ -940,11 +941,11 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
                 pushStatus === 'unsupported' ? 'bg-zinc-800 border-zinc-700 text-zinc-600 cursor-not-allowed' :
                 'bg-white/5 border-white/10 text-zinc-400 hover:bg-white/10'
               }`}>
-              {pushStatus === 'denied' ? <BellOff size={18} /> : <Bell size={18} />}
+              {pushStatus === 'denied' ? <BellOff size={16} /> : <Bell size={16} />}
             </button>
             <button onClick={() => setShowSettings(v => !v)}
               className={`p-2 rounded-xl border active:scale-90 transition-all ${showSettings ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-white/5 border-white/10 text-zinc-400 hover:bg-white/10'}`}>
-              <Settings size={18} />
+              <Settings size={16} />
             </button>
             <button onClick={onLogout}
               className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:scale-90 transition-all text-zinc-400 text-xs font-bold px-3">
@@ -953,8 +954,9 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
           </div>
         </div>
 
+        {/* 行2: 受付切替ボタン */}
         <button onClick={handleToggleOpen} disabled={isOpen === null}
-          className={`w-full py-4 rounded-2xl text-base font-black mb-3 active:scale-[0.98] transition-all shadow-lg disabled:opacity-50 ${
+          className={`w-full py-3 rounded-2xl text-sm font-black mb-2 active:scale-[0.98] transition-all shadow-lg disabled:opacity-50 ${
             isOpen === null  ? 'bg-zinc-700 text-zinc-400' :
             isOpen           ? 'bg-gradient-to-r from-emerald-500 to-teal-500 shadow-emerald-900/40 text-white'
                              : 'bg-gradient-to-r from-red-600 to-rose-600 shadow-red-900/40 text-white'
@@ -964,69 +966,81 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
 
         {/* テストモードバナー */}
         {isTestMode && (
-          <div className="flex items-center gap-2 bg-amber-500/20 border border-amber-500/40 rounded-xl px-4 py-2.5 text-amber-300 text-sm font-bold">
+          <div className="flex items-center gap-2 bg-amber-500/20 border border-amber-500/40 rounded-xl px-3 py-2 text-amber-300 text-xs font-bold mb-2">
             <span>⚠️</span>
             <span className="flex-1">テストモード中 — LINE・ブラウザ通知は送信されません</span>
           </div>
         )}
 
-        <div className="space-y-1.5">
-          {/* 待機・呼出中（大） */}
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { label: '待機',   value: waitingTickets.length, color: 'text-blue-400',  bg: 'bg-blue-500/10 border-blue-500/20' },
-              { label: '呼出中', value: callingTickets.length, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
-            ].map(s => (
-              <div key={s.label} className={`backdrop-blur-sm border rounded-xl p-3 text-center ${s.bg}`}>
-                <div className={`text-4xl font-black tabular-nums ${s.color}`}>{s.value}</div>
-                <div className="text-zinc-400 text-xs mt-0.5 font-bold">{s.label}</div>
-              </div>
-            ))}
+        {/* 行3: ステータスバー + 詳細トグル */}
+        <div className="flex items-center gap-2">
+          {/* 待機バッジ */}
+          <div className="flex items-center gap-1 bg-blue-500/15 border border-blue-500/25 rounded-xl px-2.5 py-1.5">
+            <Clock size={12} className="text-blue-400 shrink-0" />
+            <span className="text-blue-300 text-xs font-black tabular-nums">{waitingTickets.length}</span>
+            <span className="text-blue-500 text-[10px] font-bold">待機</span>
           </div>
-          {/* 本日合計・完了・不在（小、完了/不在はタップで履歴） */}
-          <div className="grid grid-cols-3 gap-1.5">
-            <div className="bg-white/4 border border-white/5 rounded-xl px-2 py-1.5 text-center">
-              <div className="text-lg font-black tabular-nums text-zinc-300">{total}</div>
-              <div className="text-zinc-600 text-[10px]">本日合計</div>
+          {/* 呼出中バッジ */}
+          <div className={`flex items-center gap-1 rounded-xl px-2.5 py-1.5 ${callingTickets.length > 0 ? 'bg-amber-500/20 border border-amber-500/30' : 'bg-white/4 border border-white/8'}`}>
+            <BellRing size={12} className={callingTickets.length > 0 ? 'text-amber-400 animate-pulse shrink-0' : 'text-zinc-600 shrink-0'} />
+            <span className={`text-xs font-black tabular-nums ${callingTickets.length > 0 ? 'text-amber-300' : 'text-zinc-500'}`}>{callingTickets.length}</span>
+            <span className={`text-[10px] font-bold ${callingTickets.length > 0 ? 'text-amber-500' : 'text-zinc-600'}`}>呼出中</span>
+          </div>
+          {/* 遠隔バッジ（条件付き） */}
+          {remoteCount > 0 && (
+            <div className="flex items-center gap-1 bg-zinc-700/50 border border-zinc-600/40 rounded-xl px-2.5 py-1.5">
+              <MapPin size={12} className="text-zinc-400 shrink-0" />
+              <span className="text-zinc-300 text-xs font-black tabular-nums">{remoteCount}</span>
+              <span className="text-zinc-500 text-[10px] font-bold">遠隔</span>
             </div>
-            {([
-              { key: 'completed' as HistoryTab, label: '完了', value: completed,      color: 'text-emerald-400', activeBg: 'bg-emerald-500/10 border-emerald-500/30' },
-              { key: 'cancelled' as HistoryTab, label: '不在', value: cancelledCount, color: 'text-zinc-400',    activeBg: 'bg-zinc-500/10 border-zinc-500/30' },
-            ]).map(s => (
-              <button key={s.key} onClick={() => toggleHistory(s.key)}
-                className={`border rounded-xl px-2 py-1.5 text-center transition-all active:scale-95 ${
-                  historyVisible && historyTab === s.key ? s.activeBg : 'bg-white/4 border-white/5'
-                }`}>
-                <div className={`text-lg font-black tabular-nums ${s.color}`}>{s.value}</div>
-                <div className="text-zinc-600 text-[10px] flex items-center justify-center gap-0.5">
-                  {s.label}{historyVisible && historyTab === s.key ? <ChevronUp size={9}/> : <ChevronDown size={9}/>}
-                </div>
-              </button>
-            ))}
-          </div>
-          {/* 稼働フィッティング数 */}
-          <div className="flex items-center gap-2 bg-white/4 border border-white/5 rounded-xl px-3 py-2">
-            <span className="text-zinc-500 text-xs font-bold shrink-0">稼働フィッティング</span>
-            <div className="flex gap-1 ml-auto">
-              {[1, 2, 3].map(n => (
-                <button key={n} onClick={() => handleFittingsChange(n)}
-                  className={`w-8 h-8 rounded-lg text-sm font-black transition-all active:scale-90 ${
-                    activeFittings === n
-                      ? 'bg-indigo-500 text-white'
-                      : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+          )}
+          {/* 詳細トグル */}
+          <button onClick={() => setShowDetails(v => !v)}
+            className="ml-auto flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/5 border border-white/10 text-zinc-500 text-xs font-bold hover:bg-white/10 active:scale-95 transition-all">
+            詳細{showDetails ? <ChevronUp size={11}/> : <ChevronDown size={11}/>}
+          </button>
+        </div>
+
+        {/* 折りたたみ詳細（本日合計・完了・不在・フィッティング台数） */}
+        {showDetails && (
+          <div className="mt-2 space-y-1.5 animate-fade-in">
+            <div className="grid grid-cols-3 gap-1.5">
+              <div className="bg-white/4 border border-white/5 rounded-xl px-2 py-1.5 text-center">
+                <div className="text-base font-black tabular-nums text-zinc-300">{total}</div>
+                <div className="text-zinc-600 text-[10px]">本日合計</div>
+              </div>
+              {([
+                { key: 'completed' as HistoryTab, label: '完了', value: completed,      color: 'text-emerald-400', activeBg: 'bg-emerald-500/10 border-emerald-500/30' },
+                { key: 'cancelled' as HistoryTab, label: '不在', value: cancelledCount, color: 'text-zinc-400',    activeBg: 'bg-zinc-500/10 border-zinc-500/30' },
+              ]).map(s => (
+                <button key={s.key} onClick={() => toggleHistory(s.key)}
+                  className={`border rounded-xl px-2 py-1.5 text-center transition-all active:scale-95 ${
+                    historyVisible && historyTab === s.key ? s.activeBg : 'bg-white/4 border-white/5'
                   }`}>
-                  {n}
+                  <div className={`text-base font-black tabular-nums ${s.color}`}>{s.value}</div>
+                  <div className="text-zinc-600 text-[10px] flex items-center justify-center gap-0.5">
+                    {s.label}{historyVisible && historyTab === s.key ? <ChevronUp size={9}/> : <ChevronDown size={9}/>}
+                  </div>
                 </button>
               ))}
             </div>
-          </div>
-        </div>
-
-        {remoteCount > 0 && (
-          <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-zinc-800/60 border border-zinc-700/50 rounded-xl">
-            <span className="text-zinc-400 text-xs">🏠 遠隔チェックイン待ち:</span>
-            <span className="text-white font-black text-sm">{remoteCount}組</span>
-            <span className="text-zinc-500 text-xs">（顧客到着後に呼出可）</span>
+            {/* フィッティング台数 ± ステッパー */}
+            <div className="flex items-center gap-2 bg-white/4 border border-white/5 rounded-xl px-3 py-2">
+              <span className="text-zinc-500 text-xs font-bold flex-1">稼働フィッティング台数</span>
+              <div className="flex items-center gap-2">
+                <button onClick={() => activeFittings > 1 && handleFittingsChange(activeFittings - 1)}
+                  disabled={activeFittings <= 1}
+                  className="w-7 h-7 rounded-lg bg-zinc-800 text-zinc-300 font-black text-lg flex items-center justify-center hover:bg-zinc-700 active:scale-90 disabled:opacity-30 transition-all">
+                  −
+                </button>
+                <span className="text-white font-black text-lg tabular-nums w-8 text-center">{activeFittings}</span>
+                <button onClick={() => activeFittings < 30 && handleFittingsChange(activeFittings + 1)}
+                  disabled={activeFittings >= 30}
+                  className="w-7 h-7 rounded-lg bg-zinc-800 text-zinc-300 font-black text-lg flex items-center justify-center hover:bg-zinc-700 active:scale-90 disabled:opacity-30 transition-all">
+                  ＋
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1064,11 +1078,25 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
             </div>
           )}
 
+          {/* 呼出中 — 最優先・フル幅 */}
+          {callingTickets.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 border border-amber-500/30 rounded-xl">
+                  <BellRing size={14} className="text-amber-400 animate-pulse" />
+                  <span className="text-amber-300 font-black text-sm">呼出中</span>
+                  <span className="bg-amber-400 text-amber-950 text-xs font-black px-1.5 py-0.5 rounded-full">{callingTickets.length}</span>
+                </div>
+              </div>
+              {callingTickets.map(t => <CallingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} />)}
+            </div>
+          )}
+
           {/* 顧客管理リンク — 未作業数バッジ付き */}
           <a href={`/${store.id}/admin/crm`}
-            className="flex items-center gap-3 px-4 py-3.5 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl hover:bg-indigo-500/20 active:scale-[0.98] transition-all">
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
-              <Users size={16} className="text-indigo-400" />
+            className="flex items-center gap-3 px-4 py-3 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl hover:bg-indigo-500/20 active:scale-[0.98] transition-all">
+            <div className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
+              <Users size={15} className="text-indigo-400" />
             </div>
             <span className="text-indigo-300 text-sm font-bold flex-1">顧客管理（お直し・追加購入）</span>
             <div className="flex items-center gap-1.5 shrink-0">
@@ -1082,52 +1110,34 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
                   取置き {pendingPurchaseCount}
                 </span>
               )}
-              {pendingRepairCount === 0 && pendingPurchaseCount === 0 && (
-                <span className="text-zinc-600 text-xs">未作業なし</span>
-              )}
             </div>
             <ChevronRight size={14} className="text-indigo-500 shrink-0" />
           </a>
 
-          {/* 待ち ＋ 呼出中 — 2カラム */}
-          <div className="flex flex-col md:flex-row gap-4">
-
-            {/* 呼出中: モバイル上、デスクトップ右 */}
-            <div className="order-1 md:order-2 md:w-1/2 space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 border border-amber-500/30 rounded-xl">
-                  <BellRing size={14} className="text-amber-400 animate-pulse" />
-                  <span className="text-amber-300 font-black text-sm">呼出中</span>
-                  <span className="bg-amber-400 text-amber-950 text-xs font-black px-1.5 py-0.5 rounded-full">{callingTickets.length}</span>
-                </div>
+          {/* 待ちリスト */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/20 border border-blue-500/30 rounded-xl">
+                <Clock size={14} className="text-blue-400" />
+                <span className="text-blue-300 font-black text-sm">待ち</span>
+                <span className="bg-blue-400 text-blue-950 text-xs font-black px-1.5 py-0.5 rounded-full">{waitingTickets.length}</span>
               </div>
-              {callingTickets.length === 0 ? (
-                <div className="text-center py-10 text-zinc-600 bg-white/3 rounded-2xl border border-white/5">
-                  <BellRing size={32} className="mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">呼出中はいません</p>
+              {callingTickets.length === 0 && (
+                <div className="ml-2 flex items-center gap-1 px-2.5 py-1.5 bg-zinc-800/40 border border-zinc-700/40 rounded-xl text-zinc-600 text-xs">
+                  <BellRing size={11} />
+                  <span>呼出中なし</span>
                 </div>
-              ) : callingTickets.map(t => <CallingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} />)}
+              )}
             </div>
-
-            {/* 待ち: モバイル下、デスクトップ左 */}
-            <div className="order-2 md:order-1 md:w-1/2 space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/20 border border-blue-500/30 rounded-xl">
-                  <Clock size={14} className="text-blue-400" />
-                  <span className="text-blue-300 font-black text-sm">待ち</span>
-                  <span className="bg-blue-400 text-blue-950 text-xs font-black px-1.5 py-0.5 rounded-full">{waitingTickets.length}</span>
-                </div>
+            {waitingTickets.length === 0 ? (
+              <div className="text-center py-10 text-zinc-600 bg-white/3 rounded-2xl border border-white/5">
+                <Users size={32} className="mx-auto mb-2 opacity-30" />
+                <p className="text-sm">待ちはいません</p>
               </div>
-              {waitingTickets.length === 0 ? (
-                <div className="text-center py-10 text-zinc-600 bg-white/3 rounded-2xl border border-white/5">
-                  <Users size={32} className="mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">待ちはいません</p>
-                </div>
-              ) : waitingTickets.map(t => <WaitingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onCheckIn={handleCheckIn} />)}
-            </div>
+            ) : waitingTickets.map(t => <WaitingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onCheckIn={handleCheckIn} />)}
           </div>
 
-          {/* 履歴（完了・不在 — 上の数字タップで表示） */}
+          {/* 履歴（詳細から完了/不在タップで表示） */}
           {historyVisible && (
             <div className="bg-white/3 border border-white/5 rounded-2xl overflow-hidden animate-fade-in">
               <div className="flex border-b border-white/5">
