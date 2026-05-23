@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/alert-overdue",
-      "schedule": "0 0 * * *"
-    }
-  ]
-}
