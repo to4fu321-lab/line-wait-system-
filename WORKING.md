@@ -5,4 +5,4 @@
 
 <!-- 作業中のエントリをここに追記 -->
 
-（現在作業中のエージェントはいません）
+- [Claude Code] 学校名マスタ機能（store_schools テーブル + admin/page.tsx 学校名管理UI + crm-register/page.tsx 動的読込 + admin/crm/page.tsx 学校フィルタ + types/crm.ts StoreSchool型 + sql/migration-add-schools.sql） — 2026-05-25 13:00
