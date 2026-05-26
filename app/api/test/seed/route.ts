@@ -39,29 +39,24 @@ export async function POST(req: NextRequest) {
       }).select('id').single()
 
       if (newCust) {
+        // 新規顧客: お子様も挿入
         custId = newCust.id
         created.push(`顧客: ${tc.name}`)
-      } else {
-        // 再実行時：既存の同名顧客を検索
-        console.warn('[seed] customer insert skipped, looking up existing:', custErr?.message)
-        const { data: existing } = await supabase.from('customers')
-          .select('id').eq('store_id', storeId).eq('name', tc.name).single()
-        if (existing) custId = existing.id
-      }
-
-      if (custId) {
         const { data: newChild } = await supabase.from('children').insert({
           customer_id: custId, store_id: storeId,
           name: tc.child.name, kana: tc.child.kana,
           school_name: tc.child.school, grade: tc.child.grade,
         }).select('id').single()
-
-        if (newChild) {
-          childId = newChild.id
-        } else {
-          // 既存のお子様を検索
+        childId = newChild?.id ?? null
+      } else {
+        // 既存顧客: IDと既存のお子様を検索のみ（新規挿入しない＝重複防止）
+        console.warn('[seed] customer insert skipped, looking up existing:', custErr?.message)
+        const { data: existing } = await supabase.from('customers')
+          .select('id').eq('store_id', storeId).eq('name', tc.name).single()
+        if (existing) {
+          custId = existing.id
           const { data: existChild } = await supabase.from('children')
-            .select('id').eq('customer_id', custId).single()
+            .select('id').eq('customer_id', custId).limit(1).single()
           if (existChild) childId = existChild.id
         }
       }
@@ -110,10 +105,14 @@ export async function POST(req: NextRequest) {
 
     // 3. 取置き依頼 — 各ステータスを網羅（期限超過テスト含む）
     const purchases = [
+      // 通常フロー中
       { idx: 0, item: 'ワイシャツ（長袖）（170）',  price: 3200,  status: 'ordered',   ordered: today,        arrived: null,        note: '数量：1点' },
-      { idx: 1, item: 'ブレザー（M）',              price: 18000, status: 'ordered',   ordered: daysAgo(5),   arrived: null,        note: 'メーカー取り寄せ' },
+      { idx: 1, item: 'ブレザー（M）',              price: 18000, status: 'on_order',  ordered: daysAgo(5),   arrived: null,        note: 'メーカー取り寄せ' },
+      // 入荷連絡済み・正常（3日前）
       { idx: 2, item: 'スラックス（W72）',           price: 5800,  status: 'arrived',   ordered: daysAgo(10),  arrived: daysAgo(3),  note: '' },
+      // 入荷連絡済み・期限超過（10日前 → アラートバッジ表示テスト）
       { idx: 3, item: 'セーラー服（M）',             price: 12000, status: 'arrived',   ordered: daysAgo(20),  arrived: daysAgo(10), note: '連絡済みだが未取りに来ない' },
+      // お渡し済み（完了済み履歴テスト）
       { idx: 4, item: '体操服上下セット',            price: 4500,  status: 'delivered', ordered: daysAgo(14),  arrived: daysAgo(7),  note: '' },
     ]
     for (const p of purchases) {
@@ -134,10 +133,15 @@ export async function POST(req: NextRequest) {
 
     // 4. お直し依頼 — 各ステータスを網羅（期限超過テスト含む）
     const repairs = [
+      // 預かり中
       { idx: 0, item: 'スカート丈つめ',       content: '3cm短く',   price: 1500, status: 'received',  received: today,       completed: null,       delivered: null },
+      // お直し完了連絡済み・正常（3日前）
       { idx: 1, item: 'ズボン丈つめ',          content: '2cm短く',   price: 1200, status: 'completed', received: daysAgo(7),  completed: daysAgo(3), delivered: null },
+      // お直し完了連絡済み・期限超過（10日前 → アラートバッジ表示テスト）
       { idx: 2, item: 'ブレザー袖丈つめ',     content: '1.5cm短く', price: 2000, status: 'completed', received: daysAgo(18), completed: daysAgo(10),delivered: null },
+      // 預かり中（別パターン）
       { idx: 3, item: 'スカートウエスト調整', content: '2cm詰め',   price: 1800, status: 'received',  received: daysAgo(2),  completed: null,       delivered: null },
+      // お渡し済み（完了済み履歴テスト）
       { idx: 4, item: 'ネクタイ交換',          content: 'ほつれ修理', price: 800, status: 'delivered', received: daysAgo(14), completed: daysAgo(7), delivered: today },
     ]
     for (const r of repairs) {

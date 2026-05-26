@@ -28,6 +28,25 @@ function fmtDate(d: string | null) {
   return new Date(d).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })
 }
 
+const KANA_ROWS = ['ア','カ','サ','タ','ナ','ハ','マ','ヤ','ラ','ワ','他'] as const
+type KanaRow = typeof KANA_ROWS[number]
+
+function getKanaRow(kana: string | null | undefined): KanaRow {
+  if (!kana) return '他'
+  const code = kana.charCodeAt(0)
+  if (code >= 0x30A2 && code <= 0x30AA) return 'ア'
+  if (code >= 0x30AB && code <= 0x30B4) return 'カ'
+  if (code >= 0x30B5 && code <= 0x30BE) return 'サ'
+  if (code >= 0x30BF && code <= 0x30C9) return 'タ'
+  if (code >= 0x30CA && code <= 0x30CE) return 'ナ'
+  if (code >= 0x30CF && code <= 0x30DD) return 'ハ'
+  if (code >= 0x30DE && code <= 0x30E2) return 'マ'
+  if (code >= 0x30E4 && code <= 0x30E8) return 'ヤ'
+  if (code >= 0x30E9 && code <= 0x30ED) return 'ラ'
+  if (code >= 0x30EF && code <= 0x30F3) return 'ワ'
+  return '他'
+}
+
 function Toast({ msg, type }: { msg: string; type: 'ok' | 'err' }) {
   return (
     <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl text-white text-sm font-bold shadow-2xl animate-fade-in max-w-xs text-center ${
@@ -54,20 +73,68 @@ type RepairWithCustomer   = RepairHistory   & { customer: Pick<Customer, 'name' 
 type PurchaseWithCustomer = PurchaseOrder   & { customer: Pick<Customer, 'name' | 'tel'> | null; child: { name: string } | null }
 
 // ============================================================
+// 顧客情報インラインパネル（お直し・取置きカード内）
+// ============================================================
+type CustomerInfoData = {
+  id: string; name: string; kana: string | null; tel: string | null
+  children: { id: string; name: string; school_name: string | null; grade: string | null }[]
+}
+function CustomerInfoPanel({ customerId, storeId }: { customerId: string; storeId: string }) {
+  const [data, setData]       = useState<CustomerInfoData | null>(null)
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    supabase.from('customers').select('id, name, kana, tel, children(id, name, school_name, grade)')
+      .eq('id', customerId).single()
+      .then(({ data: d }) => { setData(d as CustomerInfoData | null); setLoading(false) })
+  }, [customerId])
+  if (loading) return <div className="flex justify-center py-2"><Loader2 size={14} className="animate-spin text-zinc-500" /></div>
+  if (!data)   return <p className="text-zinc-600 text-xs">顧客情報なし</p>
+  return (
+    <div className="space-y-1.5">
+      {data.kana && <p className="text-zinc-400 text-xs">{data.kana}</p>}
+      {data.tel  && (
+        <a href={`tel:${data.tel}`} className="flex items-center gap-1.5 text-blue-400 text-xs font-bold">
+          <Phone size={11} />{data.tel}
+        </a>
+      )}
+      {(data.children ?? []).map(c => (
+        <div key={c.id} className="flex items-center gap-1.5">
+          <GraduationCap size={11} className="text-amber-400 shrink-0" />
+          <span className="text-amber-300 text-xs font-bold">{c.name}</span>
+          {c.school_name && <span className="text-zinc-500 text-xs truncate">{c.school_name}{c.grade && ` ${c.grade}`}</span>}
+        </div>
+      ))}
+      <a href={`/${storeId}/admin/crm?customerId=${customerId}`}
+        className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 mt-0.5">
+        <User size={10} />顧客管理で編集
+      </a>
+    </div>
+  )
+}
+
+// ============================================================
 // お直しアイテム
 // ============================================================
-function RepairItem({ repair, showCustomer = false, onComplete, onDeliver, onRevert }: {
+function RepairItem({ repair, showCustomer = false, storeId, onComplete, onDeliver, onRevert, alertDays }: {
   repair: RepairHistory | RepairWithCustomer
   showCustomer?: boolean
+  storeId?: string
   onComplete: (id: string) => Promise<void>
   onDeliver:  (id: string) => Promise<void>
   onRevert:   (id: string) => Promise<void>
+  alertDays?: number
 }) {
   const [loading,         setLoading]         = useState<string | null>(null)
   const [confirmComplete, setConfirmComplete] = useState(false)
   const [confirmRevert,   setConfirmRevert]   = useState(false)
+  const [custOpen,        setCustOpen]        = useState(false)
   const customerName = showCustomer ? (repair as RepairWithCustomer).customer?.name : null
   const childName    = showCustomer ? (repair as RepairWithCustomer).child?.name    : null
+  const isOverdue = alertDays != null && repair.status === 'completed' && repair.completed_date &&
+    (Date.now() - new Date(repair.completed_date).getTime()) / 86400000 > alertDays
+  const overdueDays = isOverdue
+    ? Math.floor((Date.now() - new Date(repair.completed_date!).getTime()) / 86400000)
+    : 0
 
   return (
     <div className={`rounded-2xl border p-4 transition-all ${
@@ -89,9 +156,11 @@ function RepairItem({ repair, showCustomer = false, onComplete, onDeliver, onRev
         </div>
         <div className="flex-1 min-w-0">
           {(customerName || childName) && (
-            <p className="text-xs font-bold text-indigo-300 mb-1 flex items-center gap-1">
+            <button onClick={() => repair.customer_id && setCustOpen(v => !v)}
+              className="text-xs font-bold text-indigo-300 mb-1 flex items-center gap-1 w-full text-left active:opacity-70">
               <User size={10} />{customerName}{childName && <span className="text-amber-300">（{childName}）</span>}
-            </p>
+              {repair.customer_id && <ChevronDown size={10} className={`ml-auto shrink-0 transition-transform ${custOpen ? 'rotate-180' : ''}`} />}
+            </button>
           )}
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${REPAIR_STATUS_COLORS[repair.status]}`}>
@@ -103,6 +172,11 @@ function RepairItem({ repair, showCustomer = false, onComplete, onDeliver, onRev
             {repair.notified && (
               <span className="text-xs bg-emerald-900/50 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">
                 LINE通知済み
+              </span>
+            )}
+            {isOverdue && (
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1">
+                <AlertCircle size={10} />お渡し{overdueDays}日超過
               </span>
             )}
           </div>
@@ -117,6 +191,12 @@ function RepairItem({ repair, showCustomer = false, onComplete, onDeliver, onRev
           </div>
         </div>
       </div>
+
+      {custOpen && repair.customer_id && storeId && (
+        <div className="mt-3 pt-3 border-t border-white/10 animate-fade-in">
+          <CustomerInfoPanel customerId={repair.customer_id} storeId={storeId} />
+        </div>
+      )}
 
       {repair.status === 'received' && (
         confirmComplete ? (
@@ -180,21 +260,29 @@ function RepairItem({ repair, showCustomer = false, onComplete, onDeliver, onRev
 // ============================================================
 // 追加購入アイテム
 // ============================================================
-function PurchaseItem({ order, showCustomer = false, onStock, onBackOrder, onArrive, onDeliver, onRevert }: {
+function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrder, onArrive, onDeliver, onRevert, alertDays }: {
   order: PurchaseOrder | PurchaseWithCustomer
   showCustomer?: boolean
+  storeId?: string
   onStock:     (id: string) => Promise<void>
   onBackOrder: (id: string) => Promise<void>
   onArrive:    (id: string) => Promise<void>
   onDeliver:   (id: string) => Promise<void>
   onRevert:    (id: string) => Promise<void>
+  alertDays?: number
 }) {
   const [loading,       setLoading]       = useState<string | null>(null)
   const [confirmStock,  setConfirmStock]  = useState(false)
   const [confirmArrive, setConfirmArrive] = useState(false)
   const [confirmRevert, setConfirmRevert] = useState(false)
+  const [custOpen,      setCustOpen]      = useState(false)
   const customerName = showCustomer ? (order as PurchaseWithCustomer).customer?.name : null
   const childName    = showCustomer ? (order as PurchaseWithCustomer).child?.name    : null
+  const isOverdue = alertDays != null && order.status === 'arrived' && order.arrived_date &&
+    (Date.now() - new Date(order.arrived_date).getTime()) / 86400000 > alertDays
+  const overdueDays = isOverdue
+    ? Math.floor((Date.now() - new Date(order.arrived_date!).getTime()) / 86400000)
+    : 0
 
   const cardBg =
     order.status === 'delivered' ? 'bg-zinc-900/30 border-zinc-800/40' :
@@ -225,9 +313,11 @@ function PurchaseItem({ order, showCustomer = false, onStock, onBackOrder, onArr
         </div>
         <div className="flex-1 min-w-0">
           {(customerName || childName) && (
-            <p className="text-xs font-bold text-indigo-300 mb-1 flex items-center gap-1">
+            <button onClick={() => order.customer_id && setCustOpen(v => !v)}
+              className="text-xs font-bold text-indigo-300 mb-1 flex items-center gap-1 w-full text-left active:opacity-70">
               <User size={10} />{customerName}{childName && <span className="text-amber-300">（{childName}）</span>}
-            </p>
+              {order.customer_id && <ChevronDown size={10} className={`ml-auto shrink-0 transition-transform ${custOpen ? 'rotate-180' : ''}`} />}
+            </button>
           )}
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${PURCHASE_STATUS_COLORS[order.status]}`}>
@@ -236,6 +326,11 @@ function PurchaseItem({ order, showCustomer = false, onStock, onBackOrder, onArr
             {order.notified && (
               <span className="text-xs bg-emerald-900/50 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">
                 LINE通知済み
+              </span>
+            )}
+            {isOverdue && (
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1">
+                <AlertCircle size={10} />お渡し{overdueDays}日超過
               </span>
             )}
           </div>
@@ -249,6 +344,12 @@ function PurchaseItem({ order, showCustomer = false, onStock, onBackOrder, onArr
           </div>
         </div>
       </div>
+
+      {custOpen && order.customer_id && storeId && (
+        <div className="mt-3 pt-3 border-t border-white/10 animate-fade-in">
+          <CustomerInfoPanel customerId={order.customer_id} storeId={storeId} />
+        </div>
+      )}
 
       {/* 依頼受付 → 在庫確保（即入荷連絡）or メーカー発注 */}
       {(order.status === 'received' || order.status === 'ordered') && (
@@ -856,6 +957,13 @@ export default function CRMPage() {
   const [deleteChildLoading, setDeleteChildLoading] = useState(false)
   const [showQrModal,      setShowQrModal]      = useState(false)
 
+  const [allCustomers,      setAllCustomers]      = useState<Customer[]>([])
+  const [allLoading,        setAllLoading]        = useState(true)
+  const [kanaFilter,        setKanaFilter]        = useState<KanaRow | null>(null)
+
+  const [alertDaysRepair,   setAlertDaysRepair]   = useState(7)
+  const [alertDaysPurchase, setAlertDaysPurchase] = useState(7)
+
   // 未対応統計
   const [stats, setStats] = useState({ repairReceived: 0, repairCompleted: 0, purchaseReceived: 0, purchaseInProgress: 0, purchaseArrived: 0 })
 
@@ -880,6 +988,11 @@ export default function CRMPage() {
   const [purchaseArrivedList,  setPurchaseArrivedList]  = useState<PurchaseWithCustomer[]>([])
   const [purchaseArrivedLoading, setPurchaseArrivedLoading] = useState(false)
 
+  const [showDelivered,       setShowDelivered]       = useState(false)
+  const [deliveredRepairs,    setDeliveredRepairs]    = useState<RepairWithCustomer[]>([])
+  const [deliveredPurchases,  setDeliveredPurchases]  = useState<PurchaseWithCustomer[]>([])
+  const [deliveredLoading,    setDeliveredLoading]    = useState(false)
+
   const [toast,   setToast]   = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -894,6 +1007,17 @@ export default function CRMPage() {
     if (!storeId) return
     supabase.from('stores').select('name').eq('id', storeId).single()
       .then(({ data }) => { if (data) setStoreName(data.name ?? '') })
+  }, [storeId])
+
+  useEffect(() => {
+    if (!storeId) return
+    ;(supabase.from('stores') as any)
+      .select('alert_days_repair, alert_days_purchase')
+      .eq('id', storeId).single()
+      .then(({ data }: { data: any }) => {
+        if (data?.alert_days_repair   != null) setAlertDaysRepair(data.alert_days_repair)
+        if (data?.alert_days_purchase != null) setAlertDaysPurchase(data.alert_days_purchase)
+      })
   }, [storeId])
 
   const fetchStats = useCallback(async () => {
@@ -912,6 +1036,18 @@ export default function CRMPage() {
   }, [storeId])
 
   useEffect(() => { fetchStats() }, [fetchStats])
+
+  const fetchAllCustomers = useCallback(async () => {
+    if (!storeId) return
+    setAllLoading(true)
+    const q = supabase.from('customers').select('*').eq('store_id', storeId)
+    const { data } = await (showDeleted ? q.not('deleted_at', 'is', null) : q.is('deleted_at', null))
+      .order('kana', { ascending: true }).limit(500)
+    setAllCustomers(data ?? [])
+    setAllLoading(false)
+  }, [storeId, showDeleted])
+
+  useEffect(() => { fetchAllCustomers() }, [fetchAllCustomers])
 
   // ── 顧客検索（お子様名でもヒット・削除済み切替対応）──
   const searchCustomers = useCallback(async (q: string, deleted = false) => {
@@ -1186,6 +1322,28 @@ export default function CRMPage() {
     setShowPurchaseArrived(v => !v)
   }
 
+  const fetchDeliveredHistory = useCallback(async () => {
+    if (!storeId) return; setDeliveredLoading(true)
+    const [{ data: rData }, { data: pData }] = await Promise.all([
+      supabase.from('repair_histories')
+        .select('*, customer:customers(name, tel), child:children(name)')
+        .eq('store_id', storeId).eq('status', 'delivered')
+        .order('delivered_date', { ascending: false }).limit(50),
+      supabase.from('purchase_orders')
+        .select('*, customer:customers(name, tel), child:children(name)')
+        .eq('store_id', storeId).eq('status', 'delivered')
+        .order('delivered_date', { ascending: false }).limit(50),
+    ])
+    setDeliveredRepairs((rData ?? []) as RepairWithCustomer[])
+    setDeliveredPurchases((pData ?? []) as PurchaseWithCustomer[])
+    setDeliveredLoading(false)
+  }, [storeId])
+
+  const toggleDelivered = () => {
+    if (!showDelivered) fetchDeliveredHistory()
+    setShowDelivered(v => !v)
+  }
+
   const pendingTotal = stats.repairReceived + stats.repairCompleted + stats.purchaseReceived + stats.purchaseInProgress + stats.purchaseArrived
 
   return (
@@ -1290,8 +1448,8 @@ export default function CRMPage() {
               ) : repairReceivedList.length === 0 ? (
                 <div className="text-center py-6 text-zinc-600 text-sm">預かり中のお直しはありません</div>
               ) : repairReceivedList.map(r => (
-                <RepairItem key={r.id} repair={r} showCustomer
-                  onComplete={handleRepairComplete} onDeliver={handleRepairDeliver} onRevert={handleRepairRevert} />
+                <RepairItem key={r.id} repair={r} showCustomer storeId={storeId}
+                  onComplete={handleRepairComplete} onDeliver={handleRepairDeliver} onRevert={handleRepairRevert} alertDays={alertDaysRepair} />
               ))}
             </div>
           )}
@@ -1307,8 +1465,8 @@ export default function CRMPage() {
               ) : repairCompletedList.length === 0 ? (
                 <div className="text-center py-6 text-zinc-600 text-sm">完了済みのお直しはありません</div>
               ) : repairCompletedList.map(r => (
-                <RepairItem key={r.id} repair={r} showCustomer
-                  onComplete={handleRepairComplete} onDeliver={handleRepairDeliver} onRevert={handleRepairRevert} />
+                <RepairItem key={r.id} repair={r} showCustomer storeId={storeId}
+                  onComplete={handleRepairComplete} onDeliver={handleRepairDeliver} onRevert={handleRepairRevert} alertDays={alertDaysRepair} />
               ))}
             </div>
           )}
@@ -1324,9 +1482,9 @@ export default function CRMPage() {
               ) : purchaseReceivedList.length === 0 ? (
                 <div className="text-center py-6 text-zinc-600 text-sm">受付中の依頼はありません</div>
               ) : purchaseReceivedList.map(o => (
-                <PurchaseItem key={o.id} order={o} showCustomer
+                <PurchaseItem key={o.id} order={o} showCustomer storeId={storeId}
                   onStock={handlePurchaseStock} onBackOrder={handlePurchaseBackOrder}
-                  onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} />
+                  onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} alertDays={alertDaysPurchase} />
               ))}
             </div>
           )}
@@ -1342,9 +1500,9 @@ export default function CRMPage() {
               ) : purchaseInProgressList.length === 0 ? (
                 <div className="text-center py-6 text-zinc-600 text-sm">手配中の商品はありません</div>
               ) : purchaseInProgressList.map(o => (
-                <PurchaseItem key={o.id} order={o} showCustomer
+                <PurchaseItem key={o.id} order={o} showCustomer storeId={storeId}
                   onStock={handlePurchaseStock} onBackOrder={handlePurchaseBackOrder}
-                  onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} />
+                  onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} alertDays={alertDaysPurchase} />
               ))}
             </div>
           )}
@@ -1360,12 +1518,54 @@ export default function CRMPage() {
               ) : purchaseArrivedList.length === 0 ? (
                 <div className="text-center py-6 text-zinc-600 text-sm">入荷連絡済みの商品はありません</div>
               ) : purchaseArrivedList.map(o => (
-                <PurchaseItem key={o.id} order={o} showCustomer
+                <PurchaseItem key={o.id} order={o} showCustomer storeId={storeId}
                   onStock={handlePurchaseStock} onBackOrder={handlePurchaseBackOrder}
-                  onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} />
+                  onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} alertDays={alertDaysPurchase} />
               ))}
             </div>
           )}
+
+          {/* 完了済み履歴（お渡し済み） */}
+          <div className="border-t border-white/10 pt-3 mt-2">
+            <button onClick={toggleDelivered}
+              className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 text-sm font-bold transition-colors w-full">
+              <Package size={14} />
+              完了済み履歴（お渡し済み）
+              {showDelivered ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+            {showDelivered && (
+              <div className="mt-3 space-y-4 animate-fade-in">
+                {deliveredLoading ? (
+                  <div className="flex justify-center py-6"><Loader2 size={24} className="animate-spin text-zinc-500" /></div>
+                ) : (
+                  <>
+                    {deliveredRepairs.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider px-1">お直しお渡し済み — {deliveredRepairs.length}件</p>
+                        {deliveredRepairs.map(r => (
+                          <RepairItem key={r.id} repair={r} showCustomer storeId={storeId}
+                            onComplete={handleRepairComplete} onDeliver={handleRepairDeliver} onRevert={handleRepairRevert} alertDays={alertDaysRepair} />
+                        ))}
+                      </div>
+                    )}
+                    {deliveredPurchases.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider px-1">取置きお渡し済み — {deliveredPurchases.length}件</p>
+                        {deliveredPurchases.map(o => (
+                          <PurchaseItem key={o.id} order={o} showCustomer storeId={storeId}
+                            onStock={handlePurchaseStock} onBackOrder={handlePurchaseBackOrder}
+                            onArrive={handlePurchaseArrive} onDeliver={handlePurchaseDeliver} onRevert={handlePurchaseRevert} alertDays={alertDaysPurchase} />
+                        ))}
+                      </div>
+                    )}
+                    {deliveredRepairs.length === 0 && deliveredPurchases.length === 0 && (
+                      <div className="text-center py-6 text-zinc-600 text-sm">完了済みのデータはありません</div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </section>
 
         {/* ══════════════════════════════════════════════════
@@ -1379,7 +1579,7 @@ export default function CRMPage() {
                 className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border bg-indigo-500/20 border-indigo-500/40 text-indigo-300">
                 <QrCode size={12} />新規登録QR
               </button>
-              <button onClick={() => { setShowDeleted(v => !v); setSearchQuery(''); setCustomers([]); setSelectedCustomer(null) }}
+              <button onClick={() => { setShowDeleted(v => !v); setSearchQuery(''); setCustomers([]); setAllCustomers([]); setSelectedCustomer(null); setKanaFilter(null) }}
                 className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${showDeleted ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200'}`}>
                 {showDeleted ? <><EyeOff size={12} />削除済みを非表示</> : <><Eye size={12} />削除済みを表示</>}
               </button>
@@ -1387,10 +1587,10 @@ export default function CRMPage() {
           </div>
 
           {/* 検索 */}
-          <div className="relative mb-3">
+          <div className="relative mb-2">
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
             <input type="text" value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+              onChange={e => { setSearchQuery(e.target.value); setKanaFilter(null) }}
               placeholder="保護者名・お子様名・フリガナ・電話番号"
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-10 pr-9 py-3 text-sm text-white placeholder-zinc-600 focus:border-indigo-500 focus:outline-none transition-colors" />
             {searchQuery && (
@@ -1401,18 +1601,53 @@ export default function CRMPage() {
             )}
           </div>
 
+          {/* あいうえおインデックス */}
+          {!searchQuery.trim() && (
+            <div className="flex gap-1 mb-3 flex-wrap">
+              {KANA_ROWS.map(row => {
+                const count = allCustomers.filter(c => getKanaRow(c.kana) === row).length
+                const active = kanaFilter === row
+                return (
+                  <button key={row}
+                    onClick={() => setKanaFilter(active ? null : row)}
+                    disabled={count === 0}
+                    className={`min-w-[2.25rem] h-9 px-2 rounded-lg text-sm font-black transition-all active:scale-90 disabled:opacity-25 disabled:cursor-default ${
+                      active
+                        ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-900/40'
+                        : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                    }`}>
+                    {row}
+                    {count > 0 && !active && (
+                      <span className="block text-[9px] text-zinc-600 font-normal leading-none -mt-0.5">{count}</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
           {/* 顧客リスト */}
-          {searchQuery.trim() && (
-            customerLoading ? (
+          {(() => {
+            const isSearchMode = !!searchQuery.trim()
+            const list = isSearchMode
+              ? customers
+              : kanaFilter
+                ? allCustomers.filter(c => getKanaRow(c.kana) === kanaFilter)
+                : allCustomers
+            const loading = isSearchMode ? customerLoading : allLoading
+
+            if (loading) return (
               <div className="flex justify-center py-6"><Loader2 size={24} className="animate-spin text-indigo-400" /></div>
-            ) : customers.length === 0 ? (
+            )
+            if (list.length === 0) return (
               <div className="text-center py-6 text-zinc-600">
                 <User size={28} className="mx-auto mb-2 opacity-40" />
-                <p className="text-sm">該当する顧客が見つかりません</p>
+                <p className="text-sm">{isSearchMode ? '該当する顧客が見つかりません' : '顧客がいません'}</p>
               </div>
-            ) : (
+            )
+            return (
               <div className="space-y-2 mb-4 animate-fade-in">
-                {customers.map(c => (
+                {list.map(c => (
                   <button key={c.id} onClick={() => { setSelectedCustomer(prev => prev?.id === c.id ? null : c); setEditingCustomer(false); setShowAddChild(false) }}
                     className={`w-full text-left px-4 py-3 rounded-xl border transition-all active:scale-[0.98] ${
                       selectedCustomer?.id === c.id
@@ -1441,7 +1676,7 @@ export default function CRMPage() {
                 ))}
               </div>
             )
-          )}
+          })()}
 
           {/* 選択中顧客詳細 */}
           {selectedCustomer && (

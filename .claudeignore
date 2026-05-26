@@ -1,0 +1,34 @@
+# 1. 巨大すぎてAIがパンクするフォルダ
+node_modules/
+.git/
+
+# 2. ビルド成果物
+dist/
+build/
+.next/
+out/
+bin/
+obj/
+
+# 3. 画像・動画・PDF（SVGはコードとして使用するため除外）
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.pdf
+*.mp4
+
+# 4. 履歴・一時ファイル
+*.log
+npm-debug.log*
+.eslintcache
+.DS_Store
+
+# 5. セキュリティ
+.env
+.env.local
+
+# 6. ロック・マップファイル
+*.lock
+*.map
