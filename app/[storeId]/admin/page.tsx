@@ -6,7 +6,7 @@ import {
   BellRing, CheckCheck, UserX, RefreshCw, Clock, Users,
   Loader2, Store, Settings, Plus, Trash2, Phone, User, GraduationCap,
   ChevronRight, ChevronDown, ChevronUp, LayoutDashboard, X, MapPin, BellOff, Bell, AlertCircle,
-  CalendarDays, ShoppingBag,
+  CalendarDays, ShoppingBag, QrCode,
 } from 'lucide-react'
 import { BottomNav } from './_components/BottomNav'
 import { supabase, getTodayStart } from '@/lib/supabase'
@@ -708,6 +708,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
   const [saving,            setSaving]            = useState(false)
   const [showSettings,        setShowSettings]        = useState(false)
   const [showDetails,         setShowDetails]         = useState(false)
+  const [showQrModal,         setShowQrModal]         = useState(false)
   const [pushStatus,          setPushStatus]          = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle')
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -957,12 +958,12 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
           </div>
           <div className="flex items-center gap-1.5">
             <button onClick={fetchQueues} disabled={refreshing}
-              className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:scale-90 transition-all disabled:opacity-50">
+              className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:opacity-60 transition-all disabled:opacity-50">
               <RefreshCw size={16} className={refreshing ? 'animate-spin text-indigo-400' : 'text-zinc-400'} />
             </button>
             <button onClick={() => pushStatus !== 'granted' && setupPush(store.id)}
-              title={pushStatus === 'granted' ? 'ブラウザ通知: ON' : pushStatus === 'denied' ? '通知がブロックされています' : pushStatus === 'unsupported' ? '非対応ブラウザ' : '通知を許可する'}
-              className={`p-2 rounded-xl border active:scale-90 transition-all ${
+              title={pushStatus === 'granted' ? 'ブラウザ通知: ON' : pushStatus === 'denied' ? '通知がブロック' : pushStatus === 'unsupported' ? '非対応' : '通知を許可'}
+              className={`p-2 rounded-xl border active:opacity-60 transition-all ${
                 pushStatus === 'granted'     ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' :
                 pushStatus === 'denied'      ? 'bg-red-500/20 border-red-500/40 text-red-400' :
                 pushStatus === 'unsupported' ? 'bg-zinc-800 border-zinc-700 text-zinc-600 cursor-not-allowed' :
@@ -970,13 +971,9 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
               }`}>
               {pushStatus === 'denied' ? <BellOff size={16} /> : <Bell size={16} />}
             </button>
-            <button onClick={() => setShowSettings(v => !v)}
-              className={`p-2 rounded-xl border active:scale-90 transition-all ${showSettings ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-white/5 border-white/10 text-zinc-400 hover:bg-white/10'}`}>
-              <Settings size={16} />
-            </button>
-            <button onClick={onLogout}
-              className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:scale-90 transition-all text-zinc-400 text-xs font-bold px-3">
-              切替
+            <button onClick={() => setShowQrModal(true)}
+              className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:opacity-60 transition-all text-zinc-400">
+              <QrCode size={16} />
             </button>
           </div>
         </div>
@@ -1124,13 +1121,15 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
           {/* クイックリンク */}
           <div className="grid grid-cols-2 gap-2">
             <a href={`/${store.id}/admin/reservations`}
-              className="flex items-center gap-2 px-3 py-2.5 bg-violet-500/10 border border-violet-500/20 rounded-xl hover:bg-violet-500/20 active:scale-[0.98] transition-all">
+              style={{ touchAction: 'manipulation' }}
+              className="flex items-center gap-2 px-3 py-2.5 bg-violet-500/10 border border-violet-500/20 rounded-xl active:opacity-70">
               <CalendarDays size={14} className="text-violet-400 shrink-0" />
               <span className="text-violet-300 text-xs font-bold">予約管理</span>
               <ChevronRight size={12} className="text-violet-600 ml-auto" />
             </a>
             <a href={`/${store.id}/admin/orders`}
-              className="flex items-center gap-2 px-3 py-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl hover:bg-emerald-500/20 active:scale-[0.98] transition-all">
+              style={{ touchAction: 'manipulation' }}
+              className="flex items-center gap-2 px-3 py-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl active:opacity-70">
               <ShoppingBag size={14} className="text-emerald-400 shrink-0" />
               <span className="text-emerald-300 text-xs font-bold">注文管理</span>
               <ChevronRight size={12} className="text-emerald-600 ml-auto" />
@@ -1187,6 +1186,31 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
 
         </div>
       </div>
+
+      {/* QR モーダル */}
+      {showQrModal && (() => {
+        const liffId = process.env.NEXT_PUBLIC_LIFF_ID || '2010126882-aUahQStD'
+        const url    = `https://liff.line.me/${liffId}/${store.id}`
+        const qrSrc  = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(url)}`
+        return (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+            <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 w-full max-w-xs text-center relative">
+              <button onClick={() => setShowQrModal(false)}
+                className="absolute top-4 right-4 p-1.5 rounded-xl bg-zinc-800 text-zinc-400 hover:text-white">
+                <X size={16} />
+              </button>
+              <p className="font-black text-white text-base mb-1">お客様受付 QR</p>
+              <p className="text-zinc-500 text-xs mb-4">このQRをお客様のLINEで読み取ってもらってください</p>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={qrSrc} alt="受付QR" width={240} height={240} className="mx-auto rounded-2xl bg-white p-2" />
+              <button onClick={() => { onLogout() }} className="mt-5 text-xs text-zinc-600 hover:text-zinc-400">
+                店舗を切り替える
+              </button>
+            </div>
+          </div>
+        )
+      })()}
+
       <BottomNav />
     </div>
   )

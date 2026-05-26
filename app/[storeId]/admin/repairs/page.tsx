@@ -1,10 +1,10 @@
 'use client'
 
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   Scissors, ShoppingBag, Loader2, ChevronDown, ChevronUp,
-  Phone, User, AlertCircle, Check, Truck, RotateCcw, Package,
+  Phone, User, Check, Truck, RotateCcw, Package, ChevronRight,
 } from 'lucide-react'
 import { createClient } from '@supabase/supabase-js'
 import {
@@ -220,7 +220,6 @@ type ActiveTab = 'repair' | 'purchase'
 
 export default function RepairsPage() {
   const { storeId } = useParams<{ storeId: string }>()
-  const router = useRouter()
 
   const [tab,       setTab]       = useState<ActiveTab>('repair')
   const [repairs,   setRepairs]   = useState<RepairRow[]>([])
@@ -228,14 +227,6 @@ export default function RepairsPage() {
   const [loading,   setLoading]   = useState(true)
   const [toast,     setToast]     = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // auth guard
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (sessionStorage.getItem('admin_auth') !== '1') {
-      router.replace(`/${storeId}/admin`)
-    }
-  }, [storeId, router])
 
   const showToast = useCallback((type: 'ok' | 'err', msg: string) => {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -289,12 +280,20 @@ export default function RepairsPage() {
       <div className="sticky top-0 z-40 bg-zinc-950/90 backdrop-blur border-b border-zinc-800/60">
         <div className="max-w-2xl mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0">
               <Scissors size={17} className="text-amber-400" />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <h1 className="text-base font-bold text-zinc-100">お直し・追加購入</h1>
             </div>
+            <a
+              href={`/${storeId}/admin/orders`}
+              style={{ touchAction: 'manipulation' }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-300 text-xs font-medium shrink-0"
+            >
+              <Package size={13} />注文管理
+              <ChevronRight size={11} />
+            </a>
           </div>
 
           {/* Tabs */}

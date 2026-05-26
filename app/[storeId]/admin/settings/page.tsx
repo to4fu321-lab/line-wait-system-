@@ -1,6 +1,6 @@
 'use client'
 
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { useEffect, useState, useCallback } from 'react'
 import {
   Settings, Loader2, Plus, Trash2, GraduationCap, AlertCircle, Save,
@@ -36,7 +36,6 @@ function Section({ title }: { title: string }) {
 
 export default function SettingsPage() {
   const { storeId } = useParams<{ storeId: string }>()
-  const router = useRouter()
 
   const [loading,           setLoading]           = useState(true)
   const [saving,            setSaving]            = useState(false)
@@ -52,13 +51,6 @@ export default function SettingsPage() {
   const [storeName,         setStoreName]         = useState('')
 
   // auth guard
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (sessionStorage.getItem('admin_auth') !== '1') {
-      router.replace(`/${storeId}/admin`)
-    }
-  }, [storeId, router])
-
   const fetchSettings = useCallback(async () => {
     setLoading(true)
     const { data } = await (supabase.from('stores') as any)
@@ -279,6 +271,21 @@ export default function SettingsPage() {
         >
           {saving ? <><Loader2 size={16} className="animate-spin inline mr-2" />保存中...</> : '設定を保存'}
         </button>
+
+        {/* 店舗切替 */}
+        <div className="border-t border-zinc-800/60 pt-4">
+          <button
+            onClick={() => {
+              sessionStorage.removeItem('admin_auth')
+              sessionStorage.removeItem('admin_store_id')
+              window.location.href = `/${storeId}/admin`
+            }}
+            style={{ touchAction: 'manipulation' }}
+            className="w-full py-2.5 rounded-xl border border-zinc-700/50 text-zinc-500 text-sm hover:text-zinc-300 hover:border-zinc-600 transition-colors"
+          >
+            店舗を切り替える
+          </button>
+        </div>
 
       </div>
 
