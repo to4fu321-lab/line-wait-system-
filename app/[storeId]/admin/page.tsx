@@ -456,6 +456,7 @@ function SettingsPanel({
   onNoticeChange, onThresholdsChange, onRemoteChange, onPlanChange, onPushSettingsChange,
   onSave, saving, isTestMode, testLoading, onTestModeToggle, onTestSeed, onTestClear,
   alertDaysRepair, alertDaysPurchase, onAlertRepairChange, onAlertPurchaseChange,
+  schoolNames, onSchoolNamesChange,
 }: {
   noticeThreshold: number; waitThresholds: WaitThreshold[]; allowRemote: boolean
   notificationPlan: 'calling_only' | 'full'
@@ -472,6 +473,8 @@ function SettingsPanel({
   alertDaysPurchase: number
   onAlertRepairChange: (v: number) => void
   onAlertPurchaseChange: (v: number) => void
+  schoolNames: string[]
+  onSchoolNamesChange: (v: string[]) => void
 }) {
   return (
     <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 space-y-5">
@@ -608,6 +611,32 @@ function SettingsPanel({
         ))}
       </div>
 
+      {/* ⑥ 学校名マスタ */}
+      <div>
+        <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block flex items-center gap-1.5">
+          <GraduationCap size={11} className="text-indigo-400" />学校名マスタ（CRM・受付フォームで使用）
+        </label>
+        <div className="space-y-1.5 mb-2">
+          {schoolNames.map((s, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input type="text" value={s}
+                onChange={e => {
+                  const up = [...schoolNames]; up[i] = e.target.value; onSchoolNamesChange(up)
+                }}
+                className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-none" />
+              <button onClick={() => onSchoolNamesChange(schoolNames.filter((_, j) => j !== i))}
+                className="shrink-0 p-1.5 rounded-lg bg-red-900/40 text-red-400 hover:bg-red-900/60 transition-colors">
+                <Trash2 size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+        <button onClick={() => onSchoolNamesChange([...schoolNames, ''])}
+          className="w-full flex items-center justify-center gap-2 py-1.5 rounded-xl border border-dashed border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 transition-colors text-xs">
+          <Plus size={12} />学校を追加
+        </button>
+      </div>
+
       <button onClick={onSave} disabled={saving}
         className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-indigo-900/40">
         {saving ? <><Loader2 size={16} className="animate-spin inline mr-2" />保存中...</> : '設定を保存'}
@@ -670,6 +699,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
   const [activeFittings,    setActiveFittings]    = useState(1)
   const [alertDaysRepair,     setAlertDaysRepair]     = useState(7)
   const [alertDaysPurchase,   setAlertDaysPurchase]   = useState(7)
+  const [schoolNames,         setSchoolNames]         = useState<string[]>([])
   const [pendingRepairCount,  setPendingRepairCount]  = useState(0)
   const [pendingPurchaseCount,setPendingPurchaseCount]= useState(0)
   const [testLoading,         setTestLoading]         = useState<'seed'|'clear'|'toggle'|null>(null)
@@ -713,7 +743,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
 
   const fetchStoreStatus = useCallback(async () => {
     const { data } = await supabase.from('stores')
-      .select('is_open, notice_threshold, wait_thresholds, allow_remote, notification_plan, push_settings, is_test_mode, active_fittings, alert_days_repair, alert_days_purchase')
+      .select('is_open, notice_threshold, wait_thresholds, allow_remote, notification_plan, push_settings, is_test_mode, active_fittings, alert_days_repair, alert_days_purchase, school_names')
       .eq('id', store.id).single()
     if (data) {
       setIsOpen(data.is_open ?? false)
@@ -729,6 +759,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
       if ((data as any).active_fittings != null) setActiveFittings((data as any).active_fittings)
       if ((data as any).alert_days_repair   != null) setAlertDaysRepair((data as any).alert_days_repair)
       if ((data as any).alert_days_purchase != null) setAlertDaysPurchase((data as any).alert_days_purchase)
+      if (Array.isArray((data as any).school_names)) setSchoolNames((data as any).school_names)
     }
   }, [store.id])
 
@@ -885,6 +916,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
       push_settings:      pushSettings,
       alert_days_repair:  alertDaysRepair,
       alert_days_purchase: alertDaysPurchase,
+      school_names: schoolNames.filter(s => s.trim()),
     }).eq('id', store.id)
     setSaving(false)
     showToast(error ? 'err' : 'ok', error ? '保存失敗: ' + error.message : '設定を保存しました')
@@ -1067,6 +1099,8 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
                 alertDaysPurchase={alertDaysPurchase}
                 onAlertRepairChange={setAlertDaysRepair}
                 onAlertPurchaseChange={setAlertDaysPurchase}
+                schoolNames={schoolNames}
+                onSchoolNamesChange={setSchoolNames}
               />
             </div>
           )}

@@ -597,7 +597,7 @@ function ChildCard({
   onPurchaseStock, onPurchaseBackOrder,
   onPurchaseArrive, onPurchaseDeliver, onPurchaseRevert,
   onRefreshStats,
-  showToast,
+  showToast, schoolOptions,
 }: {
   child: Child
   customerId: string
@@ -612,6 +612,7 @@ function ChildCard({
   onPurchaseRevert:    (id: string) => Promise<void>
   onRefreshStats:      () => void
   showToast:           (type: 'ok' | 'err', msg: string) => void
+  schoolOptions?:      string[]
 }) {
   const [expanded,       setExpanded]       = useState(false)
   const [repairs,        setRepairs]        = useState<RepairHistory[]>([])
@@ -726,10 +727,11 @@ function ChildCard({
 // ============================================================
 // お子様編集フォーム
 // ============================================================
-function EditChildForm({ child, onSaved, onCancel }: {
+function EditChildForm({ child, onSaved, onCancel, schoolOptions }: {
   child: Child
   onSaved: (c: Child) => void
   onCancel: () => void
+  schoolOptions?: string[]
 }) {
   const [name,       setName]       = useState(child.name)
   const [kana,       setKana]       = useState(child.kana ?? '')
@@ -772,7 +774,7 @@ function EditChildForm({ child, onSaved, onCancel }: {
           <select value={schoolName} onChange={e => setSchoolName(e.target.value)}
             className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-amber-500 focus:outline-none">
             <option value="">選択</option>
-            {SCHOOL_OPTIONS.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
+            {(schoolOptions ?? SCHOOL_OPTIONS).map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </Field>
         <Field label="学年">
@@ -862,8 +864,9 @@ function EditCustomerForm({ customer, onSaved, onCancel }: {
 // ============================================================
 // お子様追加フォーム（CRM内）
 // ============================================================
-function AddChildFormCRM({ customerId, storeId, onSaved, onCancel }: {
+function AddChildFormCRM({ customerId, storeId, onSaved, onCancel, schoolOptions }: {
   customerId: string; storeId: string; onSaved: (c: Child) => void; onCancel: () => void
+  schoolOptions?: string[]
 }) {
   const [name,       setName]       = useState('')
   const [kana,       setKana]       = useState('')
@@ -908,7 +911,7 @@ function AddChildFormCRM({ customerId, storeId, onSaved, onCancel }: {
           <select value={schoolName} onChange={e => setSchoolName(e.target.value)}
             className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none">
             <option value="">選択</option>
-            {SCHOOL_OPTIONS.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
+            {(schoolOptions ?? SCHOOL_OPTIONS).map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </Field>
         <Field label="学年">
@@ -963,6 +966,8 @@ export default function CRMPage() {
 
   const [alertDaysRepair,   setAlertDaysRepair]   = useState(7)
   const [alertDaysPurchase, setAlertDaysPurchase] = useState(7)
+  const [schoolOptions,     setSchoolOptions]     = useState<string[]>([])
+  const [schoolFilter,      setSchoolFilter]      = useState<string | null>(null)
 
   // 未対応統計
   const [stats, setStats] = useState({ repairReceived: 0, repairCompleted: 0, purchaseReceived: 0, purchaseInProgress: 0, purchaseArrived: 0 })
@@ -1012,11 +1017,13 @@ export default function CRMPage() {
   useEffect(() => {
     if (!storeId) return
     ;(supabase.from('stores') as any)
-      .select('alert_days_repair, alert_days_purchase')
+      .select('alert_days_repair, alert_days_purchase, school_names')
       .eq('id', storeId).single()
       .then(({ data }: { data: any }) => {
         if (data?.alert_days_repair   != null) setAlertDaysRepair(data.alert_days_repair)
         if (data?.alert_days_purchase != null) setAlertDaysPurchase(data.alert_days_purchase)
+        if (Array.isArray(data?.school_names) && data.school_names.length > 0)
+          setSchoolOptions(data.school_names)
       })
   }, [storeId])
 
@@ -1040,7 +1047,7 @@ export default function CRMPage() {
   const fetchAllCustomers = useCallback(async () => {
     if (!storeId) return
     setAllLoading(true)
-    const q = supabase.from('customers').select('*').eq('store_id', storeId)
+    const q = supabase.from('customers').select('*, children(school_name)').eq('store_id', storeId)
     const { data } = await (showDeleted ? q.not('deleted_at', 'is', null) : q.is('deleted_at', null))
       .order('kana', { ascending: true }).limit(500)
     setAllCustomers(data ?? [])
@@ -1601,8 +1608,32 @@ export default function CRMPage() {
             )}
           </div>
 
+          {/* 学校フィルター */}
+          {!searchQuery.trim() && schoolOptions.length > 0 && (
+            <div className="flex gap-1.5 mb-2 flex-wrap">
+              {schoolOptions.map(s => {
+                const active = schoolFilter === s
+                const count = allCustomers.filter(c =>
+                  (c as any).children?.some((ch: any) => ch.school_name === s)
+                ).length
+                return (
+                  <button key={s}
+                    onClick={() => { setSchoolFilter(active ? null : s); setKanaFilter(null) }}
+                    className={`px-3 h-8 rounded-lg text-xs font-bold transition-all active:scale-90 ${
+                      active
+                        ? 'bg-amber-500 text-white shadow-lg shadow-amber-900/40'
+                        : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                    }`}>
+                    {s}
+                    {count > 0 && <span className={`ml-1 ${active ? 'text-amber-100' : 'text-zinc-600'}`}>({count})</span>}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
           {/* あいうえおインデックス */}
-          {!searchQuery.trim() && (
+          {!searchQuery.trim() && !schoolFilter && (
             <div className="flex gap-1 mb-3 flex-wrap">
               {KANA_ROWS.map(row => {
                 const count = allCustomers.filter(c => getKanaRow(c.kana) === row).length
@@ -1631,9 +1662,13 @@ export default function CRMPage() {
             const isSearchMode = !!searchQuery.trim()
             const list = isSearchMode
               ? customers
-              : kanaFilter
-                ? allCustomers.filter(c => getKanaRow(c.kana) === kanaFilter)
-                : allCustomers
+              : schoolFilter
+                ? allCustomers.filter(c =>
+                    (c as any).children?.some((ch: any) => ch.school_name === schoolFilter)
+                  )
+                : kanaFilter
+                  ? allCustomers.filter(c => getKanaRow(c.kana) === kanaFilter)
+                  : allCustomers
             const loading = isSearchMode ? customerLoading : allLoading
 
             if (loading) return (
@@ -1747,6 +1782,7 @@ export default function CRMPage() {
                   {customerChildren.map(child => (
                     editingChild?.id === child.id ? (
                       <EditChildForm key={child.id} child={child}
+                        schoolOptions={schoolOptions}
                         onSaved={updated => {
                           setCustomerChildren(prev => prev.map(c => c.id === updated.id ? updated : c))
                           setEditingChild(null)
@@ -1789,6 +1825,7 @@ export default function CRMPage() {
                     <AddChildFormCRM
                       customerId={selectedCustomer.id}
                       storeId={storeId}
+                      schoolOptions={schoolOptions}
                       onSaved={newChild => {
                         setCustomerChildren(prev => [...prev, newChild])
                         setShowAddChild(false)
