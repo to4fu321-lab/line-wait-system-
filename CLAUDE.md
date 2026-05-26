@@ -1,9 +1,9 @@
 # line-wait-system — 開発ガイド
 
-## エージェント協調ルール
+## 開発体制
 
-このリポジトリは **Claude Code** と **AntiGravity** の2エージェントが共同開発しています。
-作業開始前に必ず以下を確認・実行してください。
+**Claude Code がすべてのファイルを担当します。**
+AntiGravity は補助的に使用することがありますが、基本的には Claude Code がメインで開発を進めます。
 
 ---
 
@@ -13,24 +13,22 @@
 # 1. 最新を取得
 git pull origin main
 
-# 2. 誰が何を作業中か確認
+# 2. 作業中のタスクを確認
 cat WORKING.md
 ```
 
-`WORKING.md` に他のエージェントの作業が記録されている場合は、
-**同じファイルへの変更を避けるか、作業完了を待ってから開始**してください。
+`WORKING.md` に作業中のエントリがある場合は、**完了してから次の作業を開始**してください。
 
 ---
 
 ## 作業開始時
 
-`WORKING.md` を更新してコミット・プッシュしてください。
+`WORKING.md` に「触るファイルを全列挙」してからコミット・プッシュしてください。
 
 ```bash
-# 例: Claude Code が page.tsx を修正する場合
-# WORKING.md に以下を追記してプッシュ
-echo "- [Claude Code] app/[storeId]/page.tsx — フリガナ修正 ($(date '+%Y-%m-%d %H:%M'))" >> WORKING.md
-git add WORKING.md && git commit -m "wip: Claude Code — フリガナ修正 開始" && git push origin main
+# WORKING.md に追記する形式（ファイルパスを必ず列挙）
+# - [Claude Code] app/[storeId]/admin/page.tsx, app/api/xxx/route.ts — 機能名 (YYYY-MM-DD HH:MM)
+git add WORKING.md && git commit -m "wip: 〇〇 開始" && git push origin main
 ```
 
 ---
@@ -40,22 +38,21 @@ git add WORKING.md && git commit -m "wip: Claude Code — フリガナ修正 開
 変更をコミット・プッシュした後、`WORKING.md` から自分の行を削除してください。
 
 ```bash
-# 完了後に WORKING.md をクリア（自分の行だけ削除）
 git add . && git commit -m "fix: ○○を修正" && git push origin main
 ```
 
 ---
 
-## 担当エリア（基本ルール）
+## 担当ファイル
 
-| エージェント | 担当 | 主なファイル |
-|-------------|------|------------|
-| **Claude Code** | API・バックエンド・DB・Vercelデプロイ | `app/api/` `lib/` `types/` `middleware.ts` |
-| **AntiGravity** | UI・画面デザイン・フロントエンド調整 | `app/[storeId]/**/*.tsx` `app/*/page.tsx` `globals.css` |
+Claude Code がすべてのファイルを担当します。
 
-**この担当分けを基本とし、担当外のファイルは原則触らないこと。**
-
-やむを得ず担当外のファイルを変更する場合は、必ず `WORKING.md` に理由を明記してから着手する。
+| カテゴリ | ファイル・ディレクトリ |
+|---|---|
+| フロントエンド（画面） | `app/[storeId]/**/*.tsx` `app/*/page.tsx` `globals.css` |
+| バックエンド（API） | `app/api/**` |
+| 型定義・ライブラリ | `types/` `lib/` |
+| 設定・インフラ | `middleware.ts` `next.config.*` `vercel.json` |
 
 ---
 
