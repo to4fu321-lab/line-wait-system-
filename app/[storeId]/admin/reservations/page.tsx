@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { BottomNav } from '../_components/BottomNav'
 import {
   ArrowLeft, Plus, Loader2, X, CalendarDays, Clock,
   User, Phone, GraduationCap, CheckCheck, BellRing,
@@ -600,6 +601,7 @@ export default function ReservationsPage() {
           </div>
         )}
       </div>
+      <BottomNav />
     </div>
   )
 }

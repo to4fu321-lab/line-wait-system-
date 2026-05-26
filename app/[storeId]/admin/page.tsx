@@ -8,6 +8,7 @@ import {
   ChevronRight, ChevronDown, ChevronUp, LayoutDashboard, X, MapPin, BellOff, Bell, AlertCircle,
   CalendarDays, ShoppingBag,
 } from 'lucide-react'
+import { BottomNav } from './_components/BottomNav'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import type { Queue, QueueStatus, WaitThreshold } from '@/types/database'
 import {
@@ -1120,47 +1121,21 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
             </div>
           )}
 
-          {/* 顧客管理リンク — 未作業数バッジ付き */}
-          <a href={`/${store.id}/admin/crm`}
-            className="flex items-center gap-3 px-4 py-3 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl hover:bg-indigo-500/20 active:scale-[0.98] transition-all">
-            <div className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
-              <Users size={15} className="text-indigo-400" />
-            </div>
-            <span className="text-indigo-300 text-sm font-bold flex-1">顧客管理（お直し・追加購入）</span>
-            <div className="flex items-center gap-1.5 shrink-0">
-              {pendingRepairCount > 0 && (
-                <span className="bg-amber-500 text-white text-xs font-black px-2 py-0.5 rounded-full">
-                  お直し {pendingRepairCount}
-                </span>
-              )}
-              {pendingPurchaseCount > 0 && (
-                <span className="bg-blue-500 text-white text-xs font-black px-2 py-0.5 rounded-full">
-                  取置き {pendingPurchaseCount}
-                </span>
-              )}
-            </div>
-            <ChevronRight size={14} className="text-indigo-500 shrink-0" />
-          </a>
-
-          {/* 予約管理リンク */}
-          <a href={`/${store.id}/admin/reservations`}
-            className="flex items-center gap-3 px-4 py-3 bg-violet-500/10 border border-violet-500/20 rounded-2xl hover:bg-violet-500/20 active:scale-[0.98] transition-all">
-            <div className="w-8 h-8 rounded-xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center shrink-0">
-              <CalendarDays size={15} className="text-violet-400" />
-            </div>
-            <span className="text-violet-300 text-sm font-bold flex-1">予約管理</span>
-            <ChevronRight size={14} className="text-violet-500 shrink-0" />
-          </a>
-
-          {/* 注文管理リンク */}
-          <a href={`/${store.id}/admin/orders`}
-            className="flex items-center gap-3 px-4 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl hover:bg-emerald-500/20 active:scale-[0.98] transition-all">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0">
-              <ShoppingBag size={15} className="text-emerald-400" />
-            </div>
-            <span className="text-emerald-300 text-sm font-bold flex-1">注文管理</span>
-            <ChevronRight size={14} className="text-emerald-500 shrink-0" />
-          </a>
+          {/* クイックリンク */}
+          <div className="grid grid-cols-2 gap-2">
+            <a href={`/${store.id}/admin/reservations`}
+              className="flex items-center gap-2 px-3 py-2.5 bg-violet-500/10 border border-violet-500/20 rounded-xl hover:bg-violet-500/20 active:scale-[0.98] transition-all">
+              <CalendarDays size={14} className="text-violet-400 shrink-0" />
+              <span className="text-violet-300 text-xs font-bold">予約管理</span>
+              <ChevronRight size={12} className="text-violet-600 ml-auto" />
+            </a>
+            <a href={`/${store.id}/admin/orders`}
+              className="flex items-center gap-2 px-3 py-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl hover:bg-emerald-500/20 active:scale-[0.98] transition-all">
+              <ShoppingBag size={14} className="text-emerald-400 shrink-0" />
+              <span className="text-emerald-300 text-xs font-bold">注文管理</span>
+              <ChevronRight size={12} className="text-emerald-600 ml-auto" />
+            </a>
+          </div>
 
           {/* 待ちリスト */}
           <div className="space-y-3">
@@ -1212,6 +1187,7 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
 
         </div>
       </div>
+      <BottomNav />
     </div>
   )
 }

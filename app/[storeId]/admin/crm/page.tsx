@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { BottomNav } from '../_components/BottomNav'
 import {
   ArrowLeft, Search, Plus, User, Phone,
   CheckCheck, Package, Loader2, X, MessageCircle,
@@ -1959,6 +1960,7 @@ export default function CRMPage() {
           </div>
         </div>
       )}
+      <BottomNav />
     </div>
   )
 }
