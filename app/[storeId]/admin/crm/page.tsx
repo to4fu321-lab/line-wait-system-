@@ -533,6 +533,7 @@ function NewPurchaseForm({ customerId, childId, storeId, onSaved, onCancel }: {
   customerId: string; childId: string | null; storeId: string; onSaved: () => void; onCancel: () => void
 }) {
   const [itemName, setItemName] = useState('')
+  const [maker,    setMaker]    = useState('')
   const [notes,    setNotes]    = useState('')
   const [price,    setPrice]    = useState('')
   const [loading,  setLoading]  = useState(false)
@@ -545,6 +546,7 @@ function NewPurchaseForm({ customerId, childId, storeId, onSaved, onCancel }: {
       store_id: storeId, customer_id: customerId,
       child_id: childId ?? null,
       item_name: itemName.trim(),
+      maker: maker.trim() || null,
       notes: notes.trim() || null,
       price: price ? parseInt(price) : null,
       status: 'ordered', ordered_date: new Date().toISOString().slice(0, 10),
@@ -565,6 +567,10 @@ function NewPurchaseForm({ customerId, childId, storeId, onSaved, onCancel }: {
       <Field label="商品名" required>
         <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none"
           placeholder="例：○○高校学ラン 165A" value={itemName} onChange={e => { setItemName(e.target.value); setError(null) }} />
+      </Field>
+      <Field label="メーカー">
+        <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none"
+          placeholder="例：トンボ、カンコー、菅公" value={maker} onChange={e => setMaker(e.target.value)} />
       </Field>
       <div className="grid grid-cols-2 gap-2">
         <Field label="金額（円）">

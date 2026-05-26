@@ -38,7 +38,7 @@ interface RepairRow {
 
 interface PurchaseRow {
   id: string; store_id: string; customer_id: string; child_id: string | null
-  item_name: string; notes: string | null; status: PurchaseStatus
+  item_name: string; maker: string | null; notes: string | null; status: PurchaseStatus
   price: number | null; ordered_date: string; arrived_date: string | null
   delivered_date: string | null; notified: boolean; created_at: string; updated_at: string
   customer?: { id: string; name: string; tel: string | null }
@@ -224,6 +224,91 @@ function PurchaseCard({ item, storeId, onRefresh, onToast }: {
   )
 }
 
+// ── Maker Order Panel ─────────────────────────────────────────
+function MakerGroup({ maker, items, storeId, onRefresh, onToast }: {
+  maker: string; items: PurchaseRow[]; storeId: string
+  onRefresh: () => void; onToast: (t: 'ok' | 'err', m: string) => void
+}) {
+  const [open, setOpen]     = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  async function markOrdered() {
+    setLoading(true)
+    const { error } = await (supabase as any).from('purchase_orders')
+      .update({ status: 'on_order', updated_at: new Date().toISOString() })
+      .in('id', items.map(i => i.id))
+    setLoading(false)
+    if (error) { onToast('err', '更新に失敗しました'); return }
+    onToast('ok', `${maker}: ${items.length}件を発注済みにしました`)
+    onRefresh()
+  }
+
+  return (
+    <div className="bg-zinc-900/60 border border-zinc-700/50 rounded-2xl overflow-hidden">
+      <div className="px-4 py-3 flex items-center gap-3">
+        <button className="flex-1 text-left flex items-center gap-2" onClick={() => setOpen(v => !v)}>
+          <div>
+            <p className="font-bold text-zinc-100 text-sm">{maker}</p>
+            <p className="text-xs text-zinc-500">{items.length}件 未発注</p>
+          </div>
+          {open ? <ChevronUp size={14} className="text-zinc-500 ml-auto" /> : <ChevronDown size={14} className="text-zinc-500 ml-auto" />}
+        </button>
+        <button onClick={markOrdered} disabled={loading}
+          className="shrink-0 px-3 py-2 bg-orange-700 hover:bg-orange-600 text-white text-xs font-bold rounded-xl flex items-center gap-1.5">
+          {loading ? <Loader2 size={12} className="animate-spin" /> : <Package size={12} />}
+          発注済みに
+        </button>
+      </div>
+      {open && (
+        <div className="border-t border-zinc-800/60 divide-y divide-zinc-800/40">
+          {items.map(item => (
+            <div key={item.id} className="px-4 py-3">
+              <p className="text-sm font-medium text-zinc-100">{item.item_name}</p>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                {item.customer?.name ?? '顧客不明'}{item.child ? ` / ${item.child.name}` : ''}
+                {' · '}{fmtDate(item.ordered_date)}
+              </p>
+              {item.notes && <p className="text-xs text-zinc-600 mt-0.5">{item.notes}</p>}
+              {item.price != null && <p className="text-xs text-zinc-600">¥{item.price.toLocaleString()}</p>}
+              <a href={`/${storeId}/admin/crm?customerId=${item.customer_id}`}
+                className="inline-flex items-center gap-1 text-xs text-zinc-600 hover:text-zinc-400 mt-1">
+                <User size={10} />顧客詳細
+              </a>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MakerOrderPanel({ purchases, storeId, onRefresh, onToast }: {
+  purchases: PurchaseRow[]; storeId: string
+  onRefresh: () => void; onToast: (t: 'ok' | 'err', m: string) => void
+}) {
+  const grouped = purchases.reduce<Record<string, PurchaseRow[]>>((acc, p) => {
+    const key = p.maker?.trim() || '（メーカー未設定）'
+    ;(acc[key] ??= []).push(p)
+    return acc
+  }, {})
+
+  if (Object.keys(grouped).length === 0) {
+    return (
+      <div className="text-center py-10 text-zinc-600">
+        <p className="text-sm">未発注の追加購入はありません</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {Object.entries(grouped).map(([maker, items]) => (
+        <MakerGroup key={maker} maker={maker} items={items} storeId={storeId} onRefresh={onRefresh} onToast={onToast} />
+      ))}
+    </div>
+  )
+}
+
 // ── Order Card ────────────────────────────────────────────────
 function OrderCard({ item, storeId, onRefresh, onToast }: {
   item: OrderRow; storeId: string; onRefresh: () => void; onToast: (t: 'ok' | 'err', m: string) => void
@@ -335,9 +420,10 @@ export default function RepairsPage() {
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [toast,     setToast]     = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [repairFilter,   setRepairFilter]   = useState<'received' | 'completed' | null>(null)
-  const [purchaseFilter, setPurchaseFilter] = useState<'pending' | 'on_order' | 'arrived' | null>(null)
-  const [orderFilter,    setOrderFilter]    = useState<'active' | 'ready' | 'unpaid' | null>(null)
+  const [repairFilter,      setRepairFilter]      = useState<'received' | 'completed' | null>(null)
+  const [purchaseFilter,    setPurchaseFilter]    = useState<'pending' | 'on_order' | 'arrived' | null>(null)
+  const [orderFilter,       setOrderFilter]       = useState<'active' | 'ready' | 'unpaid' | null>(null)
+  const [purchaseViewMode,  setPurchaseViewMode]  = useState<'list' | 'order_mgmt'>('list')
 
   const showToast = useCallback((type: 'ok' | 'err', msg: string) => {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -512,9 +598,14 @@ export default function RepairsPage() {
         {tab === 'purchase' && (
           <>
             {purchaseCounts.pending > 0 && (
-              <button onClick={handleBulkOrder}
-                className="w-full py-3 bg-orange-700 hover:bg-orange-600 active:bg-orange-800 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2">
-                <Package size={15} />一括発注（{purchaseCounts.pending}件）
+              <button onClick={() => setPurchaseViewMode(m => m === 'order_mgmt' ? 'list' : 'order_mgmt')}
+                className={`w-full py-3 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors ${
+                  purchaseViewMode === 'order_mgmt'
+                    ? 'bg-zinc-700 text-zinc-300'
+                    : 'bg-orange-700 hover:bg-orange-600 text-white'
+                }`}>
+                <Package size={15} />
+                {purchaseViewMode === 'order_mgmt' ? '発注管理を閉じる' : `📋 発注管理（未発注 ${purchaseCounts.pending}件）`}
               </button>
             )}
             <div className="grid grid-cols-3 gap-2">
@@ -584,7 +675,12 @@ export default function RepairsPage() {
             </div>
           )
         ) : tab === 'purchase' ? (
-          purchases.length === 0 ? (
+          purchaseViewMode === 'order_mgmt' ? (
+            <MakerOrderPanel
+              purchases={purchases.filter(p => ['received', 'ordered'].includes(p.status))}
+              storeId={storeId} onRefresh={fetchAll} onToast={showToast}
+            />
+          ) : purchases.length === 0 ? (
             <div className="text-center py-16 text-zinc-600">
               <ShoppingBag size={32} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">対応中の追加購入はありません</p>

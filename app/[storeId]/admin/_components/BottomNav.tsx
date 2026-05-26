@@ -14,7 +14,7 @@ const TABS = [
 ] as const
 
 const FAB_ITEMS = [
-  { label: 'お直し・追加購入を依頼', emoji: '✂️', path: (sid: string) => `/${sid}/admin/crm` },
+  { label: 'お直し・追加注文受付', emoji: '✂️', path: (sid: string) => `/${sid}/admin/crm` },
   { label: '制服注文を追加',         emoji: '📋', path: (sid: string) => `/${sid}/admin/orders` },
 ]
 
