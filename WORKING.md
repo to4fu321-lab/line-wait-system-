@@ -5,4 +5,4 @@
 
 <!-- 作業中のエントリをここに追記 -->
 
-- [Claude Code] types/reservations.ts, types/orders.ts, app/[storeId]/admin/reservations/page.tsx, app/[storeId]/admin/orders/page.tsx, app/[storeId]/admin/page.tsx — 予約管理・注文管理ページ新規実装＋ナビ追加 (2026-05-26)
+- [Claude Code] app/[storeId]/admin/_components/BottomNav.tsx, app/[storeId]/admin/repairs/page.tsx, app/[storeId]/admin/settings/page.tsx, app/[storeId]/admin/page.tsx, app/[storeId]/admin/crm/page.tsx, app/[storeId]/admin/orders/page.tsx, app/[storeId]/admin/reservations/page.tsx — 固定ボトムナビ追加・お直し専用ページ・設定ページ新規作成 (2026-05-26)

@@ -3,6 +3,7 @@
 import { useParams } from 'next/navigation'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import { BottomNav } from '../_components/BottomNav'
 import {
   ShoppingBag, Plus, ChevronDown, ChevronUp, Trash2,
   User, Package, CreditCard, Ruler, Weight, FileText, X
@@ -779,6 +780,7 @@ export default function OrdersPage() {
       </div>
 
       {toast && <Toast msg={toast} onClose={() => setToast(null)} />}
+      <BottomNav />
     </div>
   )
 }
