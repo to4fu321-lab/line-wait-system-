@@ -1119,22 +1119,13 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
           )}
 
           {/* クイックリンク */}
-          <div className="grid grid-cols-2 gap-2">
-            <a href={`/${store.id}/admin/reservations`}
-              style={{ touchAction: 'manipulation' }}
-              className="flex items-center gap-2 px-3 py-2.5 bg-violet-500/10 border border-violet-500/20 rounded-xl active:opacity-70">
-              <CalendarDays size={14} className="text-violet-400 shrink-0" />
-              <span className="text-violet-300 text-xs font-bold">予約管理</span>
-              <ChevronRight size={12} className="text-violet-600 ml-auto" />
-            </a>
-            <a href={`/${store.id}/admin/orders`}
-              style={{ touchAction: 'manipulation' }}
-              className="flex items-center gap-2 px-3 py-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl active:opacity-70">
-              <ShoppingBag size={14} className="text-emerald-400 shrink-0" />
-              <span className="text-emerald-300 text-xs font-bold">注文管理</span>
-              <ChevronRight size={12} className="text-emerald-600 ml-auto" />
-            </a>
-          </div>
+          <a href={`/${store.id}/admin/reservations`}
+            style={{ touchAction: 'manipulation' }}
+            className="flex items-center gap-2 px-3 py-2.5 bg-violet-500/10 border border-violet-500/20 rounded-xl active:opacity-70">
+            <CalendarDays size={14} className="text-violet-400 shrink-0" />
+            <span className="text-violet-300 text-xs font-bold">予約管理</span>
+            <ChevronRight size={12} className="text-violet-600 ml-auto" />
+          </a>
 
           {/* 待ちリスト */}
           <div className="space-y-3">
