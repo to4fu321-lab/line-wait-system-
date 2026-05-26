@@ -205,6 +205,13 @@ function PurchaseCard({ item, storeId, onRefresh, onToast }: {
               {nextStep.label}
             </button>
           )}
+          {(item.status === 'received' || item.status === 'ordered') && (
+            <button onClick={() => update({ status: 'stocked', arrived_date: new Date().toISOString().slice(0, 10), notified: true })}
+              disabled={loading} className="w-full py-2.5 bg-teal-800 hover:bg-teal-700 text-white text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-1.5">
+              {loading ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+              店頭在庫確保（取り置き済み）
+            </button>
+          )}
           {item.status !== 'received' && item.status !== 'ordered' && (
             <button onClick={() => update({ status: 'received', arrived_date: null, delivered_date: null, notified: false })}
               disabled={loading} className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs rounded-xl transition-colors flex items-center justify-center gap-1">
@@ -328,6 +335,9 @@ export default function RepairsPage() {
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [toast,     setToast]     = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [repairFilter,   setRepairFilter]   = useState<'received' | 'completed' | null>(null)
+  const [purchaseFilter, setPurchaseFilter] = useState<'pending' | 'on_order' | 'arrived' | null>(null)
+  const [orderFilter,    setOrderFilter]    = useState<'active' | 'ready' | 'unpaid' | null>(null)
 
   const showToast = useCallback((type: 'ok' | 'err', msg: string) => {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -366,6 +376,38 @@ export default function RepairsPage() {
   }, [storeId])
 
   useEffect(() => { fetchAll() }, [fetchAll])
+
+  const handleBulkOrder = useCallback(async () => {
+    const ids = purchases.filter(p => ['received', 'ordered'].includes(p.status)).map(p => p.id)
+    if (!ids.length) return
+    if (!confirm(`依頼受付中 ${ids.length}件をまとめてメーカー発注済みにしますか？`)) return
+    const { error } = await (supabase as any).from('purchase_orders')
+      .update({ status: 'on_order', updated_at: new Date().toISOString() })
+      .in('id', ids)
+    if (error) { showToast('err', '一括発注に失敗しました'); return }
+    showToast('ok', `${ids.length}件を発注済みにしました`)
+    fetchAll()
+  }, [purchases, showToast, fetchAll])
+
+  const filteredRepairs = repairFilter
+    ? repairs.filter(r => r.status === repairFilter)
+    : repairs
+
+  const filteredPurchases = purchaseFilter === 'pending'
+    ? purchases.filter(p => ['received', 'ordered'].includes(p.status))
+    : purchaseFilter === 'on_order'
+    ? purchases.filter(p => p.status === 'on_order')
+    : purchaseFilter === 'arrived'
+    ? purchases.filter(p => p.status === 'arrived')
+    : purchases
+
+  const filteredOrders = orderFilter === 'active'
+    ? orders.filter(o => ['confirmed', 'processing'].includes(o.status))
+    : orderFilter === 'ready'
+    ? orders.filter(o => o.status === 'ready')
+    : orderFilter === 'unpaid'
+    ? orders.filter(o => o.payment_status === 'unpaid')
+    : orders
 
   const repairCounts = {
     received:  repairs.filter(r => r.status === 'received').length,
@@ -408,8 +450,8 @@ export default function RepairsPage() {
           {/* Tabs */}
           <div className="flex gap-1 mt-3 bg-zinc-900/60 border border-zinc-800/60 rounded-xl p-1">
             <button onClick={() => setTab('repair')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors ${tab === 'repair' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}>
-              <Scissors size={12} />お直し
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3.5 rounded-lg text-sm font-semibold transition-colors ${tab === 'repair' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}>
+              <Scissors size={15} />お直し
               {(repairCounts.received + repairCounts.completed) > 0 && (
                 <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab === 'repair' ? 'bg-amber-500/30 text-amber-300' : 'bg-zinc-800 text-zinc-600'}`}>
                   {repairCounts.received + repairCounts.completed}
@@ -417,8 +459,8 @@ export default function RepairsPage() {
               )}
             </button>
             <button onClick={() => setTab('purchase')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors ${tab === 'purchase' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}>
-              <ShoppingBag size={12} />追加購入
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3.5 rounded-lg text-sm font-semibold transition-colors ${tab === 'purchase' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}>
+              <ShoppingBag size={15} />追加購入
               {(purchaseCounts.pending + purchaseCounts.on_order + purchaseCounts.arrived) > 0 && (
                 <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab === 'purchase' ? 'bg-blue-500/30 text-blue-300' : 'bg-zinc-800 text-zinc-600'}`}>
                   {purchaseCounts.pending + purchaseCounts.on_order + purchaseCounts.arrived}
@@ -426,8 +468,8 @@ export default function RepairsPage() {
               )}
             </button>
             <button onClick={() => setTab('order')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors ${tab === 'order' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}>
-              <ShoppingCart size={12} />注文管理
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3.5 rounded-lg text-sm font-semibold transition-colors ${tab === 'order' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}>
+              <ShoppingCart size={15} />注文管理
               {orders.length > 0 && (
                 <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab === 'order' ? 'bg-emerald-500/30 text-emerald-300' : 'bg-zinc-800 text-zinc-600'}`}>
                   {orders.length}
@@ -446,45 +488,74 @@ export default function RepairsPage() {
           </div>
         )}
 
-        {/* Stats */}
+        {/* Stats — タップで絞り込み */}
         {tab === 'repair' && (
           <div className="grid grid-cols-2 gap-2">
-            {[
-              { label: '預かり中', value: repairCounts.received, color: 'text-amber-400' },
-              { label: '連絡済み', value: repairCounts.completed, color: 'text-emerald-400' },
-            ].map(s => (
-              <div key={s.label} className="bg-zinc-900/60 border border-zinc-800/60 rounded-xl p-3 text-center">
+            {([
+              { key: 'received'  as const, label: '依頼受付中', value: repairCounts.received,  color: 'text-amber-400' },
+              { key: 'completed' as const, label: 'お直し完了', value: repairCounts.completed, color: 'text-emerald-400' },
+            ]).map(s => (
+              <button key={s.key}
+                onClick={() => setRepairFilter(f => f === s.key ? null : s.key)}
+                className={`rounded-xl p-3 text-center transition-all border ${
+                  repairFilter === s.key
+                    ? 'bg-zinc-800 border-zinc-600 ring-1 ring-inset ring-zinc-500'
+                    : 'bg-zinc-900/60 border-zinc-800/60'
+                }`}>
                 <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
                 <div className="text-xs text-zinc-500 mt-0.5">{s.label}</div>
-              </div>
+                {repairFilter === s.key && <div className="text-[10px] text-zinc-600 mt-0.5">絞込中 ✕</div>}
+              </button>
             ))}
           </div>
         )}
         {tab === 'purchase' && (
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { label: '依頼中', value: purchaseCounts.pending, color: 'text-blue-400' },
-              { label: '発注済み', value: purchaseCounts.on_order, color: 'text-orange-400' },
-              { label: '入荷済み', value: purchaseCounts.arrived, color: 'text-emerald-400' },
-            ].map(s => (
-              <div key={s.label} className="bg-zinc-900/60 border border-zinc-800/60 rounded-xl p-3 text-center">
-                <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
-                <div className="text-xs text-zinc-500 mt-0.5">{s.label}</div>
-              </div>
-            ))}
-          </div>
+          <>
+            {purchaseCounts.pending > 0 && (
+              <button onClick={handleBulkOrder}
+                className="w-full py-3 bg-orange-700 hover:bg-orange-600 active:bg-orange-800 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2">
+                <Package size={15} />一括発注（{purchaseCounts.pending}件）
+              </button>
+            )}
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { key: 'pending'  as const, label: '依頼受付中', value: purchaseCounts.pending,  color: 'text-blue-400' },
+                { key: 'on_order' as const, label: '発注済み',   value: purchaseCounts.on_order, color: 'text-orange-400' },
+                { key: 'arrived'  as const, label: '入荷済み',   value: purchaseCounts.arrived,  color: 'text-emerald-400' },
+              ]).map(s => (
+                <button key={s.key}
+                  onClick={() => setPurchaseFilter(f => f === s.key ? null : s.key)}
+                  className={`rounded-xl p-3 text-center transition-all border ${
+                    purchaseFilter === s.key
+                      ? 'bg-zinc-800 border-zinc-600 ring-1 ring-inset ring-zinc-500'
+                      : 'bg-zinc-900/60 border-zinc-800/60'
+                  }`}>
+                  <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
+                  <div className="text-xs text-zinc-500 mt-0.5">{s.label}</div>
+                  {purchaseFilter === s.key && <div className="text-[10px] text-zinc-600 mt-0.5">絞込中 ✕</div>}
+                </button>
+              ))}
+            </div>
+          </>
         )}
         {tab === 'order' && (
           <div className="grid grid-cols-3 gap-2">
-            {[
-              { label: '手配中', value: orderCounts.active, color: 'text-amber-400' },
-              { label: '準備完了', value: orderCounts.ready, color: 'text-emerald-400' },
-              { label: '未入金', value: orderCounts.unpaid, color: 'text-red-400' },
-            ].map(s => (
-              <div key={s.label} className="bg-zinc-900/60 border border-zinc-800/60 rounded-xl p-3 text-center">
+            {([
+              { key: 'active' as const, label: '手配中',   value: orderCounts.active, color: 'text-amber-400' },
+              { key: 'ready'  as const, label: '準備完了', value: orderCounts.ready,  color: 'text-emerald-400' },
+              { key: 'unpaid' as const, label: '未入金',   value: orderCounts.unpaid, color: 'text-red-400' },
+            ]).map(s => (
+              <button key={s.key}
+                onClick={() => setOrderFilter(f => f === s.key ? null : s.key)}
+                className={`rounded-xl p-3 text-center transition-all border ${
+                  orderFilter === s.key
+                    ? 'bg-zinc-800 border-zinc-600 ring-1 ring-inset ring-zinc-500'
+                    : 'bg-zinc-900/60 border-zinc-800/60'
+                }`}>
                 <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
                 <div className="text-xs text-zinc-500 mt-0.5">{s.label}</div>
-              </div>
+                {orderFilter === s.key && <div className="text-[10px] text-zinc-600 mt-0.5">絞込中 ✕</div>}
+              </button>
             ))}
           </div>
         )}
@@ -500,9 +571,14 @@ export default function RepairsPage() {
               <Scissors size={32} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">対応中のお直しはありません</p>
             </div>
+          ) : filteredRepairs.length === 0 ? (
+            <div className="text-center py-10 text-zinc-600">
+              <p className="text-sm">該当するお直しはありません</p>
+              <button onClick={() => setRepairFilter(null)} className="mt-2 text-xs text-indigo-400">絞り込みを解除</button>
+            </div>
           ) : (
             <div className="space-y-3">
-              {repairs.map(r => (
+              {filteredRepairs.map(r => (
                 <RepairCard key={r.id} item={r} storeId={storeId} onRefresh={fetchAll} onToast={showToast} />
               ))}
             </div>
@@ -513,9 +589,14 @@ export default function RepairsPage() {
               <ShoppingBag size={32} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">対応中の追加購入はありません</p>
             </div>
+          ) : filteredPurchases.length === 0 ? (
+            <div className="text-center py-10 text-zinc-600">
+              <p className="text-sm">該当する追加購入はありません</p>
+              <button onClick={() => setPurchaseFilter(null)} className="mt-2 text-xs text-indigo-400">絞り込みを解除</button>
+            </div>
           ) : (
             <div className="space-y-3">
-              {purchases.map(p => (
+              {filteredPurchases.map(p => (
                 <PurchaseCard key={p.id} item={p} storeId={storeId} onRefresh={fetchAll} onToast={showToast} />
               ))}
             </div>
@@ -530,9 +611,14 @@ export default function RepairsPage() {
                 注文一覧・新規注文を開く <ChevronRight size={12} />
               </a>
             </div>
+          ) : filteredOrders.length === 0 ? (
+            <div className="text-center py-10 text-zinc-600">
+              <p className="text-sm">該当する注文はありません</p>
+              <button onClick={() => setOrderFilter(null)} className="mt-2 text-xs text-indigo-400">絞り込みを解除</button>
+            </div>
           ) : (
             <div className="space-y-3">
-              {orders.map(o => (
+              {filteredOrders.map(o => (
                 <OrderCard key={o.id} item={o} storeId={storeId} onRefresh={fetchAll} onToast={showToast} />
               ))}
               <a href={`/${storeId}/admin/orders`}

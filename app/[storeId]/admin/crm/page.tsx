@@ -1361,10 +1361,6 @@ export default function CRMPage() {
       {/* ヘッダー */}
       <div className="sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-xl border-b border-white/5 px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <button onClick={() => router.push(`/${storeId}/admin`)}
-            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 active:scale-90 transition-all">
-            <ArrowLeft size={18} className="text-zinc-400" />
-          </button>
           <div className="flex-1">
             <h1 className="font-black text-white text-base flex items-center gap-2">
               顧客管理（CRM）

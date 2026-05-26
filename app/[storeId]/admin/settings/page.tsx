@@ -88,7 +88,6 @@ export default function SettingsPage() {
         alert_days_repair:   alertDaysRepair,
         alert_days_purchase: alertDaysPurchase,
         school_names:        schoolNames.filter((s: string) => s.trim()),
-        updated_at:          new Date().toISOString(),
       })
       .eq('id', storeId)
     setSaving(false)
