@@ -5,15 +5,10 @@ import { useEffect, useState, useCallback } from 'react'
 import {
   Settings, Loader2, Plus, Trash2, GraduationCap, AlertCircle, Save,
 } from 'lucide-react'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 import type { WaitThreshold } from '@/types/database'
 import { DEFAULT_THRESHOLDS } from '@/types/database'
 import { BottomNav } from '../_components/BottomNav'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://ffbixfbddxguhdhayqqy.supabase.co',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZmYml4ZmJkZHhndWhkaGF5cXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI0NTI3NjgsImV4cCI6MjA1ODAyODc2OH0.nicSHNjMlnqDapnlKJ1y9fqbGfR7SfJ5-vdONzDR9sA'
-)
 
 function Toggle({ on, onToggle, label, sub }: { on: boolean; onToggle: () => void; label: string; sub?: string }) {
   return (
@@ -50,10 +45,13 @@ export default function SettingsPage() {
   const [schoolNames,       setSchoolNames]       = useState<string[]>([])
   const [storeName,         setStoreName]         = useState('')
 
-  // auth guard
+  const [saveError, setSaveError] = useState<string | null>(null)
+
   const fetchSettings = useCallback(async () => {
+    if (!storeId) return
     setLoading(true)
-    const { data } = await (supabase.from('stores') as any)
+    const { data } = await (supabase as any)
+      .from('stores')
       .select('name, notice_threshold, wait_thresholds, allow_remote, notification_plan, push_settings, alert_days_repair, alert_days_purchase, school_names')
       .eq('id', storeId)
       .single()
@@ -76,20 +74,28 @@ export default function SettingsPage() {
 
   async function handleSave() {
     setSaving(true)
-    await (supabase.from('stores') as any).update({
-      notice_threshold:    noticeThreshold,
-      wait_thresholds:     waitThresholds,
-      allow_remote:        allowRemote,
-      notification_plan:   notificationPlan,
-      push_settings:       { queue_new: pushQueueNew, purchase_new: true },
-      alert_days_repair:   alertDaysRepair,
-      alert_days_purchase: alertDaysPurchase,
-      school_names:        schoolNames.filter(s => s.trim()),
-      updated_at:          new Date().toISOString(),
-    }).eq('id', storeId)
+    setSaveError(null)
+    const { error } = await (supabase as any)
+      .from('stores')
+      .update({
+        notice_threshold:    noticeThreshold,
+        wait_thresholds:     waitThresholds,
+        allow_remote:        allowRemote,
+        notification_plan:   notificationPlan,
+        push_settings:       { queue_new: pushQueueNew, purchase_new: true },
+        alert_days_repair:   alertDaysRepair,
+        alert_days_purchase: alertDaysPurchase,
+        school_names:        schoolNames.filter((s: string) => s.trim()),
+        updated_at:          new Date().toISOString(),
+      })
+      .eq('id', storeId)
     setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    if (error) {
+      setSaveError(error.message)
+    } else {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    }
   }
 
   if (loading) {
@@ -264,6 +270,11 @@ export default function SettingsPage() {
         </div>
 
         {/* Save button (bottom) */}
+        {saveError && (
+          <div className="bg-red-900/40 border border-red-700/50 rounded-xl px-4 py-3 text-xs text-red-400">
+            保存エラー: {saveError}
+          </div>
+        )}
         <button
           onClick={handleSave}
           disabled={saving}

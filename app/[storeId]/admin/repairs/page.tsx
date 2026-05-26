@@ -6,18 +6,13 @@ import {
   Scissors, ShoppingBag, Loader2, ChevronDown, ChevronUp,
   Phone, User, Check, Truck, RotateCcw, Package, ChevronRight,
 } from 'lucide-react'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 import {
   REPAIR_STATUS_LABELS, REPAIR_STATUS_COLORS,
   PURCHASE_STATUS_LABELS, PURCHASE_STATUS_COLORS,
 } from '@/types/crm'
 import type { RepairStatus, PurchaseStatus } from '@/types/crm'
 import { BottomNav } from '../_components/BottomNav'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://ffbixfbddxguhdhayqqy.supabase.co',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZmYml4ZmJkZHhndWhkaGF5cXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI0NTI3NjgsImV4cCI6MjA1ODAyODc2OH0.nicSHNjMlnqDapnlKJ1y9fqbGfR7SfJ5-vdONzDR9sA'
-)
 
 function fmtDate(d: string | null) {
   if (!d) return ''
@@ -68,7 +63,7 @@ function RepairCard({ item, onRefresh, onToast }: {
 
   async function update(patch: Record<string, unknown>) {
     setLoading(true)
-    const { error } = await supabase.from('repair_histories').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', item.id)
+    const { error } = await (supabase as any).from('repair_histories').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', item.id)
     setLoading(false)
     if (error) { onToast('err', '更新に失敗しました'); return }
     onToast('ok', '更新しました'); onRefresh()
@@ -151,7 +146,7 @@ function PurchaseCard({ item, onRefresh, onToast }: {
 
   async function update(patch: Record<string, unknown>) {
     setLoading(true)
-    const { error } = await supabase.from('purchase_orders').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', item.id)
+    const { error } = await (supabase as any).from('purchase_orders').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', item.id)
     setLoading(false)
     if (error) { onToast('err', '更新に失敗しました'); return }
     onToast('ok', '更新しました'); onRefresh()
@@ -225,6 +220,7 @@ export default function RepairsPage() {
   const [repairs,   setRepairs]   = useState<RepairRow[]>([])
   const [purchases, setPurchases] = useState<PurchaseRow[]>([])
   const [loading,   setLoading]   = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [toast,     setToast]     = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -235,19 +231,23 @@ export default function RepairsPage() {
   }, [])
 
   const fetchAll = useCallback(async () => {
+    if (!storeId) return
     setLoading(true)
-    const [{ data: repairData }, { data: purchaseData }] = await Promise.all([
-      supabase.from('repair_histories')
+    setFetchError(null)
+    const [{ data: repairData, error: repairErr }, { data: purchaseData, error: purchaseErr }] = await Promise.all([
+      (supabase as any).from('repair_histories')
         .select('*, customer:customers(id,name,tel), child:children(name)')
         .eq('store_id', storeId)
         .neq('status', 'delivered')
         .order('received_date', { ascending: true }),
-      supabase.from('purchase_orders')
+      (supabase as any).from('purchase_orders')
         .select('*, customer:customers(id,name,tel), child:children(name)')
         .eq('store_id', storeId)
         .neq('status', 'delivered')
         .order('ordered_date', { ascending: true }),
     ])
+    if (repairErr) setFetchError(repairErr.message)
+    else if (purchaseErr) setFetchError(purchaseErr.message)
     setRepairs(repairData ?? [])
     setPurchases(purchaseData ?? [])
     setLoading(false)
@@ -353,6 +353,13 @@ export default function RepairsPage() {
                 <div className="text-xs text-zinc-500 mt-0.5">{s.label}</div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Error */}
+        {fetchError && (
+          <div className="bg-red-900/40 border border-red-700/50 rounded-xl px-4 py-3 text-xs text-red-400">
+            DBエラー: {fetchError}
           </div>
         )}
 
