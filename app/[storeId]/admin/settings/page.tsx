@@ -44,6 +44,7 @@ export default function SettingsPage() {
   const [alertDaysPurchase, setAlertDaysPurchase] = useState(7)
   const [schoolNames,       setSchoolNames]       = useState<string[]>([])
   const [storeName,         setStoreName]         = useState('')
+  const [isTestMode,        setIsTestMode]        = useState(false)
 
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -52,7 +53,7 @@ export default function SettingsPage() {
     setLoading(true)
     const { data } = await (supabase as any)
       .from('stores')
-      .select('name, notice_threshold, wait_thresholds, allow_remote, notification_plan, push_settings, alert_days_repair, alert_days_purchase, school_names')
+      .select('name, notice_threshold, wait_thresholds, allow_remote, notification_plan, push_settings, alert_days_repair, alert_days_purchase, school_names, is_test_mode')
       .eq('id', storeId)
       .single()
     if (data) {
@@ -66,6 +67,7 @@ export default function SettingsPage() {
       if (data.alert_days_repair != null) setAlertDaysRepair(data.alert_days_repair)
       if (data.alert_days_purchase != null) setAlertDaysPurchase(data.alert_days_purchase)
       if (Array.isArray(data.school_names)) setSchoolNames(data.school_names)
+      if (data.is_test_mode != null) setIsTestMode(data.is_test_mode)
     }
     setLoading(false)
   }, [storeId])
@@ -282,6 +284,61 @@ export default function SettingsPage() {
         >
           {saving ? <><Loader2 size={16} className="animate-spin inline mr-2" />保存中...</> : '設定を保存'}
         </button>
+
+        {/* テストモード */}
+        <div className="space-y-2 border-t border-zinc-800/60 pt-4">
+          <Section title="テストモード（開発・確認用）" />
+          <Toggle
+            on={isTestMode}
+            onToggle={async () => {
+              const next = !isTestMode
+              setIsTestMode(next)
+              await fetch('/api/test/mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ storeId, enabled: next }),
+              })
+            }}
+            label="🧪 テストモード"
+            sub={isTestMode ? 'テスト中 — ダミーデータが混在します' : 'OFFの場合は本番データのみ'}
+          />
+          {isTestMode && (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={async () => {
+                  const res = await fetch('/api/test/seed', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ storeId }),
+                  })
+                  const j = await res.json()
+                  if (j.ok) alert(`✅ ${j.created?.length ?? 0}件挿入完了`)
+                  else alert(`❌ 挿入失敗: ${j.error}`)
+                }}
+                className="py-2.5 rounded-xl bg-indigo-900/50 border border-indigo-700/50 text-indigo-300 text-xs font-bold hover:bg-indigo-900/70 transition-colors"
+              >
+                📥 テストデータ挿入
+              </button>
+              <button
+                onClick={async () => {
+                  if (!confirm('テストデータをすべて削除しますか？')) return
+                  const res = await fetch('/api/test/clear', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ storeId }),
+                  })
+                  const j = await res.json()
+                  if (j.ok) alert(`🗑️ 削除完了: ${j.deleted?.join(', ') || '対象なし'}`)
+                  else alert(`❌ 削除失敗: ${j.error}`)
+                }}
+                className="py-2.5 rounded-xl bg-red-900/40 border border-red-700/40 text-red-400 text-xs font-bold hover:bg-red-900/60 transition-colors"
+              >
+                🗑️ テストデータ削除
+              </button>
+            </div>
+          )}
+          <p className="text-xs text-zinc-600">「【テスト】」で始まる顧客データをまとめて操作します</p>
+        </div>
 
         {/* 店舗切替 */}
         <div className="border-t border-zinc-800/60 pt-4">
