@@ -6,6 +6,7 @@ import {
   BellRing, CheckCheck, UserX, RefreshCw, Clock, Users,
   Loader2, Store, Settings, Plus, Trash2, Phone, User, GraduationCap,
   ChevronRight, ChevronDown, ChevronUp, LayoutDashboard, X, MapPin, BellOff, Bell, AlertCircle,
+  CalendarDays, ShoppingBag,
 } from 'lucide-react'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import type { Queue, QueueStatus, WaitThreshold } from '@/types/database'
@@ -1139,6 +1140,26 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
               )}
             </div>
             <ChevronRight size={14} className="text-indigo-500 shrink-0" />
+          </a>
+
+          {/* 予約管理リンク */}
+          <a href={`/${store.id}/admin/reservations`}
+            className="flex items-center gap-3 px-4 py-3 bg-violet-500/10 border border-violet-500/20 rounded-2xl hover:bg-violet-500/20 active:scale-[0.98] transition-all">
+            <div className="w-8 h-8 rounded-xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center shrink-0">
+              <CalendarDays size={15} className="text-violet-400" />
+            </div>
+            <span className="text-violet-300 text-sm font-bold flex-1">予約管理</span>
+            <ChevronRight size={14} className="text-violet-500 shrink-0" />
+          </a>
+
+          {/* 注文管理リンク */}
+          <a href={`/${store.id}/admin/orders`}
+            className="flex items-center gap-3 px-4 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl hover:bg-emerald-500/20 active:scale-[0.98] transition-all">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0">
+              <ShoppingBag size={15} className="text-emerald-400" />
+            </div>
+            <span className="text-emerald-300 text-sm font-bold flex-1">注文管理</span>
+            <ChevronRight size={14} className="text-emerald-500 shrink-0" />
           </a>
 
           {/* 待ちリスト */}
