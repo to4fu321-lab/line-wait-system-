@@ -172,18 +172,14 @@ export default function SettingsPage() {
             <h1 className="text-base font-bold text-zinc-100">設定</h1>
             {storeName && <p className="text-xs text-zinc-500 truncate">{storeName}</p>}
           </div>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl transition-all ${
-              saved
-                ? 'bg-emerald-600 text-white'
-                : 'bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50'
-            }`}
-          >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-            {saved ? '保存済み' : '保存'}
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            <button onClick={handleSave} disabled={saving}
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl transition-all ${saved ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50'}`}>
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              {saved ? '保存済み' : '保存'}
+            </button>
+            <span className="text-[9px] text-zinc-700">v2026-05-27c</span>
+          </div>
         </div>
       </div>
 
