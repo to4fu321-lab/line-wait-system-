@@ -13,10 +13,9 @@ const authHeader = { Authorization: `Bearer ${TOKEN}` }
 
 // ── リッチメニュー画像生成（next/og + Google Fonts）──────────
 async function makeMenuPng(): Promise<Buffer> {
-  // Google Fonts から Noto Sans JP サブセットを取得（日本語テキスト用）
   let fontData: ArrayBuffer | null = null
   try {
-    const chars = encodeURIComponent('採寸ご購入お直し取り置き注文')
+    const chars = encodeURIComponent('採寸の順番待ちをする来店予約依頼ネット注文')
     const css = await fetch(
       `https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@700&text=${chars}`,
       { headers: { 'User-Agent': 'Mozilla/5.0 (compatible)' } }
@@ -26,9 +25,10 @@ async function makeMenuPng(): Promise<Buffer> {
   } catch { /* フォント取得失敗時は続行 */ }
 
   const sections = [
-    { label: '採寸・ご購入',  emoji: '📋', bg: '#4f46e5' },
-    { label: 'お直し相談',    emoji: '✂️', bg: '#7c3aed' },
-    { label: 'ネット注文',    emoji: '🛍️', bg: '#2563eb' },
+    { lines: ['採寸の', '順番待ちをする'], emoji: '📋', bg: '#4f46e5' },
+    { lines: ['来店予約'],                emoji: '📅', bg: '#0d9488' },
+    { lines: ['依頼'],                    emoji: '✂️', bg: '#7c3aed' },
+    { lines: ['ネット注文'],              emoji: '🛍️', bg: '#2563eb' },
   ]
 
   const fontFamily = fontData ? '"Noto Sans JP", sans-serif' : 'sans-serif'
@@ -39,14 +39,21 @@ async function makeMenuPng(): Promise<Buffer> {
         h('div', {
           key: i,
           style: {
-            flex: 1, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', gap: 16,
+            width: 625, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: 12,
             background: `linear-gradient(160deg, ${s.bg} 0%, ${s.bg}cc 100%)`,
-            borderRight: i < 2 ? '4px solid rgba(255,255,255,0.3)' : 'none',
+            borderRight: i < 3 ? '4px solid rgba(255,255,255,0.3)' : 'none',
           },
         },
-          h('div', { style: { fontSize: 160, lineHeight: 1 } }, s.emoji),
-          h('div', { style: { fontSize: 140, fontWeight: 700, color: '#fff', letterSpacing: '-2px' } }, s.label),
+          h('div', { style: { fontSize: 130, lineHeight: 1 } }, s.emoji),
+          h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 } },
+            ...s.lines.map((line, j) =>
+              h('div', {
+                key: j,
+                style: { fontSize: 90, fontWeight: 700, color: '#fff', letterSpacing: '-1px', lineHeight: 1.1 },
+              }, line)
+            )
+          )
         )
       )
     ),
@@ -87,7 +94,7 @@ export async function POST(req: NextRequest) {
       ))
     }
 
-    // 2. 新規メニュー作成
+    // 2. 新規メニュー作成（4列: 採寸の順番待ち / 来店予約 / 依頼 / ネット注文）
     const createRes = await fetch(`${LINE_API}/richmenu`, {
       method: 'POST',
       headers: { ...authHeader, 'Content-Type': 'application/json' },
@@ -97,9 +104,10 @@ export async function POST(req: NextRequest) {
         name: storeName ?? 'メニュー',
         chatBarText: 'メニュー',
         areas: [
-          { bounds: { x: 0,    y: 0, width: 833,  height: 843 }, action: { type: 'uri', uri: `${base}?action=queue`,    label: '採寸・ご購入' } },
-          { bounds: { x: 833,  y: 0, width: 834,  height: 843 }, action: { type: 'uri', uri: `${base}?action=repair`,   label: 'お直し' } },
-          { bounds: { x: 1667, y: 0, width: 833,  height: 843 }, action: { type: 'uri', uri: `${base}?action=purchase`, label: '取り置き注文' } },
+          { bounds: { x: 0,    y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=queue`,   label: '今すぐ採寸の順番待ちに並ぶ' } },
+          { bounds: { x: 625,  y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}/reserve`,        label: '来店予約' } },
+          { bounds: { x: 1250, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}/repair`,         label: '依頼' } },
+          { bounds: { x: 1875, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=purchase`, label: 'ネット注文' } },
         ],
       }),
     })

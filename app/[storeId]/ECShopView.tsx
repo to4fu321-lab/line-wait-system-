@@ -65,6 +65,8 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
   const [ordering, setOrdering] = useState(false)
   const [orderError, setOrderError] = useState('')
   const [openCart, setOpenCart] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [confirmIds, setConfirmIds] = useState<{ cId: string; chId: string | null } | null>(null)
 
   // 登録モーダル用 state
   const [showRegModal, setShowRegModal] = useState(false)
@@ -134,7 +136,14 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
   const handleOrder = async () => {
     if (totalQty === 0 || ordering) return
     if (!customerId) { setShowRegModal(true); return }
-    await submitOrder(customerId, childId ?? null)
+    setConfirmIds({ cId: customerId, chId: childId ?? null })
+    setShowConfirm(true)
+  }
+
+  const handleConfirmOrder = async () => {
+    if (!confirmIds) return
+    setShowConfirm(false)
+    await submitOrder(confirmIds.cId, confirmIds.chId)
   }
 
   // 登録して注文
@@ -158,7 +167,8 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
       }).select().single()
       if (childErr) throw new Error(childErr.message)
       setShowRegModal(false)
-      await submitOrder(newCust.id, newChild?.id ?? null)
+      setConfirmIds({ cId: newCust.id, chId: newChild?.id ?? null })
+      setShowConfirm(true)
     } catch (e) {
       setRegError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -403,6 +413,68 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
                   boxShadow: `0 8px 24px -6px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
                 {ordering ? '送信中...' : `在庫確認を依頼する  →`}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 注文確認モーダル */}
+      {showConfirm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end justify-center z-50">
+          <div className="bg-white rounded-t-3xl w-full max-w-md max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-zinc-100">
+              <div>
+                <p className="font-black text-zinc-900 text-base">注文内容の確認</p>
+                <p className="text-zinc-500 text-xs mt-0.5">内容をご確認のうえ依頼してください</p>
+              </div>
+              <button onClick={() => setShowConfirm(false)} className="p-1.5 rounded-xl bg-zinc-100 text-zinc-500">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div className="space-y-2">
+                {cart.map(c => {
+                  const item = ITEMS.find(i => i.id === c.itemId)!
+                  return (
+                    <div key={`${c.itemId}-${c.size}`}
+                      className="flex items-center justify-between text-sm bg-zinc-50 rounded-xl px-3 py-2.5">
+                      <span className="text-zinc-700">
+                        {item.emoji} {item.name}
+                        <span className="text-zinc-400 ml-1">({c.size})</span>
+                      </span>
+                      <span className="font-bold text-zinc-900 shrink-0 ml-2">
+                        ×{c.qty}　¥{(item.price * c.qty).toLocaleString()}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="flex justify-between items-center border-t border-zinc-100 pt-3">
+                <span className="font-bold text-zinc-600">合計 {totalQty}点</span>
+                <span className="text-xl font-black" style={{ color: theme.colors.primary }}>
+                  ¥{totalPrice.toLocaleString()}
+                </span>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700 leading-relaxed">
+                📦 在庫確認のリクエストを送信します。在庫確認後、スタッフからLINEでご連絡します。
+              </div>
+              {orderError && (
+                <p className="text-red-500 text-xs text-center">送信失敗: {orderError}</p>
+              )}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <button
+                  onClick={() => setShowConfirm(false)}
+                  className="py-3.5 rounded-2xl border-2 border-zinc-200 text-zinc-600 font-bold text-sm active:scale-95 transition-transform">
+                  修正する
+                </button>
+                <button
+                  onClick={handleConfirmOrder}
+                  disabled={ordering}
+                  className="py-3.5 rounded-2xl text-white font-black text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-transform disabled:opacity-60"
+                  style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})` }}>
+                  {ordering ? <><Loader2 size={14} className="animate-spin" />送信中...</> : 'この内容で依頼する →'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

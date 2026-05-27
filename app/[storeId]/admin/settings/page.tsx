@@ -46,6 +46,7 @@ export default function SettingsPage() {
   const [schoolNames,       setSchoolNames]       = useState<string[]>([])
   const [storeName,         setStoreName]         = useState('')
   const [isTestMode,        setIsTestMode]        = useState(false)
+  const [repairNotes,       setRepairNotes]       = useState('')
 
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -75,7 +76,7 @@ export default function SettingsPage() {
     setLoading(true)
     const { data } = await (supabase as any)
       .from('stores')
-      .select('name, notice_threshold, wait_thresholds, allow_remote, notification_plan, push_settings, alert_days_repair, alert_days_purchase, school_names, is_test_mode')
+      .select('name, notice_threshold, wait_thresholds, allow_remote, notification_plan, push_settings, alert_days_repair, alert_days_purchase, school_names, is_test_mode, repair_notes')
       .eq('id', storeId)
       .single()
     if (data) {
@@ -90,6 +91,7 @@ export default function SettingsPage() {
       if (data.alert_days_purchase != null) setAlertDaysPurchase(data.alert_days_purchase)
       if (Array.isArray(data.school_names)) setSchoolNames(data.school_names)
       if (data.is_test_mode != null) setIsTestMode(data.is_test_mode)
+      if (data.repair_notes != null) setRepairNotes(data.repair_notes)
     }
     setLoading(false)
   }, [storeId])
@@ -143,6 +145,7 @@ export default function SettingsPage() {
         alert_days_repair:   alertDaysRepair,
         alert_days_purchase: alertDaysPurchase,
         school_names:        schoolNames.filter((s: string) => s.trim()),
+        repair_notes:        repairNotes || null,
       })
       .eq('id', storeId)
     setSaving(false)
@@ -485,6 +488,21 @@ export default function SettingsPage() {
             className="w-full flex items-center justify-center gap-2 py-1.5 rounded-xl border border-dashed border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 transition-colors text-xs">
             <Plus size={12} />学校を追加
           </button>
+        </div>
+
+        {/* お直し持込 注意事項 */}
+        <div className="space-y-2">
+          <Section title="お直し持込 注意事項（顧客向けページ）" />
+          <p className="text-xs text-zinc-600">
+            リッチメニュー「依頼」から開くページに表示されます。空欄の場合はデフォルトの案内文が表示されます。
+          </p>
+          <textarea
+            value={repairNotes}
+            onChange={e => setRepairNotes(e.target.value)}
+            rows={8}
+            placeholder={'【お持ち込みの際のお願い】\n・お直しの内容をできるだけ具体的にお知らせください\n・お名前とご連絡先をご記入いただく場合があります\n\n【お預かりについて】\n・お預かり後、仕上がり日をご連絡します'}
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-xs text-white placeholder-zinc-600 focus:border-indigo-500 focus:outline-none resize-none leading-relaxed"
+          />
         </div>
 
         {/* Save button (bottom) */}
