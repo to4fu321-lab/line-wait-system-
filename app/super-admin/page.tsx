@@ -102,7 +102,8 @@ function SuperDashboard() {
       const res = await fetch('/api/super-admin/stats')
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        setFetchError(`サーバーエラー: ${body.error ?? res.statusText}`)
+        const detail = body.error || res.statusText || `HTTP ${res.status}`
+        setFetchError(`サーバーエラー (${res.status}): ${detail}`)
         return
       }
       const body = await res.json()
