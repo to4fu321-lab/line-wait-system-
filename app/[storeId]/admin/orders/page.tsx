@@ -17,8 +17,8 @@ import {
 import type { Customer, Child } from '@/types/crm'
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://ffbixfbddxguhdhayqqy.supabase.co',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZmYml4ZmJkZHhndWhkaGF5cXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI0NTI3NjgsImV4cCI6MjA1ODAyODc2OH0.nicSHNjMlnqDapnlKJ1y9fqbGfR7SfJ5-vdONzDR9sA'
+  process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
 )
 
 // ── Types ────────────────────────────────────────────────────────────────────

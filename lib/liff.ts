@@ -34,7 +34,7 @@ export async function initLiff(): Promise<Liff | null> {
     localStorage.setItem('liff_init_ts', String(now))
   }
 
-  const liffId = process.env.NEXT_PUBLIC_LIFF_ID || '2010126882-aUahQStD'
+  const liffId = process.env.NEXT_PUBLIC_LIFF_ID || ''
 
   initPromise = (async () => {
     try {

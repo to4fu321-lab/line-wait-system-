@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-const LIFF_URL = 'https://liff.line.me/2010126882-aUahQStD'
+const LIFF_URL = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || ''}`
 
 // POST { purchaseOrderId }
 export async function POST(req: NextRequest) {
@@ -42,9 +42,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, skipped: true, reason: 'no line_user_id' })
   }
 
-  const token =
-    process.env.LINE_CHANNEL_ACCESS_TOKEN ||
-    'VCdCDq+VcStiwPWbk3nzK59dV1MylArXtvMETswJlGy3IwikR3WNJGk1br86YnzKGqBpHp0kIQbRDaDSPzMphck0TKHwy6MDHW4U2UzbZaYU0Uq+QxhI2pp90x13qHxd8PdgqIIBoq2xq8hFaPXAOQdB04t89/1O/w1cDnyilFU='
+  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN || ''
 
   const storeName  = store?.name ?? ''
   const storeLabel = storeName ? `【${storeName}】` : ''

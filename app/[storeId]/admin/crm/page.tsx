@@ -1801,7 +1801,7 @@ export default function CRMPage() {
 
       {/* 新規登録QRモーダル */}
       {showQrModal && (() => {
-        const liffId = process.env.NEXT_PUBLIC_LIFF_ID || '2010126882-aUahQStD'
+        const liffId = process.env.NEXT_PUBLIC_LIFF_ID || ''
         const url    = `https://liff.line.me/${liffId}/${storeId}`
         const qrSrc  = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(url)}`
         return (

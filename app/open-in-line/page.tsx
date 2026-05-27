@@ -3,7 +3,7 @@
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 
-const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID || '2010126882-aUahQStD'
+const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID || ''
 
 function OpenInLineContent() {
   const params = useSearchParams()

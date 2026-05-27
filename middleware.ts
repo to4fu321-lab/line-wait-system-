@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const STORE_ID = '00000000-0000-0000-0000-000000000010'
+const STORE_ID = process.env.NEXT_PUBLIC_DEFAULT_STORE_ID || ''
 
 export function middleware(request: NextRequest) {
   const ua = request.headers.get('user-agent') || ''
