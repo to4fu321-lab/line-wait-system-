@@ -6,7 +6,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { RefreshCw, Loader2, ExternalLink, ShieldCheck } from 'lucide-react'
-import { supabase, getTodayStart } from '@/lib/supabase'
 import type { Store } from '@/types/database'
 
 const SUPER_ADMIN_PIN = process.env.NEXT_PUBLIC_SUPER_ADMIN_PIN || '9999'
@@ -99,51 +98,25 @@ function SuperDashboard() {
   const fetchAll = useCallback(async () => {
     setRefreshing(true)
     setFetchError(null)
-    const { data: stores, error: storeErr } = await supabase
-      .from('stores')
-      .select('*')
-      .order('name', { ascending: true })
-
-    if (storeErr) {
-      setFetchError(`stores取得エラー: ${storeErr.message}`)
+    try {
+      const res = await fetch('/api/super-admin/stats')
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setFetchError(`サーバーエラー: ${body.error ?? res.statusText}`)
+        return
+      }
+      const body = await res.json()
+      if (!body.stats || body.stats.length === 0) {
+        setFetchError('storesテーブルにデータがありません（RLSポリシーまたはデータ未挿入）')
+      }
+      setStoreStats(body.stats ?? [])
+      setLastUpdated(new Date())
+    } catch (e) {
+      setFetchError(`ネットワークエラー: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
       setRefreshing(false)
       setLoading(false)
-      return
     }
-
-    if (!stores || stores.length === 0) {
-      setFetchError('storesテーブルにデータがありません（RLSポリシーまたはデータ未挿入）')
-      setStoreStats([])
-      setRefreshing(false)
-      setLoading(false)
-      return
-    }
-
-    const todayStart = getTodayStart()
-
-    const stats = await Promise.all(
-      stores.map(async (store) => {
-        const { data: queues } = await supabase
-          .from('queues')
-          .select('status')
-          .eq('store_id', store.id)
-          .gte('created_at', todayStart)
-
-        const rows = queues ?? []
-        return {
-          store,
-          waiting:   rows.filter(q => q.status === 'waiting').length,
-          calling:   rows.filter(q => q.status === 'calling').length,
-          completed: rows.filter(q => q.status === 'completed').length,
-          total:     rows.length,
-        }
-      })
-    )
-
-    setStoreStats(stats)
-    setLastUpdated(new Date())
-    setRefreshing(false)
-    setLoading(false)
   }, [])
 
   useEffect(() => {
