@@ -94,15 +94,26 @@ function SuperDashboard() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   const fetchAll = useCallback(async () => {
     setRefreshing(true)
-    const { data: stores } = await supabase
+    setFetchError(null)
+    const { data: stores, error: storeErr } = await supabase
       .from('stores')
       .select('*')
       .order('name', { ascending: true })
 
-    if (!stores) {
+    if (storeErr) {
+      setFetchError(`stores取得エラー: ${storeErr.message}`)
+      setRefreshing(false)
+      setLoading(false)
+      return
+    }
+
+    if (!stores || stores.length === 0) {
+      setFetchError('storesテーブルにデータがありません（RLSポリシーまたはデータ未挿入）')
+      setStoreStats([])
       setRefreshing(false)
       setLoading(false)
       return
@@ -174,6 +185,12 @@ function SuperDashboard() {
             <RefreshCw size={20} className={refreshing ? 'animate-spin' : ''} />
           </button>
         </div>
+
+        {fetchError && (
+          <div className="bg-red-900/40 border border-red-700/50 rounded-xl px-4 py-3 mb-4 text-sm text-red-300 break-all">
+            ⚠️ {fetchError}
+          </div>
+        )}
 
         <div className="bg-gray-800 rounded-2xl p-4 mb-6 mt-4">
           <p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-3">全店合計</p>
