@@ -154,7 +154,6 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
             className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
             <User size={11} />顧客詳細
           </a>
-          </div>
           <div className="flex flex-wrap gap-2 pt-1">
             {item.status === 'received' && (
               <button
