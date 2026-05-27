@@ -76,8 +76,10 @@ function PaymentBadge({ status, onToggle, loading }: {
   loading: boolean
 }) {
   const isPaid = status === 'paid'
-  const [confirmPay, setConfirmPay] = useState(false)
+  const [confirmPay,   setConfirmPay]   = useState(false)
+  const [confirmUnpay, setConfirmUnpay] = useState(false)
 
+  // 未払い → 支払い確認
   if (!isPaid && confirmPay) {
     return (
       <div className="flex items-center gap-1.5 bg-emerald-900/40 border border-emerald-500/40 rounded-xl px-2 py-1">
@@ -91,8 +93,22 @@ function PaymentBadge({ status, onToggle, loading }: {
     )
   }
 
+  // 支払い済み → 未払いに戻す確認
+  if (isPaid && confirmUnpay) {
+    return (
+      <div className="flex items-center gap-1.5 bg-red-900/40 border border-red-500/40 rounded-xl px-2 py-1">
+        <span className="text-[10px] text-red-200 font-bold">未払いに戻す？</span>
+        <button onClick={() => setConfirmUnpay(false)} className="text-[10px] text-zinc-400 px-1">✕</button>
+        <button onClick={() => { setConfirmUnpay(false); onToggle() }} disabled={loading}
+          className="text-[10px] text-white bg-red-600 px-2 py-0.5 rounded-lg font-bold">
+          戻す
+        </button>
+      </div>
+    )
+  }
+
   return (
-    <button onClick={isPaid ? onToggle : () => setConfirmPay(true)} disabled={loading}
+    <button onClick={isPaid ? () => setConfirmUnpay(true) : () => setConfirmPay(true)} disabled={loading}
       className={`flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full border transition-all active:scale-95 disabled:opacity-50 ${
         isPaid
           ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
@@ -113,7 +129,7 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle }: {
   onPaymentToggle: (item: DeliveryItem) => Promise<void>
 }) {
   const [confirmOpen,  setConfirmOpen]  = useState(false)
-  const [payAtDeliver, setPayAtDeliver] = useState(true)
+  const [payAtDeliver, setPayAtDeliver] = useState(item.payment_status === 'paid')
   const [loading,      setLoading]      = useState<string | null>(null)
   const [custOpen,     setCustOpen]     = useState(false)
 

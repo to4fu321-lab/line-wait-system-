@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { BottomNav } from '../_components/BottomNav'
 import {
@@ -983,11 +983,24 @@ export default function CRMPage() {
   const [deliveredLoading,    setDeliveredLoading]    = useState(false)
 
   const [toast,   setToast]   = useState<{ type: 'ok' | 'err'; msg: string; onUndo?: () => Promise<void> } | null>(null)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const timerRef        = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const inlineDetailRef = useRef<HTMLDivElement>(null)
 
   const showToast = useCallback((type: 'ok' | 'err', msg: string, onUndo?: () => Promise<void>) => {
     setToast({ type, msg, onUndo })
   }, [])
+
+  // 選択顧客インライン展開時のスクロール調整
+  useEffect(() => {
+    if (!selectedCustomer || !inlineDetailRef.current) return
+    const el = inlineDetailRef.current
+    setTimeout(() => {
+      const rect = el.getBoundingClientRect()
+      if (rect.bottom > window.innerHeight - 72) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }
+    }, 60)
+  }, [selectedCustomer?.id])
 
   // ── 初期ロード ──────────────────────────────────────────
   useEffect(() => {
@@ -1503,167 +1516,169 @@ export default function CRMPage() {
             return (
               <div className="space-y-2 mb-4 animate-fade-in">
                 {list.map(c => (
-                  <button key={c.id} onClick={() => { setSelectedCustomer(prev => prev?.id === c.id ? null : c); setEditingCustomer(false); setShowAddChild(false) }}
-                    className={`w-full text-left px-4 py-3 rounded-xl border transition-all active:scale-[0.98] ${
-                      selectedCustomer?.id === c.id
-                        ? 'bg-indigo-600/30 border-indigo-500/50 text-white'
-                        : 'bg-zinc-900/60 border-zinc-800/60 text-zinc-300 hover:border-zinc-600'
-                    }`}>
-                    <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${selectedCustomer?.id === c.id ? 'bg-indigo-500/40' : 'bg-zinc-800'}`}>
-                        <User size={16} className={selectedCustomer?.id === c.id ? 'text-indigo-300' : 'text-zinc-500'} />
+                  <Fragment key={c.id}>
+                    <button onClick={() => { setSelectedCustomer(prev => prev?.id === c.id ? null : c); setEditingCustomer(false); setShowAddChild(false) }}
+                      className={`w-full text-left px-4 py-3 rounded-xl border transition-all active:scale-[0.98] ${
+                        selectedCustomer?.id === c.id
+                          ? 'bg-indigo-600/30 border-indigo-500/50 text-white'
+                          : 'bg-zinc-900/60 border-zinc-800/60 text-zinc-300 hover:border-zinc-600'
+                      }`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${selectedCustomer?.id === c.id ? 'bg-indigo-500/40' : 'bg-zinc-800'}`}>
+                          <User size={16} className={selectedCustomer?.id === c.id ? 'text-indigo-300' : 'text-zinc-500'} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-sm truncate">{c.name}</p>
+                          <p className="text-xs text-zinc-500 truncate">
+                            {childMatchMap[c.id]
+                              ? <span className="text-indigo-400">子: {childMatchMap[c.id]}</span>
+                              : (c.kana ?? c.tel ?? 'LINE未連携')
+                            }
+                          </p>
+                        </div>
+                        {c.line_user_id
+                          ? <MessageCircle size={13} className="text-emerald-400 shrink-0" />
+                          : <span className="text-[10px] text-zinc-600 shrink-0">LINE未</span>
+                        }
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-sm truncate">{c.name}</p>
-                        <p className="text-xs text-zinc-500 truncate">
-                          {childMatchMap[c.id]
-                            ? <span className="text-indigo-400">子: {childMatchMap[c.id]}</span>
-                            : (c.kana ?? c.tel ?? 'LINE未連携')
-                          }
-                        </p>
+                    </button>
+
+                    {/* 選択中顧客 — インライン展開 */}
+                    {selectedCustomer?.id === c.id && (
+                      <div ref={inlineDetailRef} className="space-y-4 border border-white/5 rounded-2xl p-4 bg-zinc-900/30">
+
+                        {/* 保護者情報 */}
+                        {editingCustomer ? (
+                          <EditCustomerForm
+                            customer={selectedCustomer}
+                            onSaved={updated => {
+                              setSelectedCustomer(updated)
+                              setCustomers(prev => prev.map(cu => cu.id === updated.id ? updated : cu))
+                              setEditingCustomer(false)
+                              showToast('ok', '保護者情報を更新しました')
+                            }}
+                            onCancel={() => setEditingCustomer(false)}
+                          />
+                        ) : (
+                          <div className="bg-zinc-900/60 border border-white/8 rounded-2xl p-4">
+                            <div className="flex items-start gap-3">
+                              <div className="w-11 h-11 rounded-xl bg-indigo-600/20 border border-indigo-500/20 flex items-center justify-center shrink-0">
+                                <User size={20} className="text-indigo-400" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-black text-white text-base">{selectedCustomer.name}</p>
+                                {selectedCustomer.kana && <p className="text-zinc-500 text-xs">{selectedCustomer.kana}</p>}
+                                <div className="flex items-center gap-3 mt-1 flex-wrap">
+                                  {selectedCustomer.tel && (
+                                    <span className="flex items-center gap-1 text-zinc-400 text-xs"><Phone size={11} />{selectedCustomer.tel}</span>
+                                  )}
+                                  {selectedCustomer.line_user_id
+                                    ? <span className="flex items-center gap-1 text-emerald-400 text-xs"><MessageCircle size={11} />LINE連携済み</span>
+                                    : <span className="text-zinc-600 text-xs">LINE未連携</span>
+                                  }
+                                </div>
+                                {selectedCustomer.notes && (
+                                  <p className="text-zinc-500 text-xs mt-1 bg-zinc-800/50 rounded-lg px-2 py-1">📝 {selectedCustomer.notes}</p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {showDeleted ? (
+                                  <button onClick={() => handleRestore(selectedCustomer)}
+                                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30 active:scale-90 transition-all text-xs font-bold">
+                                    <ArchiveRestore size={13} />復元
+                                  </button>
+                                ) : (
+                                  <button onClick={() => setDeleteTarget(selectedCustomer)}
+                                    className="p-2 rounded-xl bg-zinc-800/60 border border-zinc-700/50 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/30 active:scale-90 transition-all">
+                                    <Trash2 size={14} />
+                                  </button>
+                                )}
+                                {!showDeleted && (
+                                  <button onClick={() => setEditingCustomer(true)}
+                                    className="p-2 rounded-xl bg-zinc-800/60 border border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-700 active:scale-90 transition-all">
+                                    <Pencil size={14} />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* お子様一覧 */}
+                        {!editingCustomer && (
+                          <div className="space-y-2">
+                            <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider">お子様 ({customerChildren.length}人)</p>
+
+                            {customerChildren.map(child => (
+                              editingChild?.id === child.id ? (
+                                <EditChildForm key={child.id} child={child}
+                                  schoolOptions={schoolOptions}
+                                  onSaved={updated => {
+                                    setCustomerChildren(prev => prev.map(cu => cu.id === updated.id ? updated : cu))
+                                    setEditingChild(null)
+                                    showToast('ok', 'お子様情報を更新しました')
+                                  }}
+                                  onCancel={() => setEditingChild(null)}
+                                />
+                              ) : (
+                                <div key={child.id} className="relative">
+                                  <ChildCard
+                                    child={child}
+                                    customerId={selectedCustomer.id}
+                                    storeId={storeId}
+                                    defaultRepairType={defaultRepairType}
+                                    onRepairComplete={handleRepairComplete}
+                                    onRepairDeliver={handleRepairDeliver}
+                                    onRepairRevert={handleRepairRevert}
+                                    onPurchaseStock={handlePurchaseStock}
+                                    onPurchaseBackOrder={handlePurchaseBackOrder}
+                                    onPurchaseArrive={handlePurchaseArrive}
+                                    onPurchaseDeliver={handlePurchaseDeliver}
+                                    onPurchaseRevert={handlePurchaseRevert}
+                                    onRefreshStats={fetchStats}
+                                    showToast={showToast}
+                                  />
+                                  <div className="absolute top-3 right-2 flex items-center gap-1">
+                                    <button onClick={() => setEditingChild(child)}
+                                      className="p-1.5 rounded-lg bg-zinc-800/60 border border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-700 active:scale-90 transition-all">
+                                      <Pencil size={12} />
+                                    </button>
+                                    <button onClick={() => setDeleteChildTarget(child)}
+                                      className="p-1.5 rounded-lg bg-zinc-800/60 border border-zinc-700/50 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/30 active:scale-90 transition-all">
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </div>
+                                </div>
+                              )
+                            ))}
+
+                            {showAddChild ? (
+                              <AddChildFormCRM
+                                customerId={selectedCustomer.id}
+                                storeId={storeId}
+                                schoolOptions={schoolOptions}
+                                onSaved={newChild => {
+                                  setCustomerChildren(prev => [...prev, newChild])
+                                  setShowAddChild(false)
+                                  showToast('ok', 'お子様を追加しました')
+                                }}
+                                onCancel={() => setShowAddChild(false)}
+                              />
+                            ) : (
+                              <button onClick={() => setShowAddChild(true)}
+                                className="w-full py-3 rounded-xl border border-dashed border-indigo-500/30 text-indigo-400/70 hover:text-indigo-300 hover:border-indigo-500/50 transition-colors text-sm font-bold flex items-center justify-center gap-2">
+                                <Plus size={14} />お子様を追加
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      {c.line_user_id
-                        ? <MessageCircle size={13} className="text-emerald-400 shrink-0" />
-                        : <span className="text-[10px] text-zinc-600 shrink-0">LINE未</span>
-                      }
-                    </div>
-                  </button>
+                    )}
+                  </Fragment>
                 ))}
               </div>
             )
           })()}
-
-          {/* 選択中顧客詳細 */}
-          {selectedCustomer && (
-            <div className="space-y-4 pt-2 border-t border-white/5">
-
-              {/* 保護者情報 */}
-              {editingCustomer ? (
-                <EditCustomerForm
-                  customer={selectedCustomer}
-                  onSaved={updated => {
-                    setSelectedCustomer(updated)
-                    setCustomers(prev => prev.map(c => c.id === updated.id ? updated : c))
-                    setEditingCustomer(false)
-                    showToast('ok', '保護者情報を更新しました')
-                  }}
-                  onCancel={() => setEditingCustomer(false)}
-                />
-              ) : (
-                <div className="bg-zinc-900/60 border border-white/8 rounded-2xl p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-11 h-11 rounded-xl bg-indigo-600/20 border border-indigo-500/20 flex items-center justify-center shrink-0">
-                      <User size={20} className="text-indigo-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-black text-white text-base">{selectedCustomer.name}</p>
-                      {selectedCustomer.kana && <p className="text-zinc-500 text-xs">{selectedCustomer.kana}</p>}
-                      <div className="flex items-center gap-3 mt-1 flex-wrap">
-                        {selectedCustomer.tel && (
-                          <span className="flex items-center gap-1 text-zinc-400 text-xs"><Phone size={11} />{selectedCustomer.tel}</span>
-                        )}
-                        {selectedCustomer.line_user_id
-                          ? <span className="flex items-center gap-1 text-emerald-400 text-xs"><MessageCircle size={11} />LINE連携済み</span>
-                          : <span className="text-zinc-600 text-xs">LINE未連携</span>
-                        }
-                      </div>
-                      {selectedCustomer.notes && (
-                        <p className="text-zinc-500 text-xs mt-1 bg-zinc-800/50 rounded-lg px-2 py-1">📝 {selectedCustomer.notes}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {showDeleted ? (
-                        <button onClick={() => handleRestore(selectedCustomer)}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30 active:scale-90 transition-all text-xs font-bold">
-                          <ArchiveRestore size={13} />復元
-                        </button>
-                      ) : (
-                        <button onClick={() => setDeleteTarget(selectedCustomer)}
-                          className="p-2 rounded-xl bg-zinc-800/60 border border-zinc-700/50 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/30 active:scale-90 transition-all">
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                      {!showDeleted && (
-                        <button onClick={() => setEditingCustomer(true)}
-                          className="p-2 rounded-xl bg-zinc-800/60 border border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-700 active:scale-90 transition-all">
-                          <Pencil size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* お子様一覧 */}
-              {!editingCustomer && (
-                <div className="space-y-2">
-                  <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider">お子様 ({customerChildren.length}人)</p>
-
-                  {customerChildren.map(child => (
-                    editingChild?.id === child.id ? (
-                      <EditChildForm key={child.id} child={child}
-                        schoolOptions={schoolOptions}
-                        onSaved={updated => {
-                          setCustomerChildren(prev => prev.map(c => c.id === updated.id ? updated : c))
-                          setEditingChild(null)
-                          showToast('ok', 'お子様情報を更新しました')
-                        }}
-                        onCancel={() => setEditingChild(null)}
-                      />
-                    ) : (
-                      <div key={child.id} className="relative">
-                        <ChildCard
-                          child={child}
-                          customerId={selectedCustomer.id}
-                          storeId={storeId}
-                          defaultRepairType={defaultRepairType}
-                          onRepairComplete={handleRepairComplete}
-                          onRepairDeliver={handleRepairDeliver}
-                          onRepairRevert={handleRepairRevert}
-                          onPurchaseStock={handlePurchaseStock}
-                          onPurchaseBackOrder={handlePurchaseBackOrder}
-                          onPurchaseArrive={handlePurchaseArrive}
-                          onPurchaseDeliver={handlePurchaseDeliver}
-                          onPurchaseRevert={handlePurchaseRevert}
-                          onRefreshStats={fetchStats}
-                          showToast={showToast}
-                        />
-                        <div className="absolute top-3 right-2 flex items-center gap-1">
-                          <button onClick={() => setEditingChild(child)}
-                            className="p-1.5 rounded-lg bg-zinc-800/60 border border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-700 active:scale-90 transition-all">
-                            <Pencil size={12} />
-                          </button>
-                          <button onClick={() => setDeleteChildTarget(child)}
-                            className="p-1.5 rounded-lg bg-zinc-800/60 border border-zinc-700/50 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/30 active:scale-90 transition-all">
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  ))}
-
-                  {showAddChild ? (
-                    <AddChildFormCRM
-                      customerId={selectedCustomer.id}
-                      storeId={storeId}
-                      schoolOptions={schoolOptions}
-                      onSaved={newChild => {
-                        setCustomerChildren(prev => [...prev, newChild])
-                        setShowAddChild(false)
-                        showToast('ok', 'お子様を追加しました')
-                      }}
-                      onCancel={() => setShowAddChild(false)}
-                    />
-                  ) : (
-                    <button onClick={() => setShowAddChild(true)}
-                      className="w-full py-3 rounded-xl border border-dashed border-indigo-500/30 text-indigo-400/70 hover:text-indigo-300 hover:border-indigo-500/50 transition-colors text-sm font-bold flex items-center justify-center gap-2">
-                      <Plus size={14} />お子様を追加
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
         </section>
       </div>
 
