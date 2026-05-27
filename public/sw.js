@@ -1,4 +1,4 @@
-const CACHE = 'takaya-v1'
+const CACHE = 'takaya-v2'
 const OFFLINE_URLS = ['/', '/manifest.json', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png']
 
 // インストール時に静的アセットをキャッシュ
@@ -22,15 +22,17 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return
   const url = new URL(event.request.url)
+  // http/https 以外（chrome-extension等）は無視
+  if (!url.protocol.startsWith('http')) return
   // API・Supabase は常にネットワーク
   if (url.pathname.startsWith('/api/') || url.hostname.includes('supabase')) return
 
   event.respondWith(
     fetch(event.request)
       .then(res => {
-        if (res.ok) {
+        if (res.ok && url.protocol.startsWith('http')) {
           const clone = res.clone()
-          caches.open(CACHE).then(c => c.put(event.request, clone))
+          caches.open(CACHE).then(c => c.put(event.request, clone).catch(() => {}))
         }
         return res
       })
