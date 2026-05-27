@@ -28,14 +28,31 @@ type FilterTab = 'all' | 'active' | 'unpaid'
 
 // ── Toast ────────────────────────────────────────────────────────────────────
 
-function Toast({ msg, onClose }: { msg: string; onClose: () => void }) {
+function Toast({ msg, type = 'ok', onUndo, onClose }: {
+  msg: string; type?: 'ok' | 'err'; onUndo?: () => Promise<void>; onClose: () => void
+}) {
+  const [undoing, setUndoing] = useState(false)
   useEffect(() => {
-    const t = setTimeout(onClose, 3000)
+    const t = setTimeout(onClose, onUndo ? 5000 : 3000)
     return () => clearTimeout(t)
-  }, [onClose])
+  }, [onClose, onUndo])
+  const handleUndo = async () => {
+    if (!onUndo || undoing) return
+    setUndoing(true)
+    await onUndo()
+    onClose()
+  }
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-zinc-800 border border-zinc-600 text-zinc-100 text-sm px-5 py-3 rounded-xl shadow-lg">
-      {msg}
+    <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-5 py-3 rounded-2xl text-white text-sm font-bold shadow-2xl max-w-xs ${
+      type === 'err' ? 'bg-red-600' : 'bg-zinc-800 border border-zinc-600'
+    }`}>
+      <span className="flex-1">{msg}</span>
+      {onUndo && (
+        <button onClick={handleUndo} disabled={undoing}
+          className="shrink-0 px-3 py-1 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-xs font-black active:scale-95 transition-all disabled:opacity-50">
+          {undoing ? '…' : '取消し'}
+        </button>
+      )}
     </div>
   )
 }
@@ -155,11 +172,12 @@ function OrderCard({
 }: {
   order: OrderFull
   onRefresh: () => void
-  onToast: (msg: string) => void
+  onToast: (msg: string, undo?: () => Promise<void>) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const [showAddItem, setShowAddItem] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
+  const [confirmPay, setConfirmPay] = useState(false)
 
   const items = order.items ?? []
   const computedTotal = items.reduce(
@@ -170,21 +188,32 @@ function OrderCard({
   async function advanceStatus() {
     const next = ORDER_STATUS_NEXT[order.status]
     if (!next) return
+    const prev = order.status
     await (supabase.from('orders') as any)
       .update({ status: next, updated_at: new Date().toISOString() })
       .eq('id', order.id)
-    onToast(`ステータスを「${ORDER_STATUS_LABELS[next]}」に更新しました`)
     onRefresh()
+    onToast(`${ORDER_STATUS_LABELS[next]}にしました`, async () => {
+      await (supabase.from('orders') as any)
+        .update({ status: prev, updated_at: new Date().toISOString() }).eq('id', order.id)
+      onRefresh()
+    })
   }
 
   async function advancePayment() {
     const next = PAYMENT_STATUS_NEXT[order.payment_status]
     if (!next) return
+    const prev = order.payment_status
     await (supabase.from('orders') as any)
       .update({ payment_status: next, updated_at: new Date().toISOString() })
       .eq('id', order.id)
-    onToast(`支払いを「${PAYMENT_STATUS_LABELS[next]}」に更新しました`)
+    setConfirmPay(false)
     onRefresh()
+    onToast(`支払いを「${PAYMENT_STATUS_LABELS[next]}」にしました`, async () => {
+      await (supabase.from('orders') as any)
+        .update({ payment_status: prev, updated_at: new Date().toISOString() }).eq('id', order.id)
+      onRefresh()
+    })
   }
 
   async function cancelOrder() {
@@ -374,13 +403,28 @@ function OrderCard({
                 </button>
               )}
               {PAYMENT_STATUS_NEXT[order.payment_status] && (
-                <button
-                  onClick={advancePayment}
-                  className="flex-1 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-1.5"
-                >
-                  <CreditCard size={13} />
-                  {PAYMENT_STATUS_LABELS[PAYMENT_STATUS_NEXT[order.payment_status]!]}
-                </button>
+                PAYMENT_STATUS_NEXT[order.payment_status] === 'paid' ? (
+                  confirmPay ? (
+                    <div className="w-full flex items-center gap-2 bg-emerald-900/20 border border-emerald-700/30 rounded-xl p-3">
+                      <span className="text-xs text-emerald-200 flex-1">支払い完了にしますか？</span>
+                      <button onClick={() => setConfirmPay(false)} className="text-xs text-zinc-400 px-2 py-1">戻る</button>
+                      <button onClick={advancePayment} className="text-xs text-white bg-emerald-600 hover:bg-emerald-500 px-3 py-1 rounded-lg flex items-center gap-1">
+                        <CreditCard size={11} />支払い完了
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmPay(true)}
+                      className="flex-1 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-1.5">
+                      <CreditCard size={13} />支払い完了にする
+                    </button>
+                  )
+                ) : (
+                  <button onClick={advancePayment}
+                    className="flex-1 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-1.5">
+                    <CreditCard size={13} />
+                    {PAYMENT_STATUS_LABELS[PAYMENT_STATUS_NEXT[order.payment_status]!]}
+                  </button>
+                )
               )}
               {!confirmCancel ? (
                 <button
@@ -595,13 +639,10 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true)
   const [filterTab, setFilterTab] = useState<FilterTab>('active')
   const [showNewForm, setShowNewForm] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [toast, setToast] = useState<{ msg: string; onUndo?: () => Promise<void> } | null>(null)
 
-  const showToast = useCallback((msg: string) => {
-    if (toastTimer.current) clearTimeout(toastTimer.current)
-    setToast(msg)
-    toastTimer.current = setTimeout(() => setToast(null), 3000)
+  const showToast = useCallback((msg: string, onUndo?: () => Promise<void>) => {
+    setToast({ msg, onUndo })
   }, [])
 
   const fetchOrders = useCallback(async () => {
@@ -767,14 +808,14 @@ export default function OrdersPage() {
                 key={order.id}
                 order={order}
                 onRefresh={fetchOrders}
-                onToast={showToast}
+                onToast={(msg, undo) => showToast(msg, undo)}
               />
             ))}
           </div>
         )}
       </div>
 
-      {toast && <Toast msg={toast} onClose={() => setToast(null)} />}
+      {toast && <Toast msg={toast.msg} onUndo={toast.onUndo} onClose={() => setToast(null)} />}
       <BottomNav />
     </div>
   )

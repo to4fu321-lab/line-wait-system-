@@ -56,11 +56,33 @@ type TimelineItem =
 // ============================================================
 // Toast
 // ============================================================
-function Toast({ msg, type }: { msg: string; type: 'ok' | 'err' }) {
+function Toast({ msg, type, onUndo, onClose }: {
+  msg: string; type: 'ok' | 'err'; onUndo?: () => Promise<void>; onClose?: () => void
+}) {
+  const [undoing, setUndoing] = useState(false)
+  useEffect(() => {
+    if (!onClose) return
+    const t = setTimeout(onClose, onUndo ? 5000 : 3000)
+    return () => clearTimeout(t)
+  }, [onClose, onUndo])
+  const handleUndo = async () => {
+    if (!onUndo || undoing) return
+    setUndoing(true)
+    await onUndo()
+    onClose?.()
+  }
   return (
-    <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl text-white text-sm font-bold shadow-2xl max-w-xs text-center ${
-      type === 'ok' ? 'bg-emerald-600' : 'bg-red-600'
-    }`}>{msg}</div>
+    <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-5 py-3 rounded-2xl text-white text-sm font-bold shadow-2xl max-w-xs ${
+      type === 'err' ? 'bg-red-600' : 'bg-zinc-800 border border-zinc-600'
+    }`}>
+      <span className="flex-1">{msg}</span>
+      {onUndo && (
+        <button onClick={handleUndo} disabled={undoing}
+          className="shrink-0 px-3 py-1 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-xs font-black active:scale-95 transition-all disabled:opacity-50">
+          {undoing ? '…' : '取消し'}
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -69,14 +91,14 @@ function Toast({ msg, type }: { msg: string; type: 'ok' | 'err' }) {
 // ============================================================
 function ReservationCard({ res, onUpdate, onDelete }: {
   res: ReservationFull
-  onUpdate: (id: string, status: ReservationStatus) => Promise<void>
+  onUpdate: (id: string, status: ReservationStatus, prevStatus: ReservationStatus) => Promise<void>
   onDelete: (id: string) => Promise<void>
 }) {
   const [loading,        setLoading]        = useState<string | null>(null)
   const [confirmDelete,  setConfirmDelete]  = useState(false)
 
   const act = async (s: ReservationStatus) => {
-    setLoading(s); await onUpdate(res.id, s); setLoading(null)
+    setLoading(s); await onUpdate(res.id, s, res.status); setLoading(null)
   }
   const inactive = res.status === 'completed' || res.status === 'cancelled' || res.status === 'no_show'
 
@@ -422,13 +444,11 @@ export default function ReservationsPage() {
   const [timeline,     setTimeline]     = useState<TimelineItem[]>([])
   const [loading,      setLoading]      = useState(true)
   const [showForm,     setShowForm]     = useState(false)
-  const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
+  const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string; onUndo?: () => Promise<void> } | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const showToast = useCallback((type: 'ok' | 'err', msg: string) => {
-    if (timerRef.current) clearTimeout(timerRef.current)
-    setToast({ type, msg })
-    timerRef.current = setTimeout(() => setToast(null), 3000)
+  const showToast = useCallback((type: 'ok' | 'err', msg: string, onUndo?: () => Promise<void>) => {
+    setToast({ type, msg, onUndo })
   }, [])
 
   useEffect(() => {
@@ -468,12 +488,16 @@ export default function ReservationsPage() {
 
   useEffect(() => { fetchTimeline() }, [fetchTimeline])
 
-  const handleUpdateStatus = useCallback(async (id: string, status: ReservationStatus) => {
+  const handleUpdateStatus = useCallback(async (id: string, status: ReservationStatus, prevStatus: ReservationStatus) => {
     const { error } = await (supabase.from('reservations') as any)
       .update({ status, updated_at: new Date().toISOString() }).eq('id', id)
     if (error) { showToast('err', `更新失敗: ${error.message}`); return }
-    showToast('ok', `${RESERVATION_STATUS_LABELS[status]}にしました`)
     fetchTimeline()
+    showToast('ok', `${RESERVATION_STATUS_LABELS[status]}にしました`, async () => {
+      await (supabase.from('reservations') as any)
+        .update({ status: prevStatus, updated_at: new Date().toISOString() }).eq('id', id)
+      fetchTimeline()
+    })
   }, [fetchTimeline, showToast])
 
   const handleDelete = useCallback(async (id: string) => {
@@ -491,7 +515,7 @@ export default function ReservationsPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
-      {toast && <Toast msg={toast.msg} type={toast.type} />}
+      {toast && <Toast msg={toast.msg} type={toast.type} onUndo={toast.onUndo} onClose={() => setToast(null)} />}
 
       {/* ヘッダー */}
       <div className="sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-xl border-b border-white/5 px-4 py-3">

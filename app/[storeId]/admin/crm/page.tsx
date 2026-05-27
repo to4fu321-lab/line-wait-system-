@@ -48,11 +48,32 @@ function getKanaRow(kana: string | null | undefined): KanaRow {
   return '他'
 }
 
-function Toast({ msg, type }: { msg: string; type: 'ok' | 'err' }) {
+function Toast({ msg, type, onUndo, onClose }: {
+  msg: string; type: 'ok' | 'err'; onUndo?: () => Promise<void>; onClose: () => void
+}) {
+  const [undoing, setUndoing] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(onClose, onUndo ? 5000 : 3000)
+    return () => clearTimeout(t)
+  }, [onClose, onUndo])
+  const handleUndo = async () => {
+    if (!onUndo || undoing) return
+    setUndoing(true)
+    await onUndo()
+    onClose()
+  }
   return (
-    <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl text-white text-sm font-bold shadow-2xl animate-fade-in max-w-xs text-center ${
-      type === 'ok' ? 'bg-emerald-600' : 'bg-red-600'
-    }`}>{msg}</div>
+    <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-5 py-3 rounded-2xl text-white text-sm font-bold shadow-2xl max-w-xs ${
+      type === 'err' ? 'bg-red-600' : 'bg-zinc-800 border border-zinc-600'
+    }`}>
+      <span className="flex-1">{msg}</span>
+      {onUndo && (
+        <button onClick={handleUndo} disabled={undoing}
+          className="shrink-0 px-3 py-1 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-xs font-black active:scale-95 transition-all disabled:opacity-50">
+          {undoing ? '…' : '取消し'}
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -125,11 +146,8 @@ function RepairItem({ repair, showCustomer = false, storeId, onComplete, onDeliv
   onRevert:   (id: string) => Promise<void>
   alertDays?: number
 }) {
-  const [loading,         setLoading]         = useState<string | null>(null)
-  const [confirmComplete, setConfirmComplete] = useState(false)
-  const [confirmDeliver,  setConfirmDeliver]  = useState(false)
-  const [confirmRevert,   setConfirmRevert]   = useState(false)
-  const [custOpen,        setCustOpen]        = useState(false)
+  const [loading,  setLoading]  = useState<string | null>(null)
+  const [custOpen, setCustOpen] = useState(false)
   const customerName = showCustomer ? (repair as RepairWithCustomer).customer?.name : null
   const childName    = showCustomer ? (repair as RepairWithCustomer).child?.name    : null
   const isOverdue = alertDays != null && repair.status === 'completed' && repair.completed_date &&
@@ -201,73 +219,25 @@ function RepairItem({ repair, showCustomer = false, storeId, onComplete, onDeliv
       )}
 
       {repair.status === 'received' && (
-        confirmComplete ? (
-          <div className="mt-3 bg-emerald-950/60 border border-emerald-500/30 rounded-xl p-3 space-y-2">
-            <p className="text-xs text-center text-emerald-300 font-bold">✂️ お直し完了 · LINEで通知を送りますか？</p>
-            <div className="flex gap-2">
-              <button onClick={() => setConfirmComplete(false)}
-                className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-zinc-700 text-zinc-300 active:scale-95 transition-all">
-                キャンセル
-              </button>
-              <button
-                onClick={async () => { setLoading('complete'); await onComplete(repair.id); setLoading(null); setConfirmComplete(false) }}
-                disabled={!!loading}
-                className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-emerald-500 to-teal-500 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
-                {loading === 'complete' ? <><Loader2 size={13} className="animate-spin" />送信中...</> : <><CheckCheck size={13} />送信する</>}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button onClick={() => setConfirmComplete(true)}
-            className="w-full mt-3 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-emerald-500/80 to-teal-500/80 hover:from-emerald-500 hover:to-teal-500 text-white active:scale-95 transition-all flex items-center justify-center gap-2">
-            <CheckCheck size={14} />お直し完了・LINE通知を送る
-          </button>
-        )
+        <button onClick={async () => { setLoading('complete'); await onComplete(repair.id); setLoading(null) }}
+          disabled={!!loading}
+          className="w-full mt-3 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-emerald-500/80 to-teal-500/80 hover:from-emerald-500 hover:to-teal-500 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+          {loading === 'complete' ? <><Loader2 size={13} className="animate-spin" />処理中...</> : <><CheckCheck size={14} />お直し完了・LINE通知を送る</>}
+        </button>
       )}
 
       {repair.status === 'completed' && (
         <div className="mt-3 space-y-2">
-          {confirmDeliver ? (
-            <div className="bg-zinc-900 border border-indigo-500/30 rounded-2xl p-3 space-y-2 animate-fade-in">
-              <p className="text-xs text-center text-white font-bold">📦 お渡し確認</p>
-              {customerName && <p className="text-xs text-center text-zinc-400"><span className="font-bold text-white">{customerName}</span> 様にお渡ししますか？</p>}
-              <div className="flex gap-2">
-                <button onClick={() => setConfirmDeliver(false)}
-                  className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-zinc-700 text-zinc-300 active:scale-95 transition-all">キャンセル</button>
-                <button onClick={async () => { setLoading('deliver'); await onDeliver(repair.id); setLoading(null); setConfirmDeliver(false) }}
-                  disabled={!!loading}
-                  className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
-                  {loading === 'deliver' ? <><Loader2 size={13} className="animate-spin" />処理中...</> : <><Package size={13} />お渡し</>}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setConfirmDeliver(true)}
-              disabled={!!loading}
-              className="w-full py-2.5 rounded-xl font-bold text-sm bg-zinc-700/80 hover:bg-zinc-600 text-zinc-200 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
-              <Package size={14} />お渡し済みにする
-            </button>
-          )}
-          {confirmRevert ? (
-            <div className="bg-amber-950/50 border border-amber-500/30 rounded-xl p-3 space-y-2">
-              <p className="text-xs text-center text-amber-300 font-bold">預かり中に戻しますか？</p>
-              <div className="flex gap-2">
-                <button onClick={() => setConfirmRevert(false)}
-                  className="flex-1 py-2 rounded-xl font-bold text-xs bg-zinc-700 text-zinc-300 active:scale-95">キャンセル</button>
-                <button
-                  onClick={async () => { setLoading('revert'); await onRevert(repair.id); setLoading(null); setConfirmRevert(false) }}
-                  disabled={!!loading}
-                  className="flex-1 py-2 rounded-xl font-bold text-xs bg-amber-600 text-white active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1">
-                  {loading === 'revert' ? <Loader2 size={12} className="animate-spin" /> : <><RotateCcw size={12} />戻す</>}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setConfirmRevert(true)}
-              className="w-full py-2 rounded-xl font-bold text-xs border border-amber-500/20 text-amber-500/70 hover:text-amber-400 hover:border-amber-500/40 transition-all flex items-center justify-center gap-1.5">
-              <RotateCcw size={12} />預かり中に戻す
-            </button>
-          )}
+          <button onClick={async () => { setLoading('deliver'); await onDeliver(repair.id); setLoading(null) }}
+            disabled={!!loading}
+            className="w-full py-2.5 rounded-xl font-bold text-sm bg-zinc-700/80 hover:bg-zinc-600 text-zinc-200 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+            {loading === 'deliver' ? <><Loader2 size={13} className="animate-spin" />処理中...</> : <><Package size={14} />お渡し済みにする</>}
+          </button>
+          <button onClick={async () => { setLoading('revert'); await onRevert(repair.id); setLoading(null) }}
+            disabled={!!loading}
+            className="w-full py-2 rounded-xl font-bold text-xs border border-amber-500/20 text-amber-500/70 hover:text-amber-400 hover:border-amber-500/40 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
+            {loading === 'revert' ? <Loader2 size={12} className="animate-spin" /> : <><RotateCcw size={12} />預かり中に戻す</>}
+          </button>
         </div>
       )}
     </div>
@@ -288,12 +258,8 @@ function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrd
   onRevert:    (id: string) => Promise<void>
   alertDays?: number
 }) {
-  const [loading,        setLoading]        = useState<string | null>(null)
-  const [confirmStock,   setConfirmStock]   = useState(false)
-  const [confirmArrive,  setConfirmArrive]  = useState(false)
-  const [confirmDeliver, setConfirmDeliver] = useState(false)
-  const [confirmRevert,  setConfirmRevert]  = useState(false)
-  const [custOpen,       setCustOpen]       = useState(false)
+  const [loading,  setLoading]  = useState<string | null>(null)
+  const [custOpen, setCustOpen] = useState(false)
   const customerName = showCustomer ? (order as PurchaseWithCustomer).customer?.name : null
   const childName    = showCustomer ? (order as PurchaseWithCustomer).child?.name    : null
   const isOverdue = alertDays != null && order.status === 'arrived' && order.arrived_date &&
@@ -371,112 +337,46 @@ function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrd
 
       {/* 依頼受付 → 在庫確保（即入荷連絡）or メーカー発注 */}
       {(order.status === 'received' || order.status === 'ordered') && (
-        confirmStock ? (
-          <div className="mt-3 bg-emerald-950/60 border border-emerald-500/30 rounded-xl p-3 space-y-2">
-            <p className="text-xs text-center text-emerald-300 font-bold">📦 在庫確保済み · LINEで入荷連絡しますか？</p>
-            <div className="flex gap-2">
-              <button onClick={() => setConfirmStock(false)}
-                className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-zinc-700 text-zinc-300 active:scale-95 transition-all">
-                キャンセル
-              </button>
-              <button
-                onClick={async () => { setLoading('stock'); await onStock(order.id); setLoading(null); setConfirmStock(false) }}
-                disabled={!!loading}
-                className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-emerald-500 to-teal-500 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
-                {loading === 'stock' ? <><Loader2 size={13} className="animate-spin" />送信中...</> : <><Bell size={13} />通知する</>}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setConfirmStock(true)}
-              disabled={!!loading}
-              className="py-2.5 rounded-xl font-bold text-xs bg-emerald-600/80 hover:bg-emerald-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
-              在庫確保・入荷連絡
-            </button>
-            <button
-              onClick={async () => { setLoading('backorder'); await onBackOrder(order.id); setLoading(null) }}
-              disabled={!!loading}
-              className="py-2.5 rounded-xl font-bold text-xs bg-orange-600/80 hover:bg-orange-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
-              {loading === 'backorder' ? <Loader2 size={12} className="animate-spin" /> : 'メーカー発注済み'}
-            </button>
-          </div>
-        )
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            onClick={async () => { setLoading('stock'); await onStock(order.id); setLoading(null) }}
+            disabled={!!loading}
+            className="py-2.5 rounded-xl font-bold text-xs bg-emerald-600/80 hover:bg-emerald-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
+            {loading === 'stock' ? <Loader2 size={12} className="animate-spin" /> : '在庫確保・入荷連絡'}
+          </button>
+          <button
+            onClick={async () => { setLoading('backorder'); await onBackOrder(order.id); setLoading(null) }}
+            disabled={!!loading}
+            className="py-2.5 rounded-xl font-bold text-xs bg-orange-600/80 hover:bg-orange-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
+            {loading === 'backorder' ? <Loader2 size={12} className="animate-spin" /> : 'メーカー発注済み'}
+          </button>
+        </div>
       )}
 
       {/* 在庫確保済み / メーカー発注済み → 入荷済み */}
       {(order.status === 'stocked' || order.status === 'on_order') && (
         <div className="mt-3 space-y-2">
-          {confirmArrive ? (
-            <div className="bg-emerald-950/60 border border-emerald-500/30 rounded-xl p-3 space-y-2">
-              <p className="text-xs text-center text-emerald-300 font-bold">📦 入荷通知 · LINEで連絡しますか？</p>
-              <div className="flex gap-2">
-                <button onClick={() => setConfirmArrive(false)}
-                  className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-zinc-700 text-zinc-300 active:scale-95 transition-all">
-                  キャンセル
-                </button>
-                <button
-                  onClick={async () => { setLoading('arrive'); await onArrive(order.id); setLoading(null); setConfirmArrive(false) }}
-                  disabled={!!loading}
-                  className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-emerald-500 to-teal-500 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
-                  {loading === 'arrive' ? <><Loader2 size={13} className="animate-spin" />送信中...</> : <><Bell size={13} />通知する</>}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setConfirmArrive(true)}
-              className="w-full py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-emerald-500/80 to-teal-500/80 hover:from-emerald-500 hover:to-teal-500 text-white active:scale-95 transition-all flex items-center justify-center gap-2">
-              <Bell size={14} />入荷確認・LINE通知を送る
-            </button>
-          )}
-          {confirmRevert ? (
-            <div className="bg-blue-950/50 border border-blue-500/30 rounded-xl p-3 space-y-2">
-              <p className="text-xs text-center text-blue-300 font-bold">依頼受付に戻しますか？</p>
-              <div className="flex gap-2">
-                <button onClick={() => setConfirmRevert(false)}
-                  className="flex-1 py-2 rounded-xl font-bold text-xs bg-zinc-700 text-zinc-300 active:scale-95">キャンセル</button>
-                <button
-                  onClick={async () => { setLoading('revert'); await onRevert(order.id); setLoading(null); setConfirmRevert(false) }}
-                  disabled={!!loading}
-                  className="flex-1 py-2 rounded-xl font-bold text-xs bg-blue-600 text-white active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1">
-                  {loading === 'revert' ? <Loader2 size={12} className="animate-spin" /> : <><RotateCcw size={12} />戻す</>}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setConfirmRevert(true)}
-              className="w-full py-2 rounded-xl font-bold text-xs border border-blue-500/20 text-blue-500/70 hover:text-blue-400 hover:border-blue-500/40 transition-all flex items-center justify-center gap-1.5">
-              <RotateCcw size={12} />依頼受付に戻す
-            </button>
-          )}
+          <button onClick={async () => { setLoading('arrive'); await onArrive(order.id); setLoading(null) }}
+            disabled={!!loading}
+            className="w-full py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-emerald-500/80 to-teal-500/80 hover:from-emerald-500 hover:to-teal-500 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+            {loading === 'arrive' ? <><Loader2 size={13} className="animate-spin" />処理中...</> : <><Bell size={14} />入荷確認・LINE通知を送る</>}
+          </button>
+          <button onClick={async () => { setLoading('revert'); await onRevert(order.id); setLoading(null) }}
+            disabled={!!loading}
+            className="w-full py-2 rounded-xl font-bold text-xs border border-blue-500/20 text-blue-500/70 hover:text-blue-400 hover:border-blue-500/40 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
+            {loading === 'revert' ? <Loader2 size={12} className="animate-spin" /> : <><RotateCcw size={12} />依頼受付に戻す</>}
+          </button>
         </div>
       )}
 
       {/* 入荷済み → お渡し済み */}
       {order.status === 'arrived' && (
-        <div className="mt-3 space-y-2">
-          {confirmDeliver ? (
-            <div className="bg-zinc-900 border border-indigo-500/30 rounded-2xl p-3 space-y-2 animate-fade-in">
-              <p className="text-xs text-center text-white font-bold">📦 お渡し確認</p>
-              {customerName && <p className="text-xs text-center text-zinc-400"><span className="font-bold text-white">{customerName}</span> 様にお渡ししますか？</p>}
-              <div className="flex gap-2">
-                <button onClick={() => setConfirmDeliver(false)}
-                  className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-zinc-700 text-zinc-300 active:scale-95 transition-all">キャンセル</button>
-                <button onClick={async () => { setLoading('deliver'); await onDeliver(order.id); setLoading(null); setConfirmDeliver(false) }}
-                  disabled={!!loading}
-                  className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
-                  {loading === 'deliver' ? <><Loader2 size={13} className="animate-spin" />処理中...</> : <><Package size={13} />お渡し</>}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setConfirmDeliver(true)}
-              disabled={!!loading}
-              className="w-full py-2.5 rounded-xl font-bold text-sm bg-zinc-700/80 hover:bg-zinc-600 text-zinc-200 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
-              <Package size={14} />お渡し済みにする
-            </button>
-          )}
+        <div className="mt-3">
+          <button onClick={async () => { setLoading('deliver'); await onDeliver(order.id); setLoading(null) }}
+            disabled={!!loading}
+            className="w-full py-2.5 rounded-xl font-bold text-sm bg-zinc-700/80 hover:bg-zinc-600 text-zinc-200 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+            {loading === 'deliver' ? <><Loader2 size={13} className="animate-spin" />処理中...</> : <><Package size={14} />お渡し済みにする</>}
+          </button>
         </div>
       )}
     </div>
@@ -690,7 +590,7 @@ function ChildCard({
   onPurchaseDeliver:   (id: string) => Promise<void>
   onPurchaseRevert:    (id: string) => Promise<void>
   onRefreshStats:      () => void
-  showToast:           (type: 'ok' | 'err', msg: string) => void
+  showToast:           (type: 'ok' | 'err', msg: string, onUndo?: () => Promise<void>) => void
   schoolOptions?:      string[]
 }) {
   const [expanded,       setExpanded]       = useState(false)
@@ -1082,13 +982,11 @@ export default function CRMPage() {
   const [deliveredPurchases,  setDeliveredPurchases]  = useState<PurchaseWithCustomer[]>([])
   const [deliveredLoading,    setDeliveredLoading]    = useState(false)
 
-  const [toast,   setToast]   = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
+  const [toast,   setToast]   = useState<{ type: 'ok' | 'err'; msg: string; onUndo?: () => Promise<void> } | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const showToast = useCallback((type: 'ok' | 'err', msg: string) => {
-    if (timerRef.current) clearTimeout(timerRef.current)
-    setToast({ type, msg })
-    timerRef.current = setTimeout(() => setToast(null), 3000)
+  const showToast = useCallback((type: 'ok' | 'err', msg: string, onUndo?: () => Promise<void>) => {
+    setToast({ type, msg, onUndo })
   }, [])
 
   // ── 初期ロード ──────────────────────────────────────────
@@ -1289,18 +1187,25 @@ export default function CRMPage() {
       .update({ status: 'completed', completed_date: today }).eq('id', repairId)
     if (error) { showToast('err', `完了処理失敗: ${error.message}`); return }
     setRepairReceivedList(prev => prev.filter(r => r.id !== repairId))
+    fetchStats()
+    if (showRepairCompleted) fetchRepairCompleted()
+    let msg = '✅ 完了処理しました'
     try {
       const res = await fetch('/api/notify-repair', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ repairId }),
       })
       const j = await res.json()
-      if (j.ok && j.notified) showToast('ok', '✅ 完了処理 + LINE通知を送信しました')
-      else if (j.skipped)     showToast('ok', '✅ 完了処理済み（LINE未連携のため通知なし）')
-      else                    showToast('err', `完了済み・通知失敗: ${j.error ?? '不明'}`)
-    } catch { showToast('err', '完了済み・通知APIエラー') }
-    fetchStats()
-    if (showRepairCompleted) fetchRepairCompleted()
-  }, [showToast, fetchStats, showRepairCompleted, fetchRepairCompleted])
+      if (j.ok && j.notified) msg = '✅ 完了処理 + LINE通知を送信しました'
+      else if (!j.skipped)    msg = `完了済み・通知失敗: ${j.error ?? '不明'}`
+    } catch { msg = '完了済み・通知APIエラー' }
+    showToast('ok', msg, async () => {
+      await supabase.from('repair_histories')
+        .update({ status: 'received', completed_date: null, notified: false }).eq('id', repairId)
+      fetchStats()
+      if (showRepairReceived) fetchRepairReceived()
+      if (showRepairCompleted) fetchRepairCompleted()
+    })
+  }, [showToast, fetchStats, showRepairReceived, showRepairCompleted, fetchRepairReceived, fetchRepairCompleted])
 
   const handleRepairDeliver = useCallback(async (repairId: string) => {
     const today = new Date().toISOString().slice(0, 10)
@@ -1308,19 +1213,29 @@ export default function CRMPage() {
       .update({ status: 'delivered', delivered_date: today }).eq('id', repairId)
     if (error) { showToast('err', `受渡処理失敗: ${error.message}`); return }
     setRepairCompletedList(prev => prev.filter(r => r.id !== repairId))
-    showToast('ok', '📦 お渡し済みにしました')
     fetchStats()
-  }, [showToast, fetchStats])
+    showToast('ok', '📦 お渡し済みにしました', async () => {
+      await supabase.from('repair_histories')
+        .update({ status: 'completed', delivered_date: null }).eq('id', repairId)
+      fetchStats()
+      if (showRepairCompleted) fetchRepairCompleted()
+    })
+  }, [showToast, fetchStats, showRepairCompleted, fetchRepairCompleted])
 
   const handleRepairRevert = useCallback(async (repairId: string) => {
     const { error } = await supabase.from('repair_histories')
       .update({ status: 'received', completed_date: null, notified: false }).eq('id', repairId)
     if (error) { showToast('err', `戻し処理失敗: ${error.message}`); return }
     setRepairCompletedList(prev => prev.filter(r => r.id !== repairId))
-    showToast('ok', '🔄 預かり中に戻しました')
     fetchStats()
     if (showRepairReceived) fetchRepairReceived()
-  }, [showToast, fetchStats, showRepairReceived, fetchRepairReceived])
+    showToast('ok', '🔄 預かり中に戻しました', async () => {
+      await supabase.from('repair_histories')
+        .update({ status: 'completed' }).eq('id', repairId)
+      fetchStats()
+      if (showRepairCompleted) fetchRepairCompleted()
+    })
+  }, [showToast, fetchStats, showRepairReceived, showRepairCompleted, fetchRepairReceived, fetchRepairCompleted])
 
   // ── 追加購入アクション ─────────────────────────────────
   const handlePurchaseStock = useCallback(async (orderId: string) => {
@@ -1329,28 +1244,38 @@ export default function CRMPage() {
       .update({ status: 'arrived', arrived_date: today }).eq('id', orderId)
     if (error) { showToast('err', `更新失敗: ${error.message}`); return }
     setPurchaseReceivedList(prev => prev.filter(o => o.id !== orderId))
+    fetchStats()
+    if (showPurchaseArrived) fetchPurchaseArrived()
+    let msg = '✅ 在庫確保済みにしました'
     try {
       const res = await fetch('/api/notify-purchase', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ purchaseOrderId: orderId }),
       })
       const j = await res.json()
-      if (j.ok && j.notified) showToast('ok', '✅ 在庫確保・入荷連絡を送信しました')
-      else if (j.skipped)     showToast('ok', '✅ 在庫確保済みにしました（LINE未連携のため通知なし）')
-      else                    showToast('err', `在庫確保済み・通知失敗: ${j.error ?? '不明'}`)
-    } catch { showToast('err', '在庫確保済み・通知APIエラー') }
-    fetchStats()
-    if (showPurchaseArrived) fetchPurchaseArrived()
-  }, [showToast, fetchStats, showPurchaseArrived, fetchPurchaseArrived])
+      if (j.ok && j.notified) msg = '✅ 在庫確保・入荷連絡を送信しました'
+      else if (!j.skipped)    msg = `在庫確保済み・通知失敗: ${j.error ?? '不明'}`
+    } catch { msg = '在庫確保済み・通知APIエラー' }
+    showToast('ok', msg, async () => {
+      await supabase.from('purchase_orders')
+        .update({ status: 'received', arrived_date: null, notified: false }).eq('id', orderId)
+      fetchStats()
+      if (showPurchaseReceived) fetchPurchaseReceived()
+    })
+  }, [showToast, fetchStats, showPurchaseReceived, showPurchaseArrived, fetchPurchaseReceived, fetchPurchaseArrived])
 
   const handlePurchaseBackOrder = useCallback(async (orderId: string) => {
     const { error } = await supabase.from('purchase_orders').update({ status: 'on_order' }).eq('id', orderId)
     if (error) { showToast('err', `更新失敗: ${error.message}`); return }
     setPurchaseReceivedList(prev => prev.filter(o => o.id !== orderId))
-    showToast('ok', '✅ メーカー発注済みにしました')
     fetchStats()
     if (showPurchaseInProgress) fetchPurchaseInProgress()
-  }, [showToast, fetchStats, showPurchaseInProgress, fetchPurchaseInProgress])
+    showToast('ok', '✅ メーカー発注済みにしました', async () => {
+      await supabase.from('purchase_orders').update({ status: 'received' }).eq('id', orderId)
+      fetchStats()
+      if (showPurchaseReceived) fetchPurchaseReceived()
+    })
+  }, [showToast, fetchStats, showPurchaseReceived, showPurchaseInProgress, fetchPurchaseReceived, fetchPurchaseInProgress])
 
   const handlePurchaseArrive = useCallback(async (orderId: string) => {
     const today = new Date().toISOString().slice(0, 10)
@@ -1358,18 +1283,24 @@ export default function CRMPage() {
       .update({ status: 'arrived', arrived_date: today }).eq('id', orderId)
     if (error) { showToast('err', `入荷処理失敗: ${error.message}`); return }
     setPurchaseInProgressList(prev => prev.filter(o => o.id !== orderId))
+    fetchStats()
+    if (showPurchaseArrived) fetchPurchaseArrived()
+    let msg = '✅ 入荷連絡済みにしました'
     try {
       const res = await fetch('/api/notify-purchase', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purchaseOrderId: orderId }),
       })
       const j = await res.json()
-      if (j.ok && j.notified) showToast('ok', '✅ 入荷連絡済み + LINE通知を送信しました')
-      else if (j.skipped)     showToast('ok', '✅ 入荷連絡済みにしました（LINE未連携のため通知なし）')
-      else                    showToast('err', `入荷連絡済み・通知失敗: ${j.error ?? '不明'}`)
-    } catch { showToast('err', '入荷連絡済み・通知APIエラー') }
-    fetchStats()
-    if (showPurchaseArrived) fetchPurchaseArrived()
-  }, [showToast, fetchStats, showPurchaseArrived, fetchPurchaseArrived])
+      if (j.ok && j.notified) msg = '✅ 入荷連絡済み + LINE通知を送信しました'
+      else if (!j.skipped)    msg = `入荷連絡済み・通知失敗: ${j.error ?? '不明'}`
+    } catch { msg = '入荷連絡済み・通知APIエラー' }
+    showToast('ok', msg, async () => {
+      await supabase.from('purchase_orders')
+        .update({ status: 'on_order', arrived_date: null, notified: false }).eq('id', orderId)
+      fetchStats()
+      if (showPurchaseInProgress) fetchPurchaseInProgress()
+    })
+  }, [showToast, fetchStats, showPurchaseInProgress, showPurchaseArrived, fetchPurchaseInProgress, fetchPurchaseArrived])
 
   const handlePurchaseDeliver = useCallback(async (orderId: string) => {
     const today = new Date().toISOString().slice(0, 10)
@@ -1377,19 +1308,28 @@ export default function CRMPage() {
       .update({ status: 'delivered', delivered_date: today }).eq('id', orderId)
     if (error) { showToast('err', `受渡処理失敗: ${error.message}`); return }
     setPurchaseArrivedList(prev => prev.filter(o => o.id !== orderId))
-    showToast('ok', '📦 お渡し済みにしました')
     fetchStats()
-  }, [showToast, fetchStats])
+    showToast('ok', '📦 お渡し済みにしました', async () => {
+      await supabase.from('purchase_orders')
+        .update({ status: 'arrived', delivered_date: null }).eq('id', orderId)
+      fetchStats()
+      if (showPurchaseArrived) fetchPurchaseArrived()
+    })
+  }, [showToast, fetchStats, showPurchaseArrived, fetchPurchaseArrived])
 
   const handlePurchaseRevert = useCallback(async (orderId: string) => {
     const { error } = await supabase.from('purchase_orders')
       .update({ status: 'ordered', arrived_date: null, notified: false }).eq('id', orderId)
     if (error) { showToast('err', `戻し処理失敗: ${error.message}`); return }
     setPurchaseInProgressList(prev => prev.filter(o => o.id !== orderId))
-    showToast('ok', '🔄 依頼受付に戻しました')
     fetchStats()
     if (showPurchaseReceived) fetchPurchaseReceived()
-  }, [showToast, fetchStats, showPurchaseReceived, fetchPurchaseReceived])
+    showToast('ok', '🔄 依頼受付に戻しました', async () => {
+      await supabase.from('purchase_orders').update({ status: 'on_order' }).eq('id', orderId)
+      fetchStats()
+      if (showPurchaseInProgress) fetchPurchaseInProgress()
+    })
+  }, [showToast, fetchStats, showPurchaseReceived, showPurchaseInProgress, fetchPurchaseReceived, fetchPurchaseInProgress])
 
   // ── トグル関数 ─────────────────────────────────────────
   const toggleRepairReceived = () => {
@@ -1439,7 +1379,7 @@ export default function CRMPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
-      {toast && <Toast msg={toast.msg} type={toast.type} />}
+      {toast && <Toast msg={toast.msg} type={toast.type} onUndo={toast.onUndo} onClose={() => setToast(null)} />}
 
       {/* ヘッダー */}
       <div className="sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-xl border-b border-white/5 px-4 py-3">

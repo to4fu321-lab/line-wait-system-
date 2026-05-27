@@ -45,16 +45,23 @@ function todayJst() {
   return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
 }
 
-function Toast({ msg, type, onUndo }: { msg: string; type: 'ok' | 'err' | 'undo'; onUndo?: () => void }) {
+function Toast({ msg, type, onUndo }: { msg: string; type: 'ok' | 'err' | 'undo'; onUndo?: () => Promise<void> | void }) {
+  const [undoing, setUndoing] = useState(false)
+  const handleUndo = async () => {
+    if (!onUndo || undoing) return
+    setUndoing(true)
+    await onUndo()
+    setUndoing(false)
+  }
   return (
     <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-5 py-3 rounded-2xl text-white text-sm font-bold shadow-2xl animate-fade-in max-w-xs ${
       type === 'err' ? 'bg-red-600' : 'bg-zinc-800 border border-zinc-600'
     }`}>
       <span className="flex-1">{msg}</span>
       {onUndo && (
-        <button onClick={onUndo}
-          className="shrink-0 px-3 py-1 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-black active:scale-95 transition-all">
-          取り消す
+        <button onClick={handleUndo} disabled={undoing}
+          className="shrink-0 px-3 py-1 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-black active:scale-95 transition-all disabled:opacity-50">
+          {undoing ? '…' : '取消し'}
         </button>
       )}
     </div>
@@ -69,8 +76,23 @@ function PaymentBadge({ status, onToggle, loading }: {
   loading: boolean
 }) {
   const isPaid = status === 'paid'
+  const [confirmPay, setConfirmPay] = useState(false)
+
+  if (!isPaid && confirmPay) {
+    return (
+      <div className="flex items-center gap-1.5 bg-emerald-900/40 border border-emerald-500/40 rounded-xl px-2 py-1">
+        <span className="text-[10px] text-emerald-200 font-bold">支払い完了？</span>
+        <button onClick={() => setConfirmPay(false)} className="text-[10px] text-zinc-400 px-1">✕</button>
+        <button onClick={() => { setConfirmPay(false); onToggle() }} disabled={loading}
+          className="text-[10px] text-white bg-emerald-600 px-2 py-0.5 rounded-lg font-bold flex items-center gap-0.5">
+          <CreditCard size={8} />完了
+        </button>
+      </div>
+    )
+  }
+
   return (
-    <button onClick={onToggle} disabled={loading}
+    <button onClick={isPaid ? onToggle : () => setConfirmPay(true)} disabled={loading}
       className={`flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full border transition-all active:scale-95 disabled:opacity-50 ${
         isPaid
           ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
@@ -379,13 +401,13 @@ export default function DeliveryPage() {
   const [loading,      setLoading]      = useState(true)
   const [histLoading,  setHistLoading]  = useState(false)
   const [histFetched,  setHistFetched]  = useState(false)
-  const [toast, setToast] = useState<{ type: 'ok' | 'err' | 'undo'; msg: string; onUndo?: () => void } | null>(null)
+  const [toast, setToast] = useState<{ type: 'ok' | 'err' | 'undo'; msg: string; onUndo?: () => Promise<void> | void } | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const showToast = useCallback((type: 'ok' | 'err' | 'undo', msg: string, onUndo?: () => void) => {
+  const showToast = useCallback((type: 'ok' | 'err' | 'undo', msg: string, onUndo?: () => Promise<void> | void) => {
     if (timerRef.current) clearTimeout(timerRef.current)
     setToast({ type, msg, onUndo })
-    timerRef.current = setTimeout(() => setToast(null), onUndo ? 6000 : 3000)
+    timerRef.current = setTimeout(() => setToast(null), onUndo ? 5000 : 3000)
   }, [])
 
   useEffect(() => {
@@ -531,6 +553,7 @@ export default function DeliveryPage() {
   const handlePaymentToggle = useCallback(async (item: DeliveryItem) => {
     const table = item.kind === 'repair' ? 'repair_histories' : 'purchase_orders'
     const newStatus = item.payment_status === 'paid' ? 'unpaid' : 'paid'
+    const prevStatus = item.payment_status
     const { error } = await (supabase as any).from(table)
       .update({ payment_status: newStatus }).eq('id', item.id)
     if (error) { showToast('err', '支払状態の更新失敗（SQLマイグレーションが必要な場合があります）'); return }
@@ -538,6 +561,15 @@ export default function DeliveryPage() {
       prev.map(i => i.id === item.id ? { ...i, payment_status: newStatus } : i)
     setWaiting(updater)
     setHistory(updater)
+    if (newStatus === 'unpaid') {
+      showToast('ok', '未払いに戻しました', async () => {
+        await (supabase as any).from(table).update({ payment_status: prevStatus }).eq('id', item.id)
+        const revert = (prev: DeliveryItem[]) =>
+          prev.map(i => i.id === item.id ? { ...i, payment_status: prevStatus } : i)
+        setWaiting(revert)
+        setHistory(revert)
+      })
+    }
   }, [showToast])
 
   // ── render ─────────────────────────────────────────────────

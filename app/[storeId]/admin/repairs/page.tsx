@@ -57,28 +57,50 @@ interface OrderRow {
 }
 
 // ── Toast ─────────────────────────────────────────────────────
-function Toast({ msg, type, onClose }: { msg: string; type: 'ok' | 'err'; onClose: () => void }) {
-  useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t) }, [onClose])
+function Toast({ msg, type, onUndo, onClose }: {
+  msg: string; type: 'ok' | 'err'; onUndo?: () => Promise<void>; onClose: () => void
+}) {
+  const [undoing, setUndoing] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(onClose, onUndo ? 5000 : 3000)
+    return () => clearTimeout(t)
+  }, [onClose, onUndo])
+  const handleUndo = async () => {
+    if (!onUndo || undoing) return
+    setUndoing(true)
+    await onUndo()
+    onClose()
+  }
   return (
-    <div className={`fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium border ${
-      type === 'ok'
-        ? 'bg-emerald-900/90 text-emerald-300 border-emerald-700/50'
-        : 'bg-red-900/90 text-red-300 border-red-700/50'
+    <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-5 py-3 rounded-2xl text-white text-sm font-bold shadow-2xl max-w-xs ${
+      type === 'err' ? 'bg-red-600' : 'bg-zinc-800 border border-zinc-600'
     }`}>
-      {msg}
+      <span className="flex-1">{msg}</span>
+      {onUndo && (
+        <button onClick={handleUndo} disabled={undoing}
+          className="shrink-0 px-3 py-1 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-xs font-black active:scale-95 transition-all disabled:opacity-50">
+          {undoing ? '…' : '取消し'}
+        </button>
+      )}
     </div>
   )
 }
 
 // ── Repair Card ───────────────────────────────────────────────
 function RepairCard({ item, storeId, onRefresh, onToast }: {
-  item: RepairRow; storeId: string; onRefresh: () => void; onToast: (t: 'ok' | 'err', m: string) => void
+  item: RepairRow; storeId: string; onRefresh: () => void
+  onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
 }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [confirmPay, setConfirmPay] = useState(false)
   const reqType = (item.request_type ?? 'repair') as RequestType
 
-  async function update(patch: Record<string, unknown>) {
+  async function update(
+    patch: Record<string, unknown>,
+    msg: string,
+    undoPatch?: Record<string, unknown>
+  ) {
     setLoading(true)
     const { error } = await (supabase as any)
       .from('repair_histories')
@@ -86,7 +108,12 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
       .eq('id', item.id)
     setLoading(false)
     if (error) { onToast('err', '更新に失敗しました'); return }
-    onToast('ok', '更新しました'); onRefresh()
+    onRefresh()
+    onToast('ok', msg, undoPatch ? async () => {
+      await (supabase as any).from('repair_histories')
+        .update({ ...undoPatch, updated_at: new Date().toISOString() }).eq('id', item.id)
+      onRefresh()
+    } : undefined)
   }
 
   // ラベルをリクエスト種別に応じて変更
@@ -140,16 +167,33 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
             </a>
           )}
           {/* 支払いステータス切り替えボタン */}
-          <button
-            onClick={() => update({ prepaid: !item.prepaid })}
-            className={`w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all border-2 ${
-              item.prepaid
-                ? 'bg-emerald-900/30 border-emerald-500/40 text-emerald-300'
-                : 'bg-red-900/30 border-red-500/50 text-red-300'
-            }`}>
-            <Banknote size={15} />
-            {item.prepaid ? '✅ 支払済み — タップで未払いに戻す' : '⚠️ 未払い — タップで支払済みにする'}
-          </button>
+          {item.prepaid ? (
+            <button
+              onClick={() => update({ prepaid: false }, '未払いに戻しました', { prepaid: true })}
+              disabled={loading}
+              className="w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all border-2 bg-emerald-900/30 border-emerald-500/40 text-emerald-300">
+              <Banknote size={15} />✅ 支払済み — タップで未払いに戻す
+            </button>
+          ) : confirmPay ? (
+            <div className="rounded-xl border border-emerald-500/40 bg-emerald-900/20 p-3 space-y-2">
+              <p className="text-xs text-emerald-200 font-bold text-center">支払い完了にしますか？</p>
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmPay(false)}
+                  className="flex-1 py-2 rounded-xl bg-zinc-800 text-zinc-400 text-xs font-bold">キャンセル</button>
+                <button onClick={() => { update({ prepaid: true }, '支払い完了にしました'); setConfirmPay(false) }}
+                  disabled={loading}
+                  className="flex-1 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold flex items-center justify-center gap-1">
+                  <Banknote size={13} />支払い完了
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmPay(true)}
+              className="w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all border-2 bg-red-900/30 border-red-500/50 text-red-300">
+              <Banknote size={15} />⚠️ 未払い — タップして支払い確認
+            </button>
+          )}
           <a href={`/${storeId}/admin/crm?customerId=${item.customer_id}`}
             className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
             <User size={11} />顧客詳細
@@ -157,7 +201,11 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
           <div className="flex flex-wrap gap-2 pt-1">
             {item.status === 'received' && (
               <button
-                onClick={() => update({ status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true })}
+                onClick={() => update(
+                  { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true },
+                  `${completeLabel}にしました`,
+                  { status: 'received', completed_date: null, notified: false }
+                )}
                 disabled={loading}
                 className="flex-1 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-1.5">
                 <Check size={13} />{completeLabel}
@@ -165,7 +213,11 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
             )}
             {item.status !== 'received' && (
               <button
-                onClick={() => update({ status: 'received', completed_date: null, delivered_date: null, notified: false })}
+                onClick={() => update(
+                  { status: 'received', completed_date: null, delivered_date: null, notified: false },
+                  '受付中に戻しました',
+                  { status: item.status, completed_date: item.completed_date, delivered_date: item.delivered_date, notified: item.notified }
+                )}
                 disabled={loading}
                 className="py-2 px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs rounded-xl transition-colors flex items-center gap-1">
                 <RotateCcw size={11} />受付中に戻す
@@ -188,18 +240,28 @@ const PURCHASE_STATUS_FLOW: Partial<Record<PurchaseStatus, { next: PurchaseStatu
 }
 
 function PurchaseCard({ item, storeId, onRefresh, onToast }: {
-  item: PurchaseRow; storeId: string; onRefresh: () => void; onToast: (t: 'ok' | 'err', m: string) => void
+  item: PurchaseRow; storeId: string; onRefresh: () => void
+  onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
 }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const nextStep = PURCHASE_STATUS_FLOW[item.status]
 
-  async function update(patch: Record<string, unknown>) {
+  async function update(
+    patch: Record<string, unknown>,
+    msg: string,
+    undoPatch?: Record<string, unknown>
+  ) {
     setLoading(true)
     const { error } = await (supabase as any).from('purchase_orders').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', item.id)
     setLoading(false)
     if (error) { onToast('err', '更新に失敗しました'); return }
-    onToast('ok', '更新しました'); onRefresh()
+    onRefresh()
+    onToast('ok', msg, undoPatch ? async () => {
+      await (supabase as any).from('purchase_orders')
+        .update({ ...undoPatch, updated_at: new Date().toISOString() }).eq('id', item.id)
+      onRefresh()
+    } : undefined)
   }
 
   return (
@@ -235,23 +297,32 @@ function PurchaseCard({ item, storeId, onRefresh, onToast }: {
           {nextStep && (
             <button onClick={() => {
               const patch: Record<string, unknown> = { status: nextStep.next }
+              const undoPatch: Record<string, unknown> = { status: item.status, arrived_date: item.arrived_date, delivered_date: item.delivered_date, notified: item.notified }
               if (nextStep.next === 'arrived') { patch.arrived_date = new Date().toISOString().slice(0, 10); patch.notified = true }
               if (nextStep.next === 'delivered') patch.delivered_date = new Date().toISOString().slice(0, 10)
-              update(patch)
+              update(patch, `${nextStep.label}にしました`, undoPatch)
             }} disabled={loading} className={`w-full py-2.5 text-white text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-1.5 ${nextStep.color}`}>
               {loading ? <Loader2 size={13} className="animate-spin" /> : <Package size={13} />}
               {nextStep.label}
             </button>
           )}
           {(item.status === 'received' || item.status === 'ordered') && (
-            <button onClick={() => update({ status: 'stocked', arrived_date: new Date().toISOString().slice(0, 10), notified: true })}
+            <button onClick={() => update(
+              { status: 'stocked', arrived_date: new Date().toISOString().slice(0, 10), notified: true },
+              '店頭在庫確保しました',
+              { status: item.status, arrived_date: null, notified: false }
+            )}
               disabled={loading} className="w-full py-2.5 bg-teal-800 hover:bg-teal-700 text-white text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-1.5">
               {loading ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
               店頭在庫確保（取り置き済み）
             </button>
           )}
           {item.status !== 'received' && item.status !== 'ordered' && (
-            <button onClick={() => update({ status: 'received', arrived_date: null, delivered_date: null, notified: false })}
+            <button onClick={() => update(
+              { status: 'received', arrived_date: null, delivered_date: null, notified: false },
+              '依頼受付に戻しました',
+              { status: item.status, arrived_date: item.arrived_date, delivered_date: item.delivered_date, notified: item.notified }
+            )}
               disabled={loading} className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs rounded-xl transition-colors flex items-center justify-center gap-1">
               <RotateCcw size={11} />依頼受付に戻す
             </button>
@@ -265,20 +336,28 @@ function PurchaseCard({ item, storeId, onRefresh, onToast }: {
 // ── Maker Order Panel ─────────────────────────────────────────
 function MakerGroup({ maker, items, storeId, onRefresh, onToast }: {
   maker: string; items: PurchaseRow[]; storeId: string
-  onRefresh: () => void; onToast: (t: 'ok' | 'err', m: string) => void
+  onRefresh: () => void; onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
 }) {
   const [open, setOpen]       = useState(false)
   const [loading, setLoading] = useState(false)
 
   async function markOrdered() {
     setLoading(true)
+    const ids = items.map(i => i.id)
+    const prevStatuses = Object.fromEntries(items.map(i => [i.id, i.status]))
     const { error } = await (supabase as any).from('purchase_orders')
       .update({ status: 'on_order', updated_at: new Date().toISOString() })
-      .in('id', items.map(i => i.id))
+      .in('id', ids)
     setLoading(false)
     if (error) { onToast('err', '更新に失敗しました'); return }
-    onToast('ok', `${maker}: ${items.length}件を発注済みにしました`)
     onRefresh()
+    onToast('ok', `${maker}: ${items.length}件を発注済みにしました`, async () => {
+      await Promise.all(ids.map(id =>
+        (supabase as any).from('purchase_orders')
+          .update({ status: prevStatuses[id], updated_at: new Date().toISOString() }).eq('id', id)
+      ))
+      onRefresh()
+    })
   }
 
   return (
@@ -322,7 +401,7 @@ function MakerGroup({ maker, items, storeId, onRefresh, onToast }: {
 
 function MakerOrderPanel({ purchases, storeId, onRefresh, onToast }: {
   purchases: PurchaseRow[]; storeId: string
-  onRefresh: () => void; onToast: (t: 'ok' | 'err', m: string) => void
+  onRefresh: () => void; onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
 }) {
   const grouped = purchases.reduce<Record<string, PurchaseRow[]>>((acc, p) => {
     const key = p.maker?.trim() || '（メーカー未設定）'
@@ -349,17 +428,23 @@ function MakerOrderPanel({ purchases, storeId, onRefresh, onToast }: {
 
 // ── Order Card ────────────────────────────────────────────────
 function OrderCard({ item, storeId, onRefresh, onToast }: {
-  item: OrderRow; storeId: string; onRefresh: () => void; onToast: (t: 'ok' | 'err', m: string) => void
+  item: OrderRow; storeId: string; onRefresh: () => void
+  onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
 }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
   async function updateStatus(status: OrderStatus) {
+    const prevStatus = item.status
     setLoading(true)
     const { error } = await (supabase as any).from('orders').update({ status, updated_at: new Date().toISOString() }).eq('id', item.id)
     setLoading(false)
     if (error) { onToast('err', '更新に失敗しました'); return }
-    onToast('ok', '更新しました'); onRefresh()
+    onRefresh()
+    onToast('ok', `${ORDER_STATUS_LABELS[status]}にしました`, async () => {
+      await (supabase as any).from('orders').update({ status: prevStatus, updated_at: new Date().toISOString() }).eq('id', item.id)
+      onRefresh()
+    })
   }
 
   const totalItems = item.items?.length ?? 0
@@ -457,17 +542,14 @@ export default function RepairsPage() {
   const [orders,           setOrders]           = useState<OrderRow[]>([])
   const [loading,          setLoading]          = useState(true)
   const [fetchError,       setFetchError]       = useState<string | null>(null)
-  const [toast,            setToast]            = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
+  const [toast,            setToast]            = useState<{ type: 'ok' | 'err'; msg: string; onUndo?: () => Promise<void> } | null>(null)
   const [requestFilter,    setRequestFilter]    = useState<RequestFilter>('all')
   const [purchaseFilter,   setPurchaseFilter]   = useState<'pending' | 'on_order' | 'arrived' | null>(null)
   const [orderFilter,      setOrderFilter]      = useState<'active' | 'ready' | 'unpaid' | null>(null)
   const [purchaseViewMode, setPurchaseViewMode] = useState<'list' | 'order_mgmt'>('list')
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const showToast = useCallback((type: 'ok' | 'err', msg: string) => {
-    if (timerRef.current) clearTimeout(timerRef.current)
-    setToast({ type, msg })
-    timerRef.current = setTimeout(() => setToast(null), 3000)
+  const showToast = useCallback((type: 'ok' | 'err', msg: string, onUndo?: () => Promise<void>) => {
+    setToast({ type, msg, onUndo })
   }, [])
 
   const fetchAll = useCallback(async () => {
@@ -780,7 +862,7 @@ export default function RepairsPage() {
         )}
       </div>
 
-      {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      {toast && <Toast msg={toast.msg} type={toast.type} onUndo={toast.onUndo} onClose={() => setToast(null)} />}
       <BottomNav />
     </div>
   )
