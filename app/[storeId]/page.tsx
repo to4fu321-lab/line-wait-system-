@@ -526,12 +526,24 @@ export default function CustomerPage() {
     parentName: string; parentKana: string; tel: string
     childName: string; childKana: string; schoolName: string; grade: string
   }) => {
-    if (!lineProfile?.userId) return
+    // LIFFプロフィールを確保（初期化時に取れなかった場合は再取得）
+    let userId = lineProfile?.userId
+    if (!userId) {
+      const freshProfile = await getLineProfile()
+      if (freshProfile) {
+        setLineProfile(freshProfile)
+        userId = freshProfile.userId
+      }
+    }
+    if (!userId) {
+      setRegisterError('LINE認証に失敗しました。LINEアプリから開き直してください。')
+      return
+    }
     setSubmitting(true)
     setRegisterError('')
     try {
       const { data: existingRows } = await supabase.from('customers')
-        .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId)
+        .select('*').eq('store_id', storeId).eq('line_user_id', userId)
         .order('created_at', { ascending: false }).limit(1)
       const existing = existingRows?.[0] && !existingRows[0].deleted_at ? existingRows[0] : null
 
@@ -544,7 +556,7 @@ export default function CustomerPage() {
         cust = updated ?? existing
       } else {
         const { data: newCust, error: insertErr } = await supabase.from('customers').insert({
-          store_id: storeId, line_user_id: lineProfile.userId,
+          store_id: storeId, line_user_id: userId,
           name: d.parentName, kana: d.parentKana || null, tel: d.tel || null,
         }).select().single()
         if (insertErr) throw new Error(insertErr.message)

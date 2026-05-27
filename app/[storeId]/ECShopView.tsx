@@ -6,7 +6,7 @@ import { useStoreTheme } from '@/lib/theme-context'
 import { supabase } from '@/lib/supabase'
 import { SCHOOL_OPTIONS, GRADE_OPTIONS } from '@/types/crm'
 import { useKanaAutoFill } from '@/lib/useKanaAutoFill'
-import type { LiffProfile } from '@/lib/liff'
+import { getLineProfile, type LiffProfile } from '@/lib/liff'
 
 function toKatakana(s: string) {
   return s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60))
@@ -150,12 +150,18 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
   const handleRegisterAndOrder = async () => {
     if (!regParent.name.trim()) { setRegError('保護者のお名前を入力してください'); return }
     if (!regChild.name.trim())  { setRegError('お子様のお名前を入力してください'); return }
-    if (!lineProfile?.userId)   { setRegError('LINE情報が取得できませんでした'); return }
+    // LIFFプロフィールを確保（初期化時に取れなかった場合は再取得）
+    let userId = lineProfile?.userId
+    if (!userId) {
+      const freshProfile = await getLineProfile()
+      userId = freshProfile?.userId ?? null
+    }
+    if (!userId) { setRegError('LINE認証に失敗しました。LINEアプリから開き直してください。'); return }
     setRegistering(true); setRegError('')
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: newCust, error: custErr } = await (supabase.from('customers') as any).insert({
-        store_id: storeId, line_user_id: lineProfile.userId,
+        store_id: storeId, line_user_id: userId,
         name: regParent.name.trim(), kana: regParent.kana.trim() || null, tel: regTel.trim() || null,
       }).select().single()
       if (custErr) throw new Error(custErr.message)

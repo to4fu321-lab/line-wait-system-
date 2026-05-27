@@ -47,6 +47,7 @@ export async function initLiff(): Promise<Liff | null> {
     } catch (e) {
       console.error('[LIFF] init failed:', e)
       initPromise = null
+      localStorage.removeItem('liff_init_ts') // 失敗時もガード解除して再試行可能にする
       return null
     }
   })()
