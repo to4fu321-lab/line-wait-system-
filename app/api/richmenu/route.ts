@@ -4,11 +4,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { ImageResponse } from 'next/og'
 import { createElement as h } from 'react'
 
-const STORE_ID  = process.env.NEXT_PUBLIC_DEFAULT_STORE_ID || process.env.STORE_ID || ''
-const TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || ''
-const LIFF_BASE = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || ''}`
 const LINE_API  = 'https://api.line.me/v2/bot'
-const authHeader = { Authorization: `Bearer ${TOKEN}` }
+
+function getConfig() {
+  const liffId   = (process.env.NEXT_PUBLIC_LIFF_ID   || '').trim()
+  const token    = (process.env.LINE_CHANNEL_ACCESS_TOKEN || '').trim()
+  const liffBase = liffId ? `https://liff.line.me/${liffId}` : ''
+  return { liffId, token, liffBase, authHeader: { Authorization: `Bearer ${token}` } }
+}
 
 // ── リッチメニュー画像生成（next/og + Google Fonts）──────────
 async function makeMenuPng(): Promise<Buffer> {
@@ -70,8 +73,8 @@ async function makeMenuPng(): Promise<Buffer> {
 // GET ?storeId=&storeName= → ブラウザから直接設定可能
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const storeId   = searchParams.get('storeId')   ?? STORE_ID
-  const storeName = searchParams.get('storeName')  ?? 'メニュー'
+  const storeId   = searchParams.get('storeId')   ?? ''
+  const storeName = searchParams.get('storeName')  ?? ''
   const fakeReq = { json: async () => ({ storeId, storeName }) } as unknown as NextRequest
   return POST(fakeReq)
 }
@@ -82,7 +85,17 @@ export async function POST(req: NextRequest) {
     const { storeId, storeName } = await req.json()
     if (!storeId) return NextResponse.json({ ok: false, error: 'storeId required' }, { status: 400 })
 
-    const base = `${LIFF_BASE}/${storeId}`
+    const { liffId, token, liffBase, authHeader } = getConfig()
+
+    if (!liffBase) {
+      return NextResponse.json({ ok: false, error: 'NEXT_PUBLIC_LIFF_ID が未設定です。Vercel の環境変数を確認してください。' }, { status: 500 })
+    }
+    if (!token) {
+      return NextResponse.json({ ok: false, error: 'LINE_CHANNEL_ACCESS_TOKEN が未設定です。Vercel の環境変数を確認してください。' }, { status: 500 })
+    }
+
+    const base = `${liffBase}/${storeId}`
+    const name = (storeName || '').trim() || 'メニュー'
 
     // 1. 既存メニューを全削除
     const listRes = await fetch(`${LINE_API}/richmenu/list`, { headers: authHeader })
@@ -94,25 +107,30 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. 新規メニュー作成（4列: 採寸の順番待ち / 来店予約 / 依頼 / ネット注文）
+    const areas = [
+      { bounds: { x: 0,    y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=queue`,    label: '採寸の順番待ち' } },
+      { bounds: { x: 625,  y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}/reserve`,         label: '来店予約' } },
+      { bounds: { x: 1250, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}/repair`,          label: '依頼' } },
+      { bounds: { x: 1875, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=purchase`, label: 'ネット注文' } },
+    ]
     const createRes = await fetch(`${LINE_API}/richmenu`, {
       method: 'POST',
       headers: { ...authHeader, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         size: { width: 2500, height: 843 },
         selected: true,
-        name: storeName ?? 'メニュー',
+        name,
         chatBarText: 'メニュー',
-        areas: [
-          { bounds: { x: 0,    y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=queue`,   label: '今すぐ採寸の順番待ちに並ぶ' } },
-          { bounds: { x: 625,  y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}/reserve`,        label: '来店予約' } },
-          { bounds: { x: 1250, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}/repair`,         label: '依頼' } },
-          { bounds: { x: 1875, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=purchase`, label: 'ネット注文' } },
-        ],
+        areas,
       }),
     })
     if (!createRes.ok) {
       const err = await createRes.text()
-      return NextResponse.json({ ok: false, error: `create: ${err}` }, { status: 500 })
+      return NextResponse.json({
+        ok: false,
+        error: `create: ${err}`,
+        debug: { liffId, base, uris: areas.map(a => a.action.uri) },
+      }, { status: 500 })
     }
     const { richMenuId } = await createRes.json()
 
@@ -138,6 +156,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE → 全リッチメニュー削除
 export async function DELETE() {
+  const { authHeader } = getConfig()
   const listRes = await fetch(`${LINE_API}/richmenu/list`, { headers: authHeader })
   if (listRes.ok) {
     const { richmenus } = await listRes.json()
