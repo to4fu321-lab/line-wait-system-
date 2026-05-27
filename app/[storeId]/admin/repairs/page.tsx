@@ -5,7 +5,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   Scissors, ShoppingBag, Loader2, ChevronDown, ChevronUp,
   Phone, User, Check, Truck, RotateCcw, Package, ChevronRight,
-  ShoppingCart, ClipboardList, Banknote, Pin,
+  ShoppingCart, ClipboardList, Banknote, Plus,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
@@ -569,20 +569,25 @@ export default function RepairsPage() {
               <ClipboardList size={17} className="text-indigo-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="text-base font-bold text-zinc-100">依頼受け管理</h1>
+              <h1 className="text-base font-bold text-zinc-100">依頼管理</h1>
             </div>
             {totalBadge > 0 && (
               <span className="bg-red-500/20 text-red-300 border border-red-500/30 text-xs font-black px-2 py-0.5 rounded-full">
                 計{totalBadge}件
               </span>
             )}
+            {/* 新規依頼受付ショートカット */}
+            <a href={`/${storeId}/admin/crm`}
+              className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold rounded-xl transition-all">
+              <Plus size={14} />依頼受付
+            </a>
           </div>
 
           {/* Main tabs */}
           <div className="flex gap-1 mt-3 bg-zinc-900/60 border border-zinc-800/60 rounded-xl p-1">
             <button onClick={() => setTab('request')}
               className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-xs font-semibold transition-colors ${tab === 'request' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}>
-              <ClipboardList size={14} />依頼受け
+              <ClipboardList size={14} />依頼一覧
               {repairs.length > 0 && (
                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${tab === 'request' ? 'bg-indigo-500/30 text-indigo-300' : 'bg-zinc-800 text-zinc-600'}`}>
                   {repairs.length}

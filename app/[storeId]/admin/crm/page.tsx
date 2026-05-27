@@ -737,13 +737,28 @@ function ChildCard({
             <div className="flex justify-center py-4"><Loader2 size={20} className="animate-spin text-indigo-400" /></div>
           ) : (
             <>
+              {/* 依頼受付ボタン（統一） */}
+              {showNewRepair ? (
+                <div>
+                  <NewRepairForm storeId={storeId} customerId={customerId} childId={child.id}
+                    defaultType={defaultRepairType ?? 'repair'}
+                    onSaved={() => { setShowNewRepair(false); fetchData(); onRefreshStats(); showToast('ok', '依頼を受け付けました') }}
+                    onCancel={() => setShowNewRepair(false)} />
+                </div>
+              ) : (
+                <button onClick={() => setShowNewRepair(true)}
+                  className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] transition-all text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/40">
+                  <Plus size={16} />依頼を受け付ける
+                </button>
+              )}
+
               {/* お直し履歴 */}
-              <div>
+              <div className="border-t border-zinc-800/40 pt-2">
                 <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <Scissors size={11} />お直し履歴 ({repairs.length}件)
+                  <Scissors size={11} />依頼履歴 ({repairs.length}件)
                 </p>
                 {repairs.length === 0 ? (
-                  <p className="text-zinc-700 text-xs text-center py-3">お直し履歴はありません</p>
+                  <p className="text-zinc-700 text-xs text-center py-3">履歴はありません</p>
                 ) : (
                   <div className="space-y-2">
                     {repairs.map(r => (
@@ -751,19 +766,6 @@ function ChildCard({
                         onComplete={onRepairComplete} onDeliver={onRepairDeliver} onRevert={onRepairRevert} />
                     ))}
                   </div>
-                )}
-                {showNewRepair ? (
-                  <div className="mt-2">
-                    <NewRepairForm storeId={storeId} customerId={customerId} childId={child.id}
-                      defaultType={defaultRepairType ?? 'repair'}
-                      onSaved={() => { setShowNewRepair(false); fetchData(); onRefreshStats(); showToast('ok', '依頼を受け付けました') }}
-                      onCancel={() => setShowNewRepair(false)} />
-                  </div>
-                ) : (
-                  <button onClick={() => setShowNewRepair(true)}
-                    className="w-full mt-2 py-2.5 rounded-xl border border-dashed border-amber-500/30 text-amber-400/70 hover:text-amber-300 hover:border-amber-500/50 transition-colors text-xs font-bold flex items-center justify-center gap-1.5">
-                    <Plus size={12} />お直しを受け付ける
-                  </button>
                 )}
               </div>
 
@@ -1488,8 +1490,8 @@ export default function CRMPage() {
             )}
           </div>
 
-          {/* 学校フィルター */}
-          {!searchQuery.trim() && schoolOptions.length > 0 && (
+          {/* 学校フィルター — 常時表示 */}
+          {schoolOptions.length > 0 && (
             <div className="flex gap-1.5 mb-2 flex-wrap">
               {schoolOptions.map(s => {
                 const active = schoolFilter === s
@@ -1540,15 +1542,13 @@ export default function CRMPage() {
           {/* 顧客リスト */}
           {(() => {
             const isSearchMode = !!searchQuery.trim()
-            const list = isSearchMode
-              ? customers
-              : schoolFilter
-                ? allCustomers.filter(c =>
-                    (c as any).children?.some((ch: any) => ch.school_name === schoolFilter)
-                  )
-                : kanaFilter
-                  ? allCustomers.filter(c => getKanaRow(c.kana) === kanaFilter)
-                  : allCustomers
+            // 検索結果 or 全顧客 をベースに、学校フィルターを重ねて適用
+            const base = isSearchMode ? customers : kanaFilter
+              ? allCustomers.filter(c => getKanaRow(c.kana) === kanaFilter)
+              : allCustomers
+            const list = schoolFilter
+              ? base.filter(c => (c as any).children?.some((ch: any) => ch.school_name === schoolFilter))
+              : base
             const loading = isSearchMode ? customerLoading : allLoading
 
             if (loading) return (

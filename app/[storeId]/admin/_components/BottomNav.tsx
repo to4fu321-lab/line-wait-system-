@@ -8,17 +8,16 @@ import { supabase } from '@/lib/supabase'
 
 const TABS = [
   { id: 'queue',    label: '受付',    icon: Timer,    exact: true,  path: (sid: string) => `/${sid}/admin` },
-  { id: 'repairs',  label: '依頼受け', icon: ClipboardList, exact: false, path: (sid: string) => `/${sid}/admin/repairs` },
+  { id: 'repairs',  label: '依頼管理', icon: ClipboardList, exact: false, path: (sid: string) => `/${sid}/admin/repairs` },
   { id: 'delivery', label: 'お渡し',  icon: Package,  exact: false, path: (sid: string) => `/${sid}/admin/delivery` },
   { id: 'crm',      label: '顧客',    icon: Search,   exact: false, path: (sid: string) => `/${sid}/admin/crm` },
   { id: 'settings', label: '設定',    icon: Settings, exact: false, path: (sid: string) => `/${sid}/admin/settings` },
 ] as const
 
 const FAB_ITEMS = [
-  { label: 'お直し・来店依頼受付',   emoji: '✂️', path: (sid: string) => `/${sid}/admin/crm` },
-  { label: '取置き依頼受付',         emoji: '📌', path: (sid: string) => `/${sid}/admin/crm?type=hold_request` },
-  { label: '制服注文を追加',         emoji: '📋', path: (sid: string) => `/${sid}/admin/orders` },
-  { label: '商品マスタ管理',         emoji: '📦', path: (sid: string) => `/${sid}/admin/products` },
+  { label: '依頼受付（お直し・来店・取置き）', emoji: '📝', path: (sid: string) => `/${sid}/admin/crm` },
+  { label: '制服注文を追加',                   emoji: '📋', path: (sid: string) => `/${sid}/admin/orders` },
+  { label: '商品マスタ管理',                   emoji: '📦', path: (sid: string) => `/${sid}/admin/products` },
 ]
 
 export function BottomNav() {
