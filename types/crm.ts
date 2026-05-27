@@ -1,4 +1,17 @@
 export type RepairStatus = 'received' | 'completed' | 'delivered'
+export type RequestType  = 'repair' | 'walk_in' | 'hold_request'
+
+export const REQUEST_TYPE_LABELS: Record<RequestType, string> = {
+  repair:       'お直し',
+  walk_in:      '来店依頼',
+  hold_request: '取置き依頼',
+}
+
+export const REQUEST_TYPE_COLORS: Record<RequestType, string> = {
+  repair:       'bg-amber-500/20 text-amber-300 border-amber-500/30',
+  walk_in:      'bg-sky-500/20 text-sky-300 border-sky-500/30',
+  hold_request: 'bg-violet-500/20 text-violet-300 border-violet-500/30',
+}
 
 export interface Customer {
   id:           string
@@ -33,6 +46,8 @@ export interface RepairHistory {
   notes:          string | null
   notified:       boolean
   payment_status: 'unpaid' | 'paid' | null
+  request_type:   RequestType
+  prepaid:        boolean
   created_at:     string
   updated_at:     string
   customer?:      Customer

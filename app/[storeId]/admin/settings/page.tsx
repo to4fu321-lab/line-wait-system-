@@ -63,10 +63,12 @@ export default function SettingsPage() {
       is_active: true, slots_sun: 0, slots_mon: 2, slots_tue: 2, slots_wed: 2, slots_thu: 2, slots_fri: 2, slots_sat: 3 },
   ]
   const [resvSettings, setResvSettings]   = useState<ResvSetting[]>(DEFAULT_RESV)
-  const [resvLoading,  setResvLoading]    = useState(false)
-  const [resvSaved,    setResvSaved]      = useState(false)
-  const [resvError,    setResvError]      = useState<string | null>(null)
-  const [resvTableOk,  setResvTableOk]   = useState<boolean | null>(null)
+  const [resvLoading,       setResvLoading]       = useState(false)
+  const [resvSaved,         setResvSaved]         = useState(false)
+  const [resvError,         setResvError]         = useState<string | null>(null)
+  const [resvTableOk,       setResvTableOk]       = useState<boolean | null>(null)
+  const [richmenuApplying,  setRichmenuApplying]  = useState(false)
+  const [richmenuMsg,       setRichmenuMsg]       = useState<{ ok: boolean; text: string } | null>(null)
 
   const fetchSettings = useCallback(async () => {
     if (!storeId) return
@@ -152,6 +154,25 @@ export default function SettingsPage() {
     }
   }
 
+  async function applyRichmenu() {
+    setRichmenuApplying(true)
+    setRichmenuMsg(null)
+    try {
+      const res = await fetch('/api/richmenu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId, storeName }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setRichmenuMsg({ ok: true, text: `登録完了 (ID: ${data.richMenuId?.slice(0, 12)}...)` })
+    } catch (e) {
+      setRichmenuMsg({ ok: false, text: e instanceof Error ? e.message : String(e) })
+    } finally {
+      setRichmenuApplying(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-600">
@@ -190,6 +211,26 @@ export default function SettingsPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-5 space-y-6">
+
+        {/* LINEリッチメニュー */}
+        <div className="space-y-2">
+          <Section title="LINEリッチメニュー" />
+          <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-xl px-4 py-4 space-y-3">
+            <p className="text-xs text-zinc-400">顧客のLINEトーク画面下部に表示されるメニューを登録します。変更後は再度ボタンを押してください。</p>
+            <button
+              onClick={applyRichmenu}
+              disabled={richmenuApplying}
+              className="w-full py-3 bg-green-700 hover:bg-green-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors">
+              {richmenuApplying ? <Loader2 size={15} className="animate-spin" /> : <span>📲</span>}
+              {richmenuApplying ? '登録中...' : 'リッチメニューを登録・更新する'}
+            </button>
+            {richmenuMsg && (
+              <p className={`text-xs text-center font-medium ${richmenuMsg.ok ? 'text-emerald-400' : 'text-red-400'}`}>
+                {richmenuMsg.ok ? '✅ ' : '❌ '}{richmenuMsg.text}
+              </p>
+            )}
+          </div>
+        </div>
 
         {/* LINE通知プラン */}
         <div className="space-y-2">
@@ -304,7 +345,7 @@ export default function SettingsPage() {
         {/* 予約設定 */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Section title="採寸予約設定" />
+            <Section title="採寸予約設定（共有枠）" />
             {resvTableOk === false && (
               <span className="text-[10px] bg-amber-900/40 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full">
                 SQLマイグレーション要
@@ -318,6 +359,10 @@ export default function SettingsPage() {
             </div>
           ) : (
             <div className="space-y-4">
+              <p className="text-xs text-zinc-500">
+                ジャージ（30分）と制服（60分）が同じ枠を共有します。<br />
+                各曜日の枠数は「同時に採寸できる組数」です。スロットは重複チェックで空き判定します。
+              </p>
               {resvSettings.map((s, idx) => (
                 <div key={s.service_type} className={`rounded-2xl border p-4 space-y-3 transition-all ${
                   s.is_active ? 'bg-indigo-950/30 border-indigo-500/20' : 'bg-zinc-900/40 border-zinc-800/40'

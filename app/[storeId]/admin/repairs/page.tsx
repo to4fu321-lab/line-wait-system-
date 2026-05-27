@@ -5,14 +5,15 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   Scissors, ShoppingBag, Loader2, ChevronDown, ChevronUp,
   Phone, User, Check, Truck, RotateCcw, Package, ChevronRight,
-  ShoppingCart,
+  ShoppingCart, ClipboardList, Banknote, Pin,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
   REPAIR_STATUS_LABELS, REPAIR_STATUS_COLORS,
   PURCHASE_STATUS_LABELS, PURCHASE_STATUS_COLORS,
+  REQUEST_TYPE_LABELS, REQUEST_TYPE_COLORS,
 } from '@/types/crm'
-import type { RepairStatus, PurchaseStatus } from '@/types/crm'
+import type { RepairStatus, PurchaseStatus, RequestType } from '@/types/crm'
 import {
   ORDER_STATUS_LABELS, ORDER_STATUS_COLORS,
   PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS,
@@ -31,7 +32,8 @@ interface RepairRow {
   slip_number: string | null; item_name: string; content: string
   status: RepairStatus; received_date: string; completed_date: string | null
   delivered_date: string | null; price: number | null; notes: string | null
-  notified: boolean; created_at: string; updated_at: string
+  notified: boolean; request_type: RequestType | null; prepaid: boolean | null
+  created_at: string; updated_at: string
   customer?: { id: string; name: string; tel: string | null }
   child?: { name: string } | null
 }
@@ -74,63 +76,94 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
 }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const reqType = (item.request_type ?? 'repair') as RequestType
 
   async function update(patch: Record<string, unknown>) {
     setLoading(true)
-    const { error } = await (supabase as any).from('repair_histories').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', item.id)
+    const { error } = await (supabase as any)
+      .from('repair_histories')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('id', item.id)
     setLoading(false)
     if (error) { onToast('err', '更新に失敗しました'); return }
     onToast('ok', '更新しました'); onRefresh()
   }
 
+  // ラベルをリクエスト種別に応じて変更
+  const completeLabel = reqType === 'repair'       ? 'お直し完了・連絡済み'
+                      : reqType === 'hold_request' ? '確保済み・連絡済み'
+                      : '対応完了・連絡済み'
+
   return (
-    <div className={`bg-zinc-900/60 border rounded-2xl overflow-hidden ${item.status === 'delivered' ? 'border-zinc-800/40 opacity-60' : 'border-zinc-700/50'}`}>
+    <div className={`bg-zinc-900/60 border rounded-2xl overflow-hidden ${
+      item.status === 'received' ? 'border-zinc-700/50' : 'border-zinc-800/40 opacity-70'
+    }`}>
       <button className="w-full text-left p-4 flex gap-3" onClick={() => setOpen(v => !v)}>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${REQUEST_TYPE_COLORS[reqType]}`}>
+              {REQUEST_TYPE_LABELS[reqType]}
+            </span>
             <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${REPAIR_STATUS_COLORS[item.status]}`}>
               {REPAIR_STATUS_LABELS[item.status]}
             </span>
+            {item.prepaid && (
+              <span className="text-xs px-2 py-0.5 rounded-full border font-medium bg-emerald-500/20 text-emerald-300 border-emerald-500/30 flex items-center gap-1">
+                <Banknote size={10} />先払済
+              </span>
+            )}
             {item.slip_number && <span className="text-xs font-mono text-zinc-500">#{item.slip_number}</span>}
           </div>
           <p className="text-sm font-semibold text-zinc-100 mt-1.5 truncate">
             {item.customer?.name ?? '（顧客不明）'}
             {item.child && <span className="text-zinc-500 font-normal"> / {item.child.name}</span>}
           </p>
-          <p className="text-xs text-zinc-400 mt-0.5 truncate">{item.item_name} — {item.content}</p>
-          <p className="text-xs text-zinc-600 mt-0.5">受取: {fmtDate(item.received_date)}</p>
+          <p className="text-xs text-zinc-400 mt-0.5 truncate">{item.item_name}{item.content ? ` — ${item.content}` : ''}</p>
+          <div className="flex items-center gap-3 mt-0.5">
+            <p className="text-xs text-zinc-600">受取: {fmtDate(item.received_date)}</p>
+            {item.price != null && <p className="text-xs text-zinc-500">¥{item.price.toLocaleString()}</p>}
+          </div>
         </div>
         {open ? <ChevronUp size={15} className="text-zinc-500 mt-1 shrink-0" /> : <ChevronDown size={15} className="text-zinc-500 mt-1 shrink-0" />}
       </button>
       {open && (
         <div className="px-4 pb-4 space-y-3 border-t border-zinc-800/60">
           {item.notes && <p className="text-xs text-zinc-400 pt-3">{item.notes}</p>}
-          {item.price != null && <p className="text-xs text-zinc-400">料金: ¥{item.price.toLocaleString()}</p>}
           {item.customer?.tel && (
             <a href={`tel:${item.customer.tel}`} className="flex items-center gap-1.5 text-xs text-indigo-400">
               <Phone size={12} />{item.customer.tel}
             </a>
           )}
-          <a href={`/${storeId}/admin/crm?customerId=${item.customer_id}`} className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
-            <User size={11} />顧客詳細
-          </a>
+          <div className="flex gap-2">
+            <a href={`/${storeId}/admin/crm?customerId=${item.customer_id}`}
+              className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
+              <User size={11} />顧客詳細
+            </a>
+            <button
+              onClick={() => update({ prepaid: !item.prepaid })}
+              className={`flex items-center gap-1 text-xs rounded-lg px-2 py-1 border transition-colors ${
+                item.prepaid
+                  ? 'bg-emerald-800/30 border-emerald-700/50 text-emerald-300'
+                  : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:text-zinc-300'
+              }`}>
+              <Banknote size={11} />{item.prepaid ? '先払済み ✓' : '先払い未'}
+            </button>
+          </div>
           <div className="flex flex-wrap gap-2 pt-1">
             {item.status === 'received' && (
-              <button onClick={() => update({ status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true })}
-                disabled={loading} className="flex-1 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-1.5">
-                <Check size={13} />お直し完了・連絡済み
-              </button>
-            )}
-            {item.status === 'completed' && (
-              <button onClick={() => update({ status: 'delivered', delivered_date: new Date().toISOString().slice(0, 10) })}
-                disabled={loading} className="flex-1 py-2 bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-1.5">
-                <Truck size={13} />お渡し済み
+              <button
+                onClick={() => update({ status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true })}
+                disabled={loading}
+                className="flex-1 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium rounded-xl transition-colors flex items-center justify-center gap-1.5">
+                <Check size={13} />{completeLabel}
               </button>
             )}
             {item.status !== 'received' && (
-              <button onClick={() => update({ status: 'received', completed_date: null, delivered_date: null, notified: false })}
-                disabled={loading} className="py-2 px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs rounded-xl transition-colors flex items-center gap-1">
-                <RotateCcw size={11} />戻す
+              <button
+                onClick={() => update({ status: 'received', completed_date: null, delivered_date: null, notified: false })}
+                disabled={loading}
+                className="py-2 px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs rounded-xl transition-colors flex items-center gap-1">
+                <RotateCcw size={11} />受付中に戻す
               </button>
             )}
           </div>
@@ -229,7 +262,7 @@ function MakerGroup({ maker, items, storeId, onRefresh, onToast }: {
   maker: string; items: PurchaseRow[]; storeId: string
   onRefresh: () => void; onToast: (t: 'ok' | 'err', m: string) => void
 }) {
-  const [open, setOpen]     = useState(false)
+  const [open, setOpen]       = useState(false)
   const [loading, setLoading] = useState(false)
 
   async function markOrdered() {
@@ -407,23 +440,24 @@ function OrderCard({ item, storeId, onRefresh, onToast }: {
 }
 
 // ── Main Page ─────────────────────────────────────────────────
-type ActiveTab = 'repair' | 'purchase' | 'order'
+type ActiveTab = 'request' | 'purchase' | 'order'
+type RequestFilter = 'all' | RequestType
 
 export default function RepairsPage() {
   const { storeId } = useParams<{ storeId: string }>()
 
-  const [tab,       setTab]       = useState<ActiveTab>('repair')
-  const [repairs,   setRepairs]   = useState<RepairRow[]>([])
-  const [purchases, setPurchases] = useState<PurchaseRow[]>([])
-  const [orders,    setOrders]    = useState<OrderRow[]>([])
-  const [loading,   setLoading]   = useState(true)
-  const [fetchError, setFetchError] = useState<string | null>(null)
-  const [toast,     setToast]     = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
+  const [tab,              setTab]              = useState<ActiveTab>('request')
+  const [repairs,          setRepairs]          = useState<RepairRow[]>([])
+  const [purchases,        setPurchases]        = useState<PurchaseRow[]>([])
+  const [orders,           setOrders]           = useState<OrderRow[]>([])
+  const [loading,          setLoading]          = useState(true)
+  const [fetchError,       setFetchError]       = useState<string | null>(null)
+  const [toast,            setToast]            = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
+  const [requestFilter,    setRequestFilter]    = useState<RequestFilter>('all')
+  const [purchaseFilter,   setPurchaseFilter]   = useState<'pending' | 'on_order' | 'arrived' | null>(null)
+  const [orderFilter,      setOrderFilter]      = useState<'active' | 'ready' | 'unpaid' | null>(null)
+  const [purchaseViewMode, setPurchaseViewMode] = useState<'list' | 'order_mgmt'>('list')
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [repairFilter,      setRepairFilter]      = useState<'received' | 'completed' | null>(null)
-  const [purchaseFilter,    setPurchaseFilter]    = useState<'pending' | 'on_order' | 'arrived' | null>(null)
-  const [orderFilter,       setOrderFilter]       = useState<'active' | 'ready' | 'unpaid' | null>(null)
-  const [purchaseViewMode,  setPurchaseViewMode]  = useState<'list' | 'order_mgmt'>('list')
 
   const showToast = useCallback((type: 'ok' | 'err', msg: string) => {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -440,9 +474,11 @@ export default function RepairsPage() {
       { data: purchaseData, error: purchaseErr },
       { data: orderData },
     ] = await Promise.all([
+      // スタッフに作業がある（received）もののみ表示
       (supabase as any).from('repair_histories')
         .select('*, customer:customers(id,name,tel), child:children(name)')
-        .eq('store_id', storeId).neq('status', 'delivered')
+        .eq('store_id', storeId)
+        .eq('status', 'received')
         .order('received_date', { ascending: true }),
       (supabase as any).from('purchase_orders')
         .select('*, customer:customers(id,name,tel), child:children(name)')
@@ -475,9 +511,27 @@ export default function RepairsPage() {
     fetchAll()
   }, [purchases, showToast, fetchAll])
 
-  const filteredRepairs = repairFilter
-    ? repairs.filter(r => r.status === repairFilter)
-    : repairs
+  // 依頼タイプ別件数
+  const reqCounts = {
+    all:          repairs.length,
+    repair:       repairs.filter(r => (r.request_type ?? 'repair') === 'repair').length,
+    walk_in:      repairs.filter(r => r.request_type === 'walk_in').length,
+    hold_request: repairs.filter(r => r.request_type === 'hold_request').length,
+  }
+  const purchaseCounts = {
+    pending:  purchases.filter(p => ['received', 'ordered'].includes(p.status)).length,
+    on_order: purchases.filter(p => p.status === 'on_order').length,
+    arrived:  purchases.filter(p => p.status === 'arrived').length,
+  }
+  const orderCounts = {
+    active: orders.filter(o => ['confirmed', 'processing'].includes(o.status)).length,
+    ready:  orders.filter(o => o.status === 'ready').length,
+    unpaid: orders.filter(o => o.payment_status === 'unpaid').length,
+  }
+
+  const filteredRepairs = requestFilter === 'all'
+    ? repairs
+    : repairs.filter(r => (r.request_type ?? 'repair') === requestFilter)
 
   const filteredPurchases = purchaseFilter === 'pending'
     ? purchases.filter(p => ['received', 'ordered'].includes(p.status))
@@ -495,22 +549,7 @@ export default function RepairsPage() {
     ? orders.filter(o => o.payment_status === 'unpaid')
     : orders
 
-  const repairCounts = {
-    received:  repairs.filter(r => r.status === 'received').length,
-    completed: repairs.filter(r => r.status === 'completed').length,
-  }
-  const purchaseCounts = {
-    pending:  purchases.filter(p => ['received', 'ordered'].includes(p.status)).length,
-    on_order: purchases.filter(p => p.status === 'on_order').length,
-    arrived:  purchases.filter(p => p.status === 'arrived').length,
-  }
-  const orderCounts = {
-    active:  orders.filter(o => ['confirmed', 'processing'].includes(o.status)).length,
-    ready:   orders.filter(o => o.status === 'ready').length,
-    unpaid:  orders.filter(o => o.payment_status === 'unpaid').length,
-  }
-
-  const totalBadge = (repairCounts.received + repairCounts.completed)
+  const totalBadge = repairs.length
     + (purchaseCounts.pending + purchaseCounts.on_order + purchaseCounts.arrived)
     + orders.length
 
@@ -520,11 +559,11 @@ export default function RepairsPage() {
       <div className="sticky top-0 z-40 bg-zinc-950/90 backdrop-blur border-b border-zinc-800/60">
         <div className="max-w-2xl mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0">
-              <Scissors size={17} className="text-amber-400" />
+            <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
+              <ClipboardList size={17} className="text-indigo-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="text-base font-bold text-zinc-100">お直し・注文管理</h1>
+              <h1 className="text-base font-bold text-zinc-100">依頼受け管理</h1>
             </div>
             {totalBadge > 0 && (
               <span className="bg-red-500/20 text-red-300 border border-red-500/30 text-xs font-black px-2 py-0.5 rounded-full">
@@ -533,31 +572,31 @@ export default function RepairsPage() {
             )}
           </div>
 
-          {/* Tabs */}
+          {/* Main tabs */}
           <div className="flex gap-1 mt-3 bg-zinc-900/60 border border-zinc-800/60 rounded-xl p-1">
-            <button onClick={() => setTab('repair')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3.5 rounded-lg text-sm font-semibold transition-colors ${tab === 'repair' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}>
-              <Scissors size={15} />お直し
-              {(repairCounts.received + repairCounts.completed) > 0 && (
-                <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab === 'repair' ? 'bg-amber-500/30 text-amber-300' : 'bg-zinc-800 text-zinc-600'}`}>
-                  {repairCounts.received + repairCounts.completed}
+            <button onClick={() => setTab('request')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-xs font-semibold transition-colors ${tab === 'request' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}>
+              <ClipboardList size={14} />依頼受け
+              {repairs.length > 0 && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${tab === 'request' ? 'bg-indigo-500/30 text-indigo-300' : 'bg-zinc-800 text-zinc-600'}`}>
+                  {repairs.length}
                 </span>
               )}
             </button>
             <button onClick={() => setTab('purchase')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3.5 rounded-lg text-sm font-semibold transition-colors ${tab === 'purchase' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}>
-              <ShoppingBag size={15} />追加購入
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-xs font-semibold transition-colors ${tab === 'purchase' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}>
+              <ShoppingBag size={14} />追加購入
               {(purchaseCounts.pending + purchaseCounts.on_order + purchaseCounts.arrived) > 0 && (
-                <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab === 'purchase' ? 'bg-blue-500/30 text-blue-300' : 'bg-zinc-800 text-zinc-600'}`}>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${tab === 'purchase' ? 'bg-blue-500/30 text-blue-300' : 'bg-zinc-800 text-zinc-600'}`}>
                   {purchaseCounts.pending + purchaseCounts.on_order + purchaseCounts.arrived}
                 </span>
               )}
             </button>
             <button onClick={() => setTab('order')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3.5 rounded-lg text-sm font-semibold transition-colors ${tab === 'order' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}>
-              <ShoppingCart size={15} />注文管理
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-xs font-semibold transition-colors ${tab === 'order' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}>
+              <ShoppingCart size={14} />注文管理
               {orders.length > 0 && (
-                <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab === 'order' ? 'bg-emerald-500/30 text-emerald-300' : 'bg-zinc-800 text-zinc-600'}`}>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${tab === 'order' ? 'bg-emerald-500/30 text-emerald-300' : 'bg-zinc-800 text-zinc-600'}`}>
                   {orders.length}
                 </span>
               )}
@@ -567,34 +606,36 @@ export default function RepairsPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
-        {/* Error */}
         {fetchError && (
           <div className="bg-red-900/40 border border-red-700/50 rounded-xl px-4 py-3 text-xs text-red-400">
             DBエラー: {fetchError}
           </div>
         )}
 
-        {/* Stats — タップで絞り込み */}
-        {tab === 'repair' && (
-          <div className="grid grid-cols-2 gap-2">
+        {/* 依頼受けタブ — タイプ絞り込み */}
+        {tab === 'request' && (
+          <div className="flex gap-1.5 flex-wrap">
             {([
-              { key: 'received'  as const, label: '依頼受付中', value: repairCounts.received,  color: 'text-amber-400' },
-              { key: 'completed' as const, label: 'お直し完了', value: repairCounts.completed, color: 'text-emerald-400' },
-            ]).map(s => (
-              <button key={s.key}
-                onClick={() => setRepairFilter(f => f === s.key ? null : s.key)}
-                className={`rounded-xl p-3 text-center transition-all border ${
-                  repairFilter === s.key
-                    ? 'bg-zinc-800 border-zinc-600 ring-1 ring-inset ring-zinc-500'
-                    : 'bg-zinc-900/60 border-zinc-800/60'
+              { key: 'all'          as const, label: 'すべて',    count: reqCounts.all,          color: 'text-zinc-300' },
+              { key: 'repair'       as const, label: 'お直し',    count: reqCounts.repair,       color: 'text-amber-300' },
+              { key: 'walk_in'      as const, label: '来店依頼',  count: reqCounts.walk_in,      color: 'text-sky-300' },
+              { key: 'hold_request' as const, label: '取置き依頼', count: reqCounts.hold_request, color: 'text-violet-300' },
+            ]).map(f => (
+              <button key={f.key}
+                onClick={() => setRequestFilter(f.key)}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                  requestFilter === f.key
+                    ? 'bg-zinc-700 border-zinc-500 text-zinc-100'
+                    : 'bg-zinc-900/60 border-zinc-800 text-zinc-500'
                 }`}>
-                <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
-                <div className="text-xs text-zinc-500 mt-0.5">{s.label}</div>
-                {repairFilter === s.key && <div className="text-[10px] text-zinc-600 mt-0.5">絞込中 ✕</div>}
+                {f.label}
+                {f.count > 0 && <span className={`font-bold ${requestFilter === f.key ? 'text-zinc-100' : f.color}`}>{f.count}</span>}
               </button>
             ))}
           </div>
         )}
+
+        {/* 追加購入タブ — ステータス絞り込み */}
         {tab === 'purchase' && (
           <>
             {purchaseCounts.pending > 0 && (
@@ -629,6 +670,8 @@ export default function RepairsPage() {
             </div>
           </>
         )}
+
+        {/* 注文管理タブ — ステータス絞り込み */}
         {tab === 'order' && (
           <div className="grid grid-cols-3 gap-2">
             {([
@@ -656,16 +699,17 @@ export default function RepairsPage() {
           <div className="flex items-center justify-center py-16 text-zinc-600">
             <Loader2 size={24} className="animate-spin" />
           </div>
-        ) : tab === 'repair' ? (
+        ) : tab === 'request' ? (
           repairs.length === 0 ? (
             <div className="text-center py-16 text-zinc-600">
-              <Scissors size={32} className="mx-auto mb-3 opacity-30" />
-              <p className="text-sm">対応中のお直しはありません</p>
+              <ClipboardList size={32} className="mx-auto mb-3 opacity-30" />
+              <p className="text-sm">作業中の依頼はありません</p>
+              <p className="text-xs mt-1 text-zinc-700">完了済みはお渡しタブで確認できます</p>
             </div>
           ) : filteredRepairs.length === 0 ? (
             <div className="text-center py-10 text-zinc-600">
-              <p className="text-sm">該当するお直しはありません</p>
-              <button onClick={() => setRepairFilter(null)} className="mt-2 text-xs text-indigo-400">絞り込みを解除</button>
+              <p className="text-sm">該当する依頼はありません</p>
+              <button onClick={() => setRequestFilter('all')} className="mt-2 text-xs text-indigo-400">絞り込みを解除</button>
             </div>
           ) : (
             <div className="space-y-3">

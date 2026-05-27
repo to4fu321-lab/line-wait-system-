@@ -3,19 +3,20 @@
 import Link from 'next/link'
 import { useParams, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Timer, Scissors, Search, Settings, Plus, X, Package } from 'lucide-react'
+import { Timer, Scissors, Search, Settings, Plus, X, Package, ClipboardList } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
 const TABS = [
   { id: 'queue',    label: '受付',    icon: Timer,    exact: true,  path: (sid: string) => `/${sid}/admin` },
-  { id: 'repairs',  label: 'お直し',  icon: Scissors, exact: false, path: (sid: string) => `/${sid}/admin/repairs` },
+  { id: 'repairs',  label: '依頼受け', icon: ClipboardList, exact: false, path: (sid: string) => `/${sid}/admin/repairs` },
   { id: 'delivery', label: 'お渡し',  icon: Package,  exact: false, path: (sid: string) => `/${sid}/admin/delivery` },
   { id: 'crm',      label: '顧客',    icon: Search,   exact: false, path: (sid: string) => `/${sid}/admin/crm` },
   { id: 'settings', label: '設定',    icon: Settings, exact: false, path: (sid: string) => `/${sid}/admin/settings` },
 ] as const
 
 const FAB_ITEMS = [
-  { label: 'お直し・追加注文受付', emoji: '✂️', path: (sid: string) => `/${sid}/admin/crm` },
+  { label: 'お直し・来店依頼受付',   emoji: '✂️', path: (sid: string) => `/${sid}/admin/crm` },
+  { label: '取置き依頼受付',         emoji: '📌', path: (sid: string) => `/${sid}/admin/crm?type=hold_request` },
   { label: '制服注文を追加',         emoji: '📋', path: (sid: string) => `/${sid}/admin/orders` },
   { label: '商品マスタ管理',         emoji: '📦', path: (sid: string) => `/${sid}/admin/products` },
 ]

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { BottomNav } from '../_components/BottomNav'
 import {
   ArrowLeft, Search, Plus, User, Phone,
@@ -484,24 +484,38 @@ function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrd
 }
 
 // ============================================================
-// 新規お直しフォーム
+// 新規依頼受付フォーム（お直し / 来店依頼 / 取置き依頼）
 // ============================================================
-function NewRepairForm({ customerId, childId, storeId, onSaved, onCancel }: {
-  customerId: string; childId: string | null; storeId: string; onSaved: () => void; onCancel: () => void
+type RequestTypeVal = 'repair' | 'walk_in' | 'hold_request'
+const REQ_TYPE_OPTIONS: { value: RequestTypeVal; label: string; placeholder: { item: string; content: string } }[] = [
+  { value: 'repair',       label: '✂️ お直し',    placeholder: { item: '例：○○高校スラックス', content: '例：裾上げ5cm' } },
+  { value: 'walk_in',      label: '🏪 来店依頼',  placeholder: { item: '例：ブレザー',          content: '例：サイズ確認・在庫確認' } },
+  { value: 'hold_request', label: '📌 取置き依頼', placeholder: { item: '例：体操着上',          content: '例：130サイズ取り置き希望' } },
+]
+
+function NewRepairForm({ customerId, childId, storeId, onSaved, onCancel, defaultType }: {
+  customerId: string; childId: string | null; storeId: string
+  onSaved: () => void; onCancel: () => void; defaultType?: RequestTypeVal
 }) {
+  const [reqType,    setReqType]    = useState<RequestTypeVal>(defaultType ?? 'repair')
   const [itemName,   setItemName]   = useState('')
   const [content,    setContent]    = useState('')
   const [slipNumber, setSlipNumber] = useState('')
   const [price,      setPrice]      = useState('')
+  const [prepaid,    setPrepaid]    = useState(false)
   const [notes,      setNotes]      = useState('')
   const [loading,    setLoading]    = useState(false)
   const [error,      setError]      = useState<string | null>(null)
 
+  const currentOpt = REQ_TYPE_OPTIONS.find(o => o.value === reqType) ?? REQ_TYPE_OPTIONS[0]
+  const contentLabel = reqType === 'repair' ? 'お直し内容' : reqType === 'hold_request' ? '依頼内容' : '依頼内容'
+  const contentRequired = reqType === 'repair'
+
   const handleSave = async () => {
     if (!itemName.trim()) { setError('商品名を入力してください'); return }
-    if (!content.trim())  { setError('お直し内容を入力してください'); return }
+    if (contentRequired && !content.trim()) { setError('お直し内容を入力してください'); return }
     setLoading(true); setError(null)
-    const { error: err } = await supabase.from('repair_histories').insert({
+    const { error: err } = await (supabase as any).from('repair_histories').insert({
       store_id: storeId, customer_id: customerId,
       child_id: childId ?? null,
       item_name: itemName.trim(), content: content.trim(),
@@ -509,6 +523,8 @@ function NewRepairForm({ customerId, childId, storeId, onSaved, onCancel }: {
       price: price ? parseInt(price) : null,
       notes: notes.trim() || null,
       status: 'received', received_date: new Date().toISOString().slice(0, 10),
+      request_type: reqType,
+      prepaid,
     })
     setLoading(false)
     if (err) { setError(`保存失敗: ${err.message}`); return }
@@ -518,18 +534,28 @@ function NewRepairForm({ customerId, childId, storeId, onSaved, onCancel }: {
   return (
     <div className="bg-zinc-900/80 border border-zinc-700/60 rounded-2xl p-4 space-y-3">
       <div className="flex items-center justify-between mb-1">
-        <p className="font-black text-white text-sm flex items-center gap-2">
-          <Scissors size={14} className="text-amber-400" />新規お直し受付
-        </p>
+        <p className="font-black text-white text-sm">依頼受付</p>
         <button onClick={onCancel} className="p-1 text-zinc-500 hover:text-white"><X size={16} /></button>
+      </div>
+      {/* 依頼タイプ選択 */}
+      <div className="flex gap-1">
+        {REQ_TYPE_OPTIONS.map(opt => (
+          <button key={opt.value} type="button"
+            onClick={() => { setReqType(opt.value); setError(null) }}
+            className={`flex-1 text-[11px] font-bold py-2 rounded-xl border transition-all ${
+              reqType === opt.value ? 'bg-indigo-600/30 border-indigo-500/60 text-indigo-300' : 'bg-zinc-800 border-zinc-700 text-zinc-500'
+            }`}>
+            {opt.label}
+          </button>
+        ))}
       </div>
       <Field label="商品名" required>
         <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none"
-          placeholder="例：○○高校スラックス" value={itemName} onChange={e => { setItemName(e.target.value); setError(null) }} />
+          placeholder={currentOpt.placeholder.item} value={itemName} onChange={e => { setItemName(e.target.value); setError(null) }} />
       </Field>
-      <Field label="お直し内容" required>
+      <Field label={contentLabel} required={contentRequired}>
         <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none"
-          placeholder="例：裾上げ5cm / ウエスト出し" value={content} onChange={e => { setContent(e.target.value); setError(null) }} />
+          placeholder={currentOpt.placeholder.content} value={content} onChange={e => { setContent(e.target.value); setError(null) }} />
       </Field>
       <div className="grid grid-cols-2 gap-2">
         <Field label="伝票番号">
@@ -541,6 +567,17 @@ function NewRepairForm({ customerId, childId, storeId, onSaved, onCancel }: {
             placeholder="例：500" value={price} onChange={e => setPrice(e.target.value)} />
         </Field>
       </div>
+      {/* 先払い */}
+      <button type="button" onClick={() => setPrepaid(v => !v)}
+        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${prepaid ? 'border-emerald-500 bg-emerald-500/10' : 'border-zinc-700 bg-zinc-800/50'}`}>
+        <div className="text-left">
+          <p className={`font-bold text-sm ${prepaid ? 'text-emerald-300' : 'text-zinc-400'}`}>💰 先払い済み</p>
+          <p className="text-xs text-zinc-500 mt-0.5">受付時に料金を先払いで頂いた場合ON</p>
+        </div>
+        <div className={`w-12 h-6 rounded-full transition-colors shrink-0 ${prepaid ? 'bg-emerald-500' : 'bg-zinc-600'}`}>
+          <div className={`w-5 h-5 bg-white rounded-full mt-0.5 shadow-lg transition-transform ${prepaid ? 'translate-x-6' : 'translate-x-0.5'}`} />
+        </div>
+      </button>
       <Field label="メモ">
         <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none"
           placeholder="スタッフへの申し送り等" value={notes} onChange={e => setNotes(e.target.value)} />
@@ -552,7 +589,7 @@ function NewRepairForm({ customerId, childId, storeId, onSaved, onCancel }: {
       )}
       <button onClick={handleSave} disabled={loading}
         className="w-full py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
-        {loading ? <><Loader2 size={14} className="animate-spin" />保存中...</> : '預かりとして登録する'}
+        {loading ? <><Loader2 size={14} className="animate-spin" />保存中...</> : '受付として登録する'}
       </button>
     </div>
   )
@@ -636,11 +673,12 @@ function ChildCard({
   onPurchaseStock, onPurchaseBackOrder,
   onPurchaseArrive, onPurchaseDeliver, onPurchaseRevert,
   onRefreshStats,
-  showToast, schoolOptions,
+  showToast, schoolOptions, defaultRepairType,
 }: {
   child: Child
   customerId: string
   storeId: string
+  defaultRepairType?: RequestTypeVal
   onRepairComplete:    (id: string) => Promise<void>
   onRepairDeliver:     (id: string) => Promise<void>
   onRepairRevert:      (id: string) => Promise<void>
@@ -715,7 +753,8 @@ function ChildCard({
                 {showNewRepair ? (
                   <div className="mt-2">
                     <NewRepairForm storeId={storeId} customerId={customerId} childId={child.id}
-                      onSaved={() => { setShowNewRepair(false); fetchData(); onRefreshStats(); showToast('ok', 'お直しを受け付けました') }}
+                      defaultType={defaultRepairType ?? 'repair'}
+                      onSaved={() => { setShowNewRepair(false); fetchData(); onRefreshStats(); showToast('ok', '依頼を受け付けました') }}
                       onCancel={() => setShowNewRepair(false)} />
                   </div>
                 ) : (
@@ -978,8 +1017,10 @@ function AddChildFormCRM({ customerId, storeId, onSaved, onCancel, schoolOptions
 // メインページ
 // ============================================================
 export default function CRMPage() {
-  const { storeId } = useParams<{ storeId: string }>()
-  const router      = useRouter()
+  const { storeId }  = useParams<{ storeId: string }>()
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+  const defaultRepairType = (searchParams?.get('type') ?? 'repair') as RequestTypeVal
 
   const [storeName,        setStoreName]        = useState('')
   const [customers,        setCustomers]        = useState<Customer[]>([])
@@ -1633,6 +1674,7 @@ export default function CRMPage() {
                           child={child}
                           customerId={selectedCustomer.id}
                           storeId={storeId}
+                          defaultRepairType={defaultRepairType}
                           onRepairComplete={handleRepairComplete}
                           onRepairDeliver={handleRepairDeliver}
                           onRepairRevert={handleRepairRevert}

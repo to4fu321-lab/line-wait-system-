@@ -251,20 +251,21 @@ export default function ReservePage() {
     setSelectedTime(null)
 
     try {
-      // 1. 曜日に対応する max_slots を取得
+      // 1. 曜日に対応する max_slots を取得（共有枠：全サービス共通の最小値）
       const d = new Date(selectedDate + 'T12:00:00Z')
-      const dow = d.getUTCDay() // 0=日
+      const dow = d.getUTCDay()
       const weekdayKey = WEEKDAY_KEYS[dow] as WeekdayKey
-      let maxSlots: number = (selectedService as any)[weekdayKey] ?? 0
+      // 全設定のスロット数の最小値を共有枠として使用
+      let maxSlots: number = Math.min(...settings.map(s => (s as any)[weekdayKey] ?? 0))
 
-      // 2. reservation_date_overrides で上書き
+      // 2. reservation_date_overrides で上書き（サービス不問で最初にヒットしたもの）
       try {
         const { data: override } = await (supabase as any)
           .from('reservation_date_overrides')
           .select('max_slots')
           .eq('store_id', storeId)
-          .eq('service_type', selectedService.service_type)
           .eq('date', selectedDate)
+          .limit(1)
           .maybeSingle()
         if (override != null) maxSlots = override.max_slots
       } catch { /* テーブルなければ無視 */ }
@@ -275,14 +276,14 @@ export default function ReservePage() {
         return
       }
 
-      // 3. スロット文字列配列を生成
+      // 3. スロット文字列を30分間隔で生成（最短サービス単位）
       const slotTimes = generateSlots(
         selectedService.start_time,
         selectedService.end_time,
-        selectedService.duration_min,
+        30,  // 30分間隔（最短ジャージ採寸と同じ）
       )
 
-      // 4. 対象日の予約をまとめて取得
+      // 4. 対象日の全予約をまとめて取得（サービス種別問わず）
       const dayStart = `${selectedDate}T00:00:00+09:00`
       const dayEnd   = `${selectedDate}T23:59:59+09:00`
       const { data: reservations } = await (supabase as any)
@@ -293,25 +294,38 @@ export default function ReservePage() {
         .lte('reserved_at', dayEnd)
         .neq('status', 'cancelled')
 
-      // 5. 時間帯別の予約数をカウント
-      const bookedMap: Record<string, number> = {}
-      for (const r of (reservations ?? [])) {
-        // service_type が一致するもの、または NULL（後方互換）
-        if (r.service_type !== null && r.service_type !== selectedService.service_type) continue
-        // reserved_at から HH:MM を抽出（JST）
-        const jstTime = new Date(new Date(r.reserved_at).getTime() + 9 * 3600000)
-          .toISOString().slice(11, 16)
-        bookedMap[jstTime] = (bookedMap[jstTime] ?? 0) + 1
-      }
+      // サービスタイプ→所要時間のマップを構築
+      const durationMap: Record<string, number> = {}
+      for (const s of settings) durationMap[s.service_type] = s.duration_min
 
-      // 6. SlotInfo 配列を組み立て
+      // 5. 重複チェックで各スロットの可用性を計算
       const slotInfos: SlotInfo[] = slotTimes.map(time => {
-        const booked    = bookedMap[time] ?? 0
-        const remaining = maxSlots - booked
-        return { time, maxSlots, booked, remaining, available: remaining > 0 }
+        const [th, tm] = time.split(':').map(Number)
+        const tStart = th * 60 + tm
+        const tEnd   = tStart + selectedService.duration_min
+
+        // この枠の終了時刻が営業終了を超える場合はスキップ
+        const [eh, em] = selectedService.end_time.split(':').map(Number)
+        const endOfDay = eh * 60 + em
+        if (tEnd > endOfDay) return { time, maxSlots: 0, booked: 0, remaining: 0, available: false }
+
+        let overlapCount = 0
+        for (const r of (reservations ?? [])) {
+          const jstTime = new Date(new Date(r.reserved_at).getTime() + 9 * 3600000)
+            .toISOString().slice(11, 16)
+          const [rh, rm] = jstTime.split(':').map(Number)
+          const rStart    = rh * 60 + rm
+          const rDuration = durationMap[r.service_type] ?? selectedService.duration_min
+          const rEnd      = rStart + rDuration
+          // 重複判定: [tStart, tEnd) と [rStart, rEnd) が重なる
+          if (tStart < rEnd && tEnd > rStart) overlapCount++
+        }
+
+        const remaining = maxSlots - overlapCount
+        return { time, maxSlots, booked: overlapCount, remaining, available: remaining > 0 }
       })
 
-      setSlots(slotInfos)
+      setSlots(slotInfos.filter(s => s.maxSlots > 0))
     } catch (e) {
       console.error('fetchSlots error', e)
     }
