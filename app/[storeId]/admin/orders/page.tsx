@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation'
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../_components/BottomNav'
 import {
   ShoppingBag, Plus, ChevronDown, ChevronUp, Trash2,
@@ -15,11 +15,6 @@ import {
   ORDER_ITEM_STATUS_LABELS,
 } from '@/types/orders'
 import type { Customer, Child } from '@/types/crm'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
-)
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
