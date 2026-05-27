@@ -1,14 +1,19 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 
-const supabaseUrl  = (process.env.NEXT_PUBLIC_SUPABASE_URL  ?? '').trim()
-const supabaseAnonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim()
+function toValidUrl(raw: string | undefined): string {
+  const s = (raw ?? '').trim()
+  if (s.startsWith('https://') || s.startsWith('http://')) return s
+  if (s) return `https://${s}`
+  return 'https://placeholder.supabase.co'
+}
 
-// ビルド時に env var が未評価でも createClient がクラッシュしないようダミーURLを使う
-// 実際のリクエスト時は必ず本物の値が入るため、ダミーが使われることはない
+const supabaseUrl     = toValidUrl(process.env.NEXT_PUBLIC_SUPABASE_URL)
+const supabaseAnonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim() || 'placeholder-anon-key'
+
 export const supabase = createClient<Database>(
-  supabaseUrl  || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-anon-key',
+  supabaseUrl,
+  supabaseAnonKey,
   { realtime: { params: { eventsPerSecond: 10 } } }
 )
 
