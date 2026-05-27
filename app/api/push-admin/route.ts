@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { NextRequest, NextResponse } from 'next/server'
 import webpush from 'web-push'
 import { supabase } from '@/lib/supabase'

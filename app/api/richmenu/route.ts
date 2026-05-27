@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { ImageResponse } from 'next/og'
 import { createElement as h } from 'react'
