@@ -350,12 +350,29 @@ export default function CustomerPage() {
         }
       }
 
+      // URLアクションパラメータを先に読み取る（profileチェックより前に必要）
+      const urlParams = new URLSearchParams(window.location.search)
+      const action = urlParams.get('action') as 'queue' | 'repair' | 'purchase' | null
+      if (action) setUrlAction(action)
+
       // LINEアプリ外または未ログインは友達追加画面へ
       // ※ profileが取れなくてもLINE内ブラウザなら先に進む（リダイレクトループ防止）
       if (!isInLineApp()) { setView('add_friend'); return }
       if (!profile) {
-        // LINE内ブラウザだがLIFF未認証（直URLアクセス等）→ メニューへ通す
-        setView('purpose'); return
+        // LINE内ブラウザだがLIFF未認証（直URLアクセス等）
+        // action=queue の場合は待ち人数を取得してから confirm_queue へ直接遷移
+        if (action === 'queue') {
+          try {
+            const { count } = await supabase.from('queues')
+              .select('*', { count: 'exact', head: true })
+              .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
+            setWaitingCount(count ?? 0)
+          } catch { /* 取得失敗は無視 */ }
+          setView('confirm_queue')
+        } else {
+          setView('purpose')
+        }
+        return
       }
 
       // 友達チェック（LIFF Friendship API優先、失敗時はbot API、両方失敗は通す）
@@ -374,11 +391,6 @@ export default function CustomerPage() {
         }
         // liffFriend === true → 友達確認済み、続行
       } catch { /* チェック失敗時は通す（ブロックしない） */ }
-
-      // URLアクションパラメータを読み取る（リッチメニュー経由）
-      const urlParams = new URLSearchParams(window.location.search)
-      const action = urlParams.get('action') as 'queue' | 'repair' | 'purchase' | null
-      if (action) setUrlAction(action)
 
       // 既存顧客チェック
       let cust: Customer | null = null
@@ -895,7 +907,17 @@ export default function CustomerPage() {
 
       <div className="space-y-4">
         <button
-          onClick={() => setView('confirm_queue')}
+          onClick={async () => {
+            if (waitingCount === null) {
+              try {
+                const { count } = await supabase.from('queues')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
+                setWaitingCount(count ?? 0)
+              } catch { /* 取得失敗は無視 */ }
+            }
+            setView('confirm_queue')
+          }}
           disabled={issuing}
           className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all disabled:opacity-80"
           style={cardStyle}>
