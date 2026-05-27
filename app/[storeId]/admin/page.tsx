@@ -975,6 +975,11 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
               className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:opacity-60 transition-all text-zinc-400">
               <QrCode size={16} />
             </button>
+            <a href="/super-admin"
+              title="総管理ダッシュボード"
+              className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:opacity-60 transition-all text-zinc-400">
+              <LayoutDashboard size={16} />
+            </a>
           </div>
         </div>
 

@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation'
 import { useEffect, useState, useCallback } from 'react'
 import {
   Settings, Loader2, Plus, Trash2, GraduationCap, AlertCircle, Save,
-  CalendarDays, Clock, CheckCheck,
+  CalendarDays, Clock, CheckCheck, LayoutDashboard,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { WaitThreshold } from '@/types/database'
@@ -172,13 +172,19 @@ export default function SettingsPage() {
             <h1 className="text-base font-bold text-zinc-100">設定</h1>
             {storeName && <p className="text-xs text-zinc-500 truncate">{storeName}</p>}
           </div>
-          <div className="flex flex-col items-end gap-1">
-            <button onClick={handleSave} disabled={saving}
-              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl transition-all ${saved ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50'}`}>
-              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              {saved ? '保存済み' : '保存'}
-            </button>
-            <span className="text-[9px] text-zinc-700">v2026-05-27c</span>
+          <div className="flex items-center gap-2">
+            <a href="/super-admin" title="総管理ダッシュボード"
+              className="p-2 rounded-xl bg-zinc-700/60 border border-zinc-600/50 hover:bg-zinc-600/60 active:opacity-60 transition-all text-zinc-400">
+              <LayoutDashboard size={16} />
+            </a>
+            <div className="flex flex-col items-end gap-1">
+              <button onClick={handleSave} disabled={saving}
+                className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl transition-all ${saved ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50'}`}>
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                {saved ? '保存済み' : '保存'}
+              </button>
+              <span className="text-[9px] text-zinc-700">v2026-05-27c</span>
+            </div>
           </div>
         </div>
       </div>
