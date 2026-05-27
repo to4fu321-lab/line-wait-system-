@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation'
 import { useEffect, useState, useCallback } from 'react'
 import {
   Settings, Loader2, Plus, Trash2, GraduationCap, AlertCircle, Save,
+  CalendarDays, Clock, CheckCheck,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { WaitThreshold } from '@/types/database'
@@ -48,6 +49,25 @@ export default function SettingsPage() {
 
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  // ── 予約設定 ──────────────────────────────────────────────
+  type ResvSetting = {
+    service_type: string; label: string; duration_min: number
+    start_time: string; end_time: string; is_active: boolean
+    slots_sun: number; slots_mon: number; slots_tue: number; slots_wed: number
+    slots_thu: number; slots_fri: number; slots_sat: number
+  }
+  const DEFAULT_RESV: ResvSetting[] = [
+    { service_type: 'uniform', label: '制服採寸', duration_min: 60, start_time: '10:00', end_time: '17:00',
+      is_active: true, slots_sun: 0, slots_mon: 2, slots_tue: 2, slots_wed: 2, slots_thu: 2, slots_fri: 2, slots_sat: 3 },
+    { service_type: 'jersey', label: 'ジャージ採寸', duration_min: 30, start_time: '10:00', end_time: '17:00',
+      is_active: true, slots_sun: 0, slots_mon: 2, slots_tue: 2, slots_wed: 2, slots_thu: 2, slots_fri: 2, slots_sat: 3 },
+  ]
+  const [resvSettings, setResvSettings]   = useState<ResvSetting[]>(DEFAULT_RESV)
+  const [resvLoading,  setResvLoading]    = useState(false)
+  const [resvSaved,    setResvSaved]      = useState(false)
+  const [resvError,    setResvError]      = useState<string | null>(null)
+  const [resvTableOk,  setResvTableOk]   = useState<boolean | null>(null)
+
   const fetchSettings = useCallback(async () => {
     if (!storeId) return
     setLoading(true)
@@ -73,6 +93,39 @@ export default function SettingsPage() {
   }, [storeId])
 
   useEffect(() => { fetchSettings() }, [fetchSettings])
+
+  // 予約設定フェッチ（テーブルが存在しない場合は graceful に処理）
+  const fetchResvSettings = useCallback(async () => {
+    if (!storeId) return
+    const { data, error } = await (supabase as any)
+      .from('reservation_settings').select('*').eq('store_id', storeId)
+    if (error) { setResvTableOk(false); return }
+    setResvTableOk(true)
+    if (data && data.length > 0) {
+      setResvSettings(prev => prev.map(s => {
+        const row = data.find((d: ResvSetting & { store_id: string }) => d.service_type === s.service_type)
+        return row ? { ...s, ...row } : s
+      }))
+    }
+  }, [storeId])
+
+  useEffect(() => { fetchResvSettings() }, [fetchResvSettings])
+
+  const handleResvSave = async () => {
+    if (!storeId || !resvTableOk) return
+    setResvLoading(true); setResvError(null)
+    for (const s of resvSettings) {
+      const { error } = await (supabase as any).from('reservation_settings').upsert({
+        store_id: storeId, ...s,
+      }, { onConflict: 'store_id,service_type' })
+      if (error) { setResvError(error.message); setResvLoading(false); return }
+    }
+    setResvLoading(false); setResvSaved(true)
+    setTimeout(() => setResvSaved(false), 2000)
+  }
+
+  const updateResv = (idx: number, patch: Partial<ResvSetting>) =>
+    setResvSettings(prev => prev.map((s, i) => i === idx ? { ...s, ...patch } : s))
 
   async function handleSave() {
     setSaving(true)
@@ -244,6 +297,123 @@ export default function SettingsPage() {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* 予約設定 */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Section title="採寸予約設定" />
+            {resvTableOk === false && (
+              <span className="text-[10px] bg-amber-900/40 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                SQLマイグレーション要
+              </span>
+            )}
+          </div>
+          {resvTableOk === false ? (
+            <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl px-4 py-3 text-xs text-zinc-500">
+              <p className="font-bold text-zinc-400 mb-1">予約設定テーブルが見つかりません</p>
+              <p>Supabase SQLEditorで予約テーブルのマイグレーションを実行してください。</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {resvSettings.map((s, idx) => (
+                <div key={s.service_type} className={`rounded-2xl border p-4 space-y-3 transition-all ${
+                  s.is_active ? 'bg-indigo-950/30 border-indigo-500/20' : 'bg-zinc-900/40 border-zinc-800/40'
+                }`}>
+                  {/* ヘッダー */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CalendarDays size={14} className={s.is_active ? 'text-indigo-400' : 'text-zinc-600'} />
+                      <span className={`font-bold text-sm ${s.is_active ? 'text-white' : 'text-zinc-500'}`}>{s.label}</span>
+                    </div>
+                    <button onClick={() => updateResv(idx, { is_active: !s.is_active })}
+                      className={`w-10 h-5 rounded-full transition-colors shrink-0 ${s.is_active ? 'bg-indigo-500' : 'bg-zinc-600'}`}>
+                      <div className={`w-4 h-4 bg-white rounded-full mt-0.5 shadow transition-transform mx-0.5 ${s.is_active ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+
+                  {s.is_active && (
+                    <>
+                      {/* 所要時間 */}
+                      <div>
+                        <p className="text-[11px] text-zinc-500 mb-1.5">所要時間（分）</p>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {[30, 45, 60, 90, 120].map(d => (
+                            <button key={d} onClick={() => updateResv(idx, { duration_min: d })}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                                s.duration_min === d ? 'bg-indigo-500 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                              }`}>{d}分</button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* 受付時間 */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <p className="text-[11px] text-zinc-500 mb-1.5 flex items-center gap-1">
+                            <Clock size={10} />受付開始
+                          </p>
+                          <input type="time" value={s.start_time}
+                            onChange={e => updateResv(idx, { start_time: e.target.value })}
+                            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none" />
+                        </div>
+                        <div>
+                          <p className="text-[11px] text-zinc-500 mb-1.5 flex items-center gap-1">
+                            <Clock size={10} />受付終了
+                          </p>
+                          <input type="time" value={s.end_time}
+                            onChange={e => updateResv(idx, { end_time: e.target.value })}
+                            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none" />
+                        </div>
+                      </div>
+
+                      {/* 曜日別最大枠数 */}
+                      <div>
+                        <p className="text-[11px] text-zinc-500 mb-1.5">曜日別 最大予約枠数</p>
+                        <div className="grid grid-cols-7 gap-1">
+                          {(
+                            [
+                              ['日', 'slots_sun', 'text-red-400'],
+                              ['月', 'slots_mon', 'text-zinc-300'],
+                              ['火', 'slots_tue', 'text-zinc-300'],
+                              ['水', 'slots_wed', 'text-zinc-300'],
+                              ['木', 'slots_thu', 'text-zinc-300'],
+                              ['金', 'slots_fri', 'text-zinc-300'],
+                              ['土', 'slots_sat', 'text-blue-400'],
+                            ] as [string, keyof ResvSetting, string][]
+                          ).map(([label, key, color]) => (
+                            <div key={key} className="flex flex-col items-center gap-1">
+                              <span className={`text-[10px] font-bold ${color}`}>{label}</span>
+                              <input
+                                type="number" min={0} max={20}
+                                value={s[key] as number}
+                                onChange={e => updateResv(idx, { [key]: Math.max(0, parseInt(e.target.value) || 0) })}
+                                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg text-center text-sm text-white py-1.5 focus:border-indigo-500 focus:outline-none" />
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-zinc-700 mt-1">0 = その曜日は受付停止</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+
+              {resvError && (
+                <p className="text-xs text-red-400 bg-red-900/20 border border-red-500/20 rounded-xl px-3 py-2">{resvError}</p>
+              )}
+              <button onClick={handleResvSave} disabled={resvLoading}
+                className={`w-full py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2 ${
+                  resvSaved
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-zinc-700 hover:bg-zinc-600 text-zinc-200'
+                }`}>
+                {resvLoading ? <><Loader2 size={14} className="animate-spin" />保存中...</>
+                  : resvSaved ? <><CheckCheck size={14} />保存済み</>
+                  : '予約設定を保存'}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 学校名マスタ */}

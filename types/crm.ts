@@ -32,6 +32,7 @@ export interface RepairHistory {
   price:          number | null
   notes:          string | null
   notified:       boolean
+  payment_status: 'unpaid' | 'paid' | null
   created_at:     string
   updated_at:     string
   customer?:      Customer
@@ -67,6 +68,7 @@ export interface PurchaseOrder {
   arrived_date:   string | null
   delivered_date: string | null
   notified:       boolean
+  payment_status: 'unpaid' | 'paid' | null
   created_at:     string
   updated_at:     string
   customer?:      Customer

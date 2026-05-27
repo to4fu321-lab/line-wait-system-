@@ -127,6 +127,7 @@ function RepairItem({ repair, showCustomer = false, storeId, onComplete, onDeliv
 }) {
   const [loading,         setLoading]         = useState<string | null>(null)
   const [confirmComplete, setConfirmComplete] = useState(false)
+  const [confirmDeliver,  setConfirmDeliver]  = useState(false)
   const [confirmRevert,   setConfirmRevert]   = useState(false)
   const [custOpen,        setCustOpen]        = useState(false)
   const customerName = showCustomer ? (repair as RepairWithCustomer).customer?.name : null
@@ -226,12 +227,27 @@ function RepairItem({ repair, showCustomer = false, storeId, onComplete, onDeliv
 
       {repair.status === 'completed' && (
         <div className="mt-3 space-y-2">
-          <button
-            onClick={async () => { setLoading('deliver'); await onDeliver(repair.id); setLoading(null) }}
-            disabled={!!loading}
-            className="w-full py-2.5 rounded-xl font-bold text-sm bg-zinc-700/80 hover:bg-zinc-600 text-zinc-200 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
-            {loading === 'deliver' ? <><Loader2 size={14} className="animate-spin" />処理中...</> : <><Package size={14} />お渡し済みにする</>}
-          </button>
+          {confirmDeliver ? (
+            <div className="bg-zinc-900 border border-indigo-500/30 rounded-2xl p-3 space-y-2 animate-fade-in">
+              <p className="text-xs text-center text-white font-bold">📦 お渡し確認</p>
+              {customerName && <p className="text-xs text-center text-zinc-400"><span className="font-bold text-white">{customerName}</span> 様にお渡ししますか？</p>}
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmDeliver(false)}
+                  className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-zinc-700 text-zinc-300 active:scale-95 transition-all">キャンセル</button>
+                <button onClick={async () => { setLoading('deliver'); await onDeliver(repair.id); setLoading(null); setConfirmDeliver(false) }}
+                  disabled={!!loading}
+                  className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
+                  {loading === 'deliver' ? <><Loader2 size={13} className="animate-spin" />処理中...</> : <><Package size={13} />お渡し</>}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmDeliver(true)}
+              disabled={!!loading}
+              className="w-full py-2.5 rounded-xl font-bold text-sm bg-zinc-700/80 hover:bg-zinc-600 text-zinc-200 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+              <Package size={14} />お渡し済みにする
+            </button>
+          )}
           {confirmRevert ? (
             <div className="bg-amber-950/50 border border-amber-500/30 rounded-xl p-3 space-y-2">
               <p className="text-xs text-center text-amber-300 font-bold">預かり中に戻しますか？</p>
@@ -272,11 +288,12 @@ function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrd
   onRevert:    (id: string) => Promise<void>
   alertDays?: number
 }) {
-  const [loading,       setLoading]       = useState<string | null>(null)
-  const [confirmStock,  setConfirmStock]  = useState(false)
-  const [confirmArrive, setConfirmArrive] = useState(false)
-  const [confirmRevert, setConfirmRevert] = useState(false)
-  const [custOpen,      setCustOpen]      = useState(false)
+  const [loading,        setLoading]        = useState<string | null>(null)
+  const [confirmStock,   setConfirmStock]   = useState(false)
+  const [confirmArrive,  setConfirmArrive]  = useState(false)
+  const [confirmDeliver, setConfirmDeliver] = useState(false)
+  const [confirmRevert,  setConfirmRevert]  = useState(false)
+  const [custOpen,       setCustOpen]       = useState(false)
   const customerName = showCustomer ? (order as PurchaseWithCustomer).customer?.name : null
   const childName    = showCustomer ? (order as PurchaseWithCustomer).child?.name    : null
   const isOverdue = alertDays != null && order.status === 'arrived' && order.arrived_date &&
@@ -439,12 +456,27 @@ function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrd
       {/* 入荷済み → お渡し済み */}
       {order.status === 'arrived' && (
         <div className="mt-3 space-y-2">
-          <button
-            onClick={async () => { setLoading('deliver'); await onDeliver(order.id); setLoading(null) }}
-            disabled={!!loading}
-            className="w-full py-2.5 rounded-xl font-bold text-sm bg-zinc-700/80 hover:bg-zinc-600 text-zinc-200 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
-            {loading === 'deliver' ? <><Loader2 size={14} className="animate-spin" />処理中...</> : <><Package size={14} />お渡し済みにする</>}
-          </button>
+          {confirmDeliver ? (
+            <div className="bg-zinc-900 border border-indigo-500/30 rounded-2xl p-3 space-y-2 animate-fade-in">
+              <p className="text-xs text-center text-white font-bold">📦 お渡し確認</p>
+              {customerName && <p className="text-xs text-center text-zinc-400"><span className="font-bold text-white">{customerName}</span> 様にお渡ししますか？</p>}
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmDeliver(false)}
+                  className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-zinc-700 text-zinc-300 active:scale-95 transition-all">キャンセル</button>
+                <button onClick={async () => { setLoading('deliver'); await onDeliver(order.id); setLoading(null); setConfirmDeliver(false) }}
+                  disabled={!!loading}
+                  className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
+                  {loading === 'deliver' ? <><Loader2 size={13} className="animate-spin" />処理中...</> : <><Package size={13} />お渡し</>}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmDeliver(true)}
+              disabled={!!loading}
+              className="w-full py-2.5 rounded-xl font-bold text-sm bg-zinc-700/80 hover:bg-zinc-600 text-zinc-200 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+              <Package size={14} />お渡し済みにする
+            </button>
+          )}
         </div>
       )}
     </div>
