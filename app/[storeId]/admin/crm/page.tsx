@@ -567,12 +567,14 @@ function NewRepairForm({ customerId, childId, storeId, onSaved, onCancel, defaul
             placeholder="例：500" value={price} onChange={e => setPrice(e.target.value)} />
         </Field>
       </div>
-      {/* 先払い */}
+      {/* 支払い状況 */}
       <button type="button" onClick={() => setPrepaid(v => !v)}
-        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${prepaid ? 'border-emerald-500 bg-emerald-500/10' : 'border-zinc-700 bg-zinc-800/50'}`}>
+        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${prepaid ? 'border-emerald-500 bg-emerald-500/10' : 'border-red-500/60 bg-red-900/10'}`}>
         <div className="text-left">
-          <p className={`font-bold text-sm ${prepaid ? 'text-emerald-300' : 'text-zinc-400'}`}>💰 先払い済み</p>
-          <p className="text-xs text-zinc-500 mt-0.5">受付時に料金を先払いで頂いた場合ON</p>
+          <p className={`font-bold text-sm ${prepaid ? 'text-emerald-300' : 'text-red-300'}`}>
+            {prepaid ? '✅ 支払済み' : '⚠️ 未払い'}
+          </p>
+          <p className="text-xs text-zinc-500 mt-0.5">受付時に支払いを頂いた場合は「支払済み」に</p>
         </div>
         <div className={`w-12 h-6 rounded-full transition-colors shrink-0 ${prepaid ? 'bg-emerald-500' : 'bg-zinc-600'}`}>
           <div className={`w-5 h-5 bg-white rounded-full mt-0.5 shadow-lg transition-transform ${prepaid ? 'translate-x-6' : 'translate-x-0.5'}`} />

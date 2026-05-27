@@ -107,9 +107,14 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
             <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${REPAIR_STATUS_COLORS[item.status]}`}>
               {REPAIR_STATUS_LABELS[item.status]}
             </span>
-            {item.prepaid && (
-              <span className="text-xs px-2 py-0.5 rounded-full border font-medium bg-emerald-500/20 text-emerald-300 border-emerald-500/30 flex items-center gap-1">
-                <Banknote size={10} />先払済
+            {/* 支払いバッジ — 常時表示、未払いは目立つ赤 */}
+            {item.prepaid ? (
+              <span className="text-xs px-2 py-0.5 rounded-full border font-bold bg-emerald-500/15 text-emerald-300 border-emerald-500/30">
+                支払済
+              </span>
+            ) : (
+              <span className="text-xs px-2.5 py-0.5 rounded-full border font-black bg-red-500/25 text-red-300 border-red-500/50 animate-pulse">
+                未払い
               </span>
             )}
             {item.slip_number && <span className="text-xs font-mono text-zinc-500">#{item.slip_number}</span>}
@@ -134,20 +139,21 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
               <Phone size={12} />{item.customer.tel}
             </a>
           )}
-          <div className="flex gap-2">
-            <a href={`/${storeId}/admin/crm?customerId=${item.customer_id}`}
-              className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
-              <User size={11} />顧客詳細
-            </a>
-            <button
-              onClick={() => update({ prepaid: !item.prepaid })}
-              className={`flex items-center gap-1 text-xs rounded-lg px-2 py-1 border transition-colors ${
-                item.prepaid
-                  ? 'bg-emerald-800/30 border-emerald-700/50 text-emerald-300'
-                  : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:text-zinc-300'
-              }`}>
-              <Banknote size={11} />{item.prepaid ? '先払済み ✓' : '先払い未'}
-            </button>
+          {/* 支払いステータス切り替えボタン */}
+          <button
+            onClick={() => update({ prepaid: !item.prepaid })}
+            className={`w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all border-2 ${
+              item.prepaid
+                ? 'bg-emerald-900/30 border-emerald-500/40 text-emerald-300'
+                : 'bg-red-900/30 border-red-500/50 text-red-300'
+            }`}>
+            <Banknote size={15} />
+            {item.prepaid ? '✅ 支払済み — タップで未払いに戻す' : '⚠️ 未払い — タップで支払済みにする'}
+          </button>
+          <a href={`/${storeId}/admin/crm?customerId=${item.customer_id}`}
+            className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
+            <User size={11} />顧客詳細
+          </a>
           </div>
           <div className="flex flex-wrap gap-2 pt-1">
             {item.status === 'received' && (
