@@ -27,7 +27,7 @@ async function makeMenuPng(): Promise<Buffer> {
   } catch { /* フォント取得失敗時は続行 */ }
 
   const sections = [
-    { lines: ['採寸の', '順番待ちをする'], emoji: '📋', bg: '#4f46e5' },
+    { lines: ['採寸に', '今すぐ並ぶ'],      emoji: '📋', bg: '#4f46e5' },
     { lines: ['来店予約'],                emoji: '📅', bg: '#0d9488' },
     { lines: ['依頼'],                    emoji: '✂️', bg: '#7c3aed' },
     { lines: ['ネット注文'],              emoji: '🛍️', bg: '#2563eb' },
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
 
     // 2. 新規メニュー作成（4列: 採寸の順番待ち / 来店予約 / 依頼 / ネット注文）
     const areas = [
-      { bounds: { x: 0,    y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=queue`,    label: '採寸の順番待ち' } },
+      { bounds: { x: 0,    y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=queue`,    label: '採寸に今すぐ並ぶ' } },
       { bounds: { x: 625,  y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}/reserve`,         label: '来店予約' } },
       { bounds: { x: 1250, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}/repair`,          label: '依頼' } },
       { bounds: { x: 1875, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=purchase`, label: 'ネット注文' } },

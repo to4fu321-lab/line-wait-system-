@@ -142,7 +142,7 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
 
   const handleConfirmOrder = async () => {
     if (!confirmIds) return
-    setShowConfirm(false)
+    // モーダルを閉じずに送信 → 成功時は ordered=true で画面ごと遷移、失敗時はモーダル内にエラー表示
     await submitOrder(confirmIds.cId, confirmIds.chId)
   }
 

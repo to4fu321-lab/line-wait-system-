@@ -660,6 +660,24 @@ export default function CustomerPage() {
         }),
       }).catch(console.error)
       setView('queue_waiting')
+
+      // queue_waiting 移行時に customer が未設定なら再検索（初期ロード失敗のリトライ）
+      if (!customer && lineProfile?.userId) {
+        try {
+          const { data: rows } = await supabase.from('customers')
+            .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId)
+            .order('created_at', { ascending: false }).limit(1)
+          const found = rows?.[0] && !(rows[0] as Customer).deleted_at ? rows[0] as Customer : null
+          if (found) {
+            setCustomer(found)
+            const { data: childList } = await supabase.from('children')
+              .select('*').eq('customer_id', found.id).order('created_at', { ascending: true })
+            const kids = (childList ?? []) as Child[]
+            setChildren(kids)
+            if (kids.length === 1) setSelectedChild(kids[0])
+          }
+        } catch { /* 取得失敗は無視 */ }
+      }
     } catch (e) { console.error(e) }
     setIssuing(false)
   }
