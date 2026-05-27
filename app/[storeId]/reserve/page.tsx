@@ -515,8 +515,9 @@ export default function ReservePage() {
                 <p className="text-zinc-600 text-xs mt-1">別の日をお選びください</p>
               </div>
             ) : slots.length === 0 ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 size={24} className="animate-spin text-indigo-400" />
+              <div className="bg-zinc-900 border border-zinc-700 rounded-2xl px-4 py-5 text-center">
+                <p className="text-zinc-400 text-sm font-bold">この日はスロットがありません</p>
+                <p className="text-zinc-600 text-xs mt-1">別の日をお選びください</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2">
