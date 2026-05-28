@@ -12,12 +12,30 @@ function OpenInLineContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-500 to-green-600 flex flex-col items-center justify-center px-6">
-      <div className="text-center text-white mb-10">
+      <div className="text-center text-white mb-8">
         <div className="text-7xl mb-6">💬</div>
         <h1 className="text-3xl font-black mb-3">LINEで開いてください</h1>
         <p className="text-green-100 text-lg leading-relaxed">
           このサービスはLINEアプリ内で<br />ご利用いただけます
         </p>
+      </div>
+
+      <div className="w-full max-w-xs bg-white/15 backdrop-blur-sm rounded-2xl px-5 py-4 mb-8 text-left">
+        <p className="text-white font-bold text-sm mb-3">LINE友達登録でできること</p>
+        <ul className="space-y-2.5">
+          <li className="flex items-start gap-2.5 text-green-50 text-sm">
+            <span className="text-base leading-none mt-0.5">📣</span>
+            <span>採寸・お直しの<span className="font-bold text-white">お呼び出し通知</span></span>
+          </li>
+          <li className="flex items-start gap-2.5 text-green-50 text-sm">
+            <span className="text-base leading-none mt-0.5">✂️</span>
+            <span>お直し<span className="font-bold text-white">完了のお知らせ</span></span>
+          </li>
+          <li className="flex items-start gap-2.5 text-green-50 text-sm">
+            <span className="text-base leading-none mt-0.5">📦</span>
+            <span>商品<span className="font-bold text-white">お渡し準備完了</span>のお知らせ</span>
+          </li>
+        </ul>
       </div>
 
       <a
