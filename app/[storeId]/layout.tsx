@@ -46,11 +46,11 @@ export default async function StoreLayout({ children, params }: Props) {
       <div
         className="min-h-screen relative"
         style={{
-          ...themeCssVars(theme),
+          ...themeCssVars(resolvedTheme),
           background: [
-            `radial-gradient(circle at 0% 0%, rgb(${theme.colors.primaryRgb} / 0.18), transparent 55%)`,
-            `radial-gradient(circle at 100% 100%, rgb(${theme.colors.accentRgb} / 0.12), transparent 55%)`,
-            `radial-gradient(circle at 50% 50%, rgb(${theme.colors.primaryRgb} / 0.04), transparent 70%)`,
+            `radial-gradient(circle at 0% 0%, rgb(${resolvedTheme.colors.primaryRgb} / 0.18), transparent 55%)`,
+            `radial-gradient(circle at 100% 100%, rgb(${resolvedTheme.colors.accentRgb} / 0.12), transparent 55%)`,
+            `radial-gradient(circle at 50% 50%, rgb(${resolvedTheme.colors.primaryRgb} / 0.04), transparent 70%)`,
             '#fafafa',
           ].join(', '),
         } as React.CSSProperties}
