@@ -15,14 +15,13 @@ const fetchStoreData = cache(async (storeId: string) => {
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+      { global: { fetch: (input, init) => fetch(input as RequestInfo, { ...init, cache: 'no-store' }) } }
     )
-    // theme_color カラムが未追加でもクラッシュしないよう2段階で取得
     const { data, error } = await supabase.from('stores').select('name, theme_color').eq('id', storeId).single()
     if (!error && data) {
       return { name: data.name ?? null, themeColor: (data as any).theme_color ?? null }
     }
-    // theme_color カラムが存在しない場合は name だけ取得
     const { data: fallback } = await supabase.from('stores').select('name').eq('id', storeId).single()
     return { name: fallback?.name ?? null, themeColor: null }
   } catch {
