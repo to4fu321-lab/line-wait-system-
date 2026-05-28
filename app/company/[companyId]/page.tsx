@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import {
   Loader2, RefreshCw, ShieldCheck, Scissors, Package,
-  ShoppingBag, CreditCard, Users, ExternalLink, Store,
+  ShoppingBag, CreditCard, Users, ExternalLink, Store, Palette,
 } from 'lucide-react'
+import ColorPicker from '@/app/_components/ColorPicker'
 
 // ── 型 ────────────────────────────────────────────────────────
 interface StoreStats {
@@ -103,6 +104,7 @@ function PinScreen({
 
 // ── 店舗カード ─────────────────────────────────────────────────
 function StoreCard({ s }: { s: StoreStats }) {
+  const [showPicker, setShowPicker] = useState(false)
   const totalPending = s.repairReceived + s.repairCompleted + s.purchaseInProgress + s.purchaseArrived
   const hasQueue     = s.queueWaiting > 0 || s.queueCalling > 0
 
@@ -125,12 +127,28 @@ function StoreCard({ s }: { s: StoreStats }) {
             </span>
           </div>
         </div>
-        {totalPending > 0 && (
-          <span className="bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-black px-2.5 py-1 rounded-full">
-            未対応 {totalPending}件
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {totalPending > 0 && (
+            <span className="bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-black px-2.5 py-1 rounded-full">
+              未対応 {totalPending}件
+            </span>
+          )}
+          <button
+            onClick={() => setShowPicker(v => !v)}
+            className="p-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 transition-colors"
+            title="テーマカラーを変更"
+          >
+            <Palette size={14} className="text-zinc-300" />
+          </button>
+        </div>
       </div>
+      {showPicker && (
+        <ColorPicker
+          storeId={s.store.id}
+          currentColor={(s.store as any).theme_color ?? null}
+          onSaved={() => setShowPicker(false)}
+        />
+      )}
 
       {/* 統計グリッド */}
       <div className="grid grid-cols-2 gap-2">

@@ -5,7 +5,8 @@
 // CREATE POLICY "stores_anon_update" ON stores FOR UPDATE TO anon USING (true) WITH CHECK (true);
 
 import { useState, useEffect, useCallback } from 'react'
-import { RefreshCw, Loader2, ExternalLink, ShieldCheck, Scissors, Package, Plus, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { RefreshCw, Loader2, ExternalLink, ShieldCheck, Scissors, Package, Plus, ChevronDown, ChevronUp, Palette } from 'lucide-react'
+import ColorPicker from '@/app/_components/ColorPicker'
 import type { Store } from '@/types/database'
 
 const SUPER_ADMIN_PIN = process.env.NEXT_PUBLIC_SUPER_ADMIN_PIN || '9999'
@@ -98,6 +99,8 @@ function SuperDashboard() {
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdated,setLastUpdated]= useState<Date | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
+
+  const [colorPickerStoreId, setColorPickerStoreId] = useState<string | null>(null)
 
   // 店舗追加フォーム
   const [showAddForm,   setShowAddForm]   = useState(false)
@@ -217,14 +220,31 @@ function SuperDashboard() {
                     <span className="text-base font-black">{store.name}</span>
                     {group && <span className="text-gray-500 text-xs ml-2">{group.name}</span>}
                   </div>
-                  <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-                    store.is_open
-                      ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                      : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                  }`}>
-                    {store.is_open ? '受付中' : '停止'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setColorPickerStoreId(colorPickerStoreId === store.id ? null : store.id)}
+                      className="p-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors"
+                      title="テーマカラーを変更"
+                    >
+                      <Palette size={14} className="text-gray-300" />
+                    </button>
+                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+                      store.is_open
+                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                        : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                    }`}>
+                      {store.is_open ? '受付中' : '停止'}
+                    </span>
+                  </div>
                 </div>
+                {colorPickerStoreId === store.id && (
+                  <ColorPicker
+                    storeId={store.id}
+                    currentColor={(store as any).theme_color ?? null}
+                    onSaved={() => setColorPickerStoreId(null)}
+                    dark
+                  />
+                )}
                 {/* 順番待ち */}
                 <div className="grid grid-cols-4 gap-2 text-center mb-2">
                   <MiniStatCard label="合計" value={total}     color="text-white" />
