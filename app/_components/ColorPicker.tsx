@@ -18,6 +18,7 @@ export default function ColorPicker({ storeId, currentColor, onSaved, dark = fal
   const [selected, setSelected] = useState<string>(currentColor ?? 'indigo-600')
   const [saving,   setSaving]   = useState(false)
   const [saved,    setSaved]    = useState(false)
+  const [errMsg,   setErrMsg]   = useState<string | null>(null)
 
   const bg      = dark ? 'bg-gray-700/60' : 'bg-zinc-800/60'
   const border  = dark ? 'border-gray-600' : 'border-zinc-700'
@@ -25,12 +26,18 @@ export default function ColorPicker({ storeId, currentColor, onSaved, dark = fal
 
   const save = async () => {
     setSaving(true)
-    await fetch('/api/stores/theme', {
+    setErrMsg(null)
+    const res = await fetch('/api/stores/theme', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ storeId, themeColor: selected }),
     })
     setSaving(false)
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}))
+      setErrMsg(json.error ?? '保存失敗。SQLマイグレーションが未実行の可能性があります')
+      return
+    }
     setSaved(true)
     onSaved(selected)
     setTimeout(() => setSaved(false), 2000)
@@ -68,6 +75,9 @@ export default function ColorPicker({ storeId, currentColor, onSaved, dark = fal
         })}
       </div>
 
+      {errMsg && (
+        <p className="mt-2 text-xs text-red-400 bg-red-950/40 border border-red-700/40 rounded-lg px-2 py-1.5">{errMsg}</p>
+      )}
       <button
         onClick={save}
         disabled={saving || saved}
