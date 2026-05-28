@@ -952,6 +952,8 @@ export default function CRMPage() {
   const [alertDaysPurchase, setAlertDaysPurchase] = useState(7)
   const [schoolOptions,     setSchoolOptions]     = useState<string[]>([])
   const [schoolFilter,      setSchoolFilter]      = useState<string | null>(null)
+  const [groupStoreIds,     setGroupStoreIds]     = useState<string[]>([])
+  const [storeNameMap,      setStoreNameMap]      = useState<Record<string, string>>({})
 
   // 未対応統計
   const [stats, setStats] = useState({ repairReceived: 0, repairCompleted: 0, purchaseReceived: 0, purchaseInProgress: 0, purchaseArrived: 0 })
@@ -1005,20 +1007,29 @@ export default function CRMPage() {
   // ── 初期ロード ──────────────────────────────────────────
   useEffect(() => {
     if (!storeId) return
-    supabase.from('stores').select('name').eq('id', storeId).single()
-      .then(({ data }) => { if (data) setStoreName(data.name ?? '') })
-  }, [storeId])
-
-  useEffect(() => {
-    if (!storeId) return
     ;(supabase.from('stores') as any)
-      .select('alert_days_repair, alert_days_purchase, school_names')
+      .select('name, group_id, alert_days_repair, alert_days_purchase, school_names')
       .eq('id', storeId).single()
-      .then(({ data }: { data: any }) => {
+      .then(async ({ data }: { data: any }) => {
+        if (data?.name) setStoreName(data.name ?? '')
         if (data?.alert_days_repair   != null) setAlertDaysRepair(data.alert_days_repair)
         if (data?.alert_days_purchase != null) setAlertDaysPurchase(data.alert_days_purchase)
         if (Array.isArray(data?.school_names) && data.school_names.length > 0)
           setSchoolOptions(data.school_names)
+        if (data?.group_id) {
+          const { data: gStores } = await (supabase.from('stores') as any)
+            .select('id, name').eq('group_id', data.group_id)
+          if (gStores && gStores.length > 1) {
+            setGroupStoreIds(gStores.map((s: any) => s.id))
+            const nameMap: Record<string, string> = {}
+            gStores.forEach((s: any) => { nameMap[s.id] = s.name })
+            setStoreNameMap(nameMap)
+          } else {
+            setGroupStoreIds([storeId])
+          }
+        } else {
+          setGroupStoreIds([storeId])
+        }
       })
   }, [storeId])
 
@@ -1040,14 +1051,14 @@ export default function CRMPage() {
   useEffect(() => { fetchStats() }, [fetchStats])
 
   const fetchAllCustomers = useCallback(async () => {
-    if (!storeId) return
+    if (!storeId || groupStoreIds.length === 0) return
     setAllLoading(true)
-    const q = supabase.from('customers').select('*, children(school_name)').eq('store_id', storeId)
+    const q = supabase.from('customers').select('*, children(school_name)').in('store_id', groupStoreIds)
     const { data } = await (showDeleted ? q.not('deleted_at', 'is', null) : q.is('deleted_at', null))
       .order('kana', { ascending: true }).limit(500)
     setAllCustomers(data ?? [])
     setAllLoading(false)
-  }, [storeId, showDeleted])
+  }, [storeId, showDeleted, groupStoreIds])
 
   useEffect(() => { fetchAllCustomers() }, [fetchAllCustomers])
 
@@ -1056,8 +1067,9 @@ export default function CRMPage() {
     if (!storeId || !q.trim()) { setCustomers([]); setCustomerLoading(false); return }
     setCustomerLoading(true)
 
+    const sIds = groupStoreIds.length > 0 ? groupStoreIds : [storeId]
     const baseQuery = () => {
-      const q2 = supabase.from('customers').select('*').eq('store_id', storeId)
+      const q2 = supabase.from('customers').select('*').in('store_id', sIds)
       return deleted ? q2.not('deleted_at', 'is', null) : q2.is('deleted_at', null)
     }
 
@@ -1065,7 +1077,7 @@ export default function CRMPage() {
       .or(`name.ilike.%${q}%,kana.ilike.%${q}%,tel.ilike.%${q.replace(/-/g, '')}%,parent_name.ilike.%${q}%`)
       .order('updated_at', { ascending: false }).limit(20)
 
-    const { data: childHits } = await supabase.from('children').select('customer_id, name').eq('store_id', storeId)
+    const { data: childHits } = await supabase.from('children').select('customer_id, name').in('store_id', sIds)
       .or(`name.ilike.%${q}%,kana.ilike.%${q}%`)
 
     // お子様マッチマップ（customerId → 最初にマッチしたお子様名）
@@ -1534,6 +1546,9 @@ export default function CRMPage() {
                               ? <span className="text-indigo-400">子: {childMatchMap[c.id]}</span>
                               : (c.kana ?? c.tel ?? 'LINE未連携')
                             }
+                            {Object.keys(storeNameMap).length > 1 && storeNameMap[(c as any).store_id] && (
+                              <span className="ml-1.5 text-zinc-600 text-[10px]">· {storeNameMap[(c as any).store_id]}</span>
+                            )}
                           </p>
                         </div>
                         {c.line_user_id

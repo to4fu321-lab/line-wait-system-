@@ -151,7 +151,7 @@ export default function CrmRegisterPage() {
   const handleRegister = async () => {
     if (!name.trim() || !lineUserId) return
     setSaving(true); setErrorMsg('')
-    const { error } = await supabase.from('customers').insert({
+    const { data: newCust, error } = await supabase.from('customers').insert({
       store_id:     storeId,
       name:         name.trim(),
       kana:         kana.trim() || null,
@@ -159,13 +159,21 @@ export default function CrmRegisterPage() {
       tel:          tel.trim() || null,
       school_name:  finalSchool.trim() || null,
       line_user_id: lineUserId,
-    })
+    }).select().single()
     setSaving(false)
     if (error) {
       setErrorMsg(error.message.includes('unique')
         ? '同じお名前のお子様が既に登録されています'
         : '登録に失敗しました。もう一度お試しください。')
       return
+    }
+    // 待機中・呼出中のチケット名をすぐ反映
+    if (newCust && lineUserId) {
+      await supabase.from('queues')
+        .update({ customer_name: name.trim(), customer_id: newCust.id })
+        .eq('store_id', storeId)
+        .eq('line_user_id', lineUserId)
+        .in('status', ['waiting', 'calling'])
     }
     setDoneName(name.trim())
     setView('done')
