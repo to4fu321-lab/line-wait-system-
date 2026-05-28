@@ -101,6 +101,7 @@ function SuperDashboard() {
   const [fetchError, setFetchError] = useState<string | null>(null)
 
   const [colorPickerStoreId, setColorPickerStoreId] = useState<string | null>(null)
+  const [themeOverrides, setThemeOverrides] = useState<Record<string, string>>({})
 
   // 店舗追加フォーム
   const [showAddForm,   setShowAddForm]   = useState(false)
@@ -240,8 +241,8 @@ function SuperDashboard() {
                 {colorPickerStoreId === store.id && (
                   <ColorPicker
                     storeId={store.id}
-                    currentColor={(store as any).theme_color ?? null}
-                    onSaved={() => setColorPickerStoreId(null)}
+                    currentColor={themeOverrides[store.id] ?? (store as any).theme_color ?? null}
+                    onSaved={(c) => { setThemeOverrides(prev => ({ ...prev, [store.id]: c })); setColorPickerStoreId(null) }}
                     dark
                   />
                 )}

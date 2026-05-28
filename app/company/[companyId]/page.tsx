@@ -105,6 +105,7 @@ function PinScreen({
 // ── 店舗カード ─────────────────────────────────────────────────
 function StoreCard({ s }: { s: StoreStats }) {
   const [showPicker, setShowPicker] = useState(false)
+  const [savedColor, setSavedColor] = useState<string | null>((s.store as any).theme_color ?? null)
   const totalPending = s.repairReceived + s.repairCompleted + s.purchaseInProgress + s.purchaseArrived
   const hasQueue     = s.queueWaiting > 0 || s.queueCalling > 0
 
@@ -145,8 +146,8 @@ function StoreCard({ s }: { s: StoreStats }) {
       {showPicker && (
         <ColorPicker
           storeId={s.store.id}
-          currentColor={(s.store as any).theme_color ?? null}
-          onSaved={() => setShowPicker(false)}
+          currentColor={savedColor}
+          onSaved={(c) => { setSavedColor(c); setShowPicker(false) }}
         />
       )}
 
