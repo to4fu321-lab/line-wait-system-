@@ -65,6 +65,13 @@ const FAMILIES = [
       { n: 600, hex: '#ea580c', rgb: '234 88 12',   dark: '#c2410c', light: '#fb923c' },
       { n: 700, hex: '#c2410c', rgb: '194 65 12',   dark: '#9a3412', light: '#f97316' },
     ] },
+  { name: 'グレー', key: 'slate', accent: '#3b82f6', accentRgb: '59 130 246',
+    shades: [
+      { n: 400, hex: '#94a3b8', rgb: '148 163 184', dark: '#64748b', light: '#e2e8f0' },
+      { n: 500, hex: '#64748b', rgb: '100 116 139', dark: '#475569', light: '#cbd5e1' },
+      { n: 600, hex: '#475569', rgb: '71 85 105',   dark: '#334155', light: '#94a3b8' },
+      { n: 700, hex: '#334155', rgb: '51 65 85',    dark: '#1e293b', light: '#64748b' },
+    ] },
 ] as const
 
 export const COLOR_PRESETS: ColorPreset[] = FAMILIES.flatMap(f =>

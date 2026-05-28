@@ -5,7 +5,7 @@ import { Loader2, Check } from 'lucide-react'
 import { COLOR_PRESETS } from '@/config/themes'
 
 // カラーファミリーの順序（themes.ts の FAMILIES と対応）
-const FAMILY_NAMES = ['インディゴ', 'バイオレット', 'ブルー', 'ティール', 'エメラルド', 'ローズ', 'オレンジ']
+const FAMILY_NAMES = ['インディゴ', 'バイオレット', 'ブルー', 'ティール', 'エメラルド', 'ローズ', 'オレンジ', 'グレー']
 
 interface Props {
   storeId:      string
