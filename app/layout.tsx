@@ -5,14 +5,14 @@ import SwRegister from './sw-register'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: '順番待ち受付 | たかや',
-  description: '学生服のたかや 順番待ち受付システム',
+  title: '順番待ち受付',
+  description: 'Web順番待ち受付システム',
   robots: 'noindex,nofollow',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'たかや順番待ち',
+    title: '順番待ち受付',
   },
   icons: {
     apple: '/apple-touch-icon.png',
