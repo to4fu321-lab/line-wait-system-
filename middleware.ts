@@ -7,6 +7,17 @@ export function middleware(request: NextRequest) {
   const isLine = /Line\//i.test(ua)
   const path = request.nextUrl.pathname
 
+  // 管理系パスはLINEチェックなしで常に通過（スマホブラウザからもアクセス可）
+  if (
+    path.startsWith('/super-admin') ||
+    path.startsWith('/company/') ||
+    path.startsWith('/api/') ||
+    path.includes('/admin') ||
+    path.includes('/login')
+  ) {
+    return NextResponse.next()
+  }
+
   // ── ① LINEブラウザで / にアクセス ─────────────────────
   // liff.state にサブパスがあればそちらへ、なければ既定店舗のホームへ
   if (path === '/' && isLine) {
