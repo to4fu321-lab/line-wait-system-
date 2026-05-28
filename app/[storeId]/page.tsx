@@ -283,7 +283,7 @@ export default function CustomerPage() {
   const [friendNotYet,     setFriendNotYet]     = useState(false)
   const [showQueueRegister, setShowQueueRegister] = useState(false)
   const [queueRegDone,      setQueueRegDone]      = useState(false)
-  const [regExpanded,       setRegExpanded]        = useState(false)
+  const [regExpanded,       setRegExpanded]        = useState(true)
   const [showWaitingEdit,   setShowWaitingEdit]   = useState(false)
   const [waitingEditMode,   setWaitingEditMode]   = useState<'child' | 'info' | null>(null)
   const [detailHeight,  setDetailHeight]  = useState('')
@@ -1050,11 +1050,15 @@ export default function CustomerPage() {
     const isLightBg = (0.299 * pr + 0.587 * pg + 0.114 * pb) > 140
     const ct = isLightBg
       ? { text: 'text-gray-900', muted: 'text-gray-700', faint: 'text-gray-500',
-          card: 'bg-black/10 border-black/15', pill: 'bg-black/10 border-black/15 text-gray-800',
-          lineNotif: 'bg-green-600/20 border-green-600/30 text-green-800',
-          noLine: 'bg-black/10 border-black/15 text-gray-700', bottom: 'text-gray-600' }
+          card: 'bg-white/90 border-white/70 shadow-md',
+          innerCard: 'bg-gray-100/80 border-gray-300/60',
+          pill: 'bg-white/80 border-white/60 text-gray-700',
+          lineNotif: 'bg-green-50 border-green-300 text-green-800',
+          noLine: 'bg-gray-100/80 border-gray-300/60 text-gray-700', bottom: 'text-gray-600' }
       : { text: 'text-white', muted: 'text-white/70', faint: 'text-white/60',
-          card: 'bg-white/10 border-white/20', pill: 'bg-white/15 border-white/20 text-white',
+          card: 'bg-white/10 border-white/20',
+          innerCard: 'bg-white/10 border-white/15',
+          pill: 'bg-white/15 border-white/20 text-white',
           lineNotif: 'bg-emerald-400/20 border-emerald-400/30 text-emerald-300',
           noLine: 'bg-white/15 border-white/20 text-white/70', bottom: 'text-white/40' }
     return (
@@ -1079,7 +1083,7 @@ export default function CustomerPage() {
                 </p>
               )}
               {waitMsg && <p className={`text-sm mt-2 leading-relaxed ${ct.muted}`}>{waitMsg}</p>}
-              <div className={`mt-5 border rounded-2xl p-3 ${ct.card}`}>
+              <div className={`mt-5 border rounded-2xl p-3 ${ct.innerCard}`}>
                 <p className={`text-xs font-medium mb-0.5 ${ct.faint}`}>整理番号</p>
                 <div className={`text-4xl font-black tracking-wide ${ct.text}`}>
                   {String(ticket.ticket_number).padStart(3, '0')}
@@ -1162,22 +1166,25 @@ export default function CustomerPage() {
               )}
             </div>
           ) : (
-            <div className="rounded-2xl overflow-hidden border-2 border-indigo-400/60"
-              style={{ background: 'linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%)', boxShadow: '0 8px 24px -8px rgba(99,102,241,0.25)' }}>
+            <div className="rounded-2xl overflow-hidden border-2 border-red-400"
+              style={{ background: 'linear-gradient(135deg, #fff1f2 0%, #fff5f5 100%)', boxShadow: '0 8px 32px -8px rgba(239,68,68,0.35)' }}>
               <button
                 onClick={() => setRegExpanded(v => !v)}
                 className="w-full px-4 pt-4 pb-3 flex items-center gap-3 active:scale-[0.99] transition-transform">
-                <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shrink-0">
-                  <span className="text-white text-lg">📋</span>
+                <div className="w-11 h-11 rounded-xl bg-red-500 flex items-center justify-center shrink-0 shadow-sm">
+                  <span className="text-white text-xl">📋</span>
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="font-black text-indigo-900 text-sm">入力のお願い</p>
-                  <p className="text-indigo-600/70 text-xs mt-0.5">お名前でお呼びするためにご登録ください</p>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="font-black text-red-900 text-base">入力のお願い</p>
+                    <span className="text-[10px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">必須</span>
+                  </div>
+                  <p className="text-red-600/80 text-xs">お名前でお呼びするためにご登録ください</p>
                 </div>
-                <ChevronDown size={18} className={`text-indigo-400 transition-transform ${regExpanded ? 'rotate-180' : ''}`} />
+                <ChevronDown size={20} className={`text-red-400 transition-transform shrink-0 ${regExpanded ? 'rotate-180' : ''}`} />
               </button>
               {regExpanded && (
-                <div className="px-4 pb-5 border-t border-indigo-200/60">
+                <div className="px-4 pb-5 border-t border-red-200/60">
                   {queueRegDone ? (
                     <div className="flex items-center justify-center gap-2 text-emerald-600 text-sm font-bold py-5">
                       <CheckCircle2 size={16} />ご登録ありがとうございます！
