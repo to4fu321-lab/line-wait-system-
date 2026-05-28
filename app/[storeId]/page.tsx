@@ -283,6 +283,7 @@ export default function CustomerPage() {
   const [friendNotYet,     setFriendNotYet]     = useState(false)
   const [showQueueRegister, setShowQueueRegister] = useState(false)
   const [queueRegDone,      setQueueRegDone]      = useState(false)
+  const [regExpanded,       setRegExpanded]        = useState(false)
   const [showWaitingEdit,   setShowWaitingEdit]   = useState(false)
   const [waitingEditMode,   setWaitingEditMode]   = useState<'child' | 'info' | null>(null)
   const [detailHeight,  setDetailHeight]  = useState('')
@@ -1045,54 +1046,65 @@ export default function CustomerPage() {
   // ── 順番待ち ─────────────────────────────────────────
   if (view === 'queue_waiting' && ticket) {
     const waitMsg = getWaitMessage(waitingAhead, waitThresholds.length > 0 ? waitThresholds : DEFAULT_THRESHOLDS)
+    const [pr, pg, pb] = theme.colors.primaryRgb.split(' ').map(Number)
+    const isLightBg = (0.299 * pr + 0.587 * pg + 0.114 * pb) > 140
+    const ct = isLightBg
+      ? { text: 'text-gray-900', muted: 'text-gray-700', faint: 'text-gray-500',
+          card: 'bg-black/10 border-black/15', pill: 'bg-black/10 border-black/15 text-gray-800',
+          lineNotif: 'bg-green-600/20 border-green-600/30 text-green-800',
+          noLine: 'bg-black/10 border-black/15 text-gray-700', bottom: 'text-gray-600' }
+      : { text: 'text-white', muted: 'text-white/70', faint: 'text-white/60',
+          card: 'bg-white/10 border-white/20', pill: 'bg-white/15 border-white/20 text-white',
+          lineNotif: 'bg-emerald-400/20 border-emerald-400/30 text-emerald-300',
+          noLine: 'bg-white/15 border-white/20 text-white/70', bottom: 'text-white/40' }
     return (
       <div className="min-h-screen">
         <div style={{ background: `linear-gradient(135deg, ${theme.colors.primary} 0%, ${theme.colors.primaryDark} 100%)` }}
           className="px-5 pt-8 pb-12">
           <div className="max-w-md mx-auto">
             <div className="text-center mb-4">
-              <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm border border-white/20 rounded-full px-4 py-1.5 text-xs font-medium text-white">
+              <div className={`inline-flex items-center gap-2 backdrop-blur-sm border rounded-full px-4 py-1.5 text-xs font-medium ${ct.pill}`}>
                 <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />リアルタイム更新中
               </div>
             </div>
-            <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-7 text-center">
-              <p className="text-white/60 text-sm font-medium mb-1">整理番号</p>
-              <div className="text-[80px] font-black text-white leading-none tracking-tight">
-                {String(ticket.ticket_number).padStart(3, '0')}
+            <div className={`backdrop-blur-xl border rounded-3xl p-7 text-center ${ct.card}`}>
+              <p className={`text-sm font-medium mb-1 ${ct.faint}`}>現在の順番</p>
+              <div className="flex items-baseline justify-center gap-1">
+                <span className={`text-[80px] font-black leading-none tracking-tight ${ct.text}`}>{waitingAhead + 1}</span>
+                <span className={`text-2xl font-bold ml-1 ${ct.muted}`}>番目</span>
               </div>
-              {ticket.customer_name && ticket.customer_name !== '未登録' && (
-                <p className="text-white/70 text-sm mt-2 font-medium">
-                  {ticket.customer_name} 様{ticket.child_name && ` · ${ticket.child_name}`}
+              {waitingAhead >= 0 && (
+                <p className={`text-sm mt-1 font-semibold ${ct.muted}`}>
+                  あと約{Math.ceil((waitingAhead + 1) / activeFittings) * 35}分
                 </p>
               )}
-              <div className="mt-5 bg-white/10 rounded-2xl p-4">
-                <p className="text-white/60 text-sm mb-1">現在の順番</p>
-                <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-5xl font-black text-white">{waitingAhead + 1}</span>
-                  <span className="text-base font-bold text-white/70 ml-1">番目</span>
+              {waitMsg && <p className={`text-sm mt-2 leading-relaxed ${ct.muted}`}>{waitMsg}</p>}
+              <div className={`mt-5 border rounded-2xl p-3 ${ct.card}`}>
+                <p className={`text-xs font-medium mb-0.5 ${ct.faint}`}>整理番号</p>
+                <div className={`text-4xl font-black tracking-wide ${ct.text}`}>
+                  {String(ticket.ticket_number).padStart(3, '0')}
                 </div>
-                {waitingAhead >= 0 && (
-                  <p className="text-white/70 text-sm mt-1 font-medium">
-                    あと約{Math.ceil((waitingAhead + 1) / activeFittings) * 35}分
+                {ticket.customer_name && ticket.customer_name !== '未登録' && (
+                  <p className={`text-sm mt-1 font-medium ${ct.muted}`}>
+                    {ticket.customer_name} 様{ticket.child_name && ` · ${ticket.child_name}`}
                   </p>
                 )}
-                {waitMsg && <p className="text-white/80 text-sm mt-2 leading-relaxed">{waitMsg}</p>}
               </div>
               {ticket.line_user_id
-                ? <div className="mt-4 inline-flex items-center gap-2 bg-emerald-400/20 border border-emerald-400/30 rounded-full px-4 py-2 text-emerald-300 text-sm font-medium">
+                ? <div className={`mt-4 inline-flex items-center gap-2 border rounded-full px-4 py-2 text-sm font-medium ${ct.lineNotif}`}>
                     <MessageCircle size={13} />LINEでお呼び出し通知が届きます
                   </div>
-                : <div className="mt-4 inline-flex items-center gap-2 bg-white/15 border border-white/20 rounded-full px-4 py-2 text-white/70 text-sm">
+                : <div className={`mt-4 inline-flex items-center gap-2 border rounded-full px-4 py-2 text-sm ${ct.noLine}`}>
                     📱 この画面を閉じないでください
                   </div>
               }
             </div>
             <div className="flex items-center justify-between mt-4 px-1">
-              <div className="flex items-center gap-1.5 text-white/40 text-xs">
+              <div className={`flex items-center gap-1.5 text-xs ${ct.bottom}`}>
                 <Clock size={12} className="animate-spin" style={{ animationDuration: '4s' }} />
                 15秒ごとに自動更新
               </div>
-              <button onClick={() => setCancelModal(true)} className="text-white/30 text-xs underline">
+              <button onClick={() => setCancelModal(true)} className={`text-xs underline ${ct.bottom}`}>
                 並ぶのをやめる
               </button>
             </div>
@@ -1152,38 +1164,43 @@ export default function CustomerPage() {
           ) : (
             <div className="rounded-2xl overflow-hidden border-2 border-indigo-400/60"
               style={{ background: 'linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%)', boxShadow: '0 8px 24px -8px rgba(99,102,241,0.25)' }}>
-              <div className="px-4 pt-4 pb-3 flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
+              <button
+                onClick={() => setRegExpanded(v => !v)}
+                className="w-full px-4 pt-4 pb-3 flex items-center gap-3 active:scale-[0.99] transition-transform">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shrink-0">
                   <span className="text-white text-lg">📋</span>
                 </div>
-                <div>
-                  <p className="font-black text-indigo-900 text-sm">会員情報のご登録をお願いします</p>
-                  <p className="text-indigo-600/70 text-xs mt-0.5">登録いただくとお名前でお呼びできます。次回からは自動認識します</p>
+                <div className="flex-1 text-left">
+                  <p className="font-black text-indigo-900 text-sm">入力のお願い</p>
+                  <p className="text-indigo-600/70 text-xs mt-0.5">お名前でお呼びするためにご登録ください</p>
                 </div>
-              </div>
-              <div className="px-4 pb-5 border-t border-indigo-200/60">
-                {queueRegDone ? (
-                  <div className="flex items-center justify-center gap-2 text-emerald-600 text-sm font-bold py-5">
-                    <CheckCircle2 size={16} />ご登録ありがとうございます！
-                  </div>
-                ) : (
-                  <>
-                    {registerError && (
-                      <div className="flex items-start gap-2 text-red-600 text-xs bg-red-50 rounded-xl px-3 py-2 mt-3 mb-1">
-                        <AlertCircle size={13} className="shrink-0 mt-0.5" />
-                        <div><p className="font-bold">登録エラー</p><p className="mt-0.5">{registerError}</p></div>
-                      </div>
-                    )}
-                    <div className="mt-3">
-                      <InitialRegistrationForm
-                        lineDisplayName={lineProfile?.displayName ?? ''}
-                        onSubmit={handleInitialRegister}
-                        submitting={submitting}
-                      />
+                <ChevronDown size={18} className={`text-indigo-400 transition-transform ${regExpanded ? 'rotate-180' : ''}`} />
+              </button>
+              {regExpanded && (
+                <div className="px-4 pb-5 border-t border-indigo-200/60">
+                  {queueRegDone ? (
+                    <div className="flex items-center justify-center gap-2 text-emerald-600 text-sm font-bold py-5">
+                      <CheckCircle2 size={16} />ご登録ありがとうございます！
                     </div>
-                  </>
-                )}
-              </div>
+                  ) : (
+                    <>
+                      {registerError && (
+                        <div className="flex items-start gap-2 text-red-600 text-xs bg-red-50 rounded-xl px-3 py-2 mt-3 mb-1">
+                          <AlertCircle size={13} className="shrink-0 mt-0.5" />
+                          <div><p className="font-bold">登録エラー</p><p className="mt-0.5">{registerError}</p></div>
+                        </div>
+                      )}
+                      <div className="mt-3">
+                        <InitialRegistrationForm
+                          lineDisplayName={lineProfile?.displayName ?? ''}
+                          onSubmit={handleInitialRegister}
+                          submitting={submitting}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
