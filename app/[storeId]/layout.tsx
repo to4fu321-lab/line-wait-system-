@@ -4,6 +4,8 @@ import { createClient } from '@supabase/supabase-js'
 import { getStoreTheme, getColorPreset, themeCssVars } from '@/config/themes'
 import { ThemeProvider } from '@/lib/theme-context'
 
+export const dynamic = 'force-dynamic'
+
 type Props = {
   children: React.ReactNode
   params:   { storeId: string }
