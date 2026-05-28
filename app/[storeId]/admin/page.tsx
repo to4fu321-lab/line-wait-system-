@@ -1238,7 +1238,7 @@ export default function StoreAdminPage() {
         }
         setStores(data as StoreInfo[])
         const saved = sessionStorage.getItem('admin_store_id')
-        if (saved && sessionStorage.getItem('admin_auth') === '1') {
+        if (saved && saved === storeId && sessionStorage.getItem('admin_auth') === '1') {
           const match = (data as StoreInfo[]).find(s => s.id === saved)
           if (match) {
             setSelectedStore(match)
