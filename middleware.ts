@@ -29,7 +29,8 @@ export function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL(decoded, request.url))
       }
     }
-    return NextResponse.redirect(new URL(`/${STORE_ID}`, request.url))
+    // line_user_id で登録済み店舗へ。未登録はQRスキャン案内
+    return NextResponse.redirect(new URL('/line-home', request.url))
   }
 
   // ── ② 非LINEブラウザで / にアクセス ────────────────────

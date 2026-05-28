@@ -5,7 +5,7 @@
 // CREATE POLICY "stores_anon_update" ON stores FOR UPDATE TO anon USING (true) WITH CHECK (true);
 
 import { useState, useEffect, useCallback } from 'react'
-import { RefreshCw, Loader2, ExternalLink, ShieldCheck, Scissors, Package, Users } from 'lucide-react'
+import { RefreshCw, Loader2, ExternalLink, ShieldCheck, Scissors, Package, Plus, X, ChevronDown, ChevronUp } from 'lucide-react'
 import type { Store } from '@/types/database'
 
 const SUPER_ADMIN_PIN = process.env.NEXT_PUBLIC_SUPER_ADMIN_PIN || '9999'
@@ -98,6 +98,18 @@ function SuperDashboard() {
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdated,setLastUpdated]= useState<Date | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
+
+  // 店舗追加フォーム
+  const [showAddForm,   setShowAddForm]   = useState(false)
+  const [addStoreName,  setAddStoreName]  = useState('')
+  const [addStorePin,   setAddStorePin]   = useState('1111')
+  const [addGroupMode,  setAddGroupMode]  = useState<'existing' | 'new'>('existing')
+  const [addGroupId,    setAddGroupId]    = useState('')
+  const [newGroupName,  setNewGroupName]  = useState('')
+  const [newGroupCode,  setNewGroupCode]  = useState('')
+  const [newGroupPin,   setNewGroupPin]   = useState('1111')
+  const [adding,        setAdding]        = useState(false)
+  const [addMsg,        setAddMsg]        = useState<{ ok: boolean; text: string } | null>(null)
 
   const fetchAll = useCallback(async () => {
     setRefreshing(true)
@@ -251,7 +263,121 @@ function SuperDashboard() {
           })}
         </div>
 
-        <p className="text-center text-gray-600 text-xs mt-6">30秒ごとに自動更新</p>
+        {/* ── 店舗追加フォーム ── */}
+        <div className="mt-4 border border-dashed border-gray-600 rounded-2xl overflow-hidden">
+          <button
+            onClick={() => { setShowAddForm(v => !v); setAddMsg(null) }}
+            className="w-full flex items-center justify-between px-4 py-3 text-gray-400 hover:text-white transition-colors"
+          >
+            <span className="flex items-center gap-2 text-sm font-bold">
+              <Plus size={15} />新規店舗・会社を追加
+            </span>
+            {showAddForm ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          </button>
+
+          {showAddForm && (
+            <div className="px-4 pb-4 space-y-3 border-t border-gray-700">
+              <div className="pt-3 space-y-3">
+                {/* 店舗名 */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">店舗名 *</label>
+                  <input value={addStoreName} onChange={e => setAddStoreName(e.target.value)}
+                    placeholder="例: ひものや 南店"
+                    className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />
+                </div>
+
+                {/* 店舗PIN */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">店舗PIN (4桁)</label>
+                  <input value={addStorePin} onChange={e => setAddStorePin(e.target.value)}
+                    maxLength={4} inputMode="numeric" placeholder="1111"
+                    className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />
+                </div>
+
+                {/* 会社選択 */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">会社（グループ）</label>
+                  <div className="flex gap-2 mb-2">
+                    <button onClick={() => setAddGroupMode('existing')}
+                      className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${addGroupMode === 'existing' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400'}`}>
+                      既存の会社
+                    </button>
+                    <button onClick={() => setAddGroupMode('new')}
+                      className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${addGroupMode === 'new' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400'}`}>
+                      新しい会社
+                    </button>
+                  </div>
+
+                  {addGroupMode === 'existing' ? (
+                    <select value={addGroupId} onChange={e => setAddGroupId(e.target.value)}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none">
+                      <option value="">— 会社なし（独立店舗）—</option>
+                      {groups.map(g => (
+                        <option key={g.id} value={g.id}>{g.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="space-y-2">
+                      <input value={newGroupName} onChange={e => setNewGroupName(e.target.value)}
+                        placeholder="会社名 例: 学生服のタナカ"
+                        className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />
+                      <input value={newGroupCode} onChange={e => setNewGroupCode(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                        placeholder="URLコード 例: tanaka (英数字)"
+                        className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />
+                      <input value={newGroupPin} onChange={e => setNewGroupPin(e.target.value)}
+                        maxLength={4} inputMode="numeric" placeholder="会社PIN 1111"
+                        className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />
+                    </div>
+                  )}
+                </div>
+
+                {addMsg && (
+                  <div className={`text-sm px-3 py-2 rounded-xl ${addMsg.ok ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-700/50' : 'bg-red-900/40 text-red-300 border border-red-700/50'}`}>
+                    {addMsg.text}
+                  </div>
+                )}
+
+                <button
+                  disabled={adding || !addStoreName.trim()}
+                  onClick={async () => {
+                    setAdding(true); setAddMsg(null)
+                    const body: Record<string, string> = {
+                      storeName: addStoreName, storePin: addStorePin,
+                    }
+                    if (addGroupMode === 'existing' && addGroupId) {
+                      body.groupId = addGroupId
+                    } else if (addGroupMode === 'new') {
+                      body.newGroupName = newGroupName
+                      body.newGroupCode = newGroupCode
+                      body.newGroupPin  = newGroupPin
+                    }
+                    const res = await fetch('/api/super-admin/stores', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(body),
+                    })
+                    const json = await res.json()
+                    setAdding(false)
+                    if (!res.ok) {
+                      setAddMsg({ ok: false, text: json.error ?? '追加失敗' })
+                    } else {
+                      setAddMsg({ ok: true, text: `✅ 「${addStoreName}」を追加しました` })
+                      setAddStoreName(''); setAddStorePin('1111')
+                      setNewGroupName(''); setNewGroupCode(''); setNewGroupPin('1111')
+                      setAddGroupId('')
+                      fetchAll()
+                    }
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold text-sm transition-all flex items-center justify-center gap-2"
+                >
+                  {adding ? <><Loader2 size={14} className="animate-spin" />追加中...</> : <><Plus size={14} />追加する</>}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <p className="text-center text-gray-600 text-xs mt-4">30秒ごとに自動更新</p>
       </div>
     </div>
   )
