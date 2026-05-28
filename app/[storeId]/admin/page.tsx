@@ -28,12 +28,12 @@ function urlBase64ToUint8Array(base64: string) {
 type AdminView  = 'loading' | 'select_store' | 'pin' | 'dashboard'
 type HistoryTab = 'completed' | 'cancelled'
 
-interface StoreInfo { id: string; name: string; pin: string }
+interface StoreInfo { id: string; name: string; pin: string; group_id?: string | null }
 
 // ============================================================
 // 店舗選択画面
 // ============================================================
-function StoreSelectScreen({ stores, onSelect }: { stores: StoreInfo[]; onSelect: (s: StoreInfo) => void }) {
+function StoreSelectScreen({ stores, groupCode, onSelect }: { stores: StoreInfo[]; groupCode: string | null; onSelect: (s: StoreInfo) => void }) {
   return (
     <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-6 relative overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(99,102,241,0.25),transparent)] pointer-events-none" />
@@ -56,8 +56,8 @@ function StoreSelectScreen({ stores, onSelect }: { stores: StoreInfo[]; onSelect
           </button>
         ))}
         <div className="pt-4 border-t border-white/5">
-          <a href="/super-admin" className="flex items-center gap-3 text-zinc-500 hover:text-zinc-300 transition-colors py-2 px-1 text-sm">
-            <LayoutDashboard size={15} /><span>総管理ダッシュボード</span>
+          <a href={groupCode ? `/company/${groupCode}` : '/super-admin'} className="flex items-center gap-3 text-zinc-500 hover:text-zinc-300 transition-colors py-2 px-1 text-sm">
+            <LayoutDashboard size={15} /><span>{groupCode ? '会社管理ダッシュボード' : '総管理ダッシュボード'}</span>
             <ChevronRight size={13} className="ml-auto" />
           </a>
         </div>
@@ -685,7 +685,7 @@ function SettingsPanel({
 // ============================================================
 // ダッシュボード
 // ============================================================
-function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () => void }) {
+function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; groupCode: string | null; onLogout: () => void }) {
   const [queues,          setQueues]          = useState<Queue[]>([])
   const [refreshing,      setRefreshing]      = useState(false)
   const [historyTab,      setHistoryTab]      = useState<HistoryTab>('completed')
@@ -975,8 +975,8 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
               className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:opacity-60 transition-all text-zinc-400">
               <QrCode size={16} />
             </button>
-            <a href="/super-admin"
-              title="総管理ダッシュボード"
+            <a href={groupCode ? `/company/${groupCode}` : '/super-admin'}
+              title={groupCode ? '会社管理ダッシュボード' : '総管理ダッシュボード'}
               className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:opacity-60 transition-all text-zinc-400">
               <LayoutDashboard size={16} />
             </a>
@@ -1216,14 +1216,22 @@ function AdminDashboard({ store, onLogout }: { store: StoreInfo; onLogout: () =>
 // ページエントリーポイント
 // ============================================================
 export default function StoreAdminPage() {
-  useParams<{ storeId: string }>()
+  const { storeId } = useParams<{ storeId: string }>()
   const [view,          setView]          = useState<AdminView>('loading')
   const [stores,        setStores]        = useState<StoreInfo[]>([])
+  const [groupStores,   setGroupStores]   = useState<StoreInfo[]>([])
+  const [groupCode,     setGroupCode]     = useState<string | null>(null)
   const [selectedStore, setSelectedStore] = useState<StoreInfo | null>(null)
   const [fetchError,    setFetchError]    = useState<string | null>(null)
 
+  const loadGroupCode = useCallback(async (store: StoreInfo) => {
+    if (!store.group_id) return
+    const { data } = await (supabase as any).from('groups').select('code').eq('id', store.group_id).single()
+    if (data?.code) { sessionStorage.setItem('admin_group_code', data.code); setGroupCode(data.code) }
+  }, [])
+
   useEffect(() => {
-    supabase.from('stores').select('id, name, pin').order('name', { ascending: true })
+    supabase.from('stores').select('id, name, pin, group_id').order('name', { ascending: true })
       .then(({ data, error }) => {
         if (error || !data || data.length === 0) {
           setFetchError(error?.message ?? '店舗データが見つかりません'); setView('select_store'); return
@@ -1232,15 +1240,33 @@ export default function StoreAdminPage() {
         const saved = sessionStorage.getItem('admin_store_id')
         if (saved && sessionStorage.getItem('admin_auth') === '1') {
           const match = (data as StoreInfo[]).find(s => s.id === saved)
-          if (match) { setSelectedStore(match); setView('dashboard'); return }
+          if (match) {
+            setSelectedStore(match)
+            setGroupStores((data as StoreInfo[]).filter(s => s.group_id === match.group_id))
+            const gc = sessionStorage.getItem('admin_group_code')
+            if (gc) setGroupCode(gc); else loadGroupCode(match)
+            setView('dashboard'); return
+          }
+        }
+        if (storeId) {
+          const match = (data as StoreInfo[]).find(s => s.id === storeId)
+          if (match) {
+            setSelectedStore(match)
+            setGroupStores((data as StoreInfo[]).filter(s => s.group_id === match.group_id))
+            setView('pin'); return
+          }
         }
         setView('select_store')
       })
-  }, [])
+  }, [storeId, loadGroupCode])
 
   const handleSelectStore = (s: StoreInfo) => { setSelectedStore(s); setView('pin') }
   const handleAuth = () => {
-    if (selectedStore) { sessionStorage.setItem('admin_store_id', selectedStore.id); sessionStorage.setItem('admin_auth', '1') }
+    if (selectedStore) {
+      sessionStorage.setItem('admin_store_id', selectedStore.id)
+      sessionStorage.setItem('admin_auth', '1')
+      loadGroupCode(selectedStore)
+    }
     setView('dashboard')
   }
   const handleLogout = () => {
@@ -1260,14 +1286,14 @@ export default function StoreAdminPage() {
           エラー: {fetchError}
         </div>
       )}
-      <StoreSelectScreen stores={stores} onSelect={handleSelectStore} />
+      <StoreSelectScreen stores={groupStores.length > 0 ? groupStores : stores} groupCode={groupCode} onSelect={handleSelectStore} />
     </>
   )
   if (view === 'pin' && selectedStore) return (
     <PinScreen storeName={selectedStore.name} storePin={selectedStore.pin} onAuth={handleAuth} onBack={() => setView('select_store')} />
   )
   if (view === 'dashboard' && selectedStore) return (
-    <AdminDashboard store={selectedStore} onLogout={handleLogout} />
+    <AdminDashboard store={selectedStore} groupCode={groupCode} onLogout={handleLogout} />
   )
   return null
 }

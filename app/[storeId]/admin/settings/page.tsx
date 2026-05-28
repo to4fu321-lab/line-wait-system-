@@ -197,10 +197,13 @@ export default function SettingsPage() {
             {storeName && <p className="text-xs text-zinc-500 truncate">{storeName}</p>}
           </div>
           <div className="flex items-center gap-2">
-            <a href="/super-admin" title="総管理ダッシュボード"
+            <button onClick={() => {
+              const gc = sessionStorage.getItem('admin_group_code')
+              window.location.href = gc ? `/company/${gc}` : '/super-admin'
+            }} title="会社管理ダッシュボード"
               className="p-2 rounded-xl bg-zinc-700/60 border border-zinc-600/50 hover:bg-zinc-600/60 active:opacity-60 transition-all text-zinc-400">
               <LayoutDashboard size={16} />
-            </a>
+            </button>
             <div className="flex flex-col items-end gap-1">
               <button onClick={handleSave} disabled={saving}
                 className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl transition-all ${saved ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50'}`}>
