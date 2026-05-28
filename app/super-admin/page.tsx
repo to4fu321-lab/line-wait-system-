@@ -5,18 +5,21 @@
 // CREATE POLICY "stores_anon_update" ON stores FOR UPDATE TO anon USING (true) WITH CHECK (true);
 
 import { useState, useEffect, useCallback } from 'react'
-import { RefreshCw, Loader2, ExternalLink, ShieldCheck } from 'lucide-react'
+import { RefreshCw, Loader2, ExternalLink, ShieldCheck, Scissors, Package, Users } from 'lucide-react'
 import type { Store } from '@/types/database'
 
 const SUPER_ADMIN_PIN = process.env.NEXT_PUBLIC_SUPER_ADMIN_PIN || '9999'
 
 interface StoreStats {
-  store: Store
-  waiting: number
-  calling: number
-  completed: number
-  total: number
+  store: Store & { group_id?: string | null }
+  waiting:        number
+  calling:        number
+  completed:      number
+  total:          number
+  repairPending:  number
+  deliveryWaiting:number
 }
+interface GroupInfo { id: string; name: string; code?: string | null }
 
 // ============================================================
 // PIN認証画面
@@ -90,9 +93,10 @@ function PinScreen({ onAuth }: { onAuth: () => void }) {
 // ============================================================
 function SuperDashboard() {
   const [storeStats, setStoreStats] = useState<StoreStats[]>([])
-  const [loading, setLoading] = useState(true)
+  const [groups,     setGroups]     = useState<GroupInfo[]>([])
+  const [loading,    setLoading]    = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [lastUpdated,setLastUpdated]= useState<Date | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
 
   const fetchAll = useCallback(async () => {
@@ -111,6 +115,7 @@ function SuperDashboard() {
         setFetchError('storesテーブルにデータがありません（RLSポリシーまたはデータ未挿入）')
       }
       setStoreStats(body.stats ?? [])
+      setGroups(body.groups ?? [])
       setLastUpdated(new Date())
     } catch (e) {
       setFetchError(`ネットワークエラー: ${e instanceof Error ? e.message : String(e)}`)
@@ -175,47 +180,75 @@ function SuperDashboard() {
           </div>
         </div>
 
-        <div className="space-y-3">
-          {storeStats.map(({ store, waiting, calling, completed, total }) => (
-            <div key={store.id} className="bg-gray-800 rounded-2xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-lg font-black">{store.name}</span>
-                <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-                  store.is_open
-                    ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                    : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                }`}>
-                  {store.is_open ? '受付中' : '停止'}
-                </span>
-              </div>
-              <div className="grid grid-cols-4 gap-2 text-center mb-3">
-                <MiniStatCard label="合計" value={total}     color="text-white" />
-                <MiniStatCard label="待機" value={waiting}   color="text-blue-400" />
-                <MiniStatCard label="呼出" value={calling}   color="text-yellow-400" />
-                <MiniStatCard label="完了" value={completed} color="text-green-400" />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <a
-                  href={`/${store.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-600/30 transition-colors text-sm font-bold"
-                >
-                  <ExternalLink size={13} />顧客受付ページ
+        {/* 会社（グループ）リンク */}
+        {groups.length > 0 && (
+          <div className="space-y-2 mb-2">
+            <p className="text-gray-500 text-xs font-bold uppercase tracking-wider">会社管理</p>
+            <div className="grid grid-cols-2 gap-2">
+              {groups.map(g => (
+                <a key={g.id} href={`/company/${(g as any).code ?? g.id}`} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-sm font-bold active:scale-95 transition-all">
+                  🏢 {g.name}
                 </a>
-                <button
-                  onClick={() => {
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {storeStats.map(({ store, waiting, calling, completed, total, repairPending, deliveryWaiting }) => {
+            const group = groups.find(g => g.id === store.group_id)
+            return (
+              <div key={store.id} className="bg-gray-800 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <div>
+                    <span className="text-base font-black">{store.name}</span>
+                    {group && <span className="text-gray-500 text-xs ml-2">{group.name}</span>}
+                  </div>
+                  <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+                    store.is_open
+                      ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                      : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                  }`}>
+                    {store.is_open ? '受付中' : '停止'}
+                  </span>
+                </div>
+                {/* 順番待ち */}
+                <div className="grid grid-cols-4 gap-2 text-center mb-2">
+                  <MiniStatCard label="合計" value={total}     color="text-white" />
+                  <MiniStatCard label="待機" value={waiting}   color="text-blue-400" />
+                  <MiniStatCard label="呼出" value={calling}   color="text-yellow-400" />
+                  <MiniStatCard label="完了" value={completed} color="text-green-400" />
+                </div>
+                {/* お直し・お渡し */}
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <div className="bg-gray-700 rounded-xl py-2 flex items-center justify-center gap-1.5">
+                    <Scissors size={11} className="text-amber-400" />
+                    <span className="text-amber-400 font-black text-lg">{repairPending}</span>
+                    <span className="text-gray-400 text-xs">お直し</span>
+                  </div>
+                  <div className="bg-gray-700 rounded-xl py-2 flex items-center justify-center gap-1.5">
+                    <Package size={11} className="text-teal-400" />
+                    <span className="text-teal-400 font-black text-lg">{deliveryWaiting}</span>
+                    <span className="text-gray-400 text-xs">お渡し待ち</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <a href={`/${store.id}`} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-sm font-bold">
+                    <ExternalLink size={13} />受付ページ
+                  </a>
+                  <button onClick={() => {
                     sessionStorage.setItem('admin_auth', '1')
                     sessionStorage.setItem('admin_store_id', store.id)
                     window.open(`/${store.id}/admin`, '_blank')
-                  }}
-                  className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-amber-600/20 border border-amber-500/30 text-amber-300 hover:bg-amber-600/30 transition-colors text-sm font-bold"
-                >
-                  <ShieldCheck size={13} />店舗管理画面
-                </button>
+                  }} className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-amber-600/20 border border-amber-500/30 text-amber-300 text-sm font-bold">
+                    <ShieldCheck size={13} />管理画面
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         <p className="text-center text-gray-600 text-xs mt-6">30秒ごとに自動更新</p>
