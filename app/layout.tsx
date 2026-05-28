@@ -5,14 +5,14 @@ import SwRegister from './sw-register'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: '順番待ち受付',
-  description: 'Web順番待ち受付システム',
+  title: '受付システム',
+  description: 'Web受付システム',
   robots: 'noindex,nofollow',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: '順番待ち受付',
+    title: '受付システム',
   },
   icons: {
     apple: '/apple-touch-icon.png',

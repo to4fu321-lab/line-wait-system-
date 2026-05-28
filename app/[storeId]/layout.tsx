@@ -10,7 +10,7 @@ type Props = {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const theme = getStoreTheme(params.storeId)
   return {
-    title:       `${theme.storeName} | ${theme.tagline}`,
+    title:       `${theme.storeName} 受付システム`,
     description: `${theme.storeName} のWeb受付システム`,
   }
 }
