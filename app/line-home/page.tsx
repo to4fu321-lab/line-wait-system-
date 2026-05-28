@@ -1,10 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, QrCode } from 'lucide-react'
+import { Loader2, QrCode, Store, ChevronRight } from 'lucide-react'
+
+interface StoreInfo { id: string; name: string; is_open: boolean }
 
 export default function LineHomePage() {
-  const [status, setStatus] = useState<'loading' | 'not_registered' | 'error'>('loading')
+  const [status, setStatus] = useState<'loading' | 'select' | 'not_registered' | 'error'>('loading')
+  const [stores, setStores] = useState<StoreInfo[]>([])
 
   useEffect(() => {
     const run = async () => {
@@ -22,12 +25,17 @@ export default function LineHomePage() {
 
         const profile = await liff.getProfile()
         const res = await fetch(`/api/line-store-lookup?userId=${encodeURIComponent(profile.userId)}`)
-        const { storeId } = await res.json()
+        const { stores: found } = await res.json()
 
-        if (storeId) {
-          window.location.href = `/${storeId}`
-        } else {
+        if (!found || found.length === 0) {
           setStatus('not_registered')
+        } else if (found.length === 1) {
+          // 1店舗のみ → そのまま自動リダイレクト
+          window.location.href = `/${found[0].id}`
+        } else {
+          // 複数店舗 → 選択画面
+          setStores(found)
+          setStatus('select')
         }
       } catch {
         setStatus('error')
@@ -44,24 +52,63 @@ export default function LineHomePage() {
     )
   }
 
-  return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-6 text-center">
-      <div className="w-20 h-20 rounded-3xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mx-auto mb-6">
-        <QrCode size={36} className="text-indigo-400" />
+  if (status === 'select') {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-6">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 rounded-3xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mx-auto mb-4">
+              <Store size={28} className="text-indigo-400" />
+            </div>
+            <h1 className="text-xl font-black text-white">どちらの店舗ですか？</h1>
+            <p className="text-zinc-500 text-sm mt-1">本日ご利用の店舗を選んでください</p>
+          </div>
+          <div className="space-y-3">
+            {stores.map(s => (
+              <button
+                key={s.id}
+                onClick={() => { window.location.href = `/${s.id}` }}
+                className="w-full flex items-center gap-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-indigo-500/40 active:scale-95 transition-all duration-150 rounded-2xl px-5 py-4 text-left"
+              >
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
+                  <Store size={18} className="text-indigo-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-base font-bold truncate">{s.name}</p>
+                  <p className={`text-xs font-bold mt-0.5 ${s.is_open ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                    {s.is_open ? '受付中' : '受付停止中'}
+                  </p>
+                </div>
+                <ChevronRight size={16} className="text-zinc-600 shrink-0" />
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
-      <h1 className="text-xl font-black text-white mb-3">
-        店舗でQRコードを<br />スキャンしてください
-      </h1>
-      <p className="text-zinc-400 text-sm leading-relaxed">
-        お店に設置されているQRコードを<br />
-        LINEカメラで読み取ると<br />
-        受付ページが開きます
-      </p>
-      {status === 'error' && (
-        <p className="mt-6 text-red-400 text-xs">
-          読み込みエラー。しばらくしてから再度お試しください。
+    )
+  }
+
+  if (status === 'not_registered') {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-6 text-center">
+        <div className="w-20 h-20 rounded-3xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mx-auto mb-6">
+          <QrCode size={36} className="text-indigo-400" />
+        </div>
+        <h1 className="text-xl font-black text-white mb-3">
+          店舗でQRコードを<br />スキャンしてください
+        </h1>
+        <p className="text-zinc-400 text-sm leading-relaxed">
+          お店に設置されているQRコードを<br />
+          LINEカメラで読み取ると<br />
+          受付ページが開きます
         </p>
-      )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+      <p className="text-zinc-500 text-sm">読み込みエラー。しばらくしてから再度お試しください。</p>
     </div>
   )
 }
