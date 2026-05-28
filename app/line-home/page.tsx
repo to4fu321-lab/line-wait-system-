@@ -5,6 +5,15 @@ import { Loader2, QrCode, Store, ChevronRight } from 'lucide-react'
 
 interface StoreInfo { id: string; name: string; is_open: boolean }
 
+// アクション追加時はここに1行足すだけ
+const ACTION_LABELS: Record<string, string> = {
+  queue:    '採寸の順番待ち',
+  reserve:  '来店予約',
+  repair:   '依頼',
+  purchase: 'ネット注文',
+}
+
+// アクション追加時はここに1行足すだけ（path-based なら追記、それ以外はフォールバックで自動対応）
 function buildStoreUrl(storeId: string, action: string | null): string {
   if (!action) return `/${storeId}`
   if (action === 'reserve') return `/${storeId}/reserve`
@@ -71,6 +80,11 @@ export default function LineHomePage() {
             <div className="w-16 h-16 rounded-3xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mx-auto mb-4">
               <Store size={28} className="text-indigo-400" />
             </div>
+            {action && ACTION_LABELS[action] && (
+              <div className="inline-block bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-bold px-3 py-1 rounded-full mb-3">
+                {ACTION_LABELS[action]}
+              </div>
+            )}
             <h1 className="text-xl font-black text-white">どちらの店舗ですか？</h1>
             <p className="text-zinc-500 text-sm mt-1">本日ご利用の店舗を選んでください</p>
           </div>
