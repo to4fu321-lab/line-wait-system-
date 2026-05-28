@@ -24,8 +24,12 @@ export function middleware(request: NextRequest) {
     const liffState = request.nextUrl.searchParams.get('liff.state')
     if (liffState) {
       const decoded = decodeURIComponent(liffState)
-      const match = decoded.match(/^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/)
-      if (match) {
+      const uuidMatch = decoded.match(/^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/)
+      if (uuidMatch) {
+        return NextResponse.redirect(new URL(decoded, request.url))
+      }
+      // /line-home?action=... → action パラメータを保持してリダイレクト
+      if (decoded.startsWith('/line-home')) {
         return NextResponse.redirect(new URL(decoded, request.url))
       }
     }

@@ -94,7 +94,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'LINE_CHANNEL_ACCESS_TOKEN が未設定です。Vercel の環境変数を確認してください。' }, { status: 500 })
     }
 
-    const base = `${liffBase}/${storeId}`
+    // storeId は名前表示にのみ使用。URLはすべて /line-home 経由でユーザーの登録店舗へ自動ルーティング
+    const base = `${liffBase}/line-home`
     const name = (storeName || '').trim() || 'メニュー'
 
     // 1. 既存メニューを全削除
@@ -109,8 +110,8 @@ export async function POST(req: NextRequest) {
     // 2. 新規メニュー作成（4列: 採寸の順番待ち / 来店予約 / 依頼 / ネット注文）
     const areas = [
       { bounds: { x: 0,    y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=queue`,    label: '採寸に今すぐ並ぶ' } },
-      { bounds: { x: 625,  y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}/reserve`,         label: '来店予約' } },
-      { bounds: { x: 1250, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}/repair`,          label: '依頼' } },
+      { bounds: { x: 625,  y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=reserve`,  label: '来店予約' } },
+      { bounds: { x: 1250, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=repair`,   label: '依頼' } },
       { bounds: { x: 1875, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=purchase`, label: 'ネット注文' } },
     ]
     const createRes = await fetch(`${LINE_API}/richmenu`, {

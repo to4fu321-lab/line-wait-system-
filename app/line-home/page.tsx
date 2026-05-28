@@ -5,9 +5,17 @@ import { Loader2, QrCode, Store, ChevronRight } from 'lucide-react'
 
 interface StoreInfo { id: string; name: string; is_open: boolean }
 
+function buildStoreUrl(storeId: string, action: string | null): string {
+  if (!action) return `/${storeId}`
+  if (action === 'reserve') return `/${storeId}/reserve`
+  if (action === 'repair') return `/${storeId}/repair`
+  return `/${storeId}?action=${encodeURIComponent(action)}`
+}
+
 export default function LineHomePage() {
   const [status, setStatus] = useState<'loading' | 'select' | 'not_registered' | 'error'>('loading')
   const [stores, setStores] = useState<StoreInfo[]>([])
+  const [action, setAction] = useState<string | null>(null)
 
   useEffect(() => {
     const run = async () => {
@@ -27,11 +35,14 @@ export default function LineHomePage() {
         const res = await fetch(`/api/line-store-lookup?userId=${encodeURIComponent(profile.userId)}`)
         const { stores: found } = await res.json()
 
+        const urlAction = new URLSearchParams(window.location.search).get('action')
+        setAction(urlAction)
+
         if (!found || found.length === 0) {
           setStatus('not_registered')
         } else if (found.length === 1) {
           // 1店舗のみ → そのまま自動リダイレクト
-          window.location.href = `/${found[0].id}`
+          window.location.href = buildStoreUrl(found[0].id, urlAction)
         } else {
           // 複数店舗 → 選択画面
           setStores(found)
@@ -67,7 +78,7 @@ export default function LineHomePage() {
             {stores.map(s => (
               <button
                 key={s.id}
-                onClick={() => { window.location.href = `/${s.id}` }}
+                onClick={() => { window.location.href = buildStoreUrl(s.id, action) }}
                 className="w-full flex items-center gap-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-indigo-500/40 active:scale-95 transition-all duration-150 rounded-2xl px-5 py-4 text-left"
               >
                 <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
