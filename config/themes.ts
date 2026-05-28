@@ -72,6 +72,41 @@ const FAMILIES = [
       { n: 600, hex: '#475569', rgb: '71 85 105',   dark: '#334155', light: '#94a3b8' },
       { n: 700, hex: '#334155', rgb: '51 65 85',    dark: '#1e293b', light: '#64748b' },
     ] },
+  { name: 'レッド', key: 'red', accent: '#7c3aed', accentRgb: '124 58 237',
+    shades: [
+      { n: 400, hex: '#f87171', rgb: '248 113 113', dark: '#ef4444', light: '#fee2e2' },
+      { n: 500, hex: '#ef4444', rgb: '239 68 68',   dark: '#dc2626', light: '#fecaca' },
+      { n: 600, hex: '#dc2626', rgb: '220 38 38',   dark: '#b91c1c', light: '#fca5a5' },
+      { n: 700, hex: '#b91c1c', rgb: '185 28 28',   dark: '#991b1b', light: '#f87171' },
+    ] },
+  { name: 'スカイ', key: 'sky', accent: '#f59e0b', accentRgb: '245 158 11',
+    shades: [
+      { n: 400, hex: '#38bdf8', rgb: '56 189 248',  dark: '#0ea5e9', light: '#e0f2fe' },
+      { n: 500, hex: '#0ea5e9', rgb: '14 165 233',  dark: '#0284c7', light: '#bae6fd' },
+      { n: 600, hex: '#0284c7', rgb: '2 132 199',   dark: '#0369a1', light: '#7dd3fc' },
+      { n: 700, hex: '#0369a1', rgb: '3 105 161',   dark: '#075985', light: '#38bdf8' },
+    ] },
+  { name: 'フクシア', key: 'fuchsia', accent: '#f59e0b', accentRgb: '245 158 11',
+    shades: [
+      { n: 400, hex: '#e879f9', rgb: '232 121 249', dark: '#d946ef', light: '#fae8ff' },
+      { n: 500, hex: '#d946ef', rgb: '217 70 239',  dark: '#c026d3', light: '#f0abfc' },
+      { n: 600, hex: '#c026d3', rgb: '192 38 211',  dark: '#a21caf', light: '#e879f9' },
+      { n: 700, hex: '#a21caf', rgb: '162 28 175',  dark: '#86198f', light: '#d946ef' },
+    ] },
+  { name: 'ライム', key: 'lime', accent: '#7c3aed', accentRgb: '124 58 237',
+    shades: [
+      { n: 400, hex: '#a3e635', rgb: '163 230 53',  dark: '#84cc16', light: '#ecfccb' },
+      { n: 500, hex: '#84cc16', rgb: '132 204 22',  dark: '#65a30d', light: '#d9f99d' },
+      { n: 600, hex: '#65a30d', rgb: '101 163 13',  dark: '#4d7c0f', light: '#bef264' },
+      { n: 700, hex: '#4d7c0f', rgb: '77 124 15',   dark: '#3f6212', light: '#a3e635' },
+    ] },
+  { name: 'イエロー', key: 'yellow', accent: '#7c3aed', accentRgb: '124 58 237',
+    shades: [
+      { n: 400, hex: '#facc15', rgb: '250 204 21',  dark: '#eab308', light: '#fef9c3' },
+      { n: 500, hex: '#eab308', rgb: '234 179 8',   dark: '#ca8a04', light: '#fde047' },
+      { n: 600, hex: '#ca8a04', rgb: '202 138 4',   dark: '#a16207', light: '#facc15' },
+      { n: 700, hex: '#a16207', rgb: '161 98 7',    dark: '#854d0e', light: '#eab308' },
+    ] },
 ] as const
 
 export const COLOR_PRESETS: ColorPreset[] = FAMILIES.flatMap(f =>
@@ -91,8 +126,31 @@ export const COLOR_PRESETS: ColorPreset[] = FAMILIES.flatMap(f =>
   }))
 )
 
+// カスタムHEXカラーからテーマカラーを生成
+export function buildCustomThemeColors(hex: string): StoreTheme['colors'] {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  const adj = (ch: number, pct: number) => Math.min(255, Math.max(0, Math.round(ch + (pct > 0 ? (255 - ch) : ch) * Math.abs(pct))))
+  const toHex = (rv: number, gv: number, bv: number) =>
+    `#${rv.toString(16).padStart(2,'0')}${gv.toString(16).padStart(2,'0')}${bv.toString(16).padStart(2,'0')}`
+  return {
+    primary:      hex,
+    primaryDark:  toHex(adj(r,-0.25), adj(g,-0.25), adj(b,-0.25)),
+    primaryLight: toHex(adj(r, 0.55), adj(g, 0.55), adj(b, 0.55)),
+    primaryRgb:   `${r} ${g} ${b}`,
+    accent:       '#6366f1',
+    accentRgb:    '99 102 241',
+  }
+}
+
 export function getColorPreset(key: string | null | undefined): StoreTheme['colors'] | null {
   if (!key) return null
+  if (key.startsWith('custom:')) {
+    const hex = key.slice(7)
+    if (/^#[0-9a-f]{6}$/i.test(hex)) return buildCustomThemeColors(hex)
+    return null
+  }
   return COLOR_PRESETS.find(p => p.key === key)?.colors ?? null
 }
 

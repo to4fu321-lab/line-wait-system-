@@ -2,10 +2,10 @@
 
 import { useState } from 'react'
 import { Loader2, Check } from 'lucide-react'
-import { COLOR_PRESETS } from '@/config/themes'
+import { COLOR_PRESETS, buildCustomThemeColors } from '@/config/themes'
 
 // カラーファミリーの順序（themes.ts の FAMILIES と対応）
-const FAMILY_NAMES = ['インディゴ', 'バイオレット', 'ブルー', 'ティール', 'エメラルド', 'ローズ', 'オレンジ', 'グレー']
+const FAMILY_NAMES = ['インディゴ', 'バイオレット', 'ブルー', 'スカイ', 'ティール', 'エメラルド', 'ライム', 'イエロー', 'オレンジ', 'レッド', 'ローズ', 'フクシア', 'グレー']
 
 interface Props {
   storeId:      string
@@ -14,11 +14,20 @@ interface Props {
   dark?:        boolean  // スーパー管理はdark背景、会社管理はzinc背景
 }
 
+function isValidHex(v: string) { return /^#[0-9a-f]{6}$/i.test(v) }
+
 export default function ColorPicker({ storeId, currentColor, onSaved, dark = false }: Props) {
-  const [selected, setSelected] = useState<string>(currentColor ?? 'indigo-600')
-  const [saving,   setSaving]   = useState(false)
-  const [saved,    setSaved]    = useState(false)
-  const [errMsg,   setErrMsg]   = useState<string | null>(null)
+  const initCustom = currentColor?.startsWith('custom:') ? currentColor.slice(7) : '#'
+  const [selected,   setSelected]   = useState<string>(currentColor ?? 'indigo-600')
+  const [customHex,  setCustomHex]  = useState<string>(initCustom)
+  const [saving,     setSaving]     = useState(false)
+  const [saved,      setSaved]      = useState(false)
+  const [errMsg,     setErrMsg]     = useState<string | null>(null)
+
+  const applyCustom = () => {
+    if (!isValidHex(customHex)) return
+    setSelected(`custom:${customHex}`)
+  }
 
   const bg      = dark ? 'bg-gray-700/60' : 'bg-zinc-800/60'
   const border  = dark ? 'border-gray-600' : 'border-zinc-700'
@@ -73,6 +82,36 @@ export default function ColorPicker({ storeId, currentColor, onSaved, dark = fal
             </div>
           )
         })}
+      </div>
+
+      {/* カスタムHEX入力 */}
+      <div className={`mt-3 pt-3 border-t ${border}`}>
+        <p className={`text-[10px] font-bold uppercase tracking-wider mb-1.5 ${labelCl}`}>カスタムカラー</p>
+        <div className="flex gap-2 items-center">
+          <div className="relative w-7 h-7 rounded-full shrink-0 border border-white/20 overflow-hidden">
+            {isValidHex(customHex)
+              ? <div className="w-full h-full" style={{ backgroundColor: customHex }} />
+              : <div className="w-full h-full bg-gradient-to-br from-red-400 via-yellow-400 to-blue-500" />
+            }
+            {selected.startsWith('custom:') && selected === `custom:${customHex}` && (
+              <span className="absolute inset-0 rounded-full ring-2 ring-white ring-offset-1 ring-offset-transparent" />
+            )}
+          </div>
+          <input
+            value={customHex}
+            onChange={e => setCustomHex(e.target.value)}
+            placeholder="#RRGGBB"
+            maxLength={7}
+            className={`flex-1 bg-transparent border ${border} rounded-lg px-2 py-1 text-xs text-white font-mono focus:outline-none focus:border-white/40`}
+          />
+          <button
+            onClick={applyCustom}
+            disabled={!isValidHex(customHex)}
+            className="px-3 py-1 rounded-lg text-xs font-bold bg-white/10 hover:bg-white/20 disabled:opacity-30 text-white transition-all"
+          >
+            適用
+          </button>
+        </div>
       </div>
 
       {errMsg && (
