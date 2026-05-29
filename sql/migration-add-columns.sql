@@ -4,6 +4,10 @@
 -- Supabase ダッシュボード > SQL Editor で実行してください
 -- ============================================================
 
+-- groups テーブル（会社コード・PIN追加）
+ALTER TABLE groups ADD COLUMN IF NOT EXISTS code text;
+ALTER TABLE groups ADD COLUMN IF NOT EXISTS pin  text NOT NULL DEFAULT '0000';
+
 -- stores テーブル
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS is_open          boolean     NOT NULL DEFAULT false;
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS wait_thresholds  jsonb       NOT NULL DEFAULT '[]'::jsonb;
