@@ -498,15 +498,17 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
   }, [])
 
   const fetchStoreStatus = useCallback(async () => {
-    const { data } = await supabase.from('stores')
+    const { data, error } = await supabase.from('stores')
       .select('is_open, notification_plan, is_test_mode, active_fittings')
       .eq('id', store.id).single()
-    if (data) {
-      setIsOpen(data.is_open ?? false)
-      if ((data as any).notification_plan) setNotificationPlan((data as any).notification_plan)
-      if ((data as any).is_test_mode != null) setIsTestMode((data as any).is_test_mode)
-      if ((data as any).active_fittings != null) setActiveFittings((data as any).active_fittings)
+    if (error || !data) {
+      setIsOpen(false)
+      return
     }
+    setIsOpen(data.is_open ?? false)
+    if ((data as any).notification_plan) setNotificationPlan((data as any).notification_plan)
+    if ((data as any).is_test_mode != null) setIsTestMode((data as any).is_test_mode)
+    if ((data as any).active_fittings != null) setActiveFittings((data as any).active_fittings)
   }, [store.id])
 
   const fetchQueues = useCallback(async () => {
