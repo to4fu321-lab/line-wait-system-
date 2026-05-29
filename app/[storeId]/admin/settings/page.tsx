@@ -591,7 +591,7 @@ export default function SettingsPage() {
               )}
               <button onClick={handleResvSave} disabled={resvLoading}
                 className={`w-full py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2 ${
-                  resvSaved ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white''
+                  resvSaved ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white'
                 }`}>
                 {resvLoading ? <><Loader2 size={14} className="animate-spin" />保存中...</>
                   : resvSaved ? <><CheckCheck size={14} />保存済み</>
