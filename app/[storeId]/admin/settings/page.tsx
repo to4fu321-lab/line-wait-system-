@@ -4,12 +4,39 @@ import { useParams } from 'next/navigation'
 import { useEffect, useState, useCallback } from 'react'
 import {
   Settings, Loader2, Plus, Trash2, GraduationCap, AlertCircle, Save,
-  CalendarDays, Clock, CheckCheck, LayoutDashboard,
+  CalendarDays, Clock, CheckCheck, LayoutDashboard, Store, Key,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { WaitThreshold } from '@/types/database'
 import { DEFAULT_THRESHOLDS } from '@/types/database'
 import { BottomNav } from '../_components/BottomNav'
+import ColorPicker from '@/app/_components/ColorPicker'
+
+type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
+type DayHours = { open: string; close: string; closed: boolean }
+type BusinessHours = { hours: Partial<Record<DayKey, DayHours>> }
+
+const DAY_LABELS: { key: DayKey; label: string; color: string }[] = [
+  { key: 'mon', label: '月', color: 'text-zinc-300' },
+  { key: 'tue', label: '火', color: 'text-zinc-300' },
+  { key: 'wed', label: '水', color: 'text-zinc-300' },
+  { key: 'thu', label: '木', color: 'text-zinc-300' },
+  { key: 'fri', label: '金', color: 'text-zinc-300' },
+  { key: 'sat', label: '土', color: 'text-blue-400'  },
+  { key: 'sun', label: '日', color: 'text-red-400'   },
+]
+
+const DEFAULT_BUSINESS_HOURS: BusinessHours = {
+  hours: {
+    mon: { open: '10:00', close: '19:00', closed: false },
+    tue: { open: '10:00', close: '19:00', closed: false },
+    wed: { open: '10:00', close: '19:00', closed: false },
+    thu: { open: '10:00', close: '19:00', closed: false },
+    fri: { open: '10:00', close: '19:00', closed: false },
+    sat: { open: '10:00', close: '18:00', closed: false },
+    sun: { open: '10:00', close: '18:00', closed: true  },
+  },
+}
 
 function Toggle({ on, onToggle, label, sub }: { on: boolean; onToggle: () => void; label: string; sub?: string }) {
   return (
@@ -48,6 +75,21 @@ export default function SettingsPage() {
   const [isTestMode,        setIsTestMode]        = useState(false)
   const [repairNotes,       setRepairNotes]       = useState('')
 
+  // 店舗基本情報
+  const [storePin,          setStorePin]          = useState('')
+  const [themeColor,        setThemeColor]        = useState<string | null>(null)
+  const [basicSaving,       setBasicSaving]       = useState(false)
+  const [basicSaved,        setBasicSaved]        = useState(false)
+  const [basicError,        setBasicError]        = useState<string | null>(null)
+  const [showColorPicker,   setShowColorPicker]   = useState(false)
+
+  // 受付ページ設定
+  const [welcomeMessage,    setWelcomeMessage]    = useState('')
+  const [noticeText,        setNoticeText]        = useState('')
+
+  // 営業時間
+  const [businessHours,     setBusinessHours]     = useState<BusinessHours>(DEFAULT_BUSINESS_HOURS)
+
   const [saveError, setSaveError] = useState<string | null>(null)
 
   // ── 予約設定 ──────────────────────────────────────────────
@@ -76,11 +118,13 @@ export default function SettingsPage() {
     setLoading(true)
     const { data } = await (supabase as any)
       .from('stores')
-      .select('name, notice_threshold, wait_thresholds, allow_remote, notification_plan, push_settings, alert_days_repair, alert_days_purchase, school_names, is_test_mode, repair_notes')
+      .select('name, pin, theme_color, notice_threshold, wait_thresholds, allow_remote, notification_plan, push_settings, alert_days_repair, alert_days_purchase, school_names, is_test_mode, repair_notes, welcome_message, notice_text, business_hours')
       .eq('id', storeId)
       .single()
     if (data) {
       setStoreName(data.name ?? '')
+      setStorePin(data.pin ?? '')
+      setThemeColor(data.theme_color ?? null)
       if (data.notice_threshold != null) setNoticeThreshold(data.notice_threshold)
       if (Array.isArray(data.wait_thresholds) && data.wait_thresholds.length > 0)
         setWaitThresholds(data.wait_thresholds as WaitThreshold[])
@@ -92,6 +136,9 @@ export default function SettingsPage() {
       if (Array.isArray(data.school_names)) setSchoolNames(data.school_names)
       if (data.is_test_mode != null) setIsTestMode(data.is_test_mode)
       if (data.repair_notes != null) setRepairNotes(data.repair_notes)
+      if (data.welcome_message != null) setWelcomeMessage(data.welcome_message)
+      if (data.notice_text != null) setNoticeText(data.notice_text)
+      if (data.business_hours?.hours) setBusinessHours(data.business_hours)
     }
     setLoading(false)
   }, [storeId])
@@ -131,6 +178,18 @@ export default function SettingsPage() {
   const updateResv = (idx: number, patch: Partial<ResvSetting>) =>
     setResvSettings(prev => prev.map((s, i) => i === idx ? { ...s, ...patch } : s))
 
+  async function handleBasicSave() {
+    setBasicSaving(true); setBasicError(null)
+    const { error } = await (supabase as any)
+      .from('stores')
+      .update({ name: storeName.trim(), pin: storePin, welcome_message: welcomeMessage || null, notice_text: noticeText || null })
+      .eq('id', storeId)
+    setBasicSaving(false)
+    if (error) { setBasicError(error.message); return }
+    setBasicSaved(true)
+    setTimeout(() => setBasicSaved(false), 2000)
+  }
+
   async function handleSave() {
     setSaving(true)
     setSaveError(null)
@@ -146,6 +205,7 @@ export default function SettingsPage() {
         alert_days_purchase: alertDaysPurchase,
         school_names:        schoolNames.filter((s: string) => s.trim()),
         repair_notes:        repairNotes || null,
+        business_hours:      businessHours,
       })
       .eq('id', storeId)
     setSaving(false)
@@ -217,6 +277,108 @@ export default function SettingsPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-5 space-y-6">
+
+        {/* 店舗基本情報 */}
+        <div className="space-y-3">
+          <Section title="店舗基本情報" />
+          <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-xl p-4 space-y-3">
+            <div>
+              <label className="text-xs text-zinc-400 mb-1.5 flex items-center gap-1.5">
+                <Store size={11} />店舗名
+              </label>
+              <input type="text" value={storeName} onChange={e => setStoreName(e.target.value)}
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none" />
+            </div>
+            <div>
+              <label className="text-xs text-zinc-400 mb-1.5 flex items-center gap-1.5">
+                <Key size={11} />管理PIN (4桁)
+              </label>
+              <input type="text" inputMode="numeric" maxLength={4} value={storePin} onChange={e => setStorePin(e.target.value)}
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none" />
+            </div>
+            <div>
+              <label className="text-xs text-zinc-400 mb-1.5 block">テーマカラー</label>
+              <button onClick={() => setShowColorPicker(v => !v)}
+                className="flex items-center gap-2 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-xl text-sm text-zinc-300 hover:border-zinc-500 transition-colors w-full">
+                <div className="w-4 h-4 rounded-full border border-zinc-600 shrink-0"
+                  style={{ backgroundColor: themeColor?.startsWith('custom:') ? themeColor.slice(7) : undefined }} />
+                <span>{themeColor ?? 'デフォルト（インディゴ）'}</span>
+              </button>
+              {showColorPicker && (
+                <div className="mt-2">
+                  <ColorPicker storeId={storeId} currentColor={themeColor}
+                    onSaved={c => { setThemeColor(c); setShowColorPicker(false) }} />
+                </div>
+              )}
+            </div>
+            {basicError && <p className="text-xs text-red-400">{basicError}</p>}
+            <button onClick={handleBasicSave} disabled={basicSaving}
+              className={`w-full py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                basicSaved ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50'
+              }`}>
+              {basicSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              {basicSaved ? '保存しました' : '店舗情報を保存'}
+            </button>
+          </div>
+        </div>
+
+        {/* 受付ページ設定 */}
+        <div className="space-y-2">
+          <Section title="受付ページ設定" />
+          <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-xl p-4 space-y-3">
+            <div>
+              <label className="text-xs text-zinc-400 mb-1.5 block">ウェルカムメッセージ</label>
+              <p className="text-[11px] text-zinc-600 mb-1.5">受付ページ上部に表示されるメッセージ</p>
+              <textarea value={welcomeMessage} onChange={e => setWelcomeMessage(e.target.value)} rows={3}
+                placeholder="例: ご来店ありがとうございます。受付番号をお取りください。"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:border-indigo-500 focus:outline-none resize-none" />
+            </div>
+            <div>
+              <label className="text-xs text-zinc-400 mb-1.5 block">注意事項</label>
+              <p className="text-[11px] text-zinc-600 mb-1.5">受付ページに表示する注意書き・案内文</p>
+              <textarea value={noticeText} onChange={e => setNoticeText(e.target.value)} rows={4}
+                placeholder="例: 混雑状況により、お時間をいただく場合がございます。&#10;ご了承のうえ、受付をお取りください。"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:border-indigo-500 focus:outline-none resize-none" />
+            </div>
+            <p className="text-[11px] text-zinc-600">※ 「設定を保存」ボタンではなく、上の「店舗情報を保存」で保存されます</p>
+          </div>
+        </div>
+
+        {/* 営業時間設定 */}
+        <div className="space-y-2">
+          <Section title="営業時間設定" />
+          <p className="text-xs text-zinc-600">受付ページや管理画面での参照用です。自動開閉は管理画面の受付ボタンで手動設定してください。</p>
+          <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-xl overflow-hidden">
+            {DAY_LABELS.map(({ key, label, color }) => {
+              const h = businessHours.hours[key] ?? { open: '10:00', close: '19:00', closed: false }
+              const update = (patch: Partial<DayHours>) =>
+                setBusinessHours(prev => ({ hours: { ...prev.hours, [key]: { ...h, ...patch } } }))
+              return (
+                <div key={key} className={`flex items-center gap-2 px-3 py-2.5 border-b border-zinc-800/60 last:border-0 ${h.closed ? 'opacity-50' : ''}`}>
+                  <span className={`w-5 text-xs font-bold text-center ${color}`}>{label}</span>
+                  {h.closed ? (
+                    <span className="flex-1 text-xs text-zinc-500">定休日</span>
+                  ) : (
+                    <div className="flex items-center gap-1.5 flex-1">
+                      <input type="time" value={h.open} onChange={e => update({ open: e.target.value })}
+                        className="bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1 text-xs text-white focus:border-indigo-500 focus:outline-none" />
+                      <span className="text-zinc-600 text-xs">〜</span>
+                      <input type="time" value={h.close} onChange={e => update({ close: e.target.value })}
+                        className="bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1 text-xs text-white focus:border-indigo-500 focus:outline-none" />
+                    </div>
+                  )}
+                  <button onClick={() => update({ closed: !h.closed })}
+                    className={`shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+                      h.closed ? 'bg-zinc-700 text-zinc-400 hover:bg-red-900/40 hover:text-red-300' : 'bg-red-900/30 text-red-400 hover:bg-red-900/50'
+                    }`}>
+                    {h.closed ? '開店' : '定休'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-[11px] text-zinc-600">※「設定を保存」ボタンで保存されます</p>
+        </div>
 
         {/* LINEリッチメニュー */}
         <div className="space-y-2">
