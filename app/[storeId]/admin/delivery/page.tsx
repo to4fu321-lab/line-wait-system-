@@ -140,128 +140,99 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle }: {
     ? Math.floor((Date.now() - new Date(item.ready_date!).getTime()) / 86400000)
     : 0
 
+  const studentName = item.child?.name ?? item.customer?.name ?? '（名前なし）'
+  const parentName  = item.child ? item.customer?.name : null
+  const itemContent = item.sub_label ? `${item.item_name} — ${item.sub_label}` : item.item_name
+
   return (
-    <div className={`rounded-2xl border p-4 transition-all ${
-      item.kind === 'repair'
-        ? 'bg-emerald-50 border-emerald-200'
-        : 'bg-emerald-50 border-emerald-200'
-    }`}>
-      <div className="flex items-start gap-3">
-        {/* アイコン */}
-        <div className={`shrink-0 mt-0.5 w-8 h-8 rounded-xl flex items-center justify-center ${
-          item.kind === 'repair' ? 'bg-emerald-500/20' : 'bg-teal-500/20'
-        }`}>
-          {item.kind === 'repair'
-            ? <Scissors size={14} className="text-emerald-600" />
-            : <ShoppingBag size={14} className="text-teal-600" />
-          }
-        </div>
-
-        <div className="flex-1 min-w-0">
-          {/* 顧客名 */}
-          {item.customer && (
-            <button onClick={() => setCustOpen(v => !v)}
-              className="w-full text-left active:opacity-70 flex items-start justify-between gap-2 mb-2">
-              <div className="min-w-0 flex-1">
-                {item.child?.school_name && (
-                  <p className="text-xs font-black text-amber-600 truncate leading-tight">{item.child.school_name}</p>
-                )}
-                <p className={`font-black text-lg leading-tight truncate ${item.child ? 'text-gray-900' : 'text-indigo-600'}`}>
-                  {item.child?.name ?? item.customer.name}
-                </p>
-                {item.child && (
-                  <p className="text-xs text-gray-500 truncate">保護者: {item.customer.name}</p>
-                )}
-              </div>
-              <ChevronDown size={14} className={`mt-1 shrink-0 text-gray-500 transition-transform ${custOpen ? 'rotate-180' : ''}`} />
-            </button>
+    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+      <div className="p-4">
+        {/* ① ステータスタグ */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
+            item.kind === 'repair'
+              ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
+              : 'bg-teal-100 text-teal-700 border-teal-300'
+          }`}>
+            {item.kind === 'repair' ? 'お直し完了' : '取置き入荷済み'}
+          </span>
+          {item.notified && (
+            <span className="text-[10px] bg-emerald-100 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-full font-bold">
+              LINE通知済み
+            </span>
           )}
-
-          {/* バッジ群 */}
-          <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
-            <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
-              item.kind === 'repair'
-                ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
-                : 'bg-emerald-100 text-emerald-700 border-emerald-300'
-            }`}>
-              {item.kind === 'repair' ? 'お直し完了' : '取置き入荷済み'}
+          {isOverdue && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-300 flex items-center gap-1">
+              <AlertCircle size={9} />{overdueDays}日超過
             </span>
-            <PaymentBadge
-              status={item.payment_status}
-              loading={loading === 'payment'}
-              onToggle={async () => {
-                setLoading('payment')
-                await onPaymentToggle(item)
-                setLoading(null)
-              }}
-            />
-            {item.notified && (
-              <span className="text-[10px] bg-emerald-100 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-full">
-                LINE通知済み
-              </span>
-            )}
-            {isOverdue && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-300 flex items-center gap-1">
-                <AlertCircle size={9} />{overdueDays}日超過
-              </span>
-            )}
-          </div>
-
-          <p className="font-bold text-gray-900 text-sm">{item.item_name}</p>
-          {item.sub_label && <p className="text-gray-600 text-xs mt-0.5">{item.sub_label}</p>}
-          {item.price != null && <p className="text-gray-500 text-xs mt-0.5">¥{item.price.toLocaleString()}</p>}
-          {item.slip_number && <p className="text-gray-400 text-xs mt-0.5 font-mono">#{item.slip_number}</p>}
-
-          {/* 日付 */}
-          <div className="flex items-center gap-3 mt-1.5 text-gray-400 text-[10px]">
-            <span className="flex items-center gap-1">
-              <CalendarDays size={9} />受付 {fmtDate(item.received_date)}
-            </span>
-            {item.ready_date && (
-              <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-500/70' : ''}`}>
-                {item.kind === 'repair'
-                  ? <><CheckCheck size={9} />完了 {fmtDate(item.ready_date)}</>
-                  : <><Bell size={9} />入荷 {fmtDate(item.ready_date)}</>
-                }
-              </span>
-            )}
-          </div>
+          )}
+          {item.slip_number && (
+            <span className="text-xs font-mono text-gray-400">#{item.slip_number}</span>
+          )}
         </div>
+
+        {/* ② 学校名 */}
+        {item.child?.school_name && (
+          <p className="text-xs font-black text-amber-600 truncate mt-1.5 leading-tight">{item.child.school_name}</p>
+        )}
+
+        {/* ③ 生徒名（最重要） */}
+        <p className={`font-black text-xl leading-tight truncate ${item.child?.school_name ? '' : 'mt-1.5'} text-slate-900`}>
+          {studentName}
+        </p>
+
+        {/* ④ 保護者名（薄く小さく） */}
+        {parentName && (
+          <p className="text-[10px] text-slate-400 truncate leading-tight">保護者: {parentName}</p>
+        )}
+
+        {/* ⑤ 依頼内容（大きく太く） */}
+        <p className="text-sm font-semibold text-slate-800 mt-1.5 leading-snug">{itemContent}</p>
+
+        {/* ⑥ 支払いバッジ＋金額＋受取日 */}
+        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+          <PaymentBadge
+            status={item.payment_status}
+            loading={loading === 'payment'}
+            onToggle={async () => {
+              setLoading('payment')
+              await onPaymentToggle(item)
+              setLoading(null)
+            }}
+          />
+          {item.price != null && (
+            <span className={`text-sm font-black ${item.payment_status === 'paid' ? 'text-gray-500' : 'text-red-700'}`}>
+              ¥{item.price.toLocaleString()}
+            </span>
+          )}
+          <span className="text-sm font-semibold text-slate-600 ml-auto">受取日: {fmtDate(item.received_date)}</span>
+        </div>
+
+        {/* 電話番号 */}
+        {item.customer?.tel && (
+          <a href={`tel:${item.customer.tel}`}
+            className="flex items-center gap-1.5 text-blue-600 text-xs font-bold mt-2">
+            <Phone size={11} />{item.customer.tel}
+          </a>
+        )}
       </div>
 
-      {/* 顧客情報展開 */}
-      {custOpen && item.customer && (
-        <div className="mt-3 pt-3 border-t border-gray-200 space-y-1 animate-fade-in">
-          {item.child && (
-            <div className="flex items-center gap-1.5">
-              <GraduationCap size={11} className="text-amber-600 shrink-0" />
-              <span className="text-amber-600 text-xs font-bold">{item.child.name}</span>
-            </div>
-          )}
-          {item.customer.tel && (
-            <a href={`tel:${item.customer.tel}`}
-              className="flex items-center gap-1.5 text-blue-600 text-xs font-bold">
-              <Phone size={11} />{item.customer.tel}
-            </a>
-          )}
-        </div>
-      )}
-
-      {/* お渡しボタン */}
+      {/* ⑦ お渡しアクション */}
       {!confirmOpen ? (
-        <button onClick={() => setConfirmOpen(true)}
-          className="w-full mt-3 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/30">
-          <Package size={14} />お渡し済みにする
-        </button>
+        <div className="px-4 pb-4 border-t border-slate-100 pt-3">
+          <button onClick={() => setConfirmOpen(true)}
+            className="w-full py-4 rounded-xl font-bold text-lg bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20">
+            <Package size={18} />お渡し済みにする
+          </button>
+        </div>
       ) : (
-        <div className="mt-3 bg-white border border-indigo-300 rounded-2xl p-4 space-y-3 animate-fade-in">
+        <div className="px-4 pb-4 border-t border-slate-100 pt-3 space-y-3">
           <p className="text-sm font-black text-gray-900 text-center">お渡し確認</p>
           <p className="text-xs text-gray-600 text-center">
-            <span className="font-bold text-gray-900">{item.child?.name ?? item.customer?.name ?? '（名前なし）'}</span> 様にお渡ししますか？
-            {item.child && <span className="text-gray-500">（保護者: {item.customer?.name}）</span>}
+            <span className="font-bold text-gray-900">{studentName}</span> 様にお渡ししますか？
+            {item.child && <span className="text-gray-500">（保護者: {parentName}）</span>}
           </p>
 
-          {/* 支払い確認 */}
           <button onClick={() => setPayAtDeliver(v => !v)}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${
               payAtDeliver ? 'border-emerald-500 bg-emerald-500/10' : 'border-gray-300 bg-gray-200/50'
@@ -272,16 +243,13 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle }: {
               {payAtDeliver && <CheckCheck size={11} className="text-white" />}
             </div>
             <div className="text-left">
-              <p className={`text-sm font-bold ${payAtDeliver ? 'text-emerald-700' : 'text-gray-500'}`}>
-                代金を受け取った
-              </p>
+              <p className={`text-sm font-bold ${payAtDeliver ? 'text-emerald-700' : 'text-gray-500'}`}>代金を受け取った</p>
               <p className="text-xs text-gray-500 mt-0.5">
                 {item.price != null ? `¥${item.price.toLocaleString()}` : '金額未設定'}
               </p>
             </div>
           </button>
 
-          {/* 未払いのままお渡しする場合の二重確認 */}
           {unpaidConfirm && (
             <div className="rounded-xl border-2 border-red-500 bg-red-50 px-4 py-3 space-y-2 animate-fade-in">
               <p className="text-sm font-black text-red-700 text-center flex items-center justify-center gap-1.5">

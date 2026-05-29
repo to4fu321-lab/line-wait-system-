@@ -117,9 +117,9 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
   }
 
   // ラベルをリクエスト種別に応じて変更
-  const completeLabel = reqType === 'repair'       ? 'お直し完了・連絡済み'
-                      : reqType === 'hold_request' ? '確保済み・連絡済み'
-                      : '対応完了・連絡済み'
+  const completeLabel = reqType === 'repair'       ? 'お直し完了・連絡する'
+                      : reqType === 'hold_request' ? '確保済み・連絡する'
+                      : '対応完了・連絡する'
 
   return (
     <div className={`bg-white border rounded-2xl overflow-hidden shadow-sm ${
@@ -169,7 +169,7 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
                 ¥{item.price.toLocaleString()}
               </span>
             )}
-            <span className="text-xs text-slate-400 ml-auto">受取: {fmtDate(item.received_date)}</span>
+            <span className="text-sm font-semibold text-slate-600 ml-auto">受取日: {fmtDate(item.received_date)}</span>
           </div>
         </div>
         {open ? <ChevronUp size={15} className="text-gray-400 mt-1 shrink-0" /> : <ChevronDown size={15} className="text-gray-400 mt-1 shrink-0" />}
@@ -185,10 +185,10 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
               { status: 'received', completed_date: null, notified: false }
             )}
             disabled={loading}
-            className="w-full py-3 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 shadow-sm">
+            className="w-full py-4 rounded-xl font-bold text-lg bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 shadow-sm">
             {loading
-              ? <Loader2 size={15} className="animate-spin" />
-              : <><Scissors size={15} />✂️ {completeLabel}</>
+              ? <Loader2 size={18} className="animate-spin" />
+              : <><Scissors size={18} />✂️ {completeLabel}</>
             }
           </button>
         </div>
@@ -733,30 +733,30 @@ export default function RepairsPage() {
           </div>
 
           {/* Main tabs */}
-          <div className="flex gap-1 mt-3 bg-gray-100 border border-gray-200 rounded-xl p-1">
+          <div className="flex gap-1 mt-3 bg-slate-200 rounded-xl p-1">
             <button onClick={() => setTab('request')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-xs font-semibold transition-colors ${tab === 'request' ? 'bg-white text-gray-900' : 'text-gray-500'}`}>
-              <ClipboardList size={14} />依頼一覧
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-sm font-bold transition-all ${tab === 'request' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-600 font-medium hover:text-slate-800'}`}>
+              <ClipboardList size={15} />依頼一覧
               {repairs.length > 0 && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${tab === 'request' ? 'bg-indigo-500/30 text-indigo-600' : 'bg-gray-200 text-gray-500'}`}>
+                <span className={`text-xs px-1.5 py-0.5 rounded-full font-black ${tab === 'request' ? 'bg-indigo-600 text-white' : 'bg-slate-300 text-slate-600'}`}>
                   {repairs.length}
                 </span>
               )}
             </button>
             <button onClick={() => setTab('purchase')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-xs font-semibold transition-colors ${tab === 'purchase' ? 'bg-white text-gray-900' : 'text-gray-500'}`}>
-              <ShoppingBag size={14} />追加購入
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-sm font-bold transition-all ${tab === 'purchase' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-600 font-medium hover:text-slate-800'}`}>
+              <ShoppingBag size={15} />追加購入
               {(purchaseCounts.pending + purchaseCounts.on_order + purchaseCounts.arrived) > 0 && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${tab === 'purchase' ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-500'}`}>
+                <span className={`text-xs px-1.5 py-0.5 rounded-full font-black ${tab === 'purchase' ? 'bg-blue-600 text-white' : 'bg-slate-300 text-slate-600'}`}>
                   {purchaseCounts.pending + purchaseCounts.on_order + purchaseCounts.arrived}
                 </span>
               )}
             </button>
             <button onClick={() => setTab('order')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-xs font-semibold transition-colors ${tab === 'order' ? 'bg-white text-gray-900' : 'text-gray-500'}`}>
-              <ShoppingCart size={14} />注文管理
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-sm font-bold transition-all ${tab === 'order' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-600 font-medium hover:text-slate-800'}`}>
+              <ShoppingCart size={15} />注文管理
               {orders.length > 0 && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${tab === 'order' ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-200 text-gray-500'}`}>
+                <span className={`text-xs px-1.5 py-0.5 rounded-full font-black ${tab === 'order' ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-600'}`}>
                   {orders.length}
                 </span>
               )}
@@ -783,10 +783,10 @@ export default function RepairsPage() {
             ]).map(f => (
               <button key={f.key}
                 onClick={() => setRequestFilter(f.key)}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold border transition-all active:scale-95 ${
                   requestFilter === f.key
-                    ? 'bg-amber-500 border-amber-500 text-white'
-                    : 'bg-white border-gray-200 text-gray-500'
+                    ? 'bg-slate-800 border-slate-800 text-white shadow-sm'
+                    : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
                 }`}>
                 {f.label}
                 {f.count > 0 && <span className={`font-bold ${requestFilter === f.key ? 'text-white' : f.color}`}>{f.count}</span>}
