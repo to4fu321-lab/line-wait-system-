@@ -11,7 +11,7 @@ function getSupabase() {
 
 export async function POST(req: Request) {
   try {
-    const { storeName, storePin, groupId, newGroupName, newGroupCode, newGroupPin } = await req.json()
+    const { storeName, storePin, businessType, groupId, newGroupName, newGroupCode, newGroupPin } = await req.json()
 
     if (!storeName?.trim()) {
       return NextResponse.json({ error: '店舗名は必須です' }, { status: 400 })
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     // 店舗を作成
     const { data: store, error: storeErr } = await supabase
       .from('stores')
-      .insert({ name: storeName.trim(), pin: storePin || '0000', group_id: finalGroupId })
+      .insert({ name: storeName.trim(), pin: storePin || '0000', group_id: finalGroupId, business_type: businessType || 'uniform' })
       .select().single()
 
     if (storeErr) return NextResponse.json({ error: storeErr.message }, { status: 500 })

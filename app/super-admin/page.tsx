@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { RefreshCw, Loader2, ExternalLink, ShieldCheck, Scissors, Package, Plus, ChevronDown, ChevronUp, Palette } from 'lucide-react'
 import ColorPicker from '@/app/_components/ColorPicker'
-import type { Store } from '@/types/database'
+import type { Store, BusinessType } from '@/types/database'
 
 const SUPER_ADMIN_PIN = process.env.NEXT_PUBLIC_SUPER_ADMIN_PIN || '9999'
 
@@ -102,18 +102,20 @@ function SuperDashboard() {
 
   const [colorPickerStoreId, setColorPickerStoreId] = useState<string | null>(null)
   const [themeOverrides, setThemeOverrides] = useState<Record<string, string>>({})
+  const [bizFilter, setBizFilter] = useState<'all' | BusinessType>('all')
 
   // 店舗追加フォーム
-  const [showAddForm,   setShowAddForm]   = useState(false)
-  const [addStoreName,  setAddStoreName]  = useState('')
-  const [addStorePin,   setAddStorePin]   = useState('1111')
-  const [addGroupMode,  setAddGroupMode]  = useState<'existing' | 'new'>('existing')
-  const [addGroupId,    setAddGroupId]    = useState('')
-  const [newGroupName,  setNewGroupName]  = useState('')
-  const [newGroupCode,  setNewGroupCode]  = useState('')
-  const [newGroupPin,   setNewGroupPin]   = useState('1111')
-  const [adding,        setAdding]        = useState(false)
-  const [addMsg,        setAddMsg]        = useState<{ ok: boolean; text: string } | null>(null)
+  const [showAddForm,    setShowAddForm]    = useState(false)
+  const [addStoreName,   setAddStoreName]   = useState('')
+  const [addStorePin,    setAddStorePin]    = useState('1111')
+  const [addBizType,     setAddBizType]     = useState<BusinessType>('uniform')
+  const [addGroupMode,   setAddGroupMode]   = useState<'existing' | 'new'>('existing')
+  const [addGroupId,     setAddGroupId]     = useState('')
+  const [newGroupName,   setNewGroupName]   = useState('')
+  const [newGroupCode,   setNewGroupCode]   = useState('')
+  const [newGroupPin,    setNewGroupPin]    = useState('1111')
+  const [adding,         setAdding]         = useState(false)
+  const [addMsg,         setAddMsg]         = useState<{ ok: boolean; text: string } | null>(null)
 
   const fetchAll = useCallback(async () => {
     setRefreshing(true)
@@ -150,6 +152,14 @@ function SuperDashboard() {
   const totalWaiting   = storeStats.reduce((s, x) => s + x.waiting, 0)
   const totalCompleted = storeStats.reduce((s, x) => s + x.completed, 0)
   const totalAll       = storeStats.reduce((s, x) => s + x.total, 0)
+
+  const uniformCount  = storeStats.filter(x => (x.store.business_type ?? 'uniform') !== 'takeout').length
+  const takeoutCount  = storeStats.filter(x => x.store.business_type === 'takeout').length
+  const filteredStats = storeStats.filter(x => {
+    if (bizFilter === 'all')     return true
+    if (bizFilter === 'takeout') return x.store.business_type === 'takeout'
+    return (x.store.business_type ?? 'uniform') !== 'takeout'
+  })
 
   if (loading) {
     return (
@@ -196,6 +206,24 @@ function SuperDashboard() {
           </div>
         </div>
 
+        {/* ─── 業種フィルタータブ ─── */}
+        <div className="flex gap-2 mb-4">
+          {([
+            { key: 'all',     label: `すべて ${storeStats.length}` },
+            { key: 'uniform', label: `🏫 制服 ${uniformCount}` },
+            { key: 'takeout', label: `🥡 テイクアウト ${takeoutCount}` },
+          ] as { key: 'all' | BusinessType; label: string }[]).map(t => (
+            <button key={t.key} onClick={() => setBizFilter(t.key)}
+              className={`px-3 py-1.5 rounded-xl text-sm font-bold transition-all ${
+                bizFilter === t.key
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-800 text-gray-400'
+              }`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         {/* 会社（グループ）リンク */}
         {groups.length > 0 && (
           <div className="space-y-2 mb-2">
@@ -212,14 +240,19 @@ function SuperDashboard() {
         )}
 
         <div className="space-y-3">
-          {storeStats.map(({ store, waiting, calling, completed, total, repairPending, deliveryWaiting }) => {
-            const group = groups.find(g => g.id === store.group_id)
+          {filteredStats.map(({ store, waiting, calling, completed, total, repairPending, deliveryWaiting }) => {
+            const group      = groups.find(g => g.id === store.group_id)
+            const isTakeout  = store.business_type === 'takeout'
             return (
               <div key={store.id} className="bg-gray-800 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-1">
-                  <div>
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-base font-black">{store.name}</span>
-                    {group && <span className="text-gray-500 text-xs ml-2">{group.name}</span>}
+                    {group && <span className="text-gray-500 text-xs">{group.name}</span>}
+                    {isTakeout
+                      ? <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30">🥡 テイクアウト</span>
+                      : <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">🏫 制服</span>
+                    }
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -246,39 +279,61 @@ function SuperDashboard() {
                     dark
                   />
                 )}
-                {/* 順番待ち */}
-                <div className="grid grid-cols-4 gap-2 text-center mb-2">
-                  <MiniStatCard label="合計" value={total}     color="text-white" />
-                  <MiniStatCard label="待機" value={waiting}   color="text-blue-400" />
-                  <MiniStatCard label="呼出" value={calling}   color="text-yellow-400" />
-                  <MiniStatCard label="完了" value={completed} color="text-green-400" />
-                </div>
-                {/* お直し・お渡し */}
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  <div className="bg-gray-700 rounded-xl py-2 flex items-center justify-center gap-1.5">
-                    <Scissors size={11} className="text-amber-400" />
-                    <span className="text-amber-400 font-black text-lg">{repairPending}</span>
-                    <span className="text-gray-400 text-xs">お直し</span>
+                {/* テイクアウト店はキッチン画面へのリンクのみ表示 */}
+                {isTakeout ? (
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <button onClick={() => {
+                      sessionStorage.setItem('admin_auth', '1')
+                      sessionStorage.setItem('admin_store_id', store.id)
+                      window.open(`/${store.id}/kitchen`, '_blank')
+                    }} className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-orange-600/20 border border-orange-500/30 text-orange-300 text-sm font-bold">
+                      🍳 キッチン
+                    </button>
+                    <button onClick={() => {
+                      sessionStorage.setItem('admin_auth', '1')
+                      sessionStorage.setItem('admin_store_id', store.id)
+                      window.open(`/${store.id}/takeout-admin`, '_blank')
+                    }} className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-amber-600/20 border border-amber-500/30 text-amber-300 text-sm font-bold">
+                      <ShieldCheck size={13} />管理
+                    </button>
                   </div>
-                  <div className="bg-gray-700 rounded-xl py-2 flex items-center justify-center gap-1.5">
-                    <Package size={11} className="text-teal-400" />
-                    <span className="text-teal-400 font-black text-lg">{deliveryWaiting}</span>
-                    <span className="text-gray-400 text-xs">お渡し待ち</span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <a href={`/${store.id}`} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-sm font-bold">
-                    <ExternalLink size={13} />受付ページ
-                  </a>
-                  <button onClick={() => {
-                    sessionStorage.setItem('admin_auth', '1')
-                    sessionStorage.setItem('admin_store_id', store.id)
-                    window.open(`/${store.id}/admin`, '_blank')
-                  }} className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-amber-600/20 border border-amber-500/30 text-amber-300 text-sm font-bold">
-                    <ShieldCheck size={13} />管理画面
-                  </button>
-                </div>
+                ) : (
+                  <>
+                    {/* 制服店：順番待ち */}
+                    <div className="grid grid-cols-4 gap-2 text-center mb-2">
+                      <MiniStatCard label="合計" value={total}     color="text-white" />
+                      <MiniStatCard label="待機" value={waiting}   color="text-blue-400" />
+                      <MiniStatCard label="呼出" value={calling}   color="text-yellow-400" />
+                      <MiniStatCard label="完了" value={completed} color="text-green-400" />
+                    </div>
+                    {/* お直し・お渡し */}
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      <div className="bg-gray-700 rounded-xl py-2 flex items-center justify-center gap-1.5">
+                        <Scissors size={11} className="text-amber-400" />
+                        <span className="text-amber-400 font-black text-lg">{repairPending}</span>
+                        <span className="text-gray-400 text-xs">お直し</span>
+                      </div>
+                      <div className="bg-gray-700 rounded-xl py-2 flex items-center justify-center gap-1.5">
+                        <Package size={11} className="text-teal-400" />
+                        <span className="text-teal-400 font-black text-lg">{deliveryWaiting}</span>
+                        <span className="text-gray-400 text-xs">お渡し待ち</span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <a href={`/${store.id}`} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-sm font-bold">
+                        <ExternalLink size={13} />受付ページ
+                      </a>
+                      <button onClick={() => {
+                        sessionStorage.setItem('admin_auth', '1')
+                        sessionStorage.setItem('admin_store_id', store.id)
+                        window.open(`/${store.id}/admin`, '_blank')
+                      }} className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-amber-600/20 border border-amber-500/30 text-amber-300 text-sm font-bold">
+                        <ShieldCheck size={13} />管理画面
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )
           })}
@@ -352,6 +407,22 @@ function SuperDashboard() {
                   )}
                 </div>
 
+                {/* 業種 */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">業種</label>
+                  <div className="flex gap-2">
+                    {([
+                      { key: 'uniform', label: '🏫 制服販売' },
+                      { key: 'takeout', label: '🥡 テイクアウト' },
+                    ] as { key: BusinessType; label: string }[]).map(t => (
+                      <button key={t.key} onClick={() => setAddBizType(t.key)}
+                        className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${addBizType === t.key ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400'}`}>
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {addMsg && (
                   <div className={`text-sm px-3 py-2 rounded-xl ${addMsg.ok ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-700/50' : 'bg-red-900/40 text-red-300 border border-red-700/50'}`}>
                     {addMsg.text}
@@ -363,7 +434,7 @@ function SuperDashboard() {
                   onClick={async () => {
                     setAdding(true); setAddMsg(null)
                     const body: Record<string, string> = {
-                      storeName: addStoreName, storePin: addStorePin,
+                      storeName: addStoreName, storePin: addStorePin, businessType: addBizType,
                     }
                     if (addGroupMode === 'existing' && addGroupId) {
                       body.groupId = addGroupId
@@ -383,7 +454,7 @@ function SuperDashboard() {
                       setAddMsg({ ok: false, text: json.error ?? '追加失敗' })
                     } else {
                       setAddMsg({ ok: true, text: `✅ 「${addStoreName}」を追加しました` })
-                      setAddStoreName(''); setAddStorePin('1111')
+                      setAddStoreName(''); setAddStorePin('1111'); setAddBizType('uniform')
                       setNewGroupName(''); setNewGroupCode(''); setNewGroupPin('1111')
                       setAddGroupId('')
                       fetchAll()
