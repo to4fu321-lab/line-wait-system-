@@ -1674,11 +1674,11 @@ export default function CRMPage() {
                                   />
                                   <div className="absolute top-3 right-2 flex items-center gap-1">
                                     <button onClick={() => setEditingChild(child)}
-                                      className="p-1.5 rounded-lg bg-gray-200/60 border border-gray-300/50 text-gray-500 hover:text-gray-900 hover:bg-gray-300 active:scale-90 transition-all">
+                                      className="p-1.5 rounded-lg bg-gray-100 border border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-gray-200 active:scale-90 transition-all">
                                       <Pencil size={12} />
                                     </button>
                                     <button onClick={() => setDeleteChildTarget(child)}
-                                      className="p-1.5 rounded-lg bg-gray-200/60 border border-gray-300/50 text-gray-500 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/30 active:scale-90 transition-all">
+                                      className="p-1.5 rounded-lg bg-gray-100 border border-gray-200 text-gray-400 hover:text-red-600 hover:bg-red-50 hover:border-red-300 active:scale-90 transition-all">
                                       <Trash2 size={12} />
                                     </button>
                                   </div>
