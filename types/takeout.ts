@@ -97,18 +97,22 @@ export interface MenuCategory {
 }
 
 export interface Menu {
-  id:           string
-  store_id:     string
-  category_id:  string | null
-  name:         string
-  description:  string | null
-  price:        number
-  image_url:    string | null
-  is_available: boolean
-  sort_order:   number
-  created_at:   string
-  updated_at:   string
-  category?:    MenuCategory
+  id:             string
+  store_id:       string
+  category_id:    string | null
+  name:           string
+  description:    string | null
+  price:          number
+  image_url:      string | null
+  is_available:   boolean
+  sort_order:     number
+  // 調理スケジューリング用（migration-kitchen-scheduler.sql で追加）
+  cook_minutes:   number | null   // 基本調理時間（分）。null = スケジューリング対象外
+  station_type:   string | null   // kitchen_stations.station_type と対応する識別子
+  finish_minutes: number | null   // 作り置き仕上げ時間（分）。null → cook_minutes×30% で算出
+  created_at:     string
+  updated_at:     string
+  category?:      MenuCategory
 }
 
 // ──────────────────────────────────────────────
