@@ -323,6 +323,7 @@ export function buildSchedule(
 
       tasks.push({
         orderId:              order.id,
+        orderNumber:          order.order_number,
         itemId:               item.id,
         menuName:             item.name,
         stationType,

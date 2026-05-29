@@ -39,6 +39,7 @@ export type ScheduleChannel = 'immediate' | 'reservation'
  */
 export interface ScheduledTask {
   orderId:              string
+  orderNumber:          string
   itemId:               string
   menuName:             string
   stationType:          StationType

@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { triggerSound } from '@/lib/kitchen-sounds'
-import type { TakeoutOrder, TakeoutSettings } from '@/types/takeout'
+import type { TakeoutOrder, TakeoutSettings, Menu } from '@/types/takeout'
 import { getNextStatus, getUrgencyLevel, shouldNotify } from '@/types/takeout'
+import { useKitchenScheduler } from '@/lib/useKitchenScheduler'
 import ComboDisplay     from './_components/ComboDisplay'
 import OrderCard        from './_components/OrderCard'
 import ManualOrderModal from './_components/ManualOrderModal'
@@ -73,6 +74,7 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
 
   const [orders,     setOrders]     = useState<TakeoutOrder[]>([])
   const [settings,   setSettings]   = useState<TakeoutSettings>({})
+  const [menus,      setMenus]      = useState<Menu[]>([])
   const [storeName,  setStoreName]  = useState('')
   const [combo,      setCombo]      = useState(0)
   const [maxCombo,   setMaxCombo]   = useState(0)
@@ -118,8 +120,17 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
     if (data?.takeout_settings) setSettings((data as { takeout_settings: TakeoutSettings }).takeout_settings)
   }, [storeId])
 
+  const loadMenus = useCallback(async () => {
+    const { data } = await supabase
+      .from('menus')
+      .select('*')
+      .eq('store_id', storeId)
+      .eq('is_available', true)
+    if (data) setMenus(data as Menu[])
+  }, [storeId])
+
   useEffect(() => {
-    Promise.all([loadOrders(), loadTodayCount(), loadSettings()]).finally(() => setLoading(false))
+    Promise.all([loadOrders(), loadTodayCount(), loadSettings(), loadMenus()]).finally(() => setLoading(false))
     const channel = supabase
       .channel(`kitchen-${storeId}`)
       .on('postgres_changes', {
@@ -227,6 +238,10 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
   const cookOrders   = orders.filter(o => o.status === 'pending' || o.status === 'preparing')
   const readyCount   = readyOrders.length
 
+  const { batchInstructions, addVirtualBuffer } = useKitchenScheduler(
+    storeId, cookOrders, menus, settings
+  )
+
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
@@ -324,7 +339,11 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
         <ManualOrderModal storeId={storeId} onClose={() => setShowManual(false)} onCreated={loadOrders} />
       )}
       {showBatch && (
-        <BatchView orders={orders.filter(o => o.status !== 'ready')} onClose={() => setShowBatch(false)} />
+        <BatchView
+          orders={orders.filter(o => o.status !== 'ready')}
+          instructions={batchInstructions}
+          onClose={() => setShowBatch(false)}
+        />
       )}
     </div>
   )
