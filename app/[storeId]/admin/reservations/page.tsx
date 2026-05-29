@@ -131,18 +131,17 @@ function ReservationCard({ res, onUpdate, onDelete }: {
               RESERVATION_STATUS_COLORS[res.status]
             }`}>{RESERVATION_STATUS_LABELS[res.status]}</span>
           </div>
-          <p className="font-bold text-white text-sm">
-            {res.customer?.name ?? '（顧客未登録）'} 様
+          {res.child?.school_name && (
+            <p className="text-sm font-black text-amber-300 truncate leading-tight">
+              {res.child.school_name}{res.child.grade && ` ${res.child.grade}`}
+            </p>
+          )}
+          <p className={`font-black text-xl leading-tight truncate mt-0.5 ${inactive ? 'text-zinc-500' : 'text-white'}`}>
+            {res.child?.name ?? res.customer?.name ?? '（顧客未登録）'} 様
           </p>
           {res.child && (
-            <p className="text-xs text-amber-300 flex items-center gap-1 mt-0.5">
-              <GraduationCap size={10} />
-              {res.child.name}
-              {res.child.school_name && (
-                <span className="text-zinc-500 ml-1">
-                  {res.child.school_name}{res.child.grade && ` ${res.child.grade}`}
-                </span>
-              )}
+            <p className="text-xs text-zinc-500 truncate">
+              保護者: {res.customer?.name ?? '（未登録）'}
             </p>
           )}
           {res.customer?.tel && (
@@ -259,8 +258,10 @@ function QueueRefCard({ q, storeId }: { q: QueueRef; storeId: string }) {
           </span>
           <span className={`text-xs font-bold ${statusColor}`}>{statusLabel}</span>
         </div>
-        <p className="font-bold text-zinc-400 text-sm truncate">{q.customer_name} 様</p>
-        {q.child_name && <p className="text-xs text-zinc-600 truncate">お子様: {q.child_name}</p>}
+        <p className={`font-black text-base truncate ${q.child_name ? 'text-zinc-300' : 'text-zinc-500'}`}>
+          {q.child_name ?? q.customer_name} 様
+        </p>
+        {q.child_name && <p className="text-xs text-zinc-600 truncate">保護者: {q.customer_name}</p>}
       </div>
       <a href={`/${storeId}/admin`}
         className="text-xs text-zinc-700 hover:text-zinc-400 shrink-0 transition-colors">

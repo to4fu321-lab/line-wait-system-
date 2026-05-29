@@ -146,10 +146,12 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
             )}
             {item.slip_number && <span className="text-xs font-mono text-zinc-500">#{item.slip_number}</span>}
           </div>
-          <p className="text-sm font-semibold text-zinc-100 mt-1.5 truncate">
-            {item.customer?.name ?? '（顧客不明）'}
-            {item.child && <span className="text-zinc-500 font-normal"> / {item.child.name}</span>}
+          <p className={`font-black text-lg leading-tight truncate mt-1.5 ${item.child ? 'text-white' : 'text-zinc-200'}`}>
+            {item.child?.name ?? item.customer?.name ?? '（顧客不明）'}
           </p>
+          {item.child && (
+            <p className="text-xs text-zinc-500 truncate">保護者: {item.customer?.name}</p>
+          )}
           <p className="text-xs text-zinc-400 mt-0.5 truncate">{item.item_name}{item.content ? ` — ${item.content}` : ''}</p>
           <div className="flex items-center gap-3 mt-0.5">
             <p className="text-xs text-zinc-600">受取: {fmtDate(item.received_date)}</p>
@@ -273,10 +275,12 @@ function PurchaseCard({ item, storeId, onRefresh, onToast }: {
               {PURCHASE_STATUS_LABELS[item.status]}
             </span>
           </div>
-          <p className="text-sm font-semibold text-zinc-100 mt-1.5 truncate">
-            {item.customer?.name ?? '（顧客不明）'}
-            {item.child && <span className="text-zinc-500 font-normal"> / {item.child.name}</span>}
+          <p className={`font-black text-lg leading-tight truncate mt-1.5 ${item.child ? 'text-white' : 'text-zinc-200'}`}>
+            {item.child?.name ?? item.customer?.name ?? '（顧客不明）'}
           </p>
+          {item.child && (
+            <p className="text-xs text-zinc-500 truncate">保護者: {item.customer?.name}</p>
+          )}
           <p className="text-xs text-zinc-400 mt-0.5 truncate">{item.item_name}</p>
           <p className="text-xs text-zinc-600 mt-0.5">依頼: {fmtDate(item.ordered_date)}</p>
         </div>
@@ -465,10 +469,12 @@ function OrderCard({ item, storeId, onRefresh, onToast }: {
             </span>
             {item.order_number && <span className="text-xs font-mono text-zinc-500">#{item.order_number}</span>}
           </div>
-          <p className="text-sm font-semibold text-zinc-100 mt-1.5 truncate">
-            {item.customer?.name ?? '（顧客不明）'}
-            {item.child && <span className="text-zinc-500 font-normal"> / {item.child.name}</span>}
+          <p className={`font-black text-lg leading-tight truncate mt-1.5 ${item.child ? 'text-white' : 'text-zinc-200'}`}>
+            {item.child?.name ?? item.customer?.name ?? '（顧客不明）'}
           </p>
+          {item.child && (
+            <p className="text-xs text-zinc-500 truncate">保護者: {item.customer?.name}</p>
+          )}
           <p className="text-xs text-zinc-400 mt-0.5">{totalItems}点 {amount > 0 ? `/ ¥${amount.toLocaleString()}` : ''}</p>
           <p className="text-xs text-zinc-600 mt-0.5">{fmtDate(item.created_at)}</p>
         </div>

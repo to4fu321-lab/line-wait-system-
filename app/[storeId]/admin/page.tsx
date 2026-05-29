@@ -217,7 +217,7 @@ function WaitingCard({ ticket, storeId, onAction, onCheckIn }: {
                 {ticket.checked_in ? <><MapPin size={10} />到着済</> : <>🏠 遠隔待ち</>}
               </span>
             )}
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+            <span className={`text-sm px-2.5 py-1 rounded-full font-black ${
               isRemoteUnchecked ? 'bg-zinc-800 text-zinc-500' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
             }`}>
               {CATEGORY_ICONS[ticket.category]} {CATEGORY_LABELS[ticket.category]}
@@ -231,13 +231,21 @@ function WaitingCard({ ticket, storeId, onAction, onCheckIn }: {
               ? <span className="text-xs bg-emerald-900/50 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-full">LINE✓</span>
               : <span className="text-xs bg-zinc-800 text-zinc-500 px-1.5 py-0.5 rounded-full">LINE×</span>}
           </div>
+          {ticket.school_name && (
+            <p className={`text-sm font-black truncate leading-tight mt-1 ${isRemoteUnchecked ? 'text-zinc-500' : 'text-amber-300'}`}>
+              {ticket.school_name}
+            </p>
+          )}
           <button onClick={() => ticket.customer_id && setCustOpen(v => !v)}
-            className={`font-bold text-base leading-tight truncate text-left w-full flex items-center gap-1 ${isRemoteUnchecked ? 'text-zinc-400' : 'text-white'}`}>
-            {ticket.customer_name} 様
-            {ticket.customer_id && <User size={11} className={`shrink-0 ${custOpen ? 'text-indigo-400' : 'text-zinc-600'}`} />}
+            className={`font-black text-xl leading-tight truncate text-left w-full flex items-center gap-1 mt-0.5 ${isRemoteUnchecked ? 'text-zinc-400' : 'text-white'}`}>
+            {ticket.child_name ?? ticket.customer_name} 様
+            {ticket.customer_id && <User size={12} className={`shrink-0 ${custOpen ? 'text-indigo-400' : 'text-zinc-600'}`} />}
           </button>
-          {ticket.child_name && <p className="text-zinc-400 text-xs truncate">お子様: {ticket.child_name}</p>}
-          <p className="text-zinc-500 text-xs truncate mt-0.5">{ticket.school_name}</p>
+          {ticket.child_name && (
+            <p className={`text-xs truncate ${isRemoteUnchecked ? 'text-zinc-600' : 'text-zinc-500'}`}>
+              保護者: {ticket.customer_name}
+            </p>
+          )}
         </div>
 
         <button onClick={() => setOpen(v => !v)}
@@ -321,19 +329,25 @@ function CallingCard({ ticket, storeId, onAction }: { ticket: Queue; storeId: st
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap mb-1">
-            <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold animate-pulse">🔔 呼出中</span>
-            <span className="text-xs text-zinc-400">{CATEGORY_ICONS[ticket.category]} {CATEGORY_LABELS[ticket.category]}</span>
+            <span className="text-sm bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-full font-black animate-pulse">🔔 呼出中</span>
+            <span className="text-sm font-black text-zinc-300">{CATEGORY_ICONS[ticket.category]} {CATEGORY_LABELS[ticket.category]}</span>
             {ticket.gender !== 'other' && (
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${GENDER_STYLES[ticket.gender]}`}>{GENDER_LABELS[ticket.gender]}</span>
             )}
           </div>
+          {ticket.school_name && (
+            <p className="text-sm font-black text-amber-300 truncate leading-tight">
+              {ticket.school_name}
+            </p>
+          )}
           <button onClick={() => ticket.customer_id && setCustOpen(v => !v)}
-            className="font-bold text-white text-base leading-tight truncate text-left w-full flex items-center gap-1">
-            {ticket.customer_name} 様
-            {ticket.customer_id && <User size={11} className={`shrink-0 ${custOpen ? 'text-indigo-400' : 'text-zinc-600'}`} />}
+            className="font-black text-white text-xl leading-tight truncate text-left w-full flex items-center gap-1 mt-0.5">
+            {ticket.child_name ?? ticket.customer_name} 様
+            {ticket.customer_id && <User size={12} className={`shrink-0 ${custOpen ? 'text-indigo-400' : 'text-zinc-600'}`} />}
           </button>
-          {ticket.child_name && <p className="text-zinc-400 text-xs truncate">お子様: {ticket.child_name}</p>}
-          <p className="text-zinc-500 text-xs truncate mt-0.5">{ticket.school_name}</p>
+          {ticket.child_name && (
+            <p className="text-zinc-500 text-xs truncate">保護者: {ticket.customer_name}</p>
+          )}
         </div>
         <button onClick={() => setOpen(v => !v)}
           className={`shrink-0 text-xs font-bold px-2 py-1 rounded-lg transition-colors ${
@@ -408,12 +422,17 @@ function HistoryCard({ ticket, storeId, onAction }: {
             <span className="text-xs text-zinc-500">{CATEGORY_ICONS[ticket.category]} {CATEGORY_LABELS[ticket.category]}</span>
             <span className="text-xs text-zinc-600">{recvTime}受付 · {waitMin}分</span>
           </div>
+          {ticket.school_name && (
+            <p className={`text-xs font-black truncate mt-0.5 ${isDone ? 'text-amber-300/60' : 'text-amber-300/80'}`}>
+              {ticket.school_name}
+            </p>
+          )}
           <button onClick={() => (ticket as any).customer_id && setCustOpen(v => !v)}
-            className="font-bold text-zinc-300 text-sm truncate mt-0.5 text-left w-full flex items-center gap-1">
-            {ticket.customer_name} 様
+            className="font-black text-white text-base truncate mt-0.5 text-left w-full flex items-center gap-1">
+            {ticket.child_name ?? ticket.customer_name} 様
             {(ticket as any).customer_id && <User size={10} className={`shrink-0 ${custOpen ? 'text-indigo-400' : 'text-zinc-600'}`} />}
           </button>
-          {ticket.child_name && <p className="text-zinc-500 text-xs truncate">お子様: {ticket.child_name}</p>}
+          {ticket.child_name && <p className="text-zinc-600 text-xs truncate">保護者: {ticket.customer_name}</p>}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {ticket.status === 'cancelled' && (
