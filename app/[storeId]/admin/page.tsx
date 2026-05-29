@@ -560,6 +560,13 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     if (error) {
       setIsOpen(!next)
       showToast('err', '受付切替失敗: ' + error.message)
+      return
+    }
+    // RLS未設定だとエラーなしで0行更新されるため、DB値で確認
+    const { data: verify } = await supabase.from('stores').select('is_open').eq('id', store.id).single()
+    if (verify != null && verify.is_open !== next) {
+      setIsOpen(verify.is_open ?? false)
+      showToast('err', '⚠️ 保存されませんでした。SQL EditorでRLS設定を実行してください')
     }
   }
 
@@ -650,6 +657,19 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
             </p>
           </div>
           <div className="flex items-center gap-1.5">
+            {/* 受付切替（コンパクト・右上） */}
+            <button onClick={handleToggleOpen} disabled={isOpen === null}
+              style={{ touchAction: 'manipulation' }}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-xs active:opacity-60 transition-all disabled:opacity-40 ${
+                isOpen === null ? 'bg-zinc-700 text-zinc-400' :
+                isOpen ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-900/50' :
+                'bg-red-700 text-white shadow-sm shadow-red-900/50'
+              }`}>
+              <span className={`w-2 h-2 rounded-full shrink-0 ${
+                isOpen === null ? 'bg-zinc-400' : isOpen ? 'bg-white animate-pulse' : 'bg-red-200'
+              }`} />
+              {isOpen === null ? '...' : isOpen ? '受付中' : '停止中'}
+            </button>
             <button onClick={fetchQueues} disabled={refreshing}
               className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:opacity-60 transition-all disabled:opacity-50">
               <RefreshCw size={16} className={refreshing ? 'animate-spin text-indigo-400' : 'text-zinc-400'} />
@@ -675,16 +695,6 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
             </a>
           </div>
         </div>
-
-        {/* 行2: 受付切替ボタン（大きく・太字・わかりやすいラベル） */}
-        <button onClick={handleToggleOpen} disabled={isOpen === null}
-          className={`w-full py-4 rounded-2xl font-black text-lg mb-2 active:scale-[0.98] transition-all shadow-lg disabled:opacity-50 ${
-            isOpen === null  ? 'bg-zinc-700 text-zinc-400' :
-            isOpen           ? 'bg-gradient-to-r from-emerald-500 to-teal-500 shadow-emerald-900/40 text-white'
-                             : 'bg-gradient-to-r from-red-600 to-rose-600 shadow-red-900/40 text-white'
-          }`}>
-          {isOpen === null ? '⏳ 読み込み中...' : isOpen ? '✅ 受付中 — タップして停止' : '🚫 受付停止中 — タップして開始'}
-        </button>
 
         {/* テストモードバナー */}
         {isTestMode && (
