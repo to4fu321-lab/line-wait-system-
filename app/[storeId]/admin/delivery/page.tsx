@@ -31,7 +31,7 @@ interface DeliveryItem {
   notified:       boolean
   payment_status: string | null   // 'unpaid' | 'paid' | null (column may not exist yet)
   customer:       { name: string; tel: string | null } | null
-  child:          { name: string } | null
+  child:          { name: string; school_name: string | null } | null
   overdueAlertDays?: number
 }
 
@@ -162,6 +162,9 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle }: {
             <button onClick={() => setCustOpen(v => !v)}
               className="w-full text-left active:opacity-70 flex items-start justify-between gap-2 mb-2">
               <div className="min-w-0 flex-1">
+                {item.child?.school_name && (
+                  <p className="text-xs font-black text-amber-300 truncate leading-tight">{item.child.school_name}</p>
+                )}
                 <p className={`font-black text-lg leading-tight truncate ${item.child ? 'text-white' : 'text-indigo-300'}`}>
                   {item.child?.name ?? item.customer.name}
                 </p>
@@ -471,11 +474,11 @@ export default function DeliveryPage() {
     setLoading(true)
     const [{ data: repairs }, { data: purchases }] = await Promise.all([
       supabase.from('repair_histories')
-        .select('*, customer:customers(name, tel), child:children(name)')
+        .select('*, customer:customers(name, tel), child:children(name,school_name)')
         .eq('store_id', storeId).eq('status', 'completed')
         .order('completed_date', { ascending: true }),
       supabase.from('purchase_orders')
-        .select('*, customer:customers(name, tel), child:children(name)')
+        .select('*, customer:customers(name, tel), child:children(name,school_name)')
         .eq('store_id', storeId).eq('status', 'arrived')
         .order('arrived_date', { ascending: true }),
     ])
@@ -496,11 +499,11 @@ export default function DeliveryPage() {
     setHistLoading(true)
     const [{ data: repairs }, { data: purchases }] = await Promise.all([
       supabase.from('repair_histories')
-        .select('*, customer:customers(name, tel), child:children(name)')
+        .select('*, customer:customers(name, tel), child:children(name,school_name)')
         .eq('store_id', storeId).eq('status', 'delivered')
         .order('delivered_date', { ascending: false }).limit(100),
       supabase.from('purchase_orders')
-        .select('*, customer:customers(name, tel), child:children(name)')
+        .select('*, customer:customers(name, tel), child:children(name,school_name)')
         .eq('store_id', storeId).eq('status', 'delivered')
         .order('delivered_date', { ascending: false }).limit(100),
     ])
