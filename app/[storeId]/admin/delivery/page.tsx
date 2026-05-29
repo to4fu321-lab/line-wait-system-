@@ -128,10 +128,11 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle }: {
   onDeliver: (item: DeliveryItem, paid: boolean) => Promise<void>
   onPaymentToggle: (item: DeliveryItem) => Promise<void>
 }) {
-  const [confirmOpen,  setConfirmOpen]  = useState(false)
-  const [payAtDeliver, setPayAtDeliver] = useState(item.payment_status === 'paid')
-  const [loading,      setLoading]      = useState<string | null>(null)
-  const [custOpen,     setCustOpen]     = useState(false)
+  const [confirmOpen,      setConfirmOpen]      = useState(false)
+  const [payAtDeliver,     setPayAtDeliver]     = useState(item.payment_status === 'paid')
+  const [unpaidConfirm,    setUnpaidConfirm]    = useState(false)
+  const [loading,          setLoading]          = useState<string | null>(null)
+  const [custOpen,         setCustOpen]         = useState(false)
 
   const isOverdue = item.ready_date &&
     (Date.now() - new Date(item.ready_date).getTime()) / 86400000 > alertDays
@@ -280,19 +281,51 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle }: {
             </div>
           </button>
 
+          {/* 未払いのままお渡しする場合の二重確認 */}
+          {unpaidConfirm && (
+            <div className="rounded-xl border-2 border-red-500 bg-red-50 px-4 py-3 space-y-2 animate-fade-in">
+              <p className="text-sm font-black text-red-700 text-center flex items-center justify-center gap-1.5">
+                <AlertCircle size={16} />まだ未払いです！
+              </p>
+              <p className="text-xs text-red-600 text-center">未払いのままお渡し済みにしますか？</p>
+              <div className="flex gap-2">
+                <button onClick={() => setUnpaidConfirm(false)}
+                  className="flex-1 py-2 rounded-xl font-bold text-xs bg-gray-200 text-gray-700 active:scale-95">
+                  戻る
+                </button>
+                <button
+                  onClick={async () => {
+                    setUnpaidConfirm(false)
+                    setLoading('deliver')
+                    await onDeliver(item, false)
+                    setLoading(null)
+                    setConfirmOpen(false)
+                  }}
+                  disabled={!!loading}
+                  className="flex-1 py-2 rounded-xl font-bold text-xs bg-red-600 text-white active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1">
+                  {loading === 'deliver' ? <Loader2 size={12} className="animate-spin" /> : '未払いのままお渡し'}
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => setConfirmOpen(false)}
+            <button onClick={() => { setConfirmOpen(false); setUnpaidConfirm(false) }}
               className="py-3 rounded-xl font-bold text-sm bg-gray-300 text-gray-700 active:scale-95 transition-all">
               キャンセル
             </button>
             <button
               onClick={async () => {
+                if (!payAtDeliver && item.payment_status !== 'paid') {
+                  setUnpaidConfirm(true)
+                  return
+                }
                 setLoading('deliver')
                 await onDeliver(item, payAtDeliver)
                 setLoading(null)
                 setConfirmOpen(false)
               }}
-              disabled={!!loading}
+              disabled={!!loading || unpaidConfirm}
               className="py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
               {loading === 'deliver'
                 ? <><Loader2 size={13} className="animate-spin" />処理中...</>
@@ -317,8 +350,14 @@ function CompletedCard({ item, onRevert, onPaymentToggle }: {
   const [loading,       setLoading]       = useState<string | null>(null)
   const [custOpen,      setCustOpen]      = useState(false)
 
+  const isUnpaidDelivered = item.payment_status !== 'paid'
+
   return (
-    <div className="rounded-2xl border bg-gray-100 border-gray-200 p-4">
+    <div className={`rounded-2xl border p-4 ${
+      isUnpaidDelivered
+        ? 'border-2 border-red-500 bg-red-50'
+        : 'bg-gray-100 border-gray-200'
+    }`}>
       <div className="flex items-start gap-3">
         <div className="shrink-0 mt-0.5 w-8 h-8 rounded-xl flex items-center justify-center bg-gray-200">
           <Package size={14} className="text-gray-500" />
@@ -339,6 +378,11 @@ function CompletedCard({ item, onRevert, onPaymentToggle }: {
             <span className="text-xs font-bold px-2 py-0.5 rounded-full border bg-gray-300/60 text-gray-500 border-gray-300">
               お渡し済み
             </span>
+            {isUnpaidDelivered && (
+              <span className="text-xs font-black px-2 py-0.5 rounded-full border bg-red-600 text-white border-red-600 flex items-center gap-1 animate-pulse">
+                <AlertCircle size={9} />代金未回収
+              </span>
+            )}
             <PaymentBadge
               status={item.payment_status}
               loading={loading === 'payment'}
@@ -624,7 +668,7 @@ export default function DeliveryPage() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
+      <div className="max-w-2xl mx-auto px-4 py-4 pb-32 space-y-4">
 
         {/* タブ */}
         <div className="flex bg-gray-100 rounded-2xl p-1 gap-1">

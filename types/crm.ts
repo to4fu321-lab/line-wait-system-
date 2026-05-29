@@ -8,9 +8,9 @@ export const REQUEST_TYPE_LABELS: Record<RequestType, string> = {
 }
 
 export const REQUEST_TYPE_COLORS: Record<RequestType, string> = {
-  repair:       'bg-amber-500/20 text-amber-300 border-amber-500/30',
-  walk_in:      'bg-sky-500/20 text-sky-300 border-sky-500/30',
-  hold_request: 'bg-violet-500/20 text-violet-300 border-violet-500/30',
+  repair:       'bg-amber-100 text-amber-700 border-amber-300',
+  walk_in:      'bg-sky-100 text-sky-700 border-sky-300',
+  hold_request: 'bg-violet-100 text-violet-700 border-violet-300',
 }
 
 export interface Customer {
@@ -60,9 +60,9 @@ export const REPAIR_STATUS_LABELS: Record<RepairStatus, string> = {
 }
 
 export const REPAIR_STATUS_COLORS: Record<RepairStatus, string> = {
-  received:  'bg-amber-500/20 text-amber-300 border-amber-500/30',
-  completed: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-  delivered: 'bg-zinc-700/60 text-zinc-400 border-zinc-600/50',
+  received:  'bg-amber-100 text-amber-700 border-amber-300',
+  completed: 'bg-emerald-100 text-emerald-700 border-emerald-300',
+  delivered: 'bg-gray-200 text-gray-500 border-gray-300',
 }
 
 // ──────────────────────────────────────────────
@@ -99,12 +99,12 @@ export const PURCHASE_STATUS_LABELS: Record<PurchaseStatus, string> = {
 }
 
 export const PURCHASE_STATUS_COLORS: Record<PurchaseStatus, string> = {
-  ordered:   'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  received:  'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  stocked:   'bg-violet-500/20 text-violet-300 border-violet-500/30',
-  on_order:  'bg-orange-500/20 text-orange-300 border-orange-500/30',
-  arrived:   'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-  delivered: 'bg-zinc-700/60 text-zinc-400 border-zinc-600/50',
+  ordered:   'bg-blue-100 text-blue-700 border-blue-300',
+  received:  'bg-blue-100 text-blue-700 border-blue-300',
+  stocked:   'bg-violet-100 text-violet-700 border-violet-300',
+  on_order:  'bg-orange-100 text-orange-700 border-orange-300',
+  arrived:   'bg-emerald-100 text-emerald-700 border-emerald-300',
+  delivered: 'bg-gray-200 text-gray-500 border-gray-300',
 }
 
 // ──────────────────────────────────────────────

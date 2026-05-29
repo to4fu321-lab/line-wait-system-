@@ -174,6 +174,26 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
         </div>
         {open ? <ChevronUp size={15} className="text-gray-400 mt-1 shrink-0" /> : <ChevronDown size={15} className="text-gray-400 mt-1 shrink-0" />}
       </button>
+
+      {/* 次のアクション — アコーディオンを開かずに操作できる常時表示ボタン */}
+      {item.status === 'received' && (
+        <div className="px-4 pb-4 border-t border-slate-100 pt-3">
+          <button
+            onClick={() => update(
+              { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true },
+              `${completeLabel}にしました`,
+              { status: 'received', completed_date: null, notified: false }
+            )}
+            disabled={loading}
+            className="w-full py-3 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 shadow-sm">
+            {loading
+              ? <Loader2 size={15} className="animate-spin" />
+              : <><Scissors size={15} />✂️ {completeLabel}</>
+            }
+          </button>
+        </div>
+      )}
+
       {open && (
         <div className="px-4 pb-4 space-y-3 border-t border-gray-100">
           {item.notes && <p className="text-xs text-gray-600 pt-3">{item.notes}</p>}
@@ -306,6 +326,26 @@ function PurchaseCard({ item, storeId, onRefresh, onToast }: {
         </div>
         {open ? <ChevronUp size={15} className="text-gray-500 mt-1 shrink-0" /> : <ChevronDown size={15} className="text-gray-500 mt-1 shrink-0" />}
       </button>
+
+      {/* 次のアクション — 常時表示 */}
+      {nextStep && item.status !== 'delivered' && (
+        <div className="px-4 pb-4 border-t border-slate-100 pt-3">
+          <button
+            onClick={() => {
+              const patch: Record<string, unknown> = { status: nextStep.next }
+              const undoPatch: Record<string, unknown> = { status: item.status, arrived_date: item.arrived_date, delivered_date: item.delivered_date, notified: item.notified }
+              if (nextStep.next === 'arrived') { patch.arrived_date = new Date().toISOString().slice(0, 10); patch.notified = true }
+              if (nextStep.next === 'delivered') patch.delivered_date = new Date().toISOString().slice(0, 10)
+              update(patch, `${nextStep.label}にしました`, undoPatch)
+            }}
+            disabled={loading}
+            className={`w-full py-3 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 shadow-sm ${nextStep.color}`}>
+            {loading ? <Loader2 size={15} className="animate-spin" /> : <Package size={15} />}
+            {nextStep.label}
+          </button>
+        </div>
+      )}
+
       {open && (
         <div className="px-4 pb-4 space-y-3 border-t border-gray-100">
           {item.notes && <p className="text-xs text-gray-600 pt-3">{item.notes}</p>}
@@ -725,7 +765,7 @@ export default function RepairsPage() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
+      <div className="max-w-2xl mx-auto px-4 py-4 pb-32 space-y-4">
         {fetchError && (
           <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs text-red-600">
             DBエラー: {fetchError}
