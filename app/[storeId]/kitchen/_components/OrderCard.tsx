@@ -94,6 +94,9 @@ export default function OrderCard({ order, settings, onAdvance, onCancel }: Prop
               お渡し待ち
             </span>
           )}
+          {isPending && (
+            <span className="text-xs text-zinc-600 font-medium">→ 調理開始をタップ</span>
+          )}
           {pickup && (
             <span className={`text-xs ml-auto ${pickup.color}`}>{pickup.text}</span>
           )}

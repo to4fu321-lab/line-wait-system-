@@ -9,6 +9,7 @@ import ComboDisplay     from './_components/ComboDisplay'
 import OrderCard        from './_components/OrderCard'
 import ManualOrderModal from './_components/ManualOrderModal'
 import BatchView        from './_components/BatchView'
+import ItemAggregateBar from './_components/ItemAggregateBar'
 
 const WEEKDAYS       = ['日', '月', '火', '水', '木', '金', '土']
 const WEEKDAY_COLORS = ['text-red-400', 'text-zinc-300', 'text-zinc-300', 'text-zinc-300', 'text-zinc-300', 'text-zinc-300', 'text-blue-400']
@@ -64,6 +65,16 @@ function sortOrders(orders: TakeoutOrder[], targetMinutes: number): TakeoutOrder
     return 4 // pending
   }
   return [...orders].sort((a, b) => score(a) - score(b) || new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+}
+
+function SectionHeader({ label, count, color, line }: { label: string; count: number; color: string; line: string }) {
+  return (
+    <div className="flex items-center gap-2 pt-1 pb-0.5">
+      <span className={`text-xs font-black ${color}`}>{label}</span>
+      <span className="text-xs text-zinc-700">{count}件</span>
+      <div className={`flex-1 h-px ${line}`} />
+    </div>
+  )
 }
 
 export default function KitchenPage({ params }: { params: { storeId: string } }) {
@@ -220,8 +231,12 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
     if (!error) await loadOrders()
   }
 
-  const sorted     = sortOrders(orders, targetMinutes)
-  const readyCount = orders.filter(o => o.status === 'ready').length
+  const sorted          = sortOrders(orders, targetMinutes)
+  const readyOrders     = sorted.filter(o => o.status === 'ready')
+  const preparingOrders = sorted.filter(o => o.status === 'preparing')
+  const pendingOrders   = sorted.filter(o => o.status === 'pending')
+  const activeOrders    = orders.filter(o => o.status === 'pending' || o.status === 'preparing')
+  const readyCount      = readyOrders.length
 
   if (loading) {
     return (
@@ -290,19 +305,64 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
         </div>
       </div>
 
-      {/* ─── 注文リスト（単一スクロール） ─── */}
+      {/* ─── 品目合算バー ─── */}
+      {activeOrders.length > 0 && (
+        <ItemAggregateBar orders={activeOrders} settings={settings} />
+      )}
+
+      {/* ─── 注文リスト（セクション別） ─── */}
       <div className="flex-1 overflow-y-auto">
         {sorted.length > 0 ? (
           <div className="p-3 flex flex-col gap-2 max-w-2xl mx-auto">
-            {sorted.map(order => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                settings={settings}
-                onAdvance={() => advanceStatus(order)}
-                onCancel={() => cancelOrder(order)}
-              />
-            ))}
+
+            {/* お渡し待ち */}
+            {readyOrders.length > 0 && (
+              <>
+                <SectionHeader
+                  label="🤲 お渡し待ち"
+                  count={readyOrders.length}
+                  color="text-emerald-400"
+                  line="bg-emerald-900/50"
+                />
+                {readyOrders.map(order => (
+                  <OrderCard key={order.id} order={order} settings={settings}
+                    onAdvance={() => advanceStatus(order)} onCancel={() => cancelOrder(order)} />
+                ))}
+              </>
+            )}
+
+            {/* 調理中 */}
+            {preparingOrders.length > 0 && (
+              <>
+                <SectionHeader
+                  label="🔥 調理中"
+                  count={preparingOrders.length}
+                  color="text-amber-400"
+                  line="bg-amber-900/40"
+                />
+                {preparingOrders.map(order => (
+                  <OrderCard key={order.id} order={order} settings={settings}
+                    onAdvance={() => advanceStatus(order)} onCancel={() => cancelOrder(order)} />
+                ))}
+              </>
+            )}
+
+            {/* 受付中（調理待ち） */}
+            {pendingOrders.length > 0 && (
+              <>
+                <SectionHeader
+                  label="⏸ 調理待ち"
+                  count={pendingOrders.length}
+                  color="text-zinc-400"
+                  line="bg-zinc-800"
+                />
+                {pendingOrders.map(order => (
+                  <OrderCard key={order.id} order={order} settings={settings}
+                    onAdvance={() => advanceStatus(order)} onCancel={() => cancelOrder(order)} />
+                ))}
+              </>
+            )}
+
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center h-full">
