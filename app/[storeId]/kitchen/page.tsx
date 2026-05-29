@@ -13,6 +13,29 @@ import ActiveOrderCard from './_components/ActiveOrderCard'
 import ComboDisplay    from './_components/ComboDisplay'
 import QueueItem       from './_components/QueueItem'
 
+const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
+const WEEKDAY_COLORS = [
+  'text-red-400',    // 日
+  'text-zinc-300',   // 月
+  'text-zinc-300',   // 火
+  'text-zinc-300',   // 水
+  'text-zinc-300',   // 木
+  'text-zinc-300',   // 金
+  'text-blue-400',   // 土
+]
+
+function DateDisplay() {
+  const now = new Date()
+  const m   = now.getMonth() + 1
+  const d   = now.getDate()
+  const w   = now.getDay()
+  return (
+    <span className="text-sm text-zinc-400">
+      {m}/{d}（<span className={WEEKDAY_COLORS[w]}>{WEEKDAYS[w]}</span>）
+    </span>
+  )
+}
+
 function Clock() {
   const [time, setTime] = useState('')
   useEffect(() => {
@@ -35,6 +58,7 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
 
   const [orders,     setOrders]     = useState<TakeoutOrder[]>([])
   const [settings,   setSettings]   = useState<TakeoutSettings>({})
+  const [storeName,  setStoreName]  = useState('')
   const [combo,      setCombo]      = useState(0)
   const [maxCombo,   setMaxCombo]   = useState(0)
   const [todayCount, setTodayCount] = useState(0)
@@ -70,13 +94,14 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
     setTodayCount(count ?? 0)
   }, [storeId])
 
-  // 店舗設定を取得
+  // 店舗情報を取得
   const loadSettings = useCallback(async () => {
     const { data } = await supabase
       .from('stores')
-      .select('takeout_settings')
+      .select('name, takeout_settings')
       .eq('id', storeId)
       .single()
+    if (data?.name)             setStoreName(data.name)
     if (data?.takeout_settings) setSettings(data.takeout_settings as TakeoutSettings)
   }, [storeId])
 
@@ -160,16 +185,24 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
     <div className="min-h-screen bg-zinc-950 text-white flex flex-col">
 
       {/* ヘッダー */}
-      <div className="flex items-center justify-between px-4 py-3 bg-zinc-900 border-b border-zinc-800">
-        <ComboDisplay combo={combo} maxCombo={maxCombo} />
-        <div className="text-center">
-          <div className="text-xs text-zinc-500">本日完了</div>
-          <div className="text-2xl font-bold">
-            {todayCount}
-            <span className="text-sm text-zinc-400 ml-1">件</span>
-          </div>
+      <div className="bg-zinc-900 border-b border-zinc-800">
+        {/* 店舗名・日付バー */}
+        <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800/60">
+          <span className="text-base font-bold text-white">{storeName}</span>
+          <DateDisplay />
         </div>
-        <Clock />
+        {/* コンボ・件数・時刻バー */}
+        <div className="flex items-center justify-between px-4 py-3">
+          <ComboDisplay combo={combo} maxCombo={maxCombo} />
+          <div className="text-center">
+            <div className="text-xs text-zinc-500">本日完了</div>
+            <div className="text-2xl font-bold">
+              {todayCount}
+              <span className="text-sm text-zinc-400 ml-1">件</span>
+            </div>
+          </div>
+          <Clock />
+        </div>
       </div>
 
       {/* メインエリア */}
