@@ -181,11 +181,9 @@ function WaitingCard({ ticket, storeId, onAction, onCheckIn }: {
   onCheckIn: (id: string) => Promise<void>
 }) {
   const [loading, setLoading]   = useState<string | null>(null)
-  const [open, setOpen]         = useState(false)
   const [custOpen, setCustOpen] = useState(false)
   const waitMin   = Math.floor((Date.now() - new Date(ticket.created_at).getTime()) / 60000)
   const details   = (ticket.details ?? {}) as Record<string, string>
-  const hasDetail = !!(details.height || details.weight || details.parentPhone || details.note)
   const isRemoteUnchecked = ticket.is_remote && !ticket.checked_in
 
   const act = async (s: QueueStatus) => { setLoading(s); await onAction(ticket.id, s); setLoading(null) }
@@ -248,18 +246,35 @@ function WaitingCard({ ticket, storeId, onAction, onCheckIn }: {
           )}
         </div>
 
-        <button onClick={() => setOpen(v => !v)}
-          className={`shrink-0 text-xs font-bold px-2 py-1 rounded-lg transition-colors ${
-            hasDetail ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-zinc-800/80 text-zinc-600'
-          }`}>{open ? '閉' : '詳'}</button>
       </div>
 
-      {open && hasDetail && (
-        <div className="mt-3 pt-3 border-t border-white/5 space-y-1.5">
-          {details.height      && <DetailRow label="身長" value={`${details.height}cm`} />}
-          {details.weight      && <DetailRow label="体重" value={`${details.weight}kg`} />}
-          {details.parentPhone && <DetailRow label="保護者TEL" value={details.parentPhone} />}
-          {details.note        && <DetailRow label="相談事項" value={details.note} />}
+      {(details.height || details.weight || details.parentPhone || details.note) && (
+        <div className="mt-2.5 space-y-1.5">
+          {(details.height || details.weight || details.parentPhone) && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {details.height && (
+                <span className={`text-base font-black px-3 py-1 rounded-xl border ${isRemoteUnchecked ? 'bg-zinc-800/60 border-zinc-700/40 text-zinc-500' : 'bg-indigo-500/15 border-indigo-500/25 text-indigo-200'}`}>
+                  {details.height}cm
+                </span>
+              )}
+              {details.weight && (
+                <span className={`text-base font-black px-3 py-1 rounded-xl border ${isRemoteUnchecked ? 'bg-zinc-800/60 border-zinc-700/40 text-zinc-500' : 'bg-violet-500/15 border-violet-500/25 text-violet-200'}`}>
+                  {details.weight}kg
+                </span>
+              )}
+              {details.parentPhone && (
+                <a href={`tel:${details.parentPhone}`}
+                  className="flex items-center gap-1.5 text-blue-400 text-sm font-bold">
+                  <Phone size={12} />{details.parentPhone}
+                </a>
+              )}
+            </div>
+          )}
+          {details.note && (
+            <div className={`rounded-xl px-3 py-2 border ${isRemoteUnchecked ? 'bg-zinc-800/40 border-zinc-700/40' : 'bg-amber-500/10 border-amber-500/25'}`}>
+              <p className={`text-sm font-bold leading-snug ${isRemoteUnchecked ? 'text-zinc-500' : 'text-amber-200'}`}>💬 {details.note}</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -303,11 +318,9 @@ function WaitingCard({ ticket, storeId, onAction, onCheckIn }: {
 // ============================================================
 function CallingCard({ ticket, storeId, onAction }: { ticket: Queue; storeId: string; onAction: (id: string, s: QueueStatus) => Promise<void> }) {
   const [loading, setLoading]   = useState<string | null>(null)
-  const [open, setOpen]         = useState(false)
   const [custOpen, setCustOpen] = useState(false)
   const waitMin   = Math.floor((Date.now() - new Date(ticket.created_at).getTime()) / 60000)
   const details   = (ticket.details ?? {}) as Record<string, string>
-  const hasDetail = !!(details.height || details.weight || details.parentPhone || details.note)
 
   const act = async (s: QueueStatus) => { setLoading(s); await onAction(ticket.id, s); setLoading(null) }
   const recall = async () => {
@@ -349,10 +362,6 @@ function CallingCard({ ticket, storeId, onAction }: { ticket: Queue; storeId: st
             <p className="text-zinc-500 text-xs truncate">保護者: {ticket.customer_name}</p>
           )}
         </div>
-        <button onClick={() => setOpen(v => !v)}
-          className={`shrink-0 text-xs font-bold px-2 py-1 rounded-lg transition-colors ${
-            hasDetail ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-zinc-800/80 text-zinc-600'
-          }`}>{open ? '閉' : '詳'}</button>
       </div>
 
       {custOpen && ticket.customer_id && (
@@ -361,12 +370,33 @@ function CallingCard({ ticket, storeId, onAction }: { ticket: Queue; storeId: st
         </div>
       )}
 
-      {open && hasDetail && (
-        <div className="mt-3 pt-3 border-t border-white/5 space-y-1.5">
-          {details.height      && <DetailRow label="身長" value={`${details.height}cm`} />}
-          {details.weight      && <DetailRow label="体重" value={`${details.weight}kg`} />}
-          {details.parentPhone && <DetailRow label="保護者TEL" value={details.parentPhone} />}
-          {details.note        && <DetailRow label="相談事項" value={details.note} />}
+      {(details.height || details.weight || details.parentPhone || details.note) && (
+        <div className="mt-2.5 space-y-1.5">
+          {(details.height || details.weight || details.parentPhone) && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {details.height && (
+                <span className="bg-indigo-500/15 border border-indigo-500/25 text-indigo-200 text-base font-black px-3 py-1 rounded-xl">
+                  {details.height}cm
+                </span>
+              )}
+              {details.weight && (
+                <span className="bg-violet-500/15 border border-violet-500/25 text-violet-200 text-base font-black px-3 py-1 rounded-xl">
+                  {details.weight}kg
+                </span>
+              )}
+              {details.parentPhone && (
+                <a href={`tel:${details.parentPhone}`}
+                  className="flex items-center gap-1.5 text-blue-400 text-sm font-bold">
+                  <Phone size={12} />{details.parentPhone}
+                </a>
+              )}
+            </div>
+          )}
+          {details.note && (
+            <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl px-3 py-2">
+              <p className="text-amber-200 text-sm font-bold leading-snug">💬 {details.note}</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -554,17 +584,23 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     if (isOpen === null) return
     const next = !isOpen
     setIsOpen(next)
-    const { error } = await supabase.from('stores').update({ is_open: next }).eq('id', store.id)
-    if (error) {
+    try {
+      const res = await fetch('/api/stores/open', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId: store.id, isOpen: next }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setIsOpen(!next)
+        showToast('err', '受付切替失敗: ' + (json.error ?? 'エラー'))
+        return
+      }
+      // APIが返した実際のDB値で確定
+      if (typeof json.is_open === 'boolean') setIsOpen(json.is_open)
+    } catch {
       setIsOpen(!next)
-      showToast('err', '受付切替失敗: ' + error.message)
-      return
-    }
-    // RLS未設定だとエラーなしで0行更新されるため、DB値で確認
-    const { data: verify } = await supabase.from('stores').select('is_open').eq('id', store.id).single()
-    if (verify != null && verify.is_open !== next) {
-      setIsOpen(verify.is_open ?? false)
-      showToast('err', '⚠️ 保存されませんでした。SQL EditorでRLS設定を実行してください')
+      showToast('err', '受付切替失敗: 通信エラー')
     }
   }
 
