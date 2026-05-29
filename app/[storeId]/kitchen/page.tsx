@@ -13,6 +13,20 @@ import BatchView        from './_components/BatchView'
 const WEEKDAYS       = ['日', '月', '火', '水', '木', '金', '土']
 const WEEKDAY_COLORS = ['text-red-400', 'text-zinc-300', 'text-zinc-300', 'text-zinc-300', 'text-zinc-300', 'text-zinc-300', 'text-blue-400']
 
+const TEST_NAMES = ['田中', '鈴木', '佐藤', '山田', '伊藤', '渡辺', '中村', '小林', '加藤', '吉田']
+const TEST_MENUS = [
+  { name: '焼き鳥 もも',     price: 180 },
+  { name: '焼き鳥 ねぎま',   price: 180 },
+  { name: '焼き鳥 つくね',   price: 200 },
+  { name: '唐揚げ弁当',      price: 780 },
+  { name: 'から揚げ（6個）', price: 380 },
+  { name: '幕の内弁当',      price: 980 },
+  { name: 'ビール（中）',    price: 450 },
+  { name: 'お茶',            price: 100 },
+  { name: 'チューハイ',      price: 380 },
+  { name: 'おにぎり（鮭）',  price: 180 },
+]
+
 function DateDisplay() {
   const now = new Date()
   const w   = now.getDay()
@@ -157,6 +171,47 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
     }
   }
 
+  const insertTestOrder = async () => {
+    const { data: orderNumber } = await supabase
+      .rpc('get_next_order_number', { p_store_id: storeId })
+    if (!orderNumber) return
+
+    const name      = TEST_NAMES[Math.floor(Math.random() * TEST_NAMES.length)]
+    const itemCount = Math.floor(Math.random() * 3) + 1
+    const picked: typeof TEST_MENUS = []
+    const used = new Set<number>()
+    while (picked.length < itemCount) {
+      const idx = Math.floor(Math.random() * TEST_MENUS.length)
+      if (!used.has(idx)) { used.add(idx); picked.push(TEST_MENUS[idx]) }
+    }
+    const items = picked.map(m => ({ ...m, quantity: Math.floor(Math.random() * 3) + 1 }))
+
+    const { data: order } = await supabase
+      .from('takeout_orders')
+      .insert({
+        store_id:      storeId,
+        order_number:  orderNumber as string,
+        customer_name: `テスト_${name}`,
+        status:        'pending',
+        total_amount:  items.reduce((s, i) => s + i.price * i.quantity, 0),
+        order_source:  'walkin',
+      } as never)
+      .select()
+      .single()
+
+    if (order) {
+      await supabase.from('takeout_order_items').insert(
+        items.map(i => ({
+          order_id:   (order as { id: string }).id,
+          name:       i.name,
+          unit_price: i.price,
+          quantity:   i.quantity,
+        }))
+      )
+      await loadOrders()
+    }
+  }
+
   const cancelOrder = async (order: TakeoutOrder) => {
     const { error } = await supabase
       .from('takeout_orders')
@@ -206,6 +261,13 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
         <button onClick={() => setShowBatch(true)}
           className="flex items-center gap-1 bg-zinc-800 text-zinc-300 text-sm px-3 py-2 rounded-lg active:scale-95 transition-transform">
           📋 バッチ
+        </button>
+        <button
+          onClick={insertTestOrder}
+          className="bg-zinc-800/80 text-zinc-600 text-xs px-2.5 py-2 rounded-lg active:scale-95 transition-transform border border-zinc-700/50"
+          title="テスト注文を追加"
+        >
+          🧪
         </button>
         <div className="flex-1" />
         {/* 注文数サマリー */}
