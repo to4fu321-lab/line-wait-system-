@@ -11,7 +11,7 @@ const TABS = [
   { id: 'repairs',  label: '依頼管理', icon: ClipboardList, exact: false, path: (sid: string) => `/${sid}/admin/repairs` },
   { id: 'delivery', label: 'お渡し',  icon: Package,  exact: false, path: (sid: string) => `/${sid}/admin/delivery` },
   { id: 'crm',      label: '顧客',    icon: Search,   exact: false, path: (sid: string) => `/${sid}/admin/crm` },
-  { id: 'settings', label: '設定',    icon: Settings, exact: false, path: (sid: string) => `/${sid}/admin/settings` },
+  { id: 'settings', label: '設定',    icon: Settings, exact: false, path: (sid: string) => `/${sid}/admin/settings/staff` },
 ] as const
 
 const FAB_ITEMS = [

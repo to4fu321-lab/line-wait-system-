@@ -4,22 +4,13 @@ import { useParams } from 'next/navigation'
 import { useEffect, useState, useCallback } from 'react'
 import {
   Settings, Loader2, Plus, Trash2, GraduationCap, AlertCircle, Save,
-  CalendarDays, Clock, CheckCheck, LayoutDashboard, Store, Key, Bell, BellOff,
+  CalendarDays, Clock, CheckCheck, LayoutDashboard, Store, Key,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { WaitThreshold } from '@/types/database'
 import { DEFAULT_THRESHOLDS } from '@/types/database'
 import { BottomNav } from '../_components/BottomNav'
 import ColorPicker from '@/app/_components/ColorPicker'
-
-const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BAmZx5b8ScrgrqWa822FdQhtfHV2CSyqvxNeQX-Ds1KsqztPPRtZRyBP_LaQZmCLejg8Ivd7Gu4cBxKtNwodb3o'
-
-function urlBase64ToUint8Array(base64: string) {
-  const pad = '='.repeat((4 - base64.length % 4) % 4)
-  const b64 = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/')
-  const raw = window.atob(b64)
-  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
-}
 
 type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
 type DayHours = { open: string; close: string; closed: boolean }
@@ -96,9 +87,6 @@ export default function SettingsPage() {
   const [businessHours,     setBusinessHours]     = useState<BusinessHours>(DEFAULT_BUSINESS_HOURS)
   const [saveError,         setSaveError]         = useState<string | null>(null)
 
-  // プッシュ通知ステータス
-  const [pushStatus, setPushStatus] = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle')
-
   // ── 予約設定 ──────────────────────────────────────────────
   type ResvSetting = {
     service_type: string; label: string; duration_min: number
@@ -167,40 +155,6 @@ export default function SettingsPage() {
   }, [storeId])
 
   useEffect(() => { fetchResvSettings() }, [fetchResvSettings])
-
-  // プッシュ通知の現在の権限状態をチェック
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (!('Notification' in window) || !('PushManager' in window)) {
-      setPushStatus('unsupported'); return
-    }
-    const perm = (window as any).Notification.permission
-    if (perm === 'granted') setPushStatus('granted')
-    else if (perm === 'denied') setPushStatus('denied')
-  }, [])
-
-  const setupPush = async () => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-      setPushStatus('unsupported'); return
-    }
-    try {
-      const reg  = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
-      const perm = await (window as any).Notification.requestPermission()
-      if (perm !== 'granted') { setPushStatus('denied'); return }
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
-      })
-      await fetch('/api/push-subscribe', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storeId, subscription: sub.toJSON() }),
-      })
-      setPushStatus('granted')
-    } catch (e) {
-      console.error('[push setup]', e)
-      setPushStatus('denied')
-    }
-  }
 
   const handleResvSave = async () => {
     if (!storeId || !resvTableOk) return
@@ -316,83 +270,6 @@ export default function SettingsPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-5 space-y-6">
-
-        {/* ========================================================
-            スタッフ操作（BottomNav設定タブから来るスタッフ向け）
-            ======================================================== */}
-        <div className="space-y-3">
-          <SectionLabel title="スタッフ操作" />
-
-          {/* ブラウザ通知 */}
-          <button
-            onClick={() => { if (pushStatus !== 'granted' && pushStatus !== 'unsupported') setupPush() }}
-            disabled={pushStatus === 'granted' || pushStatus === 'unsupported'}
-            style={{ touchAction: 'manipulation' }}
-            className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl border-2 transition-all active:scale-[0.98] ${
-              pushStatus === 'granted'     ? 'border-emerald-500/60 bg-emerald-500/10 cursor-default' :
-              pushStatus === 'denied'      ? 'border-red-500/40 bg-red-500/10' :
-              pushStatus === 'unsupported' ? 'border-zinc-700 bg-zinc-800/40 cursor-not-allowed opacity-60' :
-              'border-indigo-500/50 bg-indigo-500/10 hover:border-indigo-400'
-            }`}>
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
-              pushStatus === 'granted' ? 'bg-emerald-500/20' :
-              pushStatus === 'denied'  ? 'bg-red-500/20' :
-              'bg-indigo-500/20'
-            }`}>
-              {pushStatus === 'denied'
-                ? <BellOff size={22} className="text-red-400" />
-                : <Bell size={22} className={pushStatus === 'granted' ? 'text-emerald-400' : 'text-indigo-400'} />}
-            </div>
-            <div className="text-left flex-1">
-              <p className={`font-bold text-base leading-tight ${
-                pushStatus === 'granted' ? 'text-emerald-300' :
-                pushStatus === 'denied'  ? 'text-red-300' : 'text-white'
-              }`}>
-                {pushStatus === 'granted'     ? '受付通知 ON' :
-                 pushStatus === 'denied'      ? '通知がブロックされています' :
-                 pushStatus === 'unsupported' ? '通知非対応の端末' :
-                 '受付通知を有効にする'}
-              </p>
-              <p className="text-zinc-500 text-xs mt-0.5">
-                {pushStatus === 'granted'     ? 'お客様が受付したとき、この端末に通知が届きます' :
-                 pushStatus === 'denied'      ? 'ブラウザの設定から通知を許可してください' :
-                 pushStatus === 'unsupported' ? 'このブラウザは通知に対応していません' :
-                 'タップしてこの端末で通知を受け取る'}
-              </p>
-            </div>
-            {pushStatus === 'granted' && (
-              <div className="shrink-0 w-3 h-3 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/50" />
-            )}
-          </button>
-
-          {/* 店舗を切り替える */}
-          <button
-            onClick={() => {
-              sessionStorage.removeItem('admin_auth')
-              sessionStorage.removeItem('admin_store_id')
-              window.location.href = `/${storeId}/admin`
-            }}
-            style={{ touchAction: 'manipulation' }}
-            className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl border border-zinc-700/50 bg-zinc-900/60 hover:bg-zinc-800/60 active:scale-[0.98] transition-all">
-            <div className="w-12 h-12 rounded-2xl bg-zinc-800 flex items-center justify-center shrink-0">
-              <Store size={22} className="text-zinc-400" />
-            </div>
-            <div className="text-left flex-1">
-              <p className="font-bold text-base text-zinc-200">店舗を切り替える</p>
-              <p className="text-zinc-500 text-xs mt-0.5">別の店舗に切り替えます（再ログインが必要）</p>
-            </div>
-          </button>
-        </div>
-
-        {/* ========================================================
-            管理者設定セクション区切り
-            ======================================================== */}
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-zinc-800" />
-          <span className="text-zinc-600 text-[11px] font-bold tracking-widest px-1">管理者設定</span>
-          <div className="flex-1 h-px bg-zinc-800" />
-        </div>
-        <p className="text-xs text-zinc-700 -mt-3">以下はオーナー・管理者が設定する項目です</p>
 
         {/* 店舗基本情報 */}
         <div className="space-y-3">

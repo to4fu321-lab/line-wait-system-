@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import {
   Loader2, RefreshCw, ShieldCheck, Scissors, Package,
-  ShoppingBag, CreditCard, Users, ExternalLink, Store, Palette,
+  ShoppingBag, CreditCard, Users, ExternalLink, Store, Palette, Settings,
 } from 'lucide-react'
 import ColorPicker from '@/app/_components/ColorPicker'
 
@@ -182,14 +182,18 @@ function StoreCard({ s }: { s: StoreStats }) {
       </div>
 
       {/* 管理画面リンク */}
-      <div className="grid grid-cols-2 gap-2 pt-1">
+      <div className="grid grid-cols-3 gap-2 pt-1">
         <a href={`/${s.store.id}/admin/repairs`} target="_blank" rel="noopener noreferrer"
-          className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-xs font-bold active:scale-95 transition-all">
-          <Scissors size={12} />お直し管理
+          className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-xs font-bold active:scale-95 transition-all">
+          <Scissors size={12} />お直し
         </a>
         <a href={`/${s.store.id}/admin/crm`} target="_blank" rel="noopener noreferrer"
-          className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-zinc-700/50 border border-zinc-600/50 text-zinc-300 text-xs font-bold active:scale-95 transition-all">
+          className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-zinc-700/50 border border-zinc-600/50 text-zinc-300 text-xs font-bold active:scale-95 transition-all">
           <ExternalLink size={12} />顧客管理
+        </a>
+        <a href={`/${s.store.id}/admin/settings`} target="_blank" rel="noopener noreferrer"
+          className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-violet-600/20 border border-violet-500/30 text-violet-300 text-xs font-bold active:scale-95 transition-all">
+          <Settings size={12} />設定
         </a>
       </div>
       <a href={`/${s.store.id}/admin`} target="_blank" rel="noopener noreferrer"
