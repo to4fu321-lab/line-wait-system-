@@ -13,6 +13,16 @@ export interface Group {
   created_at: string
 }
 
+export type BusinessType = 'uniform' | 'takeout'
+
+export interface TakeoutSettings {
+  target_minutes?:         number
+  skip_preparing?:         boolean
+  notify_on_preparing?:    boolean
+  notify_on_ready?:        boolean
+  combo_timeout_seconds?:  number
+}
+
 export interface Store {
   id: string
   group_id: string | null
@@ -23,6 +33,8 @@ export interface Store {
   notice_threshold: number
   allow_remote: boolean
   remote_threshold: number
+  business_type: BusinessType | null
+  takeout_settings: TakeoutSettings | null
   created_at: string
 }
 

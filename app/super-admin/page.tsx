@@ -6,7 +6,7 @@ import {
   Plus, ChevronDown, ChevronUp, Palette, Pencil, Trash2, X, Check, Building2,
 } from 'lucide-react'
 import ColorPicker from '@/app/_components/ColorPicker'
-import type { Store } from '@/types/database'
+import type { Store, BusinessType } from '@/types/database'
 
 const SUPER_ADMIN_PIN = process.env.NEXT_PUBLIC_SUPER_ADMIN_PIN || '9999'
 
@@ -141,12 +141,18 @@ function StoreCard({
     onDeleted()
   }
 
+  const isTakeout = store.business_type === 'takeout'
+
   return (
     <div className="bg-gray-800/80 rounded-2xl overflow-hidden border border-gray-700/50">
       {/* ヘッダー行 */}
       <div className="flex items-center gap-2 px-4 pt-3 pb-2">
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
           <span className="font-black text-sm text-white">{store.name}</span>
+          {isTakeout
+            ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30">🥡</span>
+            : <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">🏫</span>
+          }
         </div>
         <button onClick={isEditing ? onCloseEdit : onOpenEdit}
           className={`p-1.5 rounded-lg transition-colors shrink-0 ${isEditing ? 'bg-indigo-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-400'}`}>
@@ -233,41 +239,62 @@ function StoreCard({
         </div>
       )}
 
-      {/* 統計 */}
+      {/* 統計・リンク */}
       <div className="px-3 pb-3 space-y-2">
-        <div className="grid grid-cols-4 gap-1.5 text-center">
-          {[['合計', total, 'text-white'], ['待機', waiting, 'text-blue-400'], ['呼出', calling, 'text-yellow-400'], ['完了', completed, 'text-green-400']].map(([label, val, color]) => (
-            <div key={label as string} className="bg-gray-700/80 rounded-xl py-1.5">
-              <div className={`text-xl font-black tabular-nums ${color}`}>{val}</div>
-              <div className="text-gray-400 text-[10px]">{label}</div>
+        {isTakeout ? (
+          <div className="grid grid-cols-2 gap-1.5">
+            <button onClick={() => {
+              sessionStorage.setItem('admin_auth', '1')
+              sessionStorage.setItem('admin_store_id', store.id)
+              window.open(`/${store.id}/kitchen`, '_blank')
+            }} className="flex items-center justify-center gap-1 py-2 rounded-xl bg-orange-600/20 border border-orange-500/30 text-orange-300 text-xs font-bold">
+              🍳 キッチン
+            </button>
+            <button onClick={() => {
+              sessionStorage.setItem('admin_auth', '1')
+              sessionStorage.setItem('admin_store_id', store.id)
+              window.open(`/${store.id}/takeout-admin`, '_blank')
+            }} className="flex items-center justify-center gap-1 py-2 rounded-xl bg-amber-600/20 border border-amber-500/30 text-amber-300 text-xs font-bold">
+              <ShieldCheck size={11} />管理
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-4 gap-1.5 text-center">
+              {[['合計', total, 'text-white'], ['待機', waiting, 'text-blue-400'], ['呼出', calling, 'text-yellow-400'], ['完了', completed, 'text-green-400']].map(([label, val, color]) => (
+                <div key={label as string} className="bg-gray-700/80 rounded-xl py-1.5">
+                  <div className={`text-xl font-black tabular-nums ${color}`}>{val}</div>
+                  <div className="text-gray-400 text-[10px]">{label}</div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          <div className="bg-gray-700/80 rounded-xl py-1.5 flex items-center justify-center gap-1">
-            <Scissors size={10} className="text-amber-400" />
-            <span className="text-amber-400 font-black">{repairPending}</span>
-            <span className="text-gray-400 text-[10px]">お直し</span>
-          </div>
-          <div className="bg-gray-700/80 rounded-xl py-1.5 flex items-center justify-center gap-1">
-            <Package size={10} className="text-teal-400" />
-            <span className="text-teal-400 font-black">{deliveryWaiting}</span>
-            <span className="text-gray-400 text-[10px]">お渡し待ち</span>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          <a href={`/${store.id}`} target="_blank" rel="noopener noreferrer"
-            className="flex items-center justify-center gap-1 py-2 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-xs font-bold">
-            <ExternalLink size={11} />受付ページ
-          </a>
-          <button onClick={() => {
-            sessionStorage.setItem('admin_auth', '1')
-            sessionStorage.setItem('admin_store_id', store.id)
-            window.open(`/${store.id}/admin`, '_blank')
-          }} className="flex items-center justify-center gap-1 py-2 rounded-xl bg-amber-600/20 border border-amber-500/30 text-amber-300 text-xs font-bold">
-            <ShieldCheck size={11} />管理画面
-          </button>
-        </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <div className="bg-gray-700/80 rounded-xl py-1.5 flex items-center justify-center gap-1">
+                <Scissors size={10} className="text-amber-400" />
+                <span className="text-amber-400 font-black">{repairPending}</span>
+                <span className="text-gray-400 text-[10px]">お直し</span>
+              </div>
+              <div className="bg-gray-700/80 rounded-xl py-1.5 flex items-center justify-center gap-1">
+                <Package size={10} className="text-teal-400" />
+                <span className="text-teal-400 font-black">{deliveryWaiting}</span>
+                <span className="text-gray-400 text-[10px]">お渡し待ち</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <a href={`/${store.id}`} target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1 py-2 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-xs font-bold">
+                <ExternalLink size={11} />受付ページ
+              </a>
+              <button onClick={() => {
+                sessionStorage.setItem('admin_auth', '1')
+                sessionStorage.setItem('admin_store_id', store.id)
+                window.open(`/${store.id}/admin`, '_blank')
+              }} className="flex items-center justify-center gap-1 py-2 rounded-xl bg-amber-600/20 border border-amber-500/30 text-amber-300 text-xs font-bold">
+                <ShieldCheck size={11} />管理画面
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -286,6 +313,7 @@ function SuperDashboard() {
 
   const [colorPickerStoreId, setColorPickerStoreId] = useState<string | null>(null)
   const [editStoreId,        setEditStoreId]        = useState<string | null>(null)
+  const [bizFilter,          setBizFilter]          = useState<'all' | BusinessType>('all')
 
   // 会社編集
   const [editGroupId,    setEditGroupId]    = useState<string | null>(null)
@@ -303,6 +331,7 @@ function SuperDashboard() {
   const [showAddForm,  setShowAddForm]  = useState(false)
   const [addStoreName, setAddStoreName] = useState('')
   const [addStorePin,  setAddStorePin]  = useState('1111')
+  const [addBizType,   setAddBizType]   = useState<BusinessType>('uniform')
   const [addGroupMode, setAddGroupMode] = useState<'existing' | 'new'>('existing')
   const [addGroupId,   setAddGroupId]   = useState('')
   const [newGroupName, setNewGroupName] = useState('')
@@ -370,6 +399,15 @@ function SuperDashboard() {
     setDeleteGroupId(null); setEditGroupId(null); fetchAll()
   }
 
+  const uniformCount = storeStats.filter(x => (x.store.business_type ?? 'uniform') !== 'takeout').length
+  const takeoutCount = storeStats.filter(x => x.store.business_type === 'takeout').length
+
+  const filterStats = (stats: StoreStats[]) => stats.filter(x => {
+    if (bizFilter === 'all')     return true
+    if (bizFilter === 'takeout') return x.store.business_type === 'takeout'
+    return (x.store.business_type ?? 'uniform') !== 'takeout'
+  })
+
   // 会社ごとにグループ化
   const grouped = groups.map(g => ({
     group: g,
@@ -422,13 +460,31 @@ function SuperDashboard() {
           </div>
         </div>
 
+        {/* ─── 業種フィルタータブ ─── */}
+        <div className="flex gap-2 mb-4">
+          {([
+            { key: 'all',     label: `すべて ${storeStats.length}` },
+            { key: 'uniform', label: `🏫 制服 ${uniformCount}` },
+            { key: 'takeout', label: `🥡 テイクアウト ${takeoutCount}` },
+          ] as { key: 'all' | BusinessType; label: string }[]).map(t => (
+            <button key={t.key} onClick={() => setBizFilter(t.key)}
+              className={`px-3 py-1.5 rounded-xl text-sm font-bold transition-all ${
+                bizFilter === t.key ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400'
+              }`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         {/* 会社グループ × 店舗一覧 */}
         <div className="space-y-3">
           {grouped.map(({ group, stats }) => {
+            const filtered     = filterStats(stats)
+            if (filtered.length === 0 && bizFilter !== 'all') return null
             const isOpen = !collapsed[group.id]
             const isEditingGroup = editGroupId === group.id
-            const groupTotal   = stats.reduce((s, x) => s + x.total, 0)
-            const groupWaiting = stats.reduce((s, x) => s + x.waiting, 0)
+            const groupTotal   = filtered.reduce((s, x) => s + x.total, 0)
+            const groupWaiting = filtered.reduce((s, x) => s + x.waiting, 0)
 
             return (
               <div key={group.id} className="border border-gray-700/60 rounded-2xl overflow-hidden">
@@ -499,10 +555,10 @@ function SuperDashboard() {
                 {/* 店舗一覧（折りたたみ） */}
                 {isOpen && (
                   <div className="p-2 space-y-2 bg-gray-900/30">
-                    {stats.length === 0 ? (
+                    {filtered.length === 0 ? (
                       <p className="text-center text-gray-600 text-xs py-3">店舗なし</p>
                     ) : (
-                      stats.map(stat => (
+                      filtered.map(stat => (
                         <StoreCard key={stat.store.id} stat={stat} groups={groups}
                           isEditing={editStoreId === stat.store.id}
                           onOpenEdit={() => { setEditStoreId(stat.store.id); setColorPickerStoreId(null) }}
@@ -518,40 +574,40 @@ function SuperDashboard() {
                 )}
                 {!isOpen && (
                   <div className="bg-gray-900/30 px-4 py-2 text-center text-gray-600 text-xs">
-                    {stats.length}店舗 — 合計受付{groupTotal} / 待機{groupWaiting}
+                    {filtered.length}店舗 — 合計受付{groupTotal} / 待機{groupWaiting}
+                  </div>
+
+          {/* 独立店舗（会社なし） */}
+          {(() => {
+            const filteredStandalone = filterStats(standalone)
+            if (filteredStandalone.length === 0) return null
+            return (
+              <div className="border border-gray-700/60 rounded-2xl overflow-hidden">
+                <button onClick={() => toggleCollapse('__standalone')}
+                  className="w-full bg-gray-800 flex items-center gap-2 px-3 py-2.5">
+                  <Building2 size={14} className="text-gray-500 shrink-0" />
+                  <span className="font-black text-sm text-gray-300 flex-1 text-left">独立店舗（会社なし）</span>
+                  <span className="text-[10px] text-gray-500">{filteredStandalone.length}店舗</span>
+                  {collapsed['__standalone'] ? <ChevronDown size={12} className="text-gray-500" /> : <ChevronUp size={12} className="text-gray-500" />}
+                </button>
+                {!collapsed['__standalone'] && (
+                  <div className="p-2 space-y-2 bg-gray-900/30">
+                    {filteredStandalone.map(stat => (
+                      <StoreCard key={stat.store.id} stat={stat} groups={groups}
+                        isEditing={editStoreId === stat.store.id}
+                        onOpenEdit={() => { setEditStoreId(stat.store.id); setColorPickerStoreId(null) }}
+                        onCloseEdit={() => setEditStoreId(null)}
+                        onSaved={fetchAll} onDeleted={fetchAll}
+                        colorPickerStoreId={colorPickerStoreId}
+                        onOpenColorPicker={() => setColorPickerStoreId(colorPickerStoreId === stat.store.id ? null : stat.store.id)}
+                        onColorSaved={() => setColorPickerStoreId(null)}
+                      />
+                    ))}
                   </div>
                 )}
               </div>
             )
-          })}
-
-          {/* 独立店舗（会社なし） */}
-          {standalone.length > 0 && (
-            <div className="border border-gray-700/60 rounded-2xl overflow-hidden">
-              <button onClick={() => toggleCollapse('__standalone')}
-                className="w-full bg-gray-800 flex items-center gap-2 px-3 py-2.5">
-                <Building2 size={14} className="text-gray-500 shrink-0" />
-                <span className="font-black text-sm text-gray-300 flex-1 text-left">独立店舗（会社なし）</span>
-                <span className="text-[10px] text-gray-500">{standalone.length}店舗</span>
-                {collapsed['__standalone'] ? <ChevronDown size={12} className="text-gray-500" /> : <ChevronUp size={12} className="text-gray-500" />}
-              </button>
-              {!collapsed['__standalone'] && (
-                <div className="p-2 space-y-2 bg-gray-900/30">
-                  {standalone.map(stat => (
-                    <StoreCard key={stat.store.id} stat={stat} groups={groups}
-                      isEditing={editStoreId === stat.store.id}
-                      onOpenEdit={() => { setEditStoreId(stat.store.id); setColorPickerStoreId(null) }}
-                      onCloseEdit={() => setEditStoreId(null)}
-                      onSaved={fetchAll} onDeleted={fetchAll}
-                      colorPickerStoreId={colorPickerStoreId}
-                      onOpenColorPicker={() => setColorPickerStoreId(colorPickerStoreId === stat.store.id ? null : stat.store.id)}
-                      onColorSaved={() => setColorPickerStoreId(null)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          })()}
         </div>
 
         {/* 店舗追加フォーム */}
@@ -603,6 +659,23 @@ function SuperDashboard() {
                   </div>
                 )}
               </div>
+
+              {/* 業種 */}
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">業種</label>
+                <div className="flex gap-2">
+                  {([
+                    { key: 'uniform', label: '🏫 制服販売' },
+                    { key: 'takeout', label: '🥡 テイクアウト' },
+                  ] as { key: BusinessType; label: string }[]).map(t => (
+                    <button key={t.key} onClick={() => setAddBizType(t.key)}
+                      className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${addBizType === t.key ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400'}`}>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {addMsg && (
                 <div className={`text-sm px-3 py-2 rounded-xl ${addMsg.ok ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-700/50' : 'bg-red-900/40 text-red-300 border border-red-700/50'}`}>
                   {addMsg.text}
@@ -611,7 +684,7 @@ function SuperDashboard() {
               <button disabled={adding || !addStoreName.trim()}
                 onClick={async () => {
                   setAdding(true); setAddMsg(null)
-                  const body: Record<string, string> = { storeName: addStoreName, storePin: addStorePin }
+                  const body: Record<string, string> = { storeName: addStoreName, storePin: addStorePin, businessType: addBizType }
                   if (addGroupMode === 'existing' && addGroupId) body.groupId = addGroupId
                   else if (addGroupMode === 'new') { body.newGroupName = newGroupName; body.newGroupCode = newGroupCode; body.newGroupPin = newGroupPin }
                   const res = await fetch('/api/super-admin/stores', {
@@ -621,7 +694,7 @@ function SuperDashboard() {
                   setAdding(false)
                   if (!res.ok) { setAddMsg({ ok: false, text: json.error ?? '追加失敗' }); return }
                   setAddMsg({ ok: true, text: `✅ 「${addStoreName}」を追加しました` })
-                  setAddStoreName(''); setAddStorePin('1111')
+                  setAddStoreName(''); setAddStorePin('1111'); setAddBizType('uniform')
                   setNewGroupName(''); setNewGroupCode(''); setNewGroupPin('1111'); setAddGroupId('')
                   fetchAll()
                 }}
