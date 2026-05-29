@@ -126,10 +126,15 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
     const nextStatus = getNextStatus(order.status, settings)
     if (!nextStatus) return
 
-    await supabase
+    const { error } = await supabase
       .from('takeout_orders')
       .update({ status: nextStatus })
       .eq('id', order.id)
+
+    if (error) return
+
+    await loadOrders()
+    if (nextStatus === 'completed') await loadTodayCount()
 
     triggerSound(nextStatus)
 
