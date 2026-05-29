@@ -81,7 +81,7 @@ function Field({ label, required, children }: { label: string; required?: boolea
   return (
     <div>
       <label className="block text-xs font-bold text-gray-600 mb-1.5">
-        {label}{required && <span className="text-red-400 ml-1">*</span>}
+        {label}{required && <span className="text-red-600 ml-1">*</span>}
       </label>
       {children}
     </div>
@@ -647,7 +647,7 @@ function ChildCard({
       {expanded && (
         <div className="px-4 pb-4 space-y-3 border-t border-gray-200 pt-3">
           {loading ? (
-            <div className="flex justify-center py-4"><Loader2 size={20} className="animate-spin text-indigo-400" /></div>
+            <div className="flex justify-center py-4"><Loader2 size={20} className="animate-spin text-indigo-600" /></div>
           ) : (
             <>
               {/* 依頼受付ボタン（統一） */}
@@ -1530,7 +1530,7 @@ export default function CRMPage() {
             const loading = isSearchMode ? customerLoading : allLoading
 
             if (loading) return (
-              <div className="flex justify-center py-6"><Loader2 size={24} className="animate-spin text-indigo-400" /></div>
+              <div className="flex justify-center py-6"><Loader2 size={24} className="animate-spin text-indigo-600" /></div>
             )
             if (list.length === 0) return (
               <div className="text-center py-6 text-gray-500">
@@ -1571,7 +1571,7 @@ export default function CRMPage() {
                           )}
                         </div>
                         {c.line_user_id
-                          ? <MessageCircle size={13} className="text-emerald-400 shrink-0" />
+                          ? <MessageCircle size={13} className="text-emerald-600 shrink-0" />
                           : <span className="text-[10px] text-gray-500 shrink-0">LINE未</span>
                         }
                       </div>
@@ -1719,14 +1719,14 @@ export default function CRMPage() {
       {/* 削除確認モーダル */}
       {deleteTarget && !deleteMode && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
-          <div className="bg-white border border-white/10 rounded-t-3xl p-6 w-full max-w-md">
-            <h3 className="text-white font-black text-lg mb-1">顧客を削除しますか？</h3>
+          <div className="bg-white border border-gray-200 rounded-t-3xl p-6 w-full max-w-md">
+            <h3 className="text-gray-900 font-black text-lg mb-1">顧客を削除しますか？</h3>
             <p className="text-gray-700 text-sm font-bold mb-2">{deleteTarget.name} 様</p>
 
             {/* お子様リスト警告 */}
             {customerChildren.length > 0 && (
-              <div className="mb-4 px-3 py-2.5 bg-red-500/10 border border-red-500/20 rounded-xl">
-                <p className="text-red-400 text-xs font-bold mb-1.5">⚠️ 以下のお子様も一緒に削除されます</p>
+              <div className="mb-4 px-3 py-2.5 bg-red-50 border border-red-200 rounded-xl">
+                <p className="text-red-600 text-xs font-bold mb-1.5">⚠️ 以下のお子様も一緒に削除されます</p>
                 {customerChildren.map(ch => (
                   <p key={ch.id} className="text-gray-700 text-xs ml-2">・{ch.name}{ch.school_name ? `（${ch.school_name}）` : ''}</p>
                 ))}
@@ -1735,27 +1735,27 @@ export default function CRMPage() {
 
             <div className="space-y-2.5">
               <button onClick={() => setDeleteMode('soft')}
-                className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-left active:scale-[0.98] transition-all">
-                <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
-                  <EyeOff size={16} className="text-amber-400" />
+                className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl bg-amber-50 border border-amber-300 text-left active:scale-[0.98] transition-all">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                  <EyeOff size={16} className="text-amber-600" />
                 </div>
                 <div>
-                  <p className="font-bold text-amber-300 text-sm">通常削除（非表示）</p>
+                  <p className="font-bold text-amber-700 text-sm">通常削除（非表示）</p>
                   <p className="text-gray-500 text-xs mt-0.5">データは保持されます。「削除済みを表示」から復元可能です</p>
                 </div>
               </button>
               <button onClick={() => setDeleteMode('hard')}
-                className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-left active:scale-[0.98] transition-all">
-                <div className="w-9 h-9 rounded-xl bg-red-500/20 flex items-center justify-center shrink-0">
-                  <Trash2 size={16} className="text-red-400" />
+                className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl bg-red-50 border border-red-300 text-left active:scale-[0.98] transition-all">
+                <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                  <Trash2 size={16} className="text-red-600" />
                 </div>
                 <div>
-                  <p className="font-bold text-red-400 text-sm">完全削除</p>
+                  <p className="font-bold text-red-600 text-sm">完全削除</p>
                   <p className="text-gray-500 text-xs mt-0.5">データベースから完全に削除されます。復元不可</p>
                 </div>
               </button>
             </div>
-            <button onClick={() => setDeleteTarget(null)} className="w-full mt-3 py-3 rounded-2xl bg-gray-200 text-gray-500 font-bold text-sm">キャンセル</button>
+            <button onClick={() => setDeleteTarget(null)} className="w-full mt-3 py-3 rounded-2xl bg-gray-100 text-gray-600 font-bold text-sm">キャンセル</button>
           </div>
         </div>
       )}
@@ -1763,13 +1763,13 @@ export default function CRMPage() {
       {/* 削除最終確認 */}
       {deleteTarget && deleteMode && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
-          <div className="bg-white border border-white/10 rounded-t-3xl p-6 w-full max-w-md">
-            <h3 className="text-white font-black text-lg mb-1">
+          <div className="bg-white border border-gray-200 rounded-t-3xl p-6 w-full max-w-md">
+            <h3 className="text-gray-900 font-black text-lg mb-1">
               {deleteMode === 'soft' ? '通常削除しますか？' : '完全削除しますか？'}
             </h3>
             <p className="text-gray-700 text-sm font-bold mb-1">{deleteTarget.name} 様</p>
             {customerChildren.length > 0 && (
-              <p className="text-red-400 text-xs mb-1">お子様 {customerChildren.length}人（{customerChildren.map(c => c.name).join('・')}）も削除されます</p>
+              <p className="text-red-600 text-xs mb-1">お子様 {customerChildren.length}人（{customerChildren.map(c => c.name).join('・')}）も削除されます</p>
             )}
             <p className="text-gray-500 text-xs mb-5 mt-1">
               {deleteMode === 'soft'
@@ -1777,7 +1777,7 @@ export default function CRMPage() {
                 : '⚠️ お直し・購入履歴・整理券も全て削除されます。この操作は取り消せません'}
             </p>
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => setDeleteMode(null)} className="py-4 rounded-xl bg-gray-200 text-white font-bold">戻る</button>
+              <button onClick={() => setDeleteMode(null)} className="py-4 rounded-xl bg-gray-100 text-gray-600 font-bold">戻る</button>
               <button onClick={handleDelete} disabled={deleteLoading}
                 className={`py-4 rounded-xl font-black text-white flex items-center justify-center gap-2 disabled:opacity-60 transition-all active:scale-95 ${deleteMode === 'soft' ? 'bg-amber-500' : 'bg-red-600'}`}>
                 {deleteLoading && <Loader2 size={16} className="animate-spin" />}
@@ -1795,17 +1795,17 @@ export default function CRMPage() {
         const qrSrc  = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(url)}`
         return (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
-            <div className="bg-white border border-white/10 rounded-3xl p-6 w-full max-w-xs text-center relative">
+            <div className="bg-white border border-gray-200 rounded-3xl p-6 w-full max-w-xs text-center relative">
               <button onClick={() => setShowQrModal(false)}
-                className="absolute top-4 right-4 p-1.5 rounded-xl bg-gray-200 text-gray-500 hover:text-gray-900">
+                className="absolute top-4 right-4 p-1.5 rounded-xl bg-gray-100 text-gray-500 hover:text-gray-900">
                 <X size={16} />
               </button>
-              <p className="font-black text-white text-base mb-1">新規会員登録</p>
+              <p className="font-black text-gray-900 text-base mb-1">新規会員登録</p>
               <p className="text-gray-500 text-xs mb-4">お客様のLINEでこのQRコードを読み取ってもらってください</p>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={qrSrc} alt="登録QRコード" width={240} height={240}
                 className="mx-auto rounded-2xl bg-white p-2" />
-              <p className="text-gray-500 text-[10px] mt-4 break-all">{url}</p>
+              <p className="text-gray-400 text-[10px] mt-4 break-all">{url}</p>
             </div>
           </div>
         )
@@ -1814,12 +1814,12 @@ export default function CRMPage() {
       {/* お子様削除確認モーダル */}
       {deleteChildTarget && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
-          <div className="bg-white border border-white/10 rounded-t-3xl p-6 w-full max-w-md">
-            <h3 className="text-white font-black text-lg mb-1">お子様を削除しますか？</h3>
-            <p className="text-gray-500 text-sm mb-1">{deleteChildTarget.name} さん</p>
+          <div className="bg-white border border-gray-200 rounded-t-3xl p-6 w-full max-w-md">
+            <h3 className="text-gray-900 font-black text-lg mb-1">お子様を削除しますか？</h3>
+            <p className="text-gray-600 text-sm mb-1">{deleteChildTarget.name} さん</p>
             <p className="text-gray-500 text-xs mb-5">お直し・追加購入履歴のお子様紐付けが外れます（履歴は保持されます）</p>
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => setDeleteChildTarget(null)} className="py-4 rounded-xl bg-gray-200 text-white font-bold">キャンセル</button>
+              <button onClick={() => setDeleteChildTarget(null)} className="py-4 rounded-xl bg-gray-100 text-gray-600 font-bold">キャンセル</button>
               <button onClick={handleDeleteChild} disabled={deleteChildLoading}
                 className="py-4 rounded-xl bg-red-600 text-white font-black flex items-center justify-center gap-2 disabled:opacity-60 active:scale-95 transition-all">
                 {deleteChildLoading && <Loader2 size={16} className="animate-spin" />}

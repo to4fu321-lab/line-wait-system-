@@ -208,15 +208,15 @@ function ReservationCard({ res, onUpdate, onDelete }: {
       {/* 完了済みを戻す */}
       {(res.status === 'no_show' || res.status === 'cancelled') && (
         <button onClick={() => act('confirmed')} disabled={!!loading}
-          className="mt-3 w-full py-2 rounded-xl font-bold text-xs border border-indigo-500/20 text-indigo-500/70 hover:text-indigo-400 hover:border-indigo-500/40 transition-all flex items-center justify-center gap-1">
+          className="mt-3 w-full py-2 rounded-xl font-bold text-xs border border-indigo-300 text-indigo-600 hover:text-indigo-700 hover:border-indigo-400 transition-all flex items-center justify-center gap-1">
           予約確定に戻す
         </button>
       )}
 
       {/* 削除確認 */}
       {confirmDelete && (
-        <div className="mt-3 bg-red-950/50 border border-red-500/30 rounded-xl p-3 space-y-2">
-          <p className="text-xs text-center text-red-300 font-bold">この予約を削除しますか？</p>
+        <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 space-y-2">
+          <p className="text-xs text-center text-red-700 font-bold">この予約を削除しますか？</p>
           <div className="flex gap-2">
             <button onClick={() => setConfirmDelete(false)}
               className="flex-1 py-2 rounded-xl font-bold text-xs bg-gray-300 text-gray-700 active:scale-95">
@@ -240,8 +240,8 @@ function QueueRefCard({ q, storeId }: { q: QueueRef; storeId: string }) {
   const statusLabel = {
     waiting: '待機中', calling: '呼出中', completed: '完了', cancelled: '不在',
   }[q.status] ?? q.status
-  const statusColor = q.status === 'waiting' ? 'text-blue-400'
-    : q.status === 'calling' ? 'text-amber-400'
+  const statusColor = q.status === 'waiting' ? 'text-blue-600'
+    : q.status === 'calling' ? 'text-amber-600'
     : 'text-gray-500'
   return (
     <div className="rounded-2xl border bg-gray-50 border-gray-200 p-4 flex items-center gap-3 opacity-70">
@@ -264,7 +264,7 @@ function QueueRefCard({ q, storeId }: { q: QueueRef; storeId: string }) {
         {q.child_name && <p className="text-xs text-gray-500 truncate">保護者: {q.customer_name}</p>}
       </div>
       <a href={`/${storeId}/admin`}
-        className="text-xs text-gray-600 hover:text-gray-500 shrink-0 transition-colors">
+        className="text-xs text-gray-400 hover:text-gray-600 shrink-0 transition-colors">
         <ChevronRight size={14} />
       </a>
     </div>
@@ -330,51 +330,51 @@ function NewReservationForm({ storeId, onSaved, onCancel }: {
   }
 
   return (
-    <div className="bg-white/95 border border-indigo-500/30 rounded-2xl p-4 space-y-3 animate-fade-in">
+    <div className="bg-white border border-indigo-300 rounded-2xl p-4 space-y-3 animate-fade-in">
       <div className="flex items-center justify-between">
-        <p className="font-black text-white text-sm flex items-center gap-2">
-          <CalendarDays size={14} className="text-indigo-400" />新規予約登録
+        <p className="font-black text-gray-900 text-sm flex items-center gap-2">
+          <CalendarDays size={14} className="text-indigo-600" />新規予約登録
         </p>
-        <button onClick={onCancel} className="p-1 text-gray-500 hover:text-white"><X size={16} /></button>
+        <button onClick={onCancel} className="p-1 text-gray-500 hover:text-gray-900"><X size={16} /></button>
       </div>
 
       {/* 日時 */}
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-xs font-bold text-gray-500 mb-1.5">日付 <span className="text-red-400">*</span></label>
+          <label className="block text-xs font-bold text-gray-600 mb-1.5">日付 <span className="text-red-600">*</span></label>
           <input type="date" value={reservedDate} onChange={e => setReservedDate(e.target.value)}
-            className="w-full bg-gray-200 border border-gray-300 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none" />
+            className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none" />
         </div>
         <div>
-          <label className="block text-xs font-bold text-gray-500 mb-1.5">時刻 <span className="text-red-400">*</span></label>
+          <label className="block text-xs font-bold text-gray-600 mb-1.5">時刻 <span className="text-red-600">*</span></label>
           <input type="time" value={reservedTime} onChange={e => setReservedTime(e.target.value)}
-            className="w-full bg-gray-200 border border-gray-300 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none" />
+            className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none" />
         </div>
       </div>
 
       {/* 顧客検索 */}
       <div>
-        <label className="block text-xs font-bold text-gray-500 mb-1.5">顧客（任意）</label>
+        <label className="block text-xs font-bold text-gray-600 mb-1.5">顧客（任意）</label>
         {selectedCustomer ? (
-          <div className="flex items-center gap-2 bg-gray-200 border border-gray-300 rounded-xl px-3 py-2.5">
-            <User size={13} className="text-indigo-400 shrink-0" />
-            <span className="text-white text-sm flex-1 font-bold">{selectedCustomer.name}</span>
+          <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-xl px-3 py-2.5">
+            <User size={13} className="text-indigo-600 shrink-0" />
+            <span className="text-gray-900 text-sm flex-1 font-bold">{selectedCustomer.name}</span>
             <button onClick={() => { setSelectedCustomer(null); setSelectedChild(null); setCustomerQuery('') }}
-              className="text-gray-500 hover:text-white"><X size={13} /></button>
+              className="text-gray-500 hover:text-gray-900"><X size={13} /></button>
           </div>
         ) : (
           <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input type="text" value={customerQuery} onChange={e => setCustomerQuery(e.target.value)}
               placeholder="保護者名・電話番号で検索"
-              className="w-full bg-gray-200 border border-gray-300 rounded-xl pl-9 pr-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none" />
+              className="w-full bg-white border border-gray-300 rounded-xl pl-9 pr-3 py-2.5 text-gray-900 placeholder-gray-400 text-sm focus:border-indigo-500 focus:outline-none" />
             {customerResults.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-gray-200 border border-gray-300 rounded-xl overflow-hidden z-10 shadow-xl">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-xl overflow-hidden z-10 shadow-xl">
                 {customerResults.map(c => (
                   <button key={c.id}
                     onClick={() => { setSelectedCustomer(c); setCustomerQuery(''); setCustomerResults([]) }}
-                    className="w-full text-left px-3 py-2.5 hover:bg-gray-300 border-b border-gray-300/50 last:border-0 transition-colors">
-                    <p className="font-bold text-white text-sm">{c.name}</p>
+                    className="w-full text-left px-3 py-2.5 hover:bg-gray-100 border-b border-gray-200 last:border-0 transition-colors">
+                    <p className="font-bold text-gray-900 text-sm">{c.name}</p>
                     {c.kana && <p className="text-xs text-gray-500">{c.kana}</p>}
                   </button>
                 ))}
@@ -387,15 +387,15 @@ function NewReservationForm({ storeId, onSaved, onCancel }: {
       {/* お子様 */}
       {children.length > 0 && (
         <div>
-          <label className="block text-xs font-bold text-gray-500 mb-1.5">お子様</label>
+          <label className="block text-xs font-bold text-gray-600 mb-1.5">お子様</label>
           <div className="flex gap-2 flex-wrap">
             {children.map(ch => (
               <button key={ch.id}
                 onClick={() => setSelectedChild(prev => prev?.id === ch.id ? null : ch)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
                   selectedChild?.id === ch.id
-                    ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
-                    : 'bg-gray-200 border-gray-300 text-gray-500 hover:border-gray-400'
+                    ? 'bg-amber-500 border-amber-500 text-white'
+                    : 'bg-gray-100 border-gray-300 text-gray-600 hover:border-gray-400'
                 }`}>
                 <GraduationCap size={10} className="inline mr-1" />{ch.name}
               </button>
@@ -406,22 +406,22 @@ function NewReservationForm({ storeId, onSaved, onCancel }: {
 
       {/* 来店目的 */}
       <div>
-        <label className="block text-xs font-bold text-gray-500 mb-1.5">来店目的</label>
+        <label className="block text-xs font-bold text-gray-600 mb-1.5">来店目的</label>
         <input type="text" value={purpose} onChange={e => setPurpose(e.target.value)}
           placeholder="例：ブレザー採寸、お直し受取"
-          className="w-full bg-gray-200 border border-gray-300 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none" />
+          className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 placeholder-gray-400 text-sm focus:border-indigo-500 focus:outline-none" />
       </div>
 
       {/* メモ */}
       <div>
-        <label className="block text-xs font-bold text-gray-500 mb-1.5">メモ</label>
+        <label className="block text-xs font-bold text-gray-600 mb-1.5">メモ</label>
         <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
           placeholder="スタッフへの申し送り等"
-          className="w-full bg-gray-200 border border-gray-300 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none" />
+          className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 placeholder-gray-400 text-sm focus:border-indigo-500 focus:outline-none" />
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 text-red-400 text-xs bg-red-900/20 border border-red-500/20 rounded-xl px-3 py-2">
+        <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 border border-red-200 rounded-xl px-3 py-2">
           <AlertCircle size={13} />{error}
         </div>
       )}
@@ -515,24 +515,24 @@ export default function ReservationsPage() {
   const completed = reservations.filter(r => r.status === 'completed').length
 
   return (
-    <div className="min-h-screen bg-gray-50 text-white">
+    <div className="min-h-screen bg-gray-50 text-gray-900">
       {toast && <Toast msg={toast.msg} type={toast.type} onUndo={toast.onUndo} onClose={() => setToast(null)} />}
 
       {/* ヘッダー */}
-      <div className="sticky top-0 z-30 bg-gray-50/90 backdrop-blur-xl border-b border-gray-200 px-4 py-3">
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-gray-200 px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           <button onClick={() => router.push(`/${storeId}/admin`)}
-            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 active:scale-90 transition-all">
-            <ArrowLeft size={18} className="text-gray-500" />
+            className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 active:scale-90 transition-all">
+            <ArrowLeft size={18} className="text-gray-600" />
           </button>
           <div className="flex-1">
-            <h1 className="font-black text-white text-base">予約管理</h1>
+            <h1 className="font-black text-gray-900 text-base">予約管理</h1>
             {storeName && <p className="text-gray-500 text-xs">{storeName}</p>}
           </div>
           <button onClick={() => setShowForm(v => !v)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 ${
               showForm
-                ? 'bg-gray-300 text-gray-700'
+                ? 'bg-gray-200 hover:bg-gray-300 text-gray-700'
                 : 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-900/40'
             }`}>
             {showForm ? <><X size={14} />閉じる</> : <><Plus size={14} />新規予約</>}
@@ -552,24 +552,24 @@ export default function ReservationsPage() {
         )}
 
         {/* 日付ナビゲーター */}
-        <div className="flex items-center gap-2 bg-white/4 border border-white/8 rounded-2xl px-4 py-3">
+        <div className="flex items-center gap-2 bg-gray-100 border border-gray-200 rounded-2xl px-4 py-3">
           <button onClick={() => setSelectedDate(d => addDays(d, -1))}
-            className="p-1.5 rounded-xl hover:bg-white/10 active:scale-90 transition-all">
-            <ChevronLeft size={18} className="text-gray-500" />
+            className="p-1.5 rounded-xl hover:bg-gray-200 active:scale-90 transition-all">
+            <ChevronLeft size={18} className="text-gray-600" />
           </button>
           <div className="flex-1 text-center">
-            <p className="font-black text-white text-base">
+            <p className="font-black text-gray-900 text-base">
               {selectedDate === today ? '今日' : fmtDateJp(selectedDate)}
             </p>
             <p className="text-gray-500 text-xs">{selectedDate}</p>
           </div>
           <button onClick={() => setSelectedDate(d => addDays(d, 1))}
-            className="p-1.5 rounded-xl hover:bg-white/10 active:scale-90 transition-all">
-            <ChevronRight size={18} className="text-gray-500" />
+            className="p-1.5 rounded-xl hover:bg-gray-200 active:scale-90 transition-all">
+            <ChevronRight size={18} className="text-gray-600" />
           </button>
           {selectedDate !== today && (
             <button onClick={() => setSelectedDate(today)}
-              className="ml-1 px-2.5 py-1.5 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-xs font-bold active:scale-90 transition-all">
+              className="ml-1 px-2.5 py-1.5 rounded-xl bg-indigo-100 border border-indigo-200 text-indigo-600 text-xs font-bold active:scale-90 transition-all">
               今日
             </button>
           )}
@@ -579,11 +579,11 @@ export default function ReservationsPage() {
         {reservations.length > 0 && (
           <div className="grid grid-cols-3 gap-2">
             {[
-              { label: '予約確定',   value: confirmed, color: 'text-indigo-300' },
-              { label: '来店・対応中', value: active,    color: 'text-amber-300' },
-              { label: '完了',       value: completed, color: 'text-emerald-300' },
+              { label: '予約確定',   value: confirmed, color: 'text-indigo-600' },
+              { label: '来店・対応中', value: active,    color: 'text-amber-600' },
+              { label: '完了',       value: completed, color: 'text-emerald-600' },
             ].map(s => (
-              <div key={s.label} className="bg-white/4 border border-gray-200 rounded-xl px-2 py-2.5 text-center">
+              <div key={s.label} className="bg-white border border-gray-200 rounded-xl px-2 py-2.5 text-center">
                 <p className={`text-2xl font-black tabular-nums ${s.color}`}>{s.value}</p>
                 <p className="text-gray-500 text-[10px] mt-0.5">{s.label}</p>
               </div>
@@ -601,7 +601,7 @@ export default function ReservationsPage() {
             <CalendarDays size={40} className="mx-auto mb-3 opacity-20" />
             <p className="text-sm">この日の予約・受付はありません</p>
             <button onClick={() => setShowForm(true)}
-              className="mt-4 px-4 py-2 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-sm font-bold active:scale-95 transition-all">
+              className="mt-4 px-4 py-2 rounded-xl bg-indigo-100 border border-indigo-200 text-indigo-600 text-sm font-bold active:scale-95 transition-all">
               予約を追加する
             </button>
           </div>
