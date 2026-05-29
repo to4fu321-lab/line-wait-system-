@@ -122,47 +122,78 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
                       : '対応完了・連絡済み'
 
   return (
-    <div className={`bg-white border rounded-2xl overflow-hidden ${
-      item.status === 'received' ? 'border-gray-300' : 'border-gray-100 opacity-70'
+    <div className={`bg-white border rounded-2xl overflow-hidden shadow-sm ${
+      item.status === 'received' ? 'border-slate-200' : 'border-slate-100 opacity-70'
     }`}>
       <button className="w-full text-left p-4 flex gap-3" onClick={() => setOpen(v => !v)}>
         <div className="flex-1 min-w-0">
+          {/* ステータスタグ行 */}
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${REQUEST_TYPE_COLORS[reqType]}`}>
+            <span className={`text-xs px-2 py-0.5 rounded-full border font-bold ${REQUEST_TYPE_COLORS[reqType]}`}>
               {REQUEST_TYPE_LABELS[reqType]}
             </span>
-            <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${REPAIR_STATUS_COLORS[item.status]}`}>
+            <span className={`text-xs px-2 py-0.5 rounded-full border font-bold ${REPAIR_STATUS_COLORS[item.status]}`}>
               {REPAIR_STATUS_LABELS[item.status]}
             </span>
-            {/* 支払いバッジ — 常時表示、未払いは目立つ赤 */}
+            {item.slip_number && <span className="text-xs font-mono text-gray-400">#{item.slip_number}</span>}
+          </div>
+          {/* 学校名 */}
+          {item.child?.school_name && (
+            <p className="text-xs font-black text-amber-600 truncate mt-1.5 leading-tight">{item.child.school_name}</p>
+          )}
+          {/* 生徒氏名（最重要） */}
+          <p className={`font-black text-xl leading-tight truncate ${item.child?.school_name ? '' : 'mt-1.5'} text-slate-900`}>
+            {item.child?.name ?? item.customer?.name ?? '（顧客不明）'}
+          </p>
+          {/* 保護者名：薄く小さく */}
+          {item.child && (
+            <p className="text-[10px] text-slate-400 truncate leading-tight">保護者: {item.customer?.name}</p>
+          )}
+          {/* 依頼内容（ミス防止のため大きく太く） */}
+          <p className="text-sm font-semibold text-slate-800 mt-1.5 leading-snug">
+            {item.item_name}{item.content ? ` — ${item.content}` : ''}
+          </p>
+          {/* 支払い状況＋金額を同じ行に */}
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
             {item.prepaid ? (
               <span className="text-xs px-2 py-0.5 rounded-full border font-bold bg-emerald-100 text-emerald-700 border-emerald-300">
                 支払済
               </span>
             ) : (
-              <span className="text-xs px-2.5 py-0.5 rounded-full border font-black bg-red-100 text-red-700 border-red-400 animate-pulse">
+              <span className="text-xs px-2.5 py-0.5 rounded-full border font-black bg-red-600 text-white border-red-600 animate-pulse">
                 未払い
               </span>
             )}
-            {item.slip_number && <span className="text-xs font-mono text-gray-500">#{item.slip_number}</span>}
-          </div>
-          {item.child?.school_name && (
-            <p className="text-xs font-black text-amber-600 truncate mt-1 leading-tight">{item.child.school_name}</p>
-          )}
-          <p className={`font-black text-lg leading-tight truncate ${item.child?.school_name ? '' : 'mt-1.5'} ${item.child ? 'text-gray-900' : 'text-gray-900'}`}>
-            {item.child?.name ?? item.customer?.name ?? '（顧客不明）'}
-          </p>
-          {item.child && (
-            <p className="text-xs text-gray-500 truncate">保護者: {item.customer?.name}</p>
-          )}
-          <p className="text-xs text-gray-600 mt-0.5 truncate">{item.item_name}{item.content ? ` — ${item.content}` : ''}</p>
-          <div className="flex items-center gap-3 mt-0.5">
-            <p className="text-xs text-gray-400">受取: {fmtDate(item.received_date)}</p>
-            {item.price != null && <p className="text-xs text-gray-500">¥{item.price.toLocaleString()}</p>}
+            {item.price != null && (
+              <span className={`text-sm font-black ${item.prepaid ? 'text-gray-500' : 'text-red-700'}`}>
+                ¥{item.price.toLocaleString()}
+              </span>
+            )}
+            <span className="text-xs text-slate-400 ml-auto">受取: {fmtDate(item.received_date)}</span>
           </div>
         </div>
-        {open ? <ChevronUp size={15} className="text-gray-500 mt-1 shrink-0" /> : <ChevronDown size={15} className="text-gray-500 mt-1 shrink-0" />}
+        {open ? <ChevronUp size={15} className="text-gray-400 mt-1 shrink-0" /> : <ChevronDown size={15} className="text-gray-400 mt-1 shrink-0" />}
       </button>
+
+      {/* 次のアクション — アコーディオンを開かずに操作できる常時表示ボタン */}
+      {item.status === 'received' && (
+        <div className="px-4 pb-4 border-t border-slate-100 pt-3">
+          <button
+            onClick={() => update(
+              { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true },
+              `${completeLabel}にしました`,
+              { status: 'received', completed_date: null, notified: false }
+            )}
+            disabled={loading}
+            className="w-full py-3 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 shadow-sm">
+            {loading
+              ? <Loader2 size={15} className="animate-spin" />
+              : <><Scissors size={15} />✂️ {completeLabel}</>
+            }
+          </button>
+        </div>
+      )}
+
       {open && (
         <div className="px-4 pb-4 space-y-3 border-t border-gray-100">
           {item.notes && <p className="text-xs text-gray-600 pt-3">{item.notes}</p>}
@@ -270,32 +301,54 @@ function PurchaseCard({ item, storeId, onRefresh, onToast }: {
   }
 
   return (
-    <div className={`bg-white border rounded-2xl overflow-hidden ${item.status === 'delivered' ? 'border-gray-100 opacity-60' : 'border-gray-300'}`}>
+    <div className={`bg-white border rounded-2xl overflow-hidden shadow-sm ${item.status === 'delivered' ? 'border-slate-100 opacity-60' : 'border-slate-200'}`}>
       <button className="w-full text-left p-4 flex gap-3" onClick={() => setOpen(v => !v)}>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${PURCHASE_STATUS_COLORS[item.status]}`}>
+            <span className={`text-xs px-2 py-0.5 rounded-full border font-bold ${PURCHASE_STATUS_COLORS[item.status]}`}>
               {PURCHASE_STATUS_LABELS[item.status]}
             </span>
           </div>
           {item.child?.school_name && (
-            <p className="text-xs font-black text-amber-600 truncate mt-1 leading-tight">{item.child.school_name}</p>
+            <p className="text-xs font-black text-amber-600 truncate mt-1.5 leading-tight">{item.child.school_name}</p>
           )}
-          <p className={`font-black text-lg leading-tight truncate ${item.child?.school_name ? '' : 'mt-1.5'} ${item.child ? 'text-gray-900' : 'text-gray-900'}`}>
+          <p className={`font-black text-xl leading-tight truncate ${item.child?.school_name ? '' : 'mt-1.5'} text-slate-900`}>
             {item.child?.name ?? item.customer?.name ?? '（顧客不明）'}
           </p>
           {item.child && (
-            <p className="text-xs text-gray-500 truncate">保護者: {item.customer?.name}</p>
+            <p className="text-[10px] text-slate-400 truncate leading-tight">保護者: {item.customer?.name}</p>
           )}
-          <p className="text-xs text-gray-600 mt-0.5 truncate">{item.item_name}</p>
-          <p className="text-xs text-gray-400 mt-0.5">依頼: {fmtDate(item.ordered_date)}</p>
+          <p className="text-sm font-semibold text-slate-800 mt-1.5 leading-snug">{item.item_name}</p>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-xs text-slate-400">依頼: {fmtDate(item.ordered_date)}</span>
+            {item.price != null && <span className="text-sm font-bold text-slate-700">¥{item.price.toLocaleString()}</span>}
+          </div>
         </div>
         {open ? <ChevronUp size={15} className="text-gray-500 mt-1 shrink-0" /> : <ChevronDown size={15} className="text-gray-500 mt-1 shrink-0" />}
       </button>
+
+      {/* 次のアクション — 常時表示 */}
+      {nextStep && item.status !== 'delivered' && (
+        <div className="px-4 pb-4 border-t border-slate-100 pt-3">
+          <button
+            onClick={() => {
+              const patch: Record<string, unknown> = { status: nextStep.next }
+              const undoPatch: Record<string, unknown> = { status: item.status, arrived_date: item.arrived_date, delivered_date: item.delivered_date, notified: item.notified }
+              if (nextStep.next === 'arrived') { patch.arrived_date = new Date().toISOString().slice(0, 10); patch.notified = true }
+              if (nextStep.next === 'delivered') patch.delivered_date = new Date().toISOString().slice(0, 10)
+              update(patch, `${nextStep.label}にしました`, undoPatch)
+            }}
+            disabled={loading}
+            className={`w-full py-3 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 shadow-sm ${nextStep.color}`}>
+            {loading ? <Loader2 size={15} className="animate-spin" /> : <Package size={15} />}
+            {nextStep.label}
+          </button>
+        </div>
+      )}
+
       {open && (
         <div className="px-4 pb-4 space-y-3 border-t border-gray-100">
           {item.notes && <p className="text-xs text-gray-600 pt-3">{item.notes}</p>}
-          {item.price != null && <p className="text-xs text-gray-600">金額: ¥{item.price.toLocaleString()}</p>}
           {item.customer?.tel && (
             <a href={`tel:${item.customer.tel}`} className="flex items-center gap-1.5 text-xs text-indigo-600">
               <Phone size={12} />{item.customer.tel}
@@ -656,7 +709,7 @@ export default function RepairsPage() {
     + orders.length
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
+    <div className="min-h-screen bg-slate-100 text-gray-900">
       {/* Header */}
       <div className="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-gray-200">
         <div className="max-w-2xl mx-auto px-4 py-4">
@@ -712,7 +765,7 @@ export default function RepairsPage() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
+      <div className="max-w-2xl mx-auto px-4 py-4 pb-32 space-y-4">
         {fetchError && (
           <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs text-red-600">
             DBエラー: {fetchError}
