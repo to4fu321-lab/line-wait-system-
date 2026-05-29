@@ -479,7 +479,6 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
   const [isOpen,         setIsOpen]         = useState<boolean | null>(null)
   const [notificationPlan, setNotificationPlan] = useState<'calling_only' | 'full'>('calling_only')
   const [isTestMode,     setIsTestMode]     = useState(false)
-  const [activeFittings, setActiveFittings] = useState(1)
   const [showQrModal,    setShowQrModal]    = useState(false)
   const [pushStatus,     setPushStatus]     = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle')
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -518,7 +517,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
 
   const fetchStoreStatus = useCallback(async () => {
     const { data, error } = await supabase.from('stores')
-      .select('is_open, notification_plan, is_test_mode, active_fittings')
+      .select('is_open, notification_plan, is_test_mode')
       .eq('id', store.id).single()
     if (error || !data) {
       setIsOpen(false)
@@ -527,7 +526,6 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     setIsOpen(data.is_open ?? false)
     if ((data as any).notification_plan) setNotificationPlan((data as any).notification_plan)
     if ((data as any).is_test_mode != null) setIsTestMode((data as any).is_test_mode)
-    if ((data as any).active_fittings != null) setActiveFittings((data as any).active_fittings)
   }, [store.id])
 
   const fetchQueues = useCallback(async () => {
@@ -619,11 +617,6 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     if (error) { showToast('err', 'チェックイン失敗: ' + error.message); return }
     setQueues(prev => prev.map(q => q.id === id ? { ...q, checked_in: true } : q))
     showToast('ok', '代理チェックイン済みにしました')
-  }
-
-  const handleFittingsChange = async (n: number) => {
-    setActiveFittings(n)
-    await (supabase.from('stores') as any).update({ active_fittings: n }).eq('id', store.id)
   }
 
   const waitingTickets = queues.filter(q => q.status === 'waiting')
@@ -746,26 +739,6 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
             <span className="text-zinc-500 text-xs">組が遠隔待ち（到着前）</span>
           </div>
         )}
-
-        {/* フィッティング台数（常時表示） */}
-        <div className="flex items-center gap-3 mt-2 bg-white/4 border border-white/8 rounded-xl px-3 py-2.5">
-          <span className="text-zinc-400 text-xs font-bold flex-1">フィッティング稼働台数</span>
-          <button
-            onClick={() => activeFittings > 1 && handleFittingsChange(activeFittings - 1)}
-            disabled={activeFittings <= 1}
-            style={{ touchAction: 'manipulation' }}
-            className="w-9 h-9 rounded-xl bg-zinc-700 text-white font-black text-xl flex items-center justify-center hover:bg-zinc-600 active:scale-90 disabled:opacity-30 transition-all">
-            −
-          </button>
-          <span className="text-white font-black text-2xl tabular-nums w-10 text-center">{activeFittings}</span>
-          <button
-            onClick={() => activeFittings < 30 && handleFittingsChange(activeFittings + 1)}
-            disabled={activeFittings >= 30}
-            style={{ touchAction: 'manipulation' }}
-            className="w-9 h-9 rounded-xl bg-zinc-700 text-white font-black text-xl flex items-center justify-center hover:bg-zinc-600 active:scale-90 disabled:opacity-30 transition-all">
-            ＋
-          </button>
-        </div>
 
       </div>
 
