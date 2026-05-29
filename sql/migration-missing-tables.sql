@@ -145,13 +145,13 @@ CREATE TABLE IF NOT EXISTS reservation_settings (
 CREATE TABLE IF NOT EXISTS reservation_date_overrides (
   id         uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   store_id   uuid        NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
-  date       date        NOT NULL,
+  "date"     date        NOT NULL,
   max_slots  integer     NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (store_id, date)
+  UNIQUE (store_id, "date")
 );
 
-CREATE INDEX IF NOT EXISTS idx_resv_overrides_store_date ON reservation_date_overrides(store_id, date);
+CREATE INDEX IF NOT EXISTS idx_resv_overrides_store_date ON reservation_date_overrides(store_id, "date");
 
 -- ─── push_subscriptions テーブル ─────────────────────────────
 
