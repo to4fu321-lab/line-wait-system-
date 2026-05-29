@@ -132,7 +132,7 @@ function ReservationCard({ res, onUpdate, onDelete }: {
             }`}>{RESERVATION_STATUS_LABELS[res.status]}</span>
           </div>
           {res.child?.school_name && (
-            <p className="text-sm font-black text-amber-300 truncate leading-tight">
+            <p className="text-sm font-black text-amber-600 truncate leading-tight">
               {res.child.school_name}{res.child.grade && ` ${res.child.grade}`}
             </p>
           )}

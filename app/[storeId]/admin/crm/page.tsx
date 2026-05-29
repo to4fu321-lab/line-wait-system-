@@ -1700,7 +1700,7 @@ export default function CRMPage() {
                               />
                             ) : (
                               <button onClick={() => setShowAddChild(true)}
-                                className="w-full py-3 rounded-xl border border-dashed border-indigo-300 text-indigo-400/70 hover:text-indigo-300 hover:border-indigo-500/50 transition-colors text-sm font-bold flex items-center justify-center gap-2">
+                                className="w-full py-3 rounded-xl border border-dashed border-indigo-300 text-indigo-600 hover:text-indigo-700 hover:border-indigo-400 transition-colors text-sm font-bold flex items-center justify-center gap-2">
                                 <Plus size={14} />お子様を追加
                               </button>
                             )}
