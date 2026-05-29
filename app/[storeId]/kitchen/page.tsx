@@ -3,24 +3,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { triggerSound } from '@/lib/kitchen-sounds'
-import type { TakeoutOrder, TakeoutOrderStatus, TakeoutSettings } from '@/types/takeout'
+import type { TakeoutOrder, TakeoutSettings } from '@/types/takeout'
 import { getNextStatus, getUrgencyLevel, shouldNotify } from '@/types/takeout'
-import ComboDisplay      from './_components/ComboDisplay'
-import KanbanColumn      from './_components/KanbanColumn'
-import ManualOrderModal  from './_components/ManualOrderModal'
-import BatchView         from './_components/BatchView'
+import ComboDisplay     from './_components/ComboDisplay'
+import OrderCard        from './_components/OrderCard'
+import ManualOrderModal from './_components/ManualOrderModal'
+import BatchView        from './_components/BatchView'
 
 const WEEKDAYS       = ['日', '月', '火', '水', '木', '金', '土']
 const WEEKDAY_COLORS = ['text-red-400', 'text-zinc-300', 'text-zinc-300', 'text-zinc-300', 'text-zinc-300', 'text-zinc-300', 'text-blue-400']
 
 function DateDisplay() {
   const now = new Date()
-  const m = now.getMonth() + 1
-  const d = now.getDate()
-  const w = now.getDay()
+  const w   = now.getDay()
   return (
     <span className="text-sm text-zinc-400">
-      {m}/{d}（<span className={WEEKDAY_COLORS[w]}>{WEEKDAYS[w]}</span>）
+      {now.getMonth() + 1}/{now.getDate()}（<span className={WEEKDAY_COLORS[w]}>{WEEKDAYS[w]}</span>）
     </span>
   )
 }
@@ -28,9 +26,9 @@ function DateDisplay() {
 function Clock() {
   const [time, setTime] = useState('')
   useEffect(() => {
-    const update = () => setTime(new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }))
-    update()
-    const id = setInterval(update, 1000)
+    const upd = () => setTime(new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }))
+    upd()
+    const id = setInterval(upd, 1000)
     return () => clearInterval(id)
   }, [])
   return (
@@ -41,13 +39,18 @@ function Clock() {
   )
 }
 
-type Tab = 'pending' | 'preparing' | 'ready'
-
-const COLUMNS: { tab: Tab; title: string; headerClass: string; emptyMessage: string }[] = [
-  { tab: 'pending',   title: '受付中',      headerClass: 'bg-zinc-800/40',    emptyMessage: '受付待ちの注文なし' },
-  { tab: 'preparing', title: '調理中',      headerClass: 'bg-amber-950/50',   emptyMessage: '調理中の注文なし' },
-  { tab: 'ready',     title: '完成・受渡待ち', headerClass: 'bg-emerald-950/50', emptyMessage: '受渡し待ちの注文なし' },
-]
+// 表示優先順：完成待ち → 調理中（緊急→警告→通常）→ 受付中
+function sortOrders(orders: TakeoutOrder[], targetMinutes: number): TakeoutOrder[] {
+  const score = (o: TakeoutOrder): number => {
+    if (o.status === 'ready')     return 0
+    if (o.status === 'preparing') {
+      const u = getUrgencyLevel(o.created_at, o.status, targetMinutes)
+      return u === 'urgent' ? 1 : u === 'warning' ? 2 : 3
+    }
+    return 4 // pending
+  }
+  return [...orders].sort((a, b) => score(a) - score(b) || new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+}
 
 export default function KitchenPage({ params }: { params: { storeId: string } }) {
   const { storeId } = params
@@ -59,7 +62,6 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
   const [maxCombo,   setMaxCombo]   = useState(0)
   const [todayCount, setTodayCount] = useState(0)
   const [loading,    setLoading]    = useState(true)
-  const [activeTab,  setActiveTab]  = useState<Tab>('preparing')
   const [showManual, setShowManual] = useState(false)
   const [showBatch,  setShowBatch]  = useState(false)
 
@@ -96,8 +98,8 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
       .select('name, takeout_settings')
       .eq('id', storeId)
       .single()
-    if (data?.name)             setStoreName(data.name)
-    if (data?.takeout_settings) setSettings(data.takeout_settings as TakeoutSettings)
+    if (data?.name)             setStoreName((data as { name: string }).name)
+    if (data?.takeout_settings) setSettings((data as { takeout_settings: TakeoutSettings }).takeout_settings)
   }, [storeId])
 
   useEffect(() => {
@@ -122,7 +124,7 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
 
     const { error } = await supabase
       .from('takeout_orders')
-      .update({ status: nextStatus })
+      .update({ status: nextStatus } as never)
       .eq('id', order.id)
     if (error) return
 
@@ -158,28 +160,13 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
   const cancelOrder = async (order: TakeoutOrder) => {
     const { error } = await supabase
       .from('takeout_orders')
-      .update({ status: 'cancelled' })
+      .update({ status: 'cancelled' } as never)
       .eq('id', order.id)
     if (!error) await loadOrders()
   }
 
-  const markItemDone = async (_orderId: string, itemId: string, done: boolean) => {
-    await supabase
-      .from('takeout_order_items')
-      .update({ is_done: done })
-      .eq('id', itemId)
-    await loadOrders()
-  }
-
-  const pendingOrders   = orders.filter(o => o.status === 'pending')
-  const preparingOrders = orders.filter(o => o.status === 'preparing')
-  const readyOrders     = orders.filter(o => o.status === 'ready')
-
-  const countByTab: Record<Tab, number> = {
-    pending:   pendingOrders.length,
-    preparing: preparingOrders.length,
-    ready:     readyOrders.length,
-  }
+  const sorted     = sortOrders(orders, targetMinutes)
+  const readyCount = orders.filter(o => o.status === 'ready').length
 
   if (loading) {
     return (
@@ -194,11 +181,11 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
 
       {/* ─── ヘッダー ─── */}
       <div className="bg-zinc-900 border-b border-zinc-800 shrink-0">
-        <div className="flex items-center justify-between px-4 md:px-6 py-2 border-b border-zinc-800/60">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800/60">
           <span className="text-base font-bold">{storeName}</span>
           <DateDisplay />
         </div>
-        <div className="flex items-center justify-between px-4 md:px-6 py-2.5">
+        <div className="flex items-center justify-between px-4 py-2.5">
           <ComboDisplay combo={combo} maxCombo={maxCombo} />
           <div className="text-center">
             <div className="text-xs text-zinc-500">本日完了</div>
@@ -212,93 +199,66 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
 
       {/* ─── アクションバー ─── */}
       <div className="bg-zinc-900/60 border-b border-zinc-800 px-3 py-2 flex items-center gap-2 shrink-0">
-        <button
-          onClick={() => setShowManual(true)}
-          className="flex items-center gap-1 bg-white text-zinc-950 text-sm font-bold px-3 py-2 rounded-lg active:scale-95 transition-transform"
-        >
+        <button onClick={() => setShowManual(true)}
+          className="flex items-center gap-1 bg-white text-zinc-950 text-sm font-bold px-3 py-2 rounded-lg active:scale-95 transition-transform">
           ＋ 注文追加
         </button>
-        <button
-          onClick={() => setShowBatch(true)}
-          className="flex items-center gap-1 bg-zinc-800 text-zinc-300 text-sm px-3 py-2 rounded-lg active:scale-95 transition-transform"
-        >
+        <button onClick={() => setShowBatch(true)}
+          className="flex items-center gap-1 bg-zinc-800 text-zinc-300 text-sm px-3 py-2 rounded-lg active:scale-95 transition-transform">
           📋 バッチ
         </button>
         <div className="flex-1" />
-        {readyOrders.length > 0 && (
-          <button
-            onClick={() => setActiveTab('ready')}
-            className="flex items-center gap-1.5 bg-emerald-900/60 border border-emerald-700 text-emerald-300 text-sm px-3 py-2 rounded-lg animate-pulse"
-          >
-            受渡し待ち
-            <span className="bg-emerald-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
-              {readyOrders.length}
+        {/* 注文数サマリー */}
+        <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+          {orders.filter(o => o.status === 'pending').length > 0 && (
+            <span className="bg-zinc-800 px-2 py-1 rounded">
+              受付 {orders.filter(o => o.status === 'pending').length}
             </span>
-          </button>
+          )}
+          {orders.filter(o => o.status === 'preparing').length > 0 && (
+            <span className="bg-amber-950/60 text-amber-400 px-2 py-1 rounded">
+              調理中 {orders.filter(o => o.status === 'preparing').length}
+            </span>
+          )}
+          {readyCount > 0 && (
+            <span className="bg-emerald-900/60 text-emerald-400 px-2 py-1 rounded font-semibold animate-pulse">
+              完成 {readyCount}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* ─── 注文リスト（単一スクロール） ─── */}
+      <div className="flex-1 overflow-y-auto">
+        {sorted.length > 0 ? (
+          <div className="p-3 flex flex-col gap-2 max-w-2xl mx-auto">
+            {sorted.map(order => (
+              <OrderCard
+                key={order.id}
+                order={order}
+                settings={settings}
+                onAdvance={() => advanceStatus(order)}
+                onCancel={() => cancelOrder(order)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center justify-center h-full">
+            <div className="text-center text-zinc-700 py-20">
+              <div className="text-7xl mb-4">✓</div>
+              <div className="text-xl font-medium">注文待ち</div>
+              <div className="text-sm mt-1 text-zinc-600">新しい注文が入ると自動で表示されます</div>
+            </div>
+          </div>
         )}
-      </div>
-
-      {/* ─── モバイルタブ ─── */}
-      <div className="md:hidden flex border-b border-zinc-800 shrink-0 bg-zinc-950">
-        {COLUMNS.map(({ tab, title }) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`
-              flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5
-              border-b-2 transition-colors
-              ${activeTab === tab ? 'border-white text-white' : 'border-transparent text-zinc-600'}
-            `}
-          >
-            {title}
-            {countByTab[tab] > 0 && (
-              <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
-                activeTab === tab ? 'bg-white text-zinc-950' : 'bg-zinc-800 text-zinc-500'
-              }`}>
-                {countByTab[tab]}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* ─── カンバンエリア ─── */}
-      <div className="flex-1 flex overflow-hidden">
-        {COLUMNS.map(({ tab, title, headerClass, emptyMessage }) => {
-          const colOrders =
-            tab === 'pending'   ? pendingOrders   :
-            tab === 'preparing' ? preparingOrders : readyOrders
-
-          return (
-            <KanbanColumn
-              key={tab}
-              title={title}
-              headerClass={headerClass}
-              orders={colOrders}
-              settings={settings}
-              isActiveTab={activeTab === tab}
-              emptyMessage={emptyMessage}
-              onAdvance={advanceStatus}
-              onCancel={cancelOrder}
-              onItemDone={markItemDone}
-            />
-          )
-        })}
       </div>
 
       {/* ─── モーダル ─── */}
       {showManual && (
-        <ManualOrderModal
-          storeId={storeId}
-          onClose={() => setShowManual(false)}
-          onCreated={loadOrders}
-        />
+        <ManualOrderModal storeId={storeId} onClose={() => setShowManual(false)} onCreated={loadOrders} />
       )}
       {showBatch && (
-        <BatchView
-          orders={[...pendingOrders, ...preparingOrders]}
-          onClose={() => setShowBatch(false)}
-        />
+        <BatchView orders={orders.filter(o => o.status !== 'ready')} onClose={() => setShowBatch(false)} />
       )}
     </div>
   )

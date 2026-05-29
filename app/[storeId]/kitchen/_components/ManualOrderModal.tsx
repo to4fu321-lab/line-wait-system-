@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import type { Menu } from '@/types/takeout'
 
 interface Props {
   storeId:   string
@@ -9,8 +10,9 @@ interface Props {
   onCreated: () => void
 }
 
-interface Item {
+interface CartItem {
   key:      string
+  menuId:   string | null
   name:     string
   quantity: number
 }
@@ -19,39 +21,76 @@ type PickupOption = 'now' | '15' | '30' | 'custom'
 type Source       = 'walkin' | 'phone'
 
 export default function ManualOrderModal({ storeId, onClose, onCreated }: Props) {
+  const [menus,         setMenus]         = useState<Menu[]>([])
   const [customerName,  setCustomerName]  = useState('')
   const [source,        setSource]        = useState<Source>('walkin')
   const [pickupOption,  setPickupOption]  = useState<PickupOption>('now')
   const [customTime,    setCustomTime]    = useState(() => {
-    const d = new Date(Date.now() + 30 * 60 * 1000)
+    const d = new Date(Date.now() + 30 * 60000)
     return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
   })
-  const [items,         setItems]         = useState<Item[]>([{ key: '1', name: '', quantity: 1 }])
+  const [cart,          setCart]          = useState<CartItem[]>([])
+  const [freeText,      setFreeText]      = useState('')
   const [notes,         setNotes]         = useState('')
   const [submitting,    setSubmitting]    = useState(false)
   const [error,         setError]         = useState('')
 
-  const addItem    = () => setItems(p => [...p, { key: Date.now().toString(), name: '', quantity: 1 }])
-  const removeItem = (key: string) => setItems(p => p.filter(i => i.key !== key))
-  const updateItem = (key: string, field: keyof Item, value: string | number) =>
-    setItems(p => p.map(i => i.key === key ? { ...i, [field]: value } : i))
+  // メニューを読み込む
+  useEffect(() => {
+    supabase
+      .from('menus')
+      .select('*')
+      .eq('store_id', storeId)
+      .eq('is_available', true)
+      .order('sort_order')
+      .then(({ data }) => { if (data) setMenus(data as Menu[]) })
+  }, [storeId])
+
+  // メニューチップをタップ → カートに追加 or 数量増加
+  const tapMenu = (menu: Menu) => {
+    setCart(prev => {
+      const existing = prev.find(i => i.menuId === menu.id)
+      if (existing) {
+        return prev.map(i => i.menuId === menu.id ? { ...i, quantity: i.quantity + 1 } : i)
+      }
+      return [...prev, { key: menu.id, menuId: menu.id, name: menu.name, quantity: 1 }]
+    })
+  }
+
+  // カートの数量変更
+  const setQty = (key: string, qty: number) => {
+    if (qty <= 0) {
+      setCart(prev => prev.filter(i => i.key !== key))
+    } else {
+      setCart(prev => prev.map(i => i.key === key ? { ...i, quantity: qty } : i))
+    }
+  }
+
+  // フリーテキスト追加
+  const addFreeText = () => {
+    const name = freeText.trim()
+    if (!name) return
+    setCart(prev => {
+      const existing = prev.find(i => i.name === name && i.menuId === null)
+      if (existing) return prev.map(i => i.name === name && i.menuId === null ? { ...i, quantity: i.quantity + 1 } : i)
+      return [...prev, { key: `free-${Date.now()}`, menuId: null, name, quantity: 1 }]
+    })
+    setFreeText('')
+  }
 
   const getPickupTime = (): string | null => {
     if (pickupOption === 'now') return null
     if (pickupOption === '15')  return new Date(Date.now() + 15 * 60000).toISOString()
     if (pickupOption === '30')  return new Date(Date.now() + 30 * 60000).toISOString()
     const [h, m] = customTime.split(':').map(Number)
-    const t = new Date()
-    t.setHours(h, m, 0, 0)
+    const t = new Date(); t.setHours(h, m, 0, 0)
     return t.toISOString()
   }
 
   const handleSubmit = async () => {
-    const validItems = items.filter(i => i.name.trim())
-    if (validItems.length === 0) { setError('品目を1つ以上入力してください'); return }
+    if (cart.length === 0) { setError('品目を追加してください'); return }
     setError('')
     setSubmitting(true)
-
     try {
       const { data: orderNumber, error: numErr } = await supabase
         .rpc('get_next_order_number', { p_store_id: storeId })
@@ -73,21 +112,20 @@ export default function ManualOrderModal({ storeId, onClose, onCreated }: Props)
         .single()
       if (orderErr || !order) throw orderErr
 
-      const { error: itemErr } = await supabase
-        .from('takeout_order_items')
-        .insert(validItems.map(i => ({
-          order_id:   order.id,
-          name:       i.name.trim(),
+      await supabase.from('takeout_order_items').insert(
+        cart.map(i => ({
+          order_id:   (order as { id: string }).id,
+          name:       i.name,
           unit_price: 0,
           quantity:   i.quantity,
-        })))
-      if (itemErr) throw itemErr
+        }))
+      )
 
       onCreated()
       onClose()
     } catch (e) {
       console.error(e)
-      setError('エラーが発生しました。もう一度お試しください。')
+      setError('エラーが発生しました')
     } finally {
       setSubmitting(false)
     }
@@ -95,134 +133,127 @@ export default function ManualOrderModal({ storeId, onClose, onCreated }: Props)
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end md:items-center justify-center">
-      <div className="bg-zinc-900 rounded-t-2xl md:rounded-2xl w-full md:max-w-md md:mx-4 max-h-[92vh] flex flex-col">
+      <div className="bg-zinc-900 rounded-t-2xl md:rounded-2xl w-full md:max-w-md md:mx-4 max-h-[94vh] flex flex-col">
 
         {/* ヘッダー */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800 shrink-0">
           <h2 className="font-bold text-lg">注文入力</h2>
-          <button onClick={onClose} className="text-zinc-500 w-8 h-8 flex items-center justify-center text-2xl rounded-full hover:bg-zinc-800">×</button>
+          <button onClick={onClose} className="text-zinc-400 text-2xl w-8 h-8 flex items-center justify-center">×</button>
         </div>
 
-        {/* スクロールエリア */}
-        <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-5">
+        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-4">
 
           {/* 注文経路 */}
-          <div>
-            <label className="text-xs text-zinc-500 mb-2 block font-medium">注文経路</label>
-            <div className="flex gap-2">
-              {(['walkin', 'phone'] as Source[]).map(s => (
-                <button
-                  key={s}
-                  onClick={() => setSource(s)}
-                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    source === s ? 'bg-white text-zinc-950' : 'bg-zinc-800 text-zinc-400'
-                  }`}
-                >
-                  {s === 'walkin' ? '🚶 店頭' : '📞 電話'}
-                </button>
-              ))}
-            </div>
+          <div className="flex gap-2">
+            {(['walkin', 'phone'] as Source[]).map(s => (
+              <button key={s} onClick={() => setSource(s)}
+                className={`flex-1 py-2.5 rounded-lg text-sm font-medium ${source === s ? 'bg-white text-zinc-950' : 'bg-zinc-800 text-zinc-400'}`}>
+                {s === 'walkin' ? '🚶 店頭' : '📞 電話'}
+              </button>
+            ))}
           </div>
 
           {/* お客様名 */}
-          <div>
-            <label className="text-xs text-zinc-500 mb-2 block font-medium">お客様名（任意）</label>
-            <input
-              type="text"
-              value={customerName}
-              onChange={e => setCustomerName(e.target.value)}
-              placeholder="例：田中様"
-              className="w-full bg-zinc-800 rounded-lg px-4 py-3 text-white placeholder-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600"
-            />
-          </div>
+          <input
+            type="text" value={customerName} onChange={e => setCustomerName(e.target.value)}
+            placeholder="お客様名（任意）"
+            className="w-full bg-zinc-800 rounded-lg px-4 py-3 text-white placeholder-zinc-600 outline-none"
+          />
 
           {/* 受取時間 */}
           <div>
-            <label className="text-xs text-zinc-500 mb-2 block font-medium">受取時間</label>
             <div className="grid grid-cols-4 gap-1.5">
               {(['now', '15', '30', 'custom'] as PickupOption[]).map(opt => (
-                <button
-                  key={opt}
-                  onClick={() => setPickupOption(opt)}
-                  className={`py-2.5 rounded-lg text-xs font-medium transition-colors ${
-                    pickupOption === opt ? 'bg-white text-zinc-950' : 'bg-zinc-800 text-zinc-400'
-                  }`}
-                >
+                <button key={opt} onClick={() => setPickupOption(opt)}
+                  className={`py-2.5 rounded-lg text-xs font-medium ${pickupOption === opt ? 'bg-white text-zinc-950' : 'bg-zinc-800 text-zinc-400'}`}>
                   {opt === 'now' ? '今すぐ' : opt === 'custom' ? '時間指定' : `${opt}分後`}
                 </button>
               ))}
             </div>
             {pickupOption === 'custom' && (
-              <input
-                type="time"
-                value={customTime}
-                onChange={e => setCustomTime(e.target.value)}
-                className="mt-2 w-full bg-zinc-800 rounded-lg px-4 py-3 text-white outline-none focus:ring-1 focus:ring-zinc-600"
-              />
+              <input type="time" value={customTime} onChange={e => setCustomTime(e.target.value)}
+                className="mt-2 w-full bg-zinc-800 rounded-lg px-4 py-3 text-white outline-none" />
             )}
           </div>
 
-          {/* 注文内容 */}
+          {/* メニューチップ（登録済みメニューがある場合） */}
+          {menus.length > 0 && (
+            <div>
+              <p className="text-xs text-zinc-500 mb-2 font-medium">メニューをタップして追加</p>
+              <div className="grid grid-cols-2 gap-2">
+                {menus.map(menu => {
+                  const inCart = cart.find(i => i.menuId === menu.id)
+                  return (
+                    <button key={menu.id} onClick={() => tapMenu(menu)}
+                      className={`relative py-3 px-3 rounded-lg text-sm font-medium text-left transition-colors active:scale-95 ${
+                        inCart ? 'bg-white text-zinc-950' : 'bg-zinc-800 text-zinc-300'
+                      }`}>
+                      <span className="block truncate pr-5">{menu.name}</span>
+                      {inCart && (
+                        <span className="absolute top-1.5 right-1.5 bg-zinc-950/30 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                          {inCart.quantity}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* フリーテキスト追加 */}
           <div>
-            <label className="text-xs text-zinc-500 mb-2 block font-medium">注文内容</label>
-            <div className="flex flex-col gap-2">
-              {items.map((item, idx) => (
+            <p className="text-xs text-zinc-500 mb-2 font-medium">
+              {menus.length > 0 ? 'その他（手入力）' : '品目を追加'}
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text" value={freeText} onChange={e => setFreeText(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addFreeText()}
+                placeholder="品目名を入力"
+                className="flex-1 bg-zinc-800 rounded-lg px-3 py-2.5 text-white placeholder-zinc-600 text-sm outline-none"
+              />
+              <button onClick={addFreeText}
+                className="shrink-0 bg-zinc-700 text-zinc-200 px-4 py-2.5 rounded-lg text-sm font-medium active:bg-zinc-600">
+                追加
+              </button>
+            </div>
+          </div>
+
+          {/* カート（選択済み品目） */}
+          {cart.length > 0 && (
+            <div className="bg-zinc-800/50 rounded-xl p-3 flex flex-col gap-2">
+              <p className="text-xs text-zinc-500 font-medium">注文内容</p>
+              {cart.map(item => (
                 <div key={item.key} className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={item.name}
-                    onChange={e => updateItem(item.key, 'name', e.target.value)}
-                    placeholder={`品目 ${idx + 1}`}
-                    className="flex-1 bg-zinc-800 rounded-lg px-3 py-2.5 text-white placeholder-zinc-600 text-sm outline-none focus:ring-1 focus:ring-zinc-600"
-                  />
+                  <span className="flex-1 text-sm text-zinc-200 truncate">{item.name}</span>
                   <div className="flex items-center bg-zinc-800 rounded-lg overflow-hidden shrink-0">
-                    <button
-                      onClick={() => updateItem(item.key, 'quantity', Math.max(1, item.quantity - 1))}
-                      className="px-3 py-2.5 text-zinc-400 active:bg-zinc-700 text-lg leading-none"
-                    >－</button>
-                    <span className="px-2 text-white min-w-[2ch] text-center text-sm">{item.quantity}</span>
-                    <button
-                      onClick={() => updateItem(item.key, 'quantity', item.quantity + 1)}
-                      className="px-3 py-2.5 text-zinc-400 active:bg-zinc-700 text-lg leading-none"
-                    >＋</button>
+                    <button onClick={() => setQty(item.key, item.quantity - 1)}
+                      className="px-3 py-1.5 text-zinc-400 active:bg-zinc-700">－</button>
+                    <span className="px-2 text-white text-sm min-w-[2ch] text-center">{item.quantity}</span>
+                    <button onClick={() => setQty(item.key, item.quantity + 1)}
+                      className="px-3 py-1.5 text-zinc-400 active:bg-zinc-700">＋</button>
                   </div>
-                  {items.length > 1 && (
-                    <button onClick={() => removeItem(item.key)} className="text-zinc-600 text-xl px-1 shrink-0">×</button>
-                  )}
                 </div>
               ))}
             </div>
-            <button
-              onClick={addItem}
-              className="mt-2 w-full py-2.5 rounded-lg border border-dashed border-zinc-700 text-zinc-500 text-sm transition-colors active:bg-zinc-800"
-            >
-              ＋ 品目を追加
-            </button>
-          </div>
+          )}
 
           {/* 備考 */}
-          <div>
-            <label className="text-xs text-zinc-500 mb-2 block font-medium">備考・アレルギー</label>
-            <input
-              type="text"
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="例：アレルギー：えび"
-              className="w-full bg-zinc-800 rounded-lg px-4 py-3 text-white placeholder-zinc-600 text-sm outline-none focus:ring-1 focus:ring-zinc-600"
-            />
-          </div>
+          <input
+            type="text" value={notes} onChange={e => setNotes(e.target.value)}
+            placeholder="備考・アレルギーなど"
+            className="w-full bg-zinc-800 rounded-lg px-4 py-3 text-white placeholder-zinc-600 text-sm outline-none"
+          />
 
           {error && <p className="text-sm text-red-400">{error}</p>}
         </div>
 
         {/* フッター */}
-        <div className="px-5 py-4 border-t border-zinc-800 shrink-0">
-          <button
-            onClick={handleSubmit}
-            disabled={submitting || items.every(i => !i.name.trim())}
-            className="w-full py-4 rounded-xl font-bold text-lg bg-white text-zinc-950 disabled:opacity-40 active:scale-95 transition-transform"
-          >
-            {submitting ? '送信中...' : '注文を確定する'}
+        <div className="px-4 py-4 border-t border-zinc-800 shrink-0">
+          <button onClick={handleSubmit} disabled={submitting || cart.length === 0}
+            className="w-full py-4 rounded-xl font-bold text-lg bg-white text-zinc-950 disabled:opacity-40 active:scale-95 transition-transform">
+            {submitting ? '送信中...' : `注文を確定する（${cart.length}品目）`}
           </button>
         </div>
       </div>

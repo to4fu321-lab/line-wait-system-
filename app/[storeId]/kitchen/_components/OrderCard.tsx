@@ -5,176 +5,162 @@ import type { TakeoutOrder, TakeoutSettings, UrgencyLevel } from '@/types/takeou
 import { getActionLabel, getNextStatus, getUrgencyLevel } from '@/types/takeout'
 import ElapsedTimer from './ElapsedTimer'
 
-const URGENCY_BORDER: Record<UrgencyLevel, string> = {
-  normal:  'border-zinc-700',
-  warning: 'border-amber-400',
-  urgent:  'border-red-500',
+// ステータスバー・ボーダー・ボタンのスタイル定義
+const STATUS_STYLES = {
+  ready: {
+    bar:    'bg-emerald-500',
+    border: 'border-emerald-500',
+    btn:    'bg-emerald-500 text-white',
+    icon:   '🤲',
+  },
+  pending: {
+    bar:    'bg-zinc-700',
+    border: 'border-zinc-700',
+    btn:    'bg-zinc-700 text-zinc-200',
+    icon:   '▶',
+  },
+} as const
+
+const URGENCY_STYLES: Record<UrgencyLevel, { bar: string; border: string; btn: string; badge: string }> = {
+  normal:  { bar: 'bg-amber-600',   border: 'border-zinc-600',   btn: 'bg-amber-600 text-white',   badge: '' },
+  warning: { bar: 'bg-amber-400',   border: 'border-amber-400',  btn: 'bg-amber-400 text-zinc-950', badge: 'もうすぐ' },
+  urgent:  { bar: 'bg-red-500',     border: 'border-red-500',    btn: 'bg-red-500 text-white',      badge: '急いで！' },
 }
 
-const URGENCY_BADGE: Record<UrgencyLevel, { style: string; label: string }> = {
-  normal:  { style: '',                              label: '' },
-  warning: { style: 'bg-amber-500/20 text-amber-300', label: 'もうすぐ' },
-  urgent:  { style: 'bg-red-500/20 text-red-300',     label: '急いで！' },
+function pickupLabel(pickupTime: string | null): { text: string; color: string } | null {
+  if (!pickupTime) return null
+  const diff = Math.round((new Date(pickupTime).getTime() - Date.now()) / 60000)
+  const t    = new Date(pickupTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+  if (diff > 30) return { text: `${t} 受取`,             color: 'text-zinc-600' }
+  if (diff > 10) return { text: `${t}（あと${diff}分）`, color: 'text-zinc-400' }
+  if (diff > 0)  return { text: `あと ${diff} 分`,       color: 'text-amber-400' }
+  return           { text: `受取超過 ${Math.abs(diff)} 分`, color: 'text-red-400' }
 }
 
 interface Props {
-  order:      TakeoutOrder
-  settings:   TakeoutSettings
-  onAdvance:  () => Promise<void>
-  onCancel:   () => Promise<void>
-  onItemDone: (itemId: string, done: boolean) => Promise<void>
+  order:     TakeoutOrder
+  settings:  TakeoutSettings
+  onAdvance: () => Promise<void>
+  onCancel:  () => Promise<void>
 }
 
-function pickupDisplay(pickupTime: string | null): { label: string; color: string } | null {
-  if (!pickupTime) return null
-  const diffMin = Math.round((new Date(pickupTime).getTime() - Date.now()) / 60000)
-  const timeStr = new Date(pickupTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
-  if (diffMin > 30)  return { label: `${timeStr} 受取`,                      color: 'text-zinc-500' }
-  if (diffMin > 10)  return { label: `${timeStr}（あと ${diffMin} 分）`,      color: 'text-zinc-300' }
-  if (diffMin > 0)   return { label: `⚠ あと ${diffMin} 分`,                 color: 'text-amber-400' }
-  if (diffMin === 0) return { label: '受取時刻！',                             color: 'text-red-400' }
-  return              { label: `受取 ${Math.abs(diffMin)} 分超過`,            color: 'text-red-400' }
-}
-
-export default function OrderCard({ order, settings, onAdvance, onCancel, onItemDone }: Props) {
-  const [confirmCancel, setConfirmCancel] = useState(false)
+export default function OrderCard({ order, settings, onAdvance, onCancel }: Props) {
   const [advancing,     setAdvancing]     = useState(false)
+  const [confirmCancel, setConfirmCancel] = useState(false)
 
   const targetMinutes = settings.target_minutes ?? 15
-  const urgency       = order.status === 'pending'
-    ? 'normal'
-    : getUrgencyLevel(order.created_at, order.status, targetMinutes)
-  const badge      = URGENCY_BADGE[urgency]
-  const nextStatus = getNextStatus(order.status, settings)
-  const actionLabel = getActionLabel(order.status, settings)
-  const items       = order.items ?? []
-  const allDone     = order.status === 'preparing' && items.length > 0 && items.every(i => i.is_done)
-  const pickup      = pickupDisplay(order.pickup_time)
+  const urgency       = getUrgencyLevel(order.created_at, order.status, targetMinutes)
+  const nextStatus    = getNextStatus(order.status, settings)
+  const actionLabel   = getActionLabel(order.status, settings)
+  const items         = order.items ?? []
+  const itemSummary   = items.map(i => `${i.name}×${i.quantity}`).join('・')
+  const pickup        = pickupLabel(order.pickup_time)
+
+  const style =
+    order.status === 'ready'   ? STATUS_STYLES.ready   :
+    order.status === 'pending' ? STATUS_STYLES.pending  :
+    URGENCY_STYLES[urgency]
+
+  const urgencyBadge = 'badge' in style && style.badge
+    ? <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+        urgency === 'urgent' ? 'bg-red-500/20 text-red-300' : 'bg-amber-500/20 text-amber-300'
+      }`}>{style.badge}</span>
+    : null
 
   const handleAdvance = async () => {
     setAdvancing(true)
     try { await onAdvance() } finally { setAdvancing(false) }
   }
 
-  const handleCancel = async () => {
-    setConfirmCancel(false)
-    await onCancel()
-  }
-
   return (
-    <div className={`rounded-xl border-2 ${URGENCY_BORDER[urgency]} bg-zinc-900 flex flex-col gap-3 p-4 relative`}>
-      {/* 緊急インジケーター */}
-      {urgency === 'urgent' && (
-        <span className="absolute top-3 right-3 w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-      )}
+    <div className={`flex items-stretch rounded-xl overflow-hidden border-2 ${style.border} bg-zinc-900`}>
+      {/* 左：ステータスカラーバー */}
+      <div className={`w-1.5 shrink-0 ${style.bar}`} />
 
-      {/* ヘッダー：番号・名前・経過時間 */}
-      <div className="flex items-start justify-between gap-2 pr-4">
-        <div className="flex items-baseline gap-2 flex-wrap">
-          <span className="text-3xl font-black leading-none">{order.order_number}</span>
+      {/* 中：注文情報 */}
+      <div className="flex-1 px-3 py-3 min-w-0">
+        {/* 番号・名前・経過・緊急バッジ */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-2xl font-black leading-none">{order.order_number}</span>
           {order.customer_name && (
-            <span className="text-base text-zinc-300">{order.customer_name}様</span>
+            <span className="text-sm text-zinc-400">{order.customer_name}様</span>
           )}
-        </div>
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          {badge.label && (
-            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${badge.style}`}>
-              {badge.label}
-            </span>
-          )}
+          <div className="flex-1" />
           {order.status !== 'pending' && (
-            <span className="text-xs text-zinc-500">⏱ <ElapsedTimer createdAt={order.created_at} /></span>
+            <span className="text-xs text-zinc-600">⏱ <ElapsedTimer createdAt={order.created_at} /></span>
+          )}
+          {urgencyBadge}
+        </div>
+
+        {/* 品目サマリー */}
+        <div className="text-sm text-zinc-400 mt-1 leading-snug line-clamp-2">
+          {itemSummary || '（品目なし）'}
+        </div>
+
+        {/* 備考 */}
+        {order.notes && (
+          <div className="text-xs text-amber-400 mt-1">📝 {order.notes}</div>
+        )}
+
+        {/* 受取時間 */}
+        {pickup && (
+          <div className={`text-xs mt-1 ${pickup.color}`}>🕐 {pickup.text}</div>
+        )}
+
+        {/* 注文経路 */}
+        {order.order_source && order.order_source !== 'line' && (
+          <div className="text-xs text-zinc-700 mt-1">
+            {order.order_source === 'phone' ? '📞 電話' : '🚶 店頭'}
+          </div>
+        )}
+
+        {/* キャンセルボタン（小さく、誤タップしにくい位置） */}
+        <div className="mt-2">
+          {!confirmCancel ? (
+            <button
+              onClick={() => setConfirmCancel(true)}
+              className="text-xs text-zinc-700 active:text-zinc-500"
+            >
+              キャンセル
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => { setConfirmCancel(false); await onCancel() }}
+                className="text-xs text-red-400 font-semibold bg-red-950/40 px-2 py-1 rounded"
+              >
+                キャンセル確定
+              </button>
+              <button
+                onClick={() => setConfirmCancel(false)}
+                className="text-xs text-zinc-600"
+              >
+                やめる
+              </button>
+            </div>
           )}
         </div>
       </div>
 
-      {/* 受取時間 */}
-      {pickup && (
-        <div className={`text-sm font-medium ${pickup.color}`}>🕐 {pickup.label}</div>
-      )}
-
-      {/* 注文経路バッジ */}
-      {order.order_source && order.order_source !== 'line' && (
-        <div className="text-xs text-zinc-600">
-          {order.order_source === 'phone' ? '📞 電話注文' : '🚶 店頭注文'}
-        </div>
-      )}
-
-      {/* アイテム一覧 */}
-      <div className="flex flex-col gap-1.5">
-        {items.map(item => (
-          <div key={item.id} className="flex items-center gap-2 bg-zinc-800/60 rounded-lg px-3 py-2.5">
-            {order.status === 'preparing' && (
-              <button
-                onClick={() => onItemDone(item.id, !item.is_done)}
-                className={`
-                  w-5 h-5 rounded border-2 shrink-0 flex items-center justify-center transition-colors
-                  ${item.is_done ? 'bg-emerald-500 border-emerald-500' : 'border-zinc-600'}
-                `}
-              >
-                {item.is_done && <span className="text-white text-xs font-bold">✓</span>}
-              </button>
-            )}
-            <span className={`flex-1 text-sm ${item.is_done ? 'line-through text-zinc-600' : 'text-zinc-200'}`}>
-              {item.name}
-            </span>
-            <span className="text-lg font-bold text-zinc-300 shrink-0">×{item.quantity}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* 備考 */}
-      {order.notes && (
-        <div className="text-sm text-amber-300 bg-amber-950/30 rounded-lg px-3 py-2">
-          📝 {order.notes}
-        </div>
-      )}
-
-      {/* アクションボタン */}
-      <div className="flex gap-2">
-        {nextStatus && (
-          <button
-            onClick={handleAdvance}
-            disabled={advancing}
-            className={`
-              flex-1 py-3.5 rounded-lg font-bold text-base transition-all active:scale-95 select-none
-              ${allDone
-                ? 'bg-emerald-500 text-white'
-                : 'bg-zinc-100 text-zinc-950'
-              }
-              ${advancing ? 'opacity-50' : ''}
-            `}
-          >
-            {advancing ? '...' : actionLabel}
-          </button>
-        )}
-
-        {!confirmCancel ? (
-          <button
-            onClick={() => setConfirmCancel(true)}
-            className="shrink-0 px-3.5 py-3.5 rounded-lg bg-zinc-800 text-red-400 text-sm active:scale-95"
-            title="キャンセル"
-          >
-            ✕
-          </button>
-        ) : (
-          <button
-            onClick={handleCancel}
-            className="shrink-0 px-3 py-3.5 rounded-lg bg-red-600 text-white font-bold text-sm active:scale-95"
-          >
-            キャンセル確定
-          </button>
-        )}
-      </div>
-
-      {/* キャンセル確認中：タップで解除 */}
-      {confirmCancel && (
+      {/* 右：アクションボタン（フル高さ） */}
+      {nextStatus ? (
         <button
-          onClick={() => setConfirmCancel(false)}
-          className="text-xs text-zinc-600 text-center"
+          onClick={handleAdvance}
+          disabled={advancing}
+          className={`
+            shrink-0 w-20 md:w-24 flex flex-col items-center justify-center gap-1
+            font-bold text-sm active:opacity-70 transition-opacity select-none
+            ${style.btn} ${advancing ? 'opacity-50' : ''}
+          `}
         >
-          やめる
+          {'icon' in style
+            ? <span className="text-2xl">{style.icon}</span>
+            : <span className="text-lg">{urgency === 'urgent' ? '⚡' : '✓'}</span>
+          }
+          <span className="text-center leading-tight px-1">{actionLabel}</span>
         </button>
+      ) : (
+        <div className="w-20 md:w-24 shrink-0" />
       )}
     </div>
   )
