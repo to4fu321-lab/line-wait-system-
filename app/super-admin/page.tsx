@@ -576,6 +576,10 @@ function SuperDashboard() {
                   <div className="bg-gray-900/30 px-4 py-2 text-center text-gray-600 text-xs">
                     {filtered.length}店舗 — 合計受付{groupTotal} / 待機{groupWaiting}
                   </div>
+                )}
+              </div>
+            )
+          })}
 
           {/* 独立店舗（会社なし） */}
           {(() => {
