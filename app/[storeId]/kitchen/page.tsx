@@ -15,13 +15,13 @@ import QueueItem       from './_components/QueueItem'
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
 const WEEKDAY_COLORS = [
-  'text-red-400',    // 日
-  'text-zinc-300',   // 月
-  'text-zinc-300',   // 火
-  'text-zinc-300',   // 水
-  'text-zinc-300',   // 木
-  'text-zinc-300',   // 金
-  'text-blue-400',   // 土
+  'text-red-400',
+  'text-zinc-300',
+  'text-zinc-300',
+  'text-zinc-300',
+  'text-zinc-300',
+  'text-zinc-300',
+  'text-blue-400',
 ]
 
 function DateDisplay() {
@@ -30,7 +30,7 @@ function DateDisplay() {
   const d   = now.getDate()
   const w   = now.getDay()
   return (
-    <span className="text-sm text-zinc-400">
+    <span className="text-sm md:text-base text-zinc-400">
       {m}/{d}（<span className={WEEKDAY_COLORS[w]}>{WEEKDAYS[w]}</span>）
     </span>
   )
@@ -48,7 +48,7 @@ function Clock() {
   return (
     <div className="text-right">
       <div className="text-xs text-zinc-600">現在時刻</div>
-      <div className="text-2xl font-bold">{time}</div>
+      <div className="text-2xl md:text-3xl font-bold">{time}</div>
     </div>
   )
 }
@@ -66,10 +66,9 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
 
   const comboTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const targetMinutes  = settings.target_minutes        ?? 15
-  const comboTimeout   = settings.combo_timeout_seconds ?? 300
+  const targetMinutes = settings.target_minutes        ?? 15
+  const comboTimeout  = settings.combo_timeout_seconds ?? 300
 
-  // アクティブな注文を取得（pending・preparing・ready）
   const loadOrders = useCallback(async () => {
     const { data } = await supabase
       .from('takeout_orders')
@@ -80,7 +79,6 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
     if (data) setOrders(data as TakeoutOrder[])
   }, [storeId])
 
-  // 本日の完了件数
   const loadTodayCount = useCallback(async () => {
     const jstOffset = 9 * 60 * 60 * 1000
     const now       = new Date(Date.now() + jstOffset)
@@ -94,7 +92,6 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
     setTodayCount(count ?? 0)
   }, [storeId])
 
-  // 店舗情報を取得
   const loadSettings = useCallback(async () => {
     const { data } = await supabase
       .from('stores')
@@ -109,8 +106,6 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
     Promise.all([loadOrders(), loadTodayCount(), loadSettings()]).finally(() =>
       setLoading(false)
     )
-
-    // Realtimeで注文変更を監視
     const channel = supabase
       .channel(`kitchen-${storeId}`)
       .on('postgres_changes', {
@@ -121,15 +116,12 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
       }, (payload) => {
         loadOrders()
         loadTodayCount()
-        // 新規注文受付音
         if (payload.eventType === 'INSERT') triggerSound('pending')
       })
       .subscribe()
-
     return () => { supabase.removeChannel(channel) }
   }, [storeId, loadOrders, loadTodayCount, loadSettings])
 
-  // ステータスを次に進める
   const advanceStatus = async (order: TakeoutOrder) => {
     const nextStatus = getNextStatus(order.status, settings)
     if (!nextStatus) return
@@ -141,7 +133,6 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
 
     triggerSound(nextStatus)
 
-    // コンボ処理（お渡し完了時）
     if (nextStatus === 'completed') {
       const urgency = getUrgencyLevel(order.created_at, 'preparing', targetMinutes)
       if (urgency !== 'urgent') {
@@ -158,13 +149,11 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
       }
     }
 
-    // LINE通知（将来実装：shouldNotify が true のときAPIを叩く）
     if (shouldNotify(nextStatus, settings) && order.line_user_id) {
       // TODO: /api/notify-takeout を呼び出す
     }
   }
 
-  // メイン表示対象：preparing優先、なければpending、なければready
   const activeOrder =
     orders.find(o => o.status === 'preparing') ??
     orders.find(o => o.status === 'pending')   ??
@@ -182,21 +171,21 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white flex flex-col">
+    <div className="h-screen bg-zinc-950 text-white flex flex-col overflow-hidden">
 
       {/* ヘッダー */}
-      <div className="bg-zinc-900 border-b border-zinc-800">
-        {/* 店舗名・日付バー */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800/60">
-          <span className="text-base font-bold text-white">{storeName}</span>
+      <div className="bg-zinc-900 border-b border-zinc-800 shrink-0">
+        {/* 店舗名・日付 */}
+        <div className="flex items-center justify-between px-4 md:px-6 py-2 border-b border-zinc-800/60">
+          <span className="text-base md:text-lg font-bold text-white">{storeName}</span>
           <DateDisplay />
         </div>
-        {/* コンボ・件数・時刻バー */}
-        <div className="flex items-center justify-between px-4 py-3">
+        {/* コンボ・件数・時刻 */}
+        <div className="flex items-center justify-between px-4 md:px-6 py-3">
           <ComboDisplay combo={combo} maxCombo={maxCombo} />
           <div className="text-center">
             <div className="text-xs text-zinc-500">本日完了</div>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl md:text-3xl font-bold">
               {todayCount}
               <span className="text-sm text-zinc-400 ml-1">件</span>
             </div>
@@ -205,33 +194,77 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
         </div>
       </div>
 
-      {/* メインエリア */}
-      <div className="flex-1 flex flex-col p-4 gap-4 overflow-auto">
+      {/* メインエリア
+          モバイル: 縦積み
+          タブレット(md+): 左=アクティブ注文 / 右=キュー の2カラム
+      */}
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
 
-        {/* アクティブオーダー */}
-        {activeOrder ? (
-          <ActiveOrderCard
-            order={activeOrder}
-            settings={settings}
-            onAdvance={() => advanceStatus(activeOrder)}
-          />
-        ) : (
-          <div className="flex-1 flex items-center justify-center py-20">
-            <div className="text-center text-zinc-700">
-              <div className="text-7xl mb-4">✓</div>
-              <div className="text-xl font-medium">注文待ち</div>
-              <div className="text-sm mt-1">新しい注文が入ると自動で表示されます</div>
+        {/* 左カラム：アクティブ注文 */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-6">
+          {activeOrder ? (
+            <ActiveOrderCard
+              order={activeOrder}
+              settings={settings}
+              onAdvance={() => advanceStatus(activeOrder)}
+            />
+          ) : (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center text-zinc-700">
+                <div className="text-7xl md:text-8xl mb-4">✓</div>
+                <div className="text-xl md:text-2xl font-medium">注文待ち</div>
+                <div className="text-sm md:text-base mt-1 text-zinc-600">
+                  新しい注文が入ると自動で表示されます
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* キュー（次の注文一覧） */}
+        {/* 右カラム：キュー（タブレットのみ常時表示） */}
+        <div className={`
+          md:w-80 lg:w-96 md:border-l md:border-zinc-800
+          md:flex md:flex-col md:overflow-hidden
+          ${queueOrders.length === 0 ? 'hidden md:flex' : ''}
+        `}>
+          {/* キューヘッダー */}
+          <div className="px-4 md:px-5 py-3 border-b border-zinc-800 shrink-0">
+            <span className="text-xs text-zinc-500 font-medium">
+              次の注文
+              {queueOrders.length > 0 && (
+                <span className="ml-2 bg-zinc-700 text-zinc-300 text-xs px-1.5 py-0.5 rounded-full">
+                  {queueOrders.length}
+                </span>
+              )}
+            </span>
+          </div>
+
+          {/* キューリスト */}
+          <div className="flex-1 overflow-y-auto p-3 md:p-4 flex flex-col gap-2">
+            {queueOrders.length > 0 ? (
+              queueOrders.map(order => (
+                <QueueItem
+                  key={order.id}
+                  order={order}
+                  settings={settings}
+                  onAdvance={() => advanceStatus(order)}
+                />
+              ))
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-zinc-700 text-sm">
+                待機中の注文なし
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* モバイル時のキュー（下部に表示） */}
         {queueOrders.length > 0 && (
-          <div>
-            <div className="text-xs text-zinc-500 mb-2 px-1">
+          <div className="md:hidden shrink-0 border-t border-zinc-800 max-h-48 overflow-y-auto">
+            <div className="px-4 py-2 text-xs text-zinc-500">
               次の注文（{queueOrders.length}件）
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="px-4 pb-3 flex flex-col gap-2">
               {queueOrders.map(order => (
                 <QueueItem
                   key={order.id}

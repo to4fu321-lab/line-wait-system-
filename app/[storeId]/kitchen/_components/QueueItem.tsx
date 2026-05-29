@@ -18,19 +18,23 @@ export default function QueueItem({ order, settings, onAdvance }: Props) {
     .join('・')
 
   return (
-    <div className="flex items-center gap-3 bg-zinc-900 rounded-xl px-4 py-3 border border-zinc-800">
-      <span className="text-xl font-bold text-zinc-300 w-14 shrink-0">
+    <div className="flex items-center gap-3 bg-zinc-900 rounded-xl px-4 py-3 md:py-4 border border-zinc-800">
+      <span className="text-xl md:text-2xl font-bold text-zinc-300 w-14 shrink-0">
         {order.order_number}
       </span>
-      {order.customer_name && (
-        <span className="text-sm text-zinc-400 shrink-0">{order.customer_name}様</span>
-      )}
-      <span className="text-sm text-zinc-500 truncate flex-1">{itemSummary}</span>
-      <span className="text-xs text-zinc-600 shrink-0">{labels[order.status]}</span>
+      <div className="flex-1 min-w-0">
+        {order.customer_name && (
+          <div className="text-sm text-zinc-400">{order.customer_name}様</div>
+        )}
+        <div className="text-sm text-zinc-500 truncate">{itemSummary}</div>
+      </div>
+      <span className="text-xs text-zinc-600 shrink-0 hidden md:block">
+        {labels[order.status]}
+      </span>
       {nextStatus && (
         <button
           onClick={onAdvance}
-          className="shrink-0 text-xs px-3 py-1.5 rounded-lg bg-zinc-700 text-zinc-200 active:scale-95 transition-transform"
+          className="shrink-0 text-xs md:text-sm px-3 py-2 rounded-lg bg-zinc-700 text-zinc-200 active:scale-95 transition-transform whitespace-nowrap"
         >
           {actionLabel}
         </button>
