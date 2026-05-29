@@ -4,13 +4,22 @@ import { useParams } from 'next/navigation'
 import { useEffect, useState, useCallback } from 'react'
 import {
   Settings, Loader2, Plus, Trash2, GraduationCap, AlertCircle, Save,
-  CalendarDays, Clock, CheckCheck, LayoutDashboard, Store, Key,
+  CalendarDays, Clock, CheckCheck, LayoutDashboard, Store, Key, Bell, BellOff,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { WaitThreshold } from '@/types/database'
 import { DEFAULT_THRESHOLDS } from '@/types/database'
 import { BottomNav } from '../_components/BottomNav'
 import ColorPicker from '@/app/_components/ColorPicker'
+
+const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BAmZx5b8ScrgrqWa822FdQhtfHV2CSyqvxNeQX-Ds1KsqztPPRtZRyBP_LaQZmCLejg8Ivd7Gu4cBxKtNwodb3o'
+
+function urlBase64ToUint8Array(base64: string) {
+  const pad = '='.repeat((4 - base64.length % 4) % 4)
+  const b64 = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/')
+  const raw = window.atob(b64)
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
+}
 
 type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
 type DayHours = { open: string; close: string; closed: boolean }
@@ -53,7 +62,7 @@ function Toggle({ on, onToggle, label, sub }: { on: boolean; onToggle: () => voi
   )
 }
 
-function Section({ title }: { title: string }) {
+function SectionLabel({ title }: { title: string }) {
   return <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider">{title}</p>
 }
 
@@ -75,7 +84,6 @@ export default function SettingsPage() {
   const [isTestMode,        setIsTestMode]        = useState(false)
   const [repairNotes,       setRepairNotes]       = useState('')
 
-  // 店舗基本情報
   const [storePin,          setStorePin]          = useState('')
   const [themeColor,        setThemeColor]        = useState<string | null>(null)
   const [basicSaving,       setBasicSaving]       = useState(false)
@@ -83,14 +91,13 @@ export default function SettingsPage() {
   const [basicError,        setBasicError]        = useState<string | null>(null)
   const [showColorPicker,   setShowColorPicker]   = useState(false)
 
-  // 受付ページ設定
   const [welcomeMessage,    setWelcomeMessage]    = useState('')
   const [noticeText,        setNoticeText]        = useState('')
-
-  // 営業時間
   const [businessHours,     setBusinessHours]     = useState<BusinessHours>(DEFAULT_BUSINESS_HOURS)
+  const [saveError,         setSaveError]         = useState<string | null>(null)
 
-  const [saveError, setSaveError] = useState<string | null>(null)
+  // プッシュ通知ステータス
+  const [pushStatus, setPushStatus] = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle')
 
   // ── 予約設定 ──────────────────────────────────────────────
   type ResvSetting = {
@@ -105,7 +112,7 @@ export default function SettingsPage() {
     { service_type: 'jersey', label: 'ジャージ採寸', duration_min: 30, start_time: '10:00', end_time: '17:00',
       is_active: true, slots_sun: 0, slots_mon: 2, slots_tue: 2, slots_wed: 2, slots_thu: 2, slots_fri: 2, slots_sat: 3 },
   ]
-  const [resvSettings, setResvSettings]   = useState<ResvSetting[]>(DEFAULT_RESV)
+  const [resvSettings,      setResvSettings]      = useState<ResvSetting[]>(DEFAULT_RESV)
   const [resvLoading,       setResvLoading]       = useState(false)
   const [resvSaved,         setResvSaved]         = useState(false)
   const [resvError,         setResvError]         = useState<string | null>(null)
@@ -145,7 +152,6 @@ export default function SettingsPage() {
 
   useEffect(() => { fetchSettings() }, [fetchSettings])
 
-  // 予約設定フェッチ（テーブルが存在しない場合は graceful に処理）
   const fetchResvSettings = useCallback(async () => {
     if (!storeId) return
     const { data, error } = await (supabase as any)
@@ -161,6 +167,40 @@ export default function SettingsPage() {
   }, [storeId])
 
   useEffect(() => { fetchResvSettings() }, [fetchResvSettings])
+
+  // プッシュ通知の現在の権限状態をチェック
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!('Notification' in window) || !('PushManager' in window)) {
+      setPushStatus('unsupported'); return
+    }
+    const perm = (window as any).Notification.permission
+    if (perm === 'granted') setPushStatus('granted')
+    else if (perm === 'denied') setPushStatus('denied')
+  }, [])
+
+  const setupPush = async () => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+      setPushStatus('unsupported'); return
+    }
+    try {
+      const reg  = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      const perm = await (window as any).Notification.requestPermission()
+      if (perm !== 'granted') { setPushStatus('denied'); return }
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
+      })
+      await fetch('/api/push-subscribe', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId, subscription: sub.toJSON() }),
+      })
+      setPushStatus('granted')
+    } catch (e) {
+      console.error('[push setup]', e)
+      setPushStatus('denied')
+    }
+  }
 
   const handleResvSave = async () => {
     if (!storeId || !resvTableOk) return
@@ -270,7 +310,6 @@ export default function SettingsPage() {
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                 {saved ? '保存済み' : '保存'}
               </button>
-              <span className="text-[9px] text-zinc-700">v2026-05-27c</span>
             </div>
           </div>
         </div>
@@ -278,9 +317,86 @@ export default function SettingsPage() {
 
       <div className="max-w-2xl mx-auto px-4 py-5 space-y-6">
 
+        {/* ========================================================
+            スタッフ操作（BottomNav設定タブから来るスタッフ向け）
+            ======================================================== */}
+        <div className="space-y-3">
+          <SectionLabel title="スタッフ操作" />
+
+          {/* ブラウザ通知 */}
+          <button
+            onClick={() => { if (pushStatus !== 'granted' && pushStatus !== 'unsupported') setupPush() }}
+            disabled={pushStatus === 'granted' || pushStatus === 'unsupported'}
+            style={{ touchAction: 'manipulation' }}
+            className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl border-2 transition-all active:scale-[0.98] ${
+              pushStatus === 'granted'     ? 'border-emerald-500/60 bg-emerald-500/10 cursor-default' :
+              pushStatus === 'denied'      ? 'border-red-500/40 bg-red-500/10' :
+              pushStatus === 'unsupported' ? 'border-zinc-700 bg-zinc-800/40 cursor-not-allowed opacity-60' :
+              'border-indigo-500/50 bg-indigo-500/10 hover:border-indigo-400'
+            }`}>
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+              pushStatus === 'granted' ? 'bg-emerald-500/20' :
+              pushStatus === 'denied'  ? 'bg-red-500/20' :
+              'bg-indigo-500/20'
+            }`}>
+              {pushStatus === 'denied'
+                ? <BellOff size={22} className="text-red-400" />
+                : <Bell size={22} className={pushStatus === 'granted' ? 'text-emerald-400' : 'text-indigo-400'} />}
+            </div>
+            <div className="text-left flex-1">
+              <p className={`font-bold text-base leading-tight ${
+                pushStatus === 'granted' ? 'text-emerald-300' :
+                pushStatus === 'denied'  ? 'text-red-300' : 'text-white'
+              }`}>
+                {pushStatus === 'granted'     ? '受付通知 ON' :
+                 pushStatus === 'denied'      ? '通知がブロックされています' :
+                 pushStatus === 'unsupported' ? '通知非対応の端末' :
+                 '受付通知を有効にする'}
+              </p>
+              <p className="text-zinc-500 text-xs mt-0.5">
+                {pushStatus === 'granted'     ? 'お客様が受付したとき、この端末に通知が届きます' :
+                 pushStatus === 'denied'      ? 'ブラウザの設定から通知を許可してください' :
+                 pushStatus === 'unsupported' ? 'このブラウザは通知に対応していません' :
+                 'タップしてこの端末で通知を受け取る'}
+              </p>
+            </div>
+            {pushStatus === 'granted' && (
+              <div className="shrink-0 w-3 h-3 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/50" />
+            )}
+          </button>
+
+          {/* 店舗を切り替える */}
+          <button
+            onClick={() => {
+              sessionStorage.removeItem('admin_auth')
+              sessionStorage.removeItem('admin_store_id')
+              window.location.href = `/${storeId}/admin`
+            }}
+            style={{ touchAction: 'manipulation' }}
+            className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl border border-zinc-700/50 bg-zinc-900/60 hover:bg-zinc-800/60 active:scale-[0.98] transition-all">
+            <div className="w-12 h-12 rounded-2xl bg-zinc-800 flex items-center justify-center shrink-0">
+              <Store size={22} className="text-zinc-400" />
+            </div>
+            <div className="text-left flex-1">
+              <p className="font-bold text-base text-zinc-200">店舗を切り替える</p>
+              <p className="text-zinc-500 text-xs mt-0.5">別の店舗に切り替えます（再ログインが必要）</p>
+            </div>
+          </button>
+        </div>
+
+        {/* ========================================================
+            管理者設定セクション区切り
+            ======================================================== */}
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-zinc-800" />
+          <span className="text-zinc-600 text-[11px] font-bold tracking-widest px-1">管理者設定</span>
+          <div className="flex-1 h-px bg-zinc-800" />
+        </div>
+        <p className="text-xs text-zinc-700 -mt-3">以下はオーナー・管理者が設定する項目です</p>
+
         {/* 店舗基本情報 */}
         <div className="space-y-3">
-          <Section title="店舗基本情報" />
+          <SectionLabel title="店舗基本情報" />
           <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-xl p-4 space-y-3">
             <div>
               <label className="text-xs text-zinc-400 mb-1.5 flex items-center gap-1.5">
@@ -324,7 +440,7 @@ export default function SettingsPage() {
 
         {/* 受付ページ設定 */}
         <div className="space-y-2">
-          <Section title="受付ページ設定" />
+          <SectionLabel title="受付ページ設定" />
           <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-xl p-4 space-y-3">
             <div>
               <label className="text-xs text-zinc-400 mb-1.5 block">ウェルカムメッセージ</label>
@@ -335,18 +451,17 @@ export default function SettingsPage() {
             </div>
             <div>
               <label className="text-xs text-zinc-400 mb-1.5 block">注意事項</label>
-              <p className="text-[11px] text-zinc-600 mb-1.5">受付ページに表示する注意書き・案内文</p>
               <textarea value={noticeText} onChange={e => setNoticeText(e.target.value)} rows={4}
                 placeholder="例: 混雑状況により、お時間をいただく場合がございます。&#10;ご了承のうえ、受付をお取りください。"
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:border-indigo-500 focus:outline-none resize-none" />
             </div>
-            <p className="text-[11px] text-zinc-600">※ 「設定を保存」ボタンではなく、上の「店舗情報を保存」で保存されます</p>
+            <p className="text-[11px] text-zinc-600">※「店舗情報を保存」で保存されます</p>
           </div>
         </div>
 
         {/* 営業時間設定 */}
         <div className="space-y-2">
-          <Section title="営業時間設定" />
+          <SectionLabel title="営業時間設定" />
           <p className="text-xs text-zinc-600">受付ページや管理画面での参照用です。自動開閉は管理画面の受付ボタンで手動設定してください。</p>
           <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-xl overflow-hidden">
             {DAY_LABELS.map(({ key, label, color }) => {
@@ -377,12 +492,12 @@ export default function SettingsPage() {
               )
             })}
           </div>
-          <p className="text-[11px] text-zinc-600">※「設定を保存」ボタンで保存されます</p>
+          <p className="text-[11px] text-zinc-600">※「保存」ボタンで保存されます</p>
         </div>
 
         {/* LINEリッチメニュー */}
         <div className="space-y-2">
-          <Section title="LINEリッチメニュー" />
+          <SectionLabel title="LINEリッチメニュー" />
           <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-xl px-4 py-4 space-y-3">
             <p className="text-xs text-zinc-400">顧客のLINEトーク画面下部に表示されるメニューを登録します。変更後は再度ボタンを押してください。</p>
             <button
@@ -402,7 +517,7 @@ export default function SettingsPage() {
 
         {/* LINE通知プラン */}
         <div className="space-y-2">
-          <Section title="LINE通知プラン" />
+          <SectionLabel title="LINE通知プラン" />
           <div className="grid grid-cols-2 gap-2">
             {([
               { value: 'calling_only', label: '呼出のみ', desc: '1通/人 — 呼出時のみ', icon: '🔔' },
@@ -430,21 +545,9 @@ export default function SettingsPage() {
           )}
         </div>
 
-        {/* ブラウザ通知 */}
-        <div className="space-y-2">
-          <Section title="ブラウザ通知（端末）" />
-          <Toggle
-            on={pushQueueNew}
-            onToggle={() => setPushQueueNew(v => !v)}
-            label="🔔 新規受付"
-            sub="お客様が受付した時に端末へ通知"
-          />
-          <p className="text-xs text-zinc-600">ヘッダーの🔔ボタンで端末通知を許可してください</p>
-        </div>
-
         {/* 遠隔チェックイン */}
         <div className="space-y-2">
-          <Section title="遠隔チェックイン" />
+          <SectionLabel title="遠隔チェックイン" />
           <Toggle
             on={allowRemote}
             onToggle={() => setAllowRemote(v => !v)}
@@ -455,7 +558,7 @@ export default function SettingsPage() {
 
         {/* 待ち案内メッセージ */}
         <div className="space-y-2">
-          <Section title="待ち案内メッセージ（顧客画面表示）" />
+          <SectionLabel title="待ち案内メッセージ（顧客画面表示）" />
           <div className="space-y-2">
             {waitThresholds.map((t, i) => (
               <div key={i} className="flex items-center gap-2">
@@ -489,7 +592,7 @@ export default function SettingsPage() {
 
         {/* 未お渡しアラート */}
         <div className="space-y-2">
-          <Section title="未お渡しアラート（完了・入荷からN日後に警告）" />
+          <SectionLabel title="未お渡しアラート（完了・入荷からN日後に警告）" />
           {[
             { label: 'お直し完了', value: alertDaysRepair,   set: setAlertDaysRepair },
             { label: '取置き入荷', value: alertDaysPurchase, set: setAlertDaysPurchase },
@@ -510,10 +613,10 @@ export default function SettingsPage() {
           ))}
         </div>
 
-        {/* 予約設定 */}
+        {/* 採寸予約設定 */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Section title="採寸予約設定（共有枠）" />
+            <SectionLabel title="採寸予約設定（共有枠）" />
             {resvTableOk === false && (
               <span className="text-[10px] bg-amber-900/40 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full">
                 SQLマイグレーション要
@@ -535,7 +638,6 @@ export default function SettingsPage() {
                 <div key={s.service_type} className={`rounded-2xl border p-4 space-y-3 transition-all ${
                   s.is_active ? 'bg-indigo-950/30 border-indigo-500/20' : 'bg-zinc-900/40 border-zinc-800/40'
                 }`}>
-                  {/* ヘッダー */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <CalendarDays size={14} className={s.is_active ? 'text-indigo-400' : 'text-zinc-600'} />
@@ -546,10 +648,8 @@ export default function SettingsPage() {
                       <div className={`w-4 h-4 bg-white rounded-full mt-0.5 shadow transition-transform mx-0.5 ${s.is_active ? 'translate-x-5' : 'translate-x-0'}`} />
                     </button>
                   </div>
-
                   {s.is_active && (
                     <>
-                      {/* 所要時間 */}
                       <div>
                         <p className="text-[11px] text-zinc-500 mb-1.5">所要時間（分）</p>
                         <div className="flex gap-1.5 flex-wrap">
@@ -561,8 +661,6 @@ export default function SettingsPage() {
                           ))}
                         </div>
                       </div>
-
-                      {/* 受付時間 */}
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <p className="text-[11px] text-zinc-500 mb-1.5 flex items-center gap-1">
@@ -581,8 +679,6 @@ export default function SettingsPage() {
                             className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none" />
                         </div>
                       </div>
-
-                      {/* 曜日別最大枠数 */}
                       <div>
                         <p className="text-[11px] text-zinc-500 mb-1.5">曜日別 最大予約枠数</p>
                         <div className="grid grid-cols-7 gap-1">
@@ -613,15 +709,12 @@ export default function SettingsPage() {
                   )}
                 </div>
               ))}
-
               {resvError && (
                 <p className="text-xs text-red-400 bg-red-900/20 border border-red-500/20 rounded-xl px-3 py-2">{resvError}</p>
               )}
               <button onClick={handleResvSave} disabled={resvLoading}
                 className={`w-full py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2 ${
-                  resvSaved
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-zinc-700 hover:bg-zinc-600 text-zinc-200'
+                  resvSaved ? 'bg-emerald-600 text-white' : 'bg-zinc-700 hover:bg-zinc-600 text-zinc-200'
                 }`}>
                 {resvLoading ? <><Loader2 size={14} className="animate-spin" />保存中...</>
                   : resvSaved ? <><CheckCheck size={14} />保存済み</>
@@ -633,7 +726,7 @@ export default function SettingsPage() {
 
         {/* 学校名マスタ */}
         <div className="space-y-2">
-          <Section title="学校名マスタ" />
+          <SectionLabel title="学校名マスタ" />
           <p className="text-xs text-zinc-600">CRM・受付フォームの学校選択に表示されます</p>
           <div className="space-y-1.5">
             {schoolNames.map((s, i) => (
@@ -657,7 +750,7 @@ export default function SettingsPage() {
 
         {/* お直し持込 注意事項 */}
         <div className="space-y-2">
-          <Section title="お直し持込 注意事項（顧客向けページ）" />
+          <SectionLabel title="お直し持込 注意事項（顧客向けページ）" />
           <p className="text-xs text-zinc-600">
             リッチメニュー「依頼」から開くページに表示されます。空欄の場合はデフォルトの案内文が表示されます。
           </p>
@@ -670,7 +763,7 @@ export default function SettingsPage() {
           />
         </div>
 
-        {/* Save button (bottom) */}
+        {/* 保存ボタン */}
         {saveError && (
           <div className="bg-red-900/40 border border-red-700/50 rounded-xl px-4 py-3 text-xs text-red-400">
             保存エラー: {saveError}
@@ -681,12 +774,12 @@ export default function SettingsPage() {
           disabled={saving}
           className="w-full py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-indigo-900/40"
         >
-          {saving ? <><Loader2 size={16} className="animate-spin inline mr-2" />保存中...</> : '設定を保存'}
+          {saving ? <><Loader2 size={16} className="animate-spin inline mr-2" />保存中...</> : '管理者設定を保存'}
         </button>
 
         {/* テストモード */}
         <div className="space-y-2 border-t border-zinc-800/60 pt-4">
-          <Section title="テストモード（開発・確認用）" />
+          <SectionLabel title="テストモード（開発・確認用）" />
           <Toggle
             on={isTestMode}
             onToggle={async () => {
@@ -737,21 +830,6 @@ export default function SettingsPage() {
             </div>
           )}
           <p className="text-xs text-zinc-600">「【テスト】」で始まる顧客データをまとめて操作します</p>
-        </div>
-
-        {/* 店舗切替 */}
-        <div className="border-t border-zinc-800/60 pt-4">
-          <button
-            onClick={() => {
-              sessionStorage.removeItem('admin_auth')
-              sessionStorage.removeItem('admin_store_id')
-              window.location.href = `/${storeId}/admin`
-            }}
-            style={{ touchAction: 'manipulation' }}
-            className="w-full py-2.5 rounded-xl border border-zinc-700/50 text-zinc-500 text-sm hover:text-zinc-300 hover:border-zinc-600 transition-colors"
-          >
-            店舗を切り替える
-          </button>
         </div>
 
       </div>
