@@ -35,28 +35,27 @@ interface StoreInfo { id: string; name: string; pin: string; group_id?: string |
 // ============================================================
 function StoreSelectScreen({ stores, groupCode, onSelect }: { stores: StoreInfo[]; groupCode: string | null; onSelect: (s: StoreInfo) => void }) {
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-6 relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(99,102,241,0.25),transparent)] pointer-events-none" />
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-6 relative overflow-hidden">
       <div className="relative text-center mb-10 animate-fade-in">
-        <div className="w-20 h-20 rounded-3xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mx-auto mb-5 backdrop-blur-sm">
+        <div className="w-20 h-20 rounded-3xl bg-indigo-100 border border-indigo-200 flex items-center justify-center mx-auto mb-5 backdrop-blur-sm">
           <span className="text-4xl">🏪</span>
         </div>
-        <h1 className="text-3xl font-black text-white tracking-tight">管理画面</h1>
-        <p className="text-zinc-400 mt-2 text-sm">店舗を選択してください</p>
+        <h1 className="text-3xl font-black text-gray-900 tracking-tight">管理画面</h1>
+        <p className="text-gray-500 mt-2 text-sm">店舗を選択してください</p>
       </div>
       <div className="relative w-full max-w-sm space-y-3 animate-fade-in">
         {stores.map(store => (
           <button key={store.id} onClick={() => onSelect(store)}
-            className="w-full flex items-center gap-4 bg-white/5 hover:bg-white/10 backdrop-blur-sm border border-white/10 hover:border-indigo-500/40 active:scale-95 transition-all duration-150 rounded-2xl px-5 py-4 text-left group shadow-lg">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
-              <Store size={18} className="text-indigo-400" />
+            className="w-full flex items-center gap-4 bg-white hover:bg-gray-50 border border-gray-200 hover:border-indigo-400 active:scale-95 transition-all duration-150 rounded-2xl px-5 py-4 text-left group shadow-sm">
+            <div className="w-10 h-10 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0">
+              <Store size={18} className="text-indigo-600" />
             </div>
-            <span className="text-white text-lg font-bold flex-1">{store.name}</span>
-            <ChevronRight size={16} className="text-zinc-600 group-hover:text-zinc-300 transition-colors" />
+            <span className="text-gray-900 text-lg font-bold flex-1">{store.name}</span>
+            <ChevronRight size={16} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
           </button>
         ))}
-        <div className="pt-4 border-t border-white/5">
-          <a href={groupCode ? `/company/${groupCode}` : '/super-admin'} className="flex items-center gap-3 text-zinc-500 hover:text-zinc-300 transition-colors py-2 px-1 text-sm">
+        <div className="pt-4 border-t border-gray-200">
+          <a href={groupCode ? `/company/${groupCode}` : '/super-admin'} className="flex items-center gap-3 text-gray-500 hover:text-gray-700 transition-colors py-2 px-1 text-sm">
             <LayoutDashboard size={15} /><span>{groupCode ? '会社管理ダッシュボード' : '総管理ダッシュボード'}</span>
             <ChevronRight size={13} className="ml-auto" />
           </a>
@@ -64,6 +63,7 @@ function StoreSelectScreen({ stores, groupCode, onSelect }: { stores: StoreInfo[
       </div>
     </div>
   )
+
 }
 
 // ============================================================
@@ -85,34 +85,33 @@ function PinScreen({ storeName, storePin, onAuth, onBack }: {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-6 relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(99,102,241,0.2),transparent)] pointer-events-none" />
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-6 relative overflow-hidden">
       <div className="relative text-center mb-8 animate-fade-in">
-        <div className="w-20 h-20 rounded-3xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mx-auto mb-5 backdrop-blur-sm">
+        <div className="w-20 h-20 rounded-3xl bg-indigo-100 border border-indigo-200 flex items-center justify-center mx-auto mb-5 backdrop-blur-sm">
           <span className="text-4xl">🔒</span>
         </div>
-        <h1 className="text-2xl font-black text-white">スタッフ専用</h1>
-        <p className="text-indigo-400 font-bold mt-1 text-lg">{storeName}</p>
-        <p className="text-zinc-500 text-sm mt-1">PINを入力してください</p>
+        <h1 className="text-2xl font-black text-gray-900">スタッフ専用</h1>
+        <p className="text-indigo-600 font-bold mt-1 text-lg">{storeName}</p>
+        <p className="text-gray-400 text-sm mt-1">PINを入力してください</p>
       </div>
       <div className="relative flex gap-4 mb-8">
         {[0,1,2,3].map(i => (
           <div key={i} className={`w-4 h-4 rounded-full transition-all duration-200 ${
-            pin.length > i ? error ? 'bg-red-400 scale-110' : 'bg-indigo-400 scale-110 shadow-lg shadow-indigo-500/50' : 'bg-zinc-700'
+            pin.length > i ? error ? 'bg-red-400 scale-110' : 'bg-indigo-500 scale-110 shadow-lg shadow-indigo-500/50' : 'bg-gray-200'
           }`} />
         ))}
       </div>
-      {error && <p className="relative text-red-400 text-sm mb-4 font-medium animate-pulse">PINが違います</p>}
+      {error && <p className="relative text-red-600 text-sm mb-4 font-medium animate-pulse">PINが違います</p>}
       <div className="relative grid grid-cols-3 gap-3 w-60">
         {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((d, i) => (
           <button key={i} onClick={() => d === '⌫' ? setPin(p => p.slice(0,-1)) : d && handleDigit(d)}
             className={`h-15 py-4 rounded-2xl text-xl font-bold transition-all active:scale-90 ${
-              d === '' ? 'invisible' : d === '⌫' ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700' :
-              'bg-white/5 backdrop-blur-sm border border-white/10 text-white hover:bg-white/10 hover:border-indigo-500/30'
+              d === '' ? 'invisible' : d === '⌫' ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' :
+              'bg-white border border-gray-200 text-gray-900 hover:bg-gray-50 hover:border-indigo-400'
             }`}>{d}</button>
         ))}
       </div>
-      <button onClick={onBack} className="relative mt-8 text-zinc-500 text-sm hover:text-zinc-300 transition-colors">
+      <button onClick={onBack} className="relative mt-8 text-gray-400 text-sm hover:text-gray-600 transition-colors">
         ← 店舗を選び直す
       </button>
     </div>
@@ -125,8 +124,8 @@ function PinScreen({ storeName, storePin, onAuth, onBack }: {
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex gap-2 text-xs">
-      <span className="text-zinc-500 shrink-0 w-10">{label}</span>
-      <span className="text-zinc-300 font-medium break-all">{value}</span>
+      <span className="text-gray-500 shrink-0 w-10">{label}</span>
+      <span className="text-gray-700 font-medium break-all">{value}</span>
     </div>
   )
 }
@@ -147,25 +146,25 @@ function CustomerInfoPanel({ customerId, storeId }: { customerId: string; storeI
       .eq('id', customerId).single()
       .then(({ data: d }) => { setData(d as CustomerInfo | null); setLoading(false) })
   }, [customerId])
-  if (loading) return <div className="flex justify-center py-2"><Loader2 size={14} className="animate-spin text-zinc-500" /></div>
-  if (!data)   return <p className="text-zinc-600 text-xs">顧客情報なし</p>
+  if (loading) return <div className="flex justify-center py-2"><Loader2 size={14} className="animate-spin text-gray-500" /></div>
+  if (!data)   return <p className="text-gray-400 text-xs">顧客情報なし</p>
   return (
     <div className="space-y-1.5">
-      {data.kana && <p className="text-zinc-400 text-xs">{data.kana}</p>}
+      {data.kana && <p className="text-gray-500 text-xs">{data.kana}</p>}
       {data.tel  && (
-        <a href={`tel:${data.tel}`} className="flex items-center gap-1.5 text-blue-400 text-xs font-bold">
+        <a href={`tel:${data.tel}`} className="flex items-center gap-1.5 text-blue-600 text-xs font-bold">
           <Phone size={11} />{data.tel}
         </a>
       )}
       {(data.children ?? []).map(c => (
         <div key={c.id} className="flex items-center gap-1.5">
-          <GraduationCap size={11} className="text-amber-400 shrink-0" />
-          <span className="text-amber-300 text-xs font-bold">{c.name}</span>
-          {c.school_name && <span className="text-zinc-500 text-xs truncate">{c.school_name}{c.grade && ` ${c.grade}`}</span>}
+          <GraduationCap size={11} className="text-amber-600 shrink-0" />
+          <span className="text-amber-600 text-xs font-bold">{c.name}</span>
+          {c.school_name && <span className="text-gray-500 text-xs truncate">{c.school_name}{c.grade && ` ${c.grade}`}</span>}
         </div>
       ))}
       <a href={`/${storeId}/admin/crm`}
-        className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 mt-0.5">
+        className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 mt-0.5">
         <User size={10} />顧客管理で編集
       </a>
     </div>
@@ -191,15 +190,15 @@ function WaitingCard({ ticket, storeId, onAction, onCheckIn }: {
   return (
     <div className={`backdrop-blur-sm border rounded-2xl p-4 shadow-xl animate-fade-in ${
       isRemoteUnchecked
-        ? 'bg-zinc-900/60 border-zinc-600/40'
-        : 'bg-gradient-to-br from-blue-950/60 to-indigo-950/40 border-blue-500/20 shadow-blue-950/30'
+        ? 'bg-white border-gray-200'
+        : 'bg-white border-blue-200 shadow-blue-100'
     }`}>
       <div className="flex items-start gap-3">
         <div className="shrink-0 text-center w-14">
-          <div className={`ticket-number text-3xl font-black leading-none tracking-tight ${isRemoteUnchecked ? 'text-zinc-400' : 'text-blue-300'}`}>
+          <div className={`ticket-number text-3xl font-black leading-none tracking-tight ${isRemoteUnchecked ? 'text-gray-500' : 'text-blue-600'}`}>
             {String(ticket.ticket_number).padStart(3,'0')}
           </div>
-          <div className={`text-xs mt-1 flex items-center justify-center gap-0.5 ${isRemoteUnchecked ? 'text-zinc-600' : 'text-blue-400/50'}`}>
+          <div className={`text-xs mt-1 flex items-center justify-center gap-0.5 ${isRemoteUnchecked ? 'text-gray-400' : 'text-blue-600/50'}`}>
             <Clock size={9} />{waitMin}分
           </div>
         </div>
@@ -209,14 +208,14 @@ function WaitingCard({ ticket, storeId, onAction, onCheckIn }: {
             {ticket.is_remote && (
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
                 ticket.checked_in
-                  ? 'bg-emerald-900/50 text-emerald-400 border-emerald-500/30'
-                  : 'bg-zinc-800 text-zinc-400 border-zinc-600/50'
+                  ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                  : 'bg-gray-100 text-gray-500 border-gray-300'
               }`}>
                 {ticket.checked_in ? <><MapPin size={10} />到着済</> : <>🏠 遠隔待ち</>}
               </span>
             )}
             <span className={`text-sm px-2.5 py-1 rounded-full font-black ${
-              isRemoteUnchecked ? 'bg-zinc-800 text-zinc-500' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+              isRemoteUnchecked ? 'bg-gray-100 text-gray-500' : 'bg-blue-100 text-blue-700 border border-blue-300'
             }`}>
               {CATEGORY_ICONS[ticket.category]} {CATEGORY_LABELS[ticket.category]}
             </span>
@@ -226,21 +225,21 @@ function WaitingCard({ ticket, storeId, onAction, onCheckIn }: {
               </span>
             )}
             {ticket.line_user_id
-              ? <span className="text-xs bg-emerald-900/50 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-full">LINE✓</span>
-              : <span className="text-xs bg-zinc-800 text-zinc-500 px-1.5 py-0.5 rounded-full">LINE×</span>}
+              ? <span className="text-xs bg-emerald-100 text-emerald-700 border border-emerald-300 px-1.5 py-0.5 rounded-full">LINE✓</span>
+              : <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">LINE×</span>}
           </div>
           {ticket.school_name && (
-            <p className={`text-sm font-black truncate leading-tight mt-1 ${isRemoteUnchecked ? 'text-zinc-500' : 'text-amber-300'}`}>
+            <p className={`text-sm font-black truncate leading-tight mt-1 ${isRemoteUnchecked ? 'text-gray-500' : 'text-amber-600'}`}>
               {ticket.school_name}
             </p>
           )}
           <button onClick={() => ticket.customer_id && setCustOpen(v => !v)}
-            className={`font-black text-xl leading-tight truncate text-left w-full flex items-center gap-1 mt-0.5 ${isRemoteUnchecked ? 'text-zinc-400' : 'text-white'}`}>
+            className={`font-black text-xl leading-tight truncate text-left w-full flex items-center gap-1 mt-0.5 ${isRemoteUnchecked ? 'text-gray-500' : 'text-gray-900'}`}>
             {ticket.child_name ?? ticket.customer_name} 様
-            {ticket.customer_id && <User size={12} className={`shrink-0 ${custOpen ? 'text-indigo-400' : 'text-zinc-600'}`} />}
+            {ticket.customer_id && <User size={12} className={`shrink-0 ${custOpen ? 'text-indigo-600' : 'text-gray-400'}`} />}
           </button>
           {ticket.child_name && (
-            <p className={`text-xs truncate ${isRemoteUnchecked ? 'text-zinc-600' : 'text-zinc-500'}`}>
+            <p className={`text-xs truncate ${isRemoteUnchecked ? 'text-gray-400' : 'text-gray-500'}`}>
               保護者: {ticket.customer_name}
             </p>
           )}
@@ -253,50 +252,50 @@ function WaitingCard({ ticket, storeId, onAction, onCheckIn }: {
           {(details.height || details.weight || details.parentPhone) && (
             <div className="flex items-center gap-2 flex-wrap">
               {details.height && (
-                <span className={`text-base font-black px-3 py-1 rounded-xl border ${isRemoteUnchecked ? 'bg-zinc-800/60 border-zinc-700/40 text-zinc-500' : 'bg-indigo-500/15 border-indigo-500/25 text-indigo-200'}`}>
+                <span className={`text-base font-black px-3 py-1 rounded-xl border ${isRemoteUnchecked ? 'bg-gray-100 border-gray-200 text-gray-500' : 'bg-indigo-100 border-indigo-200 text-indigo-700'}`}>
                   {details.height}cm
                 </span>
               )}
               {details.weight && (
-                <span className={`text-base font-black px-3 py-1 rounded-xl border ${isRemoteUnchecked ? 'bg-zinc-800/60 border-zinc-700/40 text-zinc-500' : 'bg-violet-500/15 border-violet-500/25 text-violet-200'}`}>
+                <span className={`text-base font-black px-3 py-1 rounded-xl border ${isRemoteUnchecked ? 'bg-gray-100 border-gray-200 text-gray-500' : 'bg-violet-100 border-violet-200 text-violet-700'}`}>
                   {details.weight}kg
                 </span>
               )}
               {details.parentPhone && (
                 <a href={`tel:${details.parentPhone}`}
-                  className="flex items-center gap-1.5 text-blue-400 text-sm font-bold">
+                  className="flex items-center gap-1.5 text-blue-600 text-sm font-bold">
                   <Phone size={12} />{details.parentPhone}
                 </a>
               )}
             </div>
           )}
           {details.note && (
-            <div className={`rounded-xl px-3 py-2 border ${isRemoteUnchecked ? 'bg-zinc-800/40 border-zinc-700/40' : 'bg-amber-500/10 border-amber-500/25'}`}>
-              <p className={`text-sm font-bold leading-snug ${isRemoteUnchecked ? 'text-zinc-500' : 'text-amber-200'}`}>💬 {details.note}</p>
+            <div className={`rounded-xl px-3 py-2 border ${isRemoteUnchecked ? 'bg-gray-100 border-gray-200' : 'bg-amber-50 border-amber-200'}`}>
+              <p className={`text-sm font-bold leading-snug ${isRemoteUnchecked ? 'text-gray-500' : 'text-amber-700'}`}>💬 {details.note}</p>
             </div>
           )}
         </div>
       )}
 
       {custOpen && ticket.customer_id && (
-        <div className="mt-3 pt-3 border-t border-white/5 animate-fade-in">
+        <div className="mt-3 pt-3 border-t border-gray-200 animate-fade-in">
           <CustomerInfoPanel customerId={ticket.customer_id} storeId={storeId} />
         </div>
       )}
 
       {isRemoteUnchecked ? (
         <div className="mt-3 space-y-2">
-          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-zinc-800/60 border border-zinc-700/50">
-            <span className="text-zinc-500 text-xs">🏠 遠隔チェックイン待ち — 顧客が到着次第チェックインします</span>
+          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-gray-100 border border-gray-300">
+            <span className="text-gray-500 text-xs">🏠 遠隔チェックイン待ち — 顧客が到着次第チェックインします</span>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <button onClick={() => onCheckIn(ticket.id)} disabled={!!loading}
-              className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-sm bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/30 active:scale-95 disabled:opacity-50 transition-all">
+              className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-sm bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border border-emerald-300 active:scale-95 disabled:opacity-50 transition-all">
               {loading === 'checkin' ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
               代理チェックイン
             </button>
             <button onClick={() => act('cancelled')} disabled={!!loading}
-              className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-sm bg-zinc-700/80 hover:bg-zinc-600 text-zinc-300 active:scale-95 disabled:opacity-50 transition-all">
+              className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 active:scale-95 disabled:opacity-50 transition-all">
               {loading === 'cancelled' ? <Loader2 size={14} className="animate-spin" /> : <UserX size={14} />}
               キャンセル
             </button>
@@ -330,42 +329,42 @@ function CallingCard({ ticket, storeId, onAction }: { ticket: Queue; storeId: st
   }
 
   return (
-    <div className="bg-gradient-to-br from-amber-950/60 to-orange-950/40 backdrop-blur-sm border border-amber-500/30 rounded-2xl p-4 shadow-xl shadow-amber-950/40 ring-1 ring-amber-500/10 animate-fade-in">
+    <div className="bg-amber-50 backdrop-blur-sm border border-amber-300 rounded-2xl p-4 shadow-xl shadow-amber-100 animate-fade-in">
       <div className="flex items-start gap-3">
         <div className="shrink-0 text-center w-14">
-          <div className="ticket-number text-3xl font-black text-amber-300 leading-none tracking-tight animate-pulse">
+          <div className="ticket-number text-3xl font-black text-amber-600 leading-none tracking-tight animate-pulse">
             {String(ticket.ticket_number).padStart(3,'0')}
           </div>
-          <div className="text-xs text-amber-400/50 mt-1 flex items-center justify-center gap-0.5">
+          <div className="text-xs text-amber-600/50 mt-1 flex items-center justify-center gap-0.5">
             <Clock size={9} />{waitMin}分
           </div>
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap mb-1">
-            <span className="text-sm bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-full font-black animate-pulse">🔔 呼出中</span>
-            <span className="text-sm font-black text-zinc-300">{CATEGORY_ICONS[ticket.category]} {CATEGORY_LABELS[ticket.category]}</span>
+            <span className="text-sm bg-amber-100 text-amber-700 border border-amber-300 px-2.5 py-1 rounded-full font-black animate-pulse">🔔 呼出中</span>
+            <span className="text-sm font-black text-gray-700">{CATEGORY_ICONS[ticket.category]} {CATEGORY_LABELS[ticket.category]}</span>
             {ticket.gender !== 'other' && (
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${GENDER_STYLES[ticket.gender]}`}>{GENDER_LABELS[ticket.gender]}</span>
             )}
           </div>
           {ticket.school_name && (
-            <p className="text-sm font-black text-amber-300 truncate leading-tight">
+            <p className="text-sm font-black text-amber-600 truncate leading-tight">
               {ticket.school_name}
             </p>
           )}
           <button onClick={() => ticket.customer_id && setCustOpen(v => !v)}
-            className="font-black text-white text-xl leading-tight truncate text-left w-full flex items-center gap-1 mt-0.5">
+            className="font-black text-gray-900 text-xl leading-tight truncate text-left w-full flex items-center gap-1 mt-0.5">
             {ticket.child_name ?? ticket.customer_name} 様
-            {ticket.customer_id && <User size={12} className={`shrink-0 ${custOpen ? 'text-indigo-400' : 'text-zinc-600'}`} />}
+            {ticket.customer_id && <User size={12} className={`shrink-0 ${custOpen ? 'text-indigo-600' : 'text-gray-400'}`} />}
           </button>
           {ticket.child_name && (
-            <p className="text-zinc-500 text-xs truncate">保護者: {ticket.customer_name}</p>
+            <p className="text-gray-500 text-xs truncate">保護者: {ticket.customer_name}</p>
           )}
         </div>
       </div>
 
       {custOpen && ticket.customer_id && (
-        <div className="mt-3 pt-3 border-t border-white/5 animate-fade-in">
+        <div className="mt-3 pt-3 border-t border-gray-200 animate-fade-in">
           <CustomerInfoPanel customerId={ticket.customer_id} storeId={storeId} />
         </div>
       )}
@@ -375,26 +374,26 @@ function CallingCard({ ticket, storeId, onAction }: { ticket: Queue; storeId: st
           {(details.height || details.weight || details.parentPhone) && (
             <div className="flex items-center gap-2 flex-wrap">
               {details.height && (
-                <span className="bg-indigo-500/15 border border-indigo-500/25 text-indigo-200 text-base font-black px-3 py-1 rounded-xl">
+                <span className="bg-indigo-100 border border-indigo-200 text-indigo-700 text-base font-black px-3 py-1 rounded-xl">
                   {details.height}cm
                 </span>
               )}
               {details.weight && (
-                <span className="bg-violet-500/15 border border-violet-500/25 text-violet-200 text-base font-black px-3 py-1 rounded-xl">
+                <span className="bg-violet-100 border border-violet-200 text-violet-700 text-base font-black px-3 py-1 rounded-xl">
                   {details.weight}kg
                 </span>
               )}
               {details.parentPhone && (
                 <a href={`tel:${details.parentPhone}`}
-                  className="flex items-center gap-1.5 text-blue-400 text-sm font-bold">
+                  className="flex items-center gap-1.5 text-blue-600 text-sm font-bold">
                   <Phone size={12} />{details.parentPhone}
                 </a>
               )}
             </div>
           )}
           {details.note && (
-            <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl px-3 py-2">
-              <p className="text-amber-200 text-sm font-bold leading-snug">💬 {details.note}</p>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+              <p className="text-amber-700 text-sm font-bold leading-snug">💬 {details.note}</p>
             </div>
           )}
         </div>
@@ -410,7 +409,7 @@ function CallingCard({ ticket, storeId, onAction }: { ticket: Queue; storeId: st
           {loading === 'recalling' ? <Loader2 size={14} className="animate-spin" /> : <BellRing size={14} />}再呼出
         </button>
         <button onClick={() => act('cancelled')} disabled={!!loading}
-          className="flex items-center justify-center gap-1.5 py-3.5 rounded-xl font-black text-sm bg-zinc-700/80 hover:bg-zinc-600 text-zinc-300 active:scale-95 disabled:opacity-50 transition-all">
+          className="flex items-center justify-center gap-1.5 py-3.5 rounded-xl font-black text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 active:scale-95 disabled:opacity-50 transition-all">
           {loading === 'cancelled' ? <Loader2 size={14} className="animate-spin" /> : <UserX size={14} />}不在
         </button>
       </div>
@@ -437,42 +436,42 @@ function HistoryCard({ ticket, storeId, onAction }: {
 
   return (
     <div className={`backdrop-blur-sm border rounded-xl p-3 transition-all opacity-75 hover:opacity-100 ${
-      isDone ? 'bg-emerald-950/30 border-emerald-500/20' : 'bg-zinc-900/60 border-zinc-700/50'
+      isDone ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-300'
     }`}>
       <div className="flex items-center gap-3">
-        <div className={`ticket-number text-2xl font-black tabular-nums leading-none shrink-0 ${isDone ? 'text-emerald-400/70' : 'text-zinc-500'}`}>
+        <div className={`ticket-number text-2xl font-black tabular-nums leading-none shrink-0 ${isDone ? 'text-emerald-600/70' : 'text-gray-500'}`}>
           {String(ticket.ticket_number).padStart(3,'0')}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-              isDone ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+              isDone ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-gray-100 text-gray-500 border border-gray-300'
             }`}>{STATUS_LABELS[ticket.status]}</span>
-            {ticket.is_remote && <span className="text-xs text-zinc-500">🏠</span>}
-            <span className="text-xs text-zinc-500">{CATEGORY_ICONS[ticket.category]} {CATEGORY_LABELS[ticket.category]}</span>
-            <span className="text-xs text-zinc-600">{recvTime}受付 · {waitMin}分</span>
+            {ticket.is_remote && <span className="text-xs text-gray-500">🏠</span>}
+            <span className="text-xs text-gray-500">{CATEGORY_ICONS[ticket.category]} {CATEGORY_LABELS[ticket.category]}</span>
+            <span className="text-xs text-gray-400">{recvTime}受付 · {waitMin}分</span>
           </div>
           {ticket.school_name && (
-            <p className={`text-xs font-black truncate mt-0.5 ${isDone ? 'text-amber-300/60' : 'text-amber-300/80'}`}>
+            <p className={`text-xs font-black truncate mt-0.5 ${isDone ? 'text-amber-600/60' : 'text-amber-600/80'}`}>
               {ticket.school_name}
             </p>
           )}
           <button onClick={() => (ticket as any).customer_id && setCustOpen(v => !v)}
-            className="font-black text-white text-base truncate mt-0.5 text-left w-full flex items-center gap-1">
+            className="font-black text-gray-900 text-base truncate mt-0.5 text-left w-full flex items-center gap-1">
             {ticket.child_name ?? ticket.customer_name} 様
-            {(ticket as any).customer_id && <User size={10} className={`shrink-0 ${custOpen ? 'text-indigo-400' : 'text-zinc-600'}`} />}
+            {(ticket as any).customer_id && <User size={10} className={`shrink-0 ${custOpen ? 'text-indigo-600' : 'text-gray-400'}`} />}
           </button>
-          {ticket.child_name && <p className="text-zinc-600 text-xs truncate">保護者: {ticket.customer_name}</p>}
+          {ticket.child_name && <p className="text-gray-400 text-xs truncate">保護者: {ticket.customer_name}</p>}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {ticket.status === 'cancelled' && (
             <button onClick={() => act('waiting')} disabled={loading === 'waiting'}
-              className="text-xs font-bold px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/30 active:scale-95 transition-all disabled:opacity-50">
+              className="text-xs font-bold px-3 py-1.5 rounded-lg bg-blue-100 text-blue-700 border border-blue-300 active:scale-95 transition-all disabled:opacity-50">
               {loading === 'waiting' ? <Loader2 size={12} className="animate-spin inline" /> : '待機に戻す'}
             </button>
           )}
           {hasDetail && (
-            <button onClick={() => setOpen(v => !v)} className="text-xs font-bold px-2 py-1 rounded-lg bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors">
+            <button onClick={() => setOpen(v => !v)} className="text-xs font-bold px-2 py-1 rounded-lg bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors">
               {open ? '閉' : '詳'}
             </button>
           )}
@@ -480,13 +479,13 @@ function HistoryCard({ ticket, storeId, onAction }: {
       </div>
 
       {custOpen && (ticket as any).customer_id && (
-        <div className="mt-2 pt-2 border-t border-white/5 animate-fade-in">
+        <div className="mt-2 pt-2 border-t border-gray-200 animate-fade-in">
           <CustomerInfoPanel customerId={(ticket as any).customer_id} storeId={storeId} />
         </div>
       )}
 
       {open && hasDetail && (
-        <div className="mt-2 pt-2 border-t border-white/5 space-y-1">
+        <div className="mt-2 pt-2 border-t border-gray-200 space-y-1">
           {details.height      && <DetailRow label="身長" value={`${details.height}cm`} />}
           {details.weight      && <DetailRow label="体重" value={`${details.weight}kg`} />}
           {details.parentPhone && <DetailRow label="保護者TEL" value={details.parentPhone} />}
@@ -672,16 +671,16 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white flex flex-col">
+    <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col">
 
       {/* ヘッダー */}
-      <div className="bg-gradient-to-br from-indigo-950 via-zinc-900 to-zinc-950 border-b border-white/5 px-4 pt-safe-top pt-4 pb-3">
+      <div className="bg-white border-b border-gray-200 shadow-sm px-4 pt-safe-top pt-4 pb-3">
 
         {/* 行1: 店舗名 / ボタン群 */}
         <div className="flex items-center justify-between mb-2">
           <div>
-            <h1 className="text-base font-black tracking-tight text-white leading-tight">{store.name}</h1>
-            <p className="text-zinc-600 text-[11px]">
+            <h1 className="text-base font-black tracking-tight text-gray-900 leading-tight">{store.name}</h1>
+            <p className="text-gray-500 text-[11px]">
               {new Date().toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
             </p>
           </div>
@@ -690,36 +689,36 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
             <button onClick={handleToggleOpen} disabled={isOpen === null}
               style={{ touchAction: 'manipulation' }}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-xs active:opacity-60 transition-all disabled:opacity-40 ${
-                isOpen === null ? 'bg-zinc-700 text-zinc-400' :
+                isOpen === null ? 'bg-gray-200 text-gray-500' :
                 isOpen ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-900/50' :
                 'bg-red-700 text-white shadow-sm shadow-red-900/50'
               }`}>
               <span className={`w-2 h-2 rounded-full shrink-0 ${
-                isOpen === null ? 'bg-zinc-400' : isOpen ? 'bg-white animate-pulse' : 'bg-red-200'
+                isOpen === null ? 'bg-gray-400' : isOpen ? 'bg-white animate-pulse' : 'bg-red-200'
               }`} />
               {isOpen === null ? '...' : isOpen ? '受付中' : '停止中'}
             </button>
             <button onClick={fetchQueues} disabled={refreshing}
-              className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:opacity-60 transition-all disabled:opacity-50">
-              <RefreshCw size={16} className={refreshing ? 'animate-spin text-indigo-400' : 'text-zinc-400'} />
+              className="p-2 rounded-xl bg-gray-100 border border-gray-200 hover:bg-gray-200 active:opacity-60 transition-all disabled:opacity-50">
+              <RefreshCw size={16} className={refreshing ? 'animate-spin text-indigo-600' : 'text-gray-500'} />
             </button>
             <button onClick={() => pushStatus !== 'granted' && setupPush(store.id)}
               title={pushStatus === 'granted' ? 'ブラウザ通知: ON' : pushStatus === 'denied' ? '通知がブロック' : pushStatus === 'unsupported' ? '非対応' : '通知を許可'}
               className={`p-2 rounded-xl border active:opacity-60 transition-all ${
-                pushStatus === 'granted'     ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' :
-                pushStatus === 'denied'      ? 'bg-red-500/20 border-red-500/40 text-red-400' :
-                pushStatus === 'unsupported' ? 'bg-zinc-800 border-zinc-700 text-zinc-600 cursor-not-allowed' :
-                'bg-white/5 border-white/10 text-zinc-400 hover:bg-white/10'
+                pushStatus === 'granted'     ? 'bg-emerald-100 border-emerald-300 text-emerald-600' :
+                pushStatus === 'denied'      ? 'bg-red-100 border-red-300 text-red-600' :
+                pushStatus === 'unsupported' ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' :
+                'bg-gray-100 border-gray-200 text-gray-500 hover:bg-gray-200'
               }`}>
               {pushStatus === 'denied' ? <BellOff size={16} /> : <Bell size={16} />}
             </button>
             <button onClick={() => setShowQrModal(true)}
-              className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:opacity-60 transition-all text-zinc-400">
+              className="p-2 rounded-xl bg-gray-100 border border-gray-200 hover:bg-gray-200 active:opacity-60 transition-all text-gray-500">
               <QrCode size={16} />
             </button>
             <a href={groupCode ? `/company/${groupCode}` : '/super-admin'}
               title={groupCode ? '会社管理ダッシュボード' : '総管理ダッシュボード'}
-              className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:opacity-60 transition-all text-zinc-400">
+              className="p-2 rounded-xl bg-gray-100 border border-gray-200 hover:bg-gray-200 active:opacity-60 transition-all text-gray-500">
               <LayoutDashboard size={16} />
             </a>
           </div>
@@ -727,7 +726,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
 
         {/* テストモードバナー */}
         {isTestMode && (
-          <div className="flex items-center gap-2 bg-amber-500/20 border border-amber-500/40 rounded-xl px-3 py-2 text-amber-300 text-xs font-bold mb-2">
+          <div className="flex items-center gap-2 bg-amber-100 border border-amber-300 rounded-xl px-3 py-2 text-amber-700 text-xs font-bold mb-2">
             <span>⚠️</span>
             <span className="flex-1">テストモード中 — LINE・ブラウザ通知は送信されません</span>
           </div>
@@ -735,44 +734,44 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
 
         {/* 行3: 状態バッジ 4つ（常時表示）— 完了・不在はタップで履歴展開 */}
         <div className="grid grid-cols-4 gap-1.5">
-          <div className="flex flex-col items-center gap-0.5 bg-blue-500/15 border border-blue-500/25 rounded-xl px-1 py-2.5">
-            <span className="text-blue-300 text-2xl font-black tabular-nums leading-none">{waitingTickets.length}</span>
+          <div className="flex flex-col items-center gap-0.5 bg-blue-50 border border-blue-200 rounded-xl px-1 py-2.5">
+            <span className="text-blue-600 text-2xl font-black tabular-nums leading-none">{waitingTickets.length}</span>
             <span className="text-blue-500 text-[10px] font-bold mt-0.5">待機</span>
           </div>
           <div className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2.5 ${
-            callingTickets.length > 0 ? 'bg-amber-500/20 border border-amber-500/30' : 'bg-white/4 border border-white/8'
+            callingTickets.length > 0 ? 'bg-amber-50 border border-amber-300' : 'bg-gray-50 border border-gray-200'
           }`}>
-            <span className={`text-2xl font-black tabular-nums leading-none ${callingTickets.length > 0 ? 'text-amber-300 animate-pulse' : 'text-zinc-600'}`}>
+            <span className={`text-2xl font-black tabular-nums leading-none ${callingTickets.length > 0 ? 'text-amber-600 animate-pulse' : 'text-gray-400'}`}>
               {callingTickets.length}
             </span>
-            <span className={`text-[10px] font-bold mt-0.5 ${callingTickets.length > 0 ? 'text-amber-500' : 'text-zinc-600'}`}>呼出中</span>
+            <span className={`text-[10px] font-bold mt-0.5 ${callingTickets.length > 0 ? 'text-amber-500' : 'text-gray-400'}`}>呼出中</span>
           </div>
           <button onClick={() => toggleHistory('completed')} style={{ touchAction: 'manipulation' }}
             className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2.5 active:scale-95 transition-all ${
               historyVisible && historyTab === 'completed'
-                ? 'bg-emerald-500/20 border border-emerald-500/30'
-                : 'bg-white/4 border border-white/8'
+                ? 'bg-emerald-100 border border-emerald-300'
+                : 'bg-gray-50 border border-gray-200'
             }`}>
-            <span className="text-emerald-400 text-2xl font-black tabular-nums leading-none">{completed}</span>
-            <span className="text-zinc-600 text-[10px] font-bold mt-0.5">完了 ▾</span>
+            <span className="text-emerald-600 text-2xl font-black tabular-nums leading-none">{completed}</span>
+            <span className="text-gray-400 text-[10px] font-bold mt-0.5">完了 ▾</span>
           </button>
           <button onClick={() => toggleHistory('cancelled')} style={{ touchAction: 'manipulation' }}
             className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2.5 active:scale-95 transition-all ${
               historyVisible && historyTab === 'cancelled'
-                ? 'bg-zinc-600/30 border border-zinc-500/30'
-                : 'bg-white/4 border border-white/8'
+                ? 'bg-gray-100 border border-gray-300'
+                : 'bg-gray-50 border border-gray-200'
             }`}>
-            <span className="text-zinc-400 text-2xl font-black tabular-nums leading-none">{cancelledCount}</span>
-            <span className="text-zinc-600 text-[10px] font-bold mt-0.5">不在 ▾</span>
+            <span className="text-gray-500 text-2xl font-black tabular-nums leading-none">{cancelledCount}</span>
+            <span className="text-gray-400 text-[10px] font-bold mt-0.5">不在 ▾</span>
           </button>
         </div>
 
         {/* 遠隔待ちバッジ（遠隔がいる時のみ） */}
         {remoteCount > 0 && (
-          <div className="flex items-center gap-1.5 mt-1.5 bg-zinc-800/60 border border-zinc-700/50 rounded-xl px-3 py-1.5">
-            <MapPin size={12} className="text-zinc-400 shrink-0" />
-            <span className="text-zinc-300 text-xs font-black">{remoteCount}</span>
-            <span className="text-zinc-500 text-xs">組が遠隔待ち（到着前）</span>
+          <div className="flex items-center gap-1.5 mt-1.5 bg-gray-100 border border-gray-300 rounded-xl px-3 py-1.5">
+            <MapPin size={12} className="text-gray-500 shrink-0" />
+            <span className="text-gray-700 text-xs font-black">{remoteCount}</span>
+            <span className="text-gray-500 text-xs">組が遠隔待ち（到着前）</span>
           </div>
         )}
 
@@ -781,7 +780,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
       {/* トースト */}
       {toast && (
         <div className={`px-4 py-3 flex items-center justify-between text-sm font-bold animate-fade-in ${
-          toast.type === 'ok' ? 'bg-emerald-900/80 text-emerald-300 border-b border-emerald-500/30' : 'bg-red-900/80 text-red-300 border-b border-red-500/30'
+          toast.type === 'ok' ? 'bg-emerald-600 text-white border-b border-emerald-700' : 'bg-red-600 text-white border-b border-red-700'
         }`}>
           <span>{toast.type === 'ok' ? '✓' : '⚠'} {toast.msg}</span>
           <button onClick={() => setToast(null)}><X size={14} /></button>
@@ -795,9 +794,9 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
           {callingTickets.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 border border-amber-500/30 rounded-xl">
-                  <BellRing size={14} className="text-amber-400 animate-pulse" />
-                  <span className="text-amber-300 font-black text-sm">呼出中</span>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 border border-amber-300 rounded-xl">
+                  <BellRing size={14} className="text-amber-600 animate-pulse" />
+                  <span className="text-amber-700 font-black text-sm">呼出中</span>
                   <span className="bg-amber-400 text-amber-950 text-xs font-black px-1.5 py-0.5 rounded-full">{callingTickets.length}</span>
                 </div>
               </div>
@@ -808,29 +807,29 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
           {/* 予約管理クイックリンク */}
           <a href={`/${store.id}/admin/reservations`}
             style={{ touchAction: 'manipulation' }}
-            className="flex items-center gap-2 px-3 py-2.5 bg-violet-500/10 border border-violet-500/20 rounded-xl active:opacity-70">
-            <CalendarDays size={14} className="text-violet-400 shrink-0" />
-            <span className="text-violet-300 text-xs font-bold">予約管理</span>
-            <ChevronRight size={12} className="text-violet-600 ml-auto" />
+            className="flex items-center gap-2 px-3 py-2.5 bg-violet-50 border border-violet-200 rounded-xl active:opacity-70">
+            <CalendarDays size={14} className="text-violet-600 shrink-0" />
+            <span className="text-violet-700 text-xs font-bold">予約管理</span>
+            <ChevronRight size={12} className="text-violet-500 ml-auto" />
           </a>
 
           {/* 待ちリスト */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/20 border border-blue-500/30 rounded-xl">
-                <Clock size={14} className="text-blue-400" />
-                <span className="text-blue-300 font-black text-sm">待ち</span>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 border border-blue-300 rounded-xl">
+                <Clock size={14} className="text-blue-600" />
+                <span className="text-blue-700 font-black text-sm">待ち</span>
                 <span className="bg-blue-400 text-blue-950 text-xs font-black px-1.5 py-0.5 rounded-full">{waitingTickets.length}</span>
               </div>
               {callingTickets.length === 0 && (
-                <div className="ml-2 flex items-center gap-1 px-2.5 py-1.5 bg-zinc-800/40 border border-zinc-700/40 rounded-xl text-zinc-600 text-xs">
+                <div className="ml-2 flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 border border-gray-200 rounded-xl text-gray-400 text-xs">
                   <BellRing size={11} />
                   <span>呼出中なし</span>
                 </div>
               )}
             </div>
             {waitingTickets.length === 0 ? (
-              <div className="text-center py-10 text-zinc-600 bg-white/3 rounded-2xl border border-white/5">
+              <div className="text-center py-10 text-gray-400 bg-gray-50 rounded-2xl border border-gray-200">
                 <Users size={32} className="mx-auto mb-2 opacity-30" />
                 <p className="text-sm">待ちはいません</p>
               </div>
@@ -839,15 +838,15 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
 
           {/* 履歴（完了・不在バッジのタップで表示） */}
           {historyVisible && (
-            <div className="bg-white/3 border border-white/5 rounded-2xl overflow-hidden animate-fade-in">
-              <div className="flex border-b border-white/5">
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden animate-fade-in">
+              <div className="flex border-b border-gray-200">
                 {([
-                  { key: 'completed', label: '完了', color: 'text-emerald-400' },
-                  { key: 'cancelled', label: '不在', color: 'text-zinc-400' },
+                  { key: 'completed', label: '完了', color: 'text-emerald-600' },
+                  { key: 'cancelled', label: '不在', color: 'text-gray-500' },
                 ] as { key: HistoryTab; label: string; color: string }[]).map(tab => (
                   <button key={tab.key} onClick={() => setHistoryTab(tab.key)}
                     className={`flex-1 py-3 text-sm font-bold transition-colors ${
-                      historyTab === tab.key ? `${tab.color} border-b-2 border-current bg-white/5` : 'text-zinc-600 hover:text-zinc-400'
+                      historyTab === tab.key ? `${tab.color} border-b-2 border-current bg-gray-50` : 'text-gray-400 hover:text-gray-600'
                     }`}>
                     {tab.label} ({queues.filter(q => q.status === tab.key).length})
                   </button>
@@ -855,7 +854,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
               </div>
               <div className="p-3 space-y-2 max-h-80 overflow-y-auto">
                 {historyTickets.length === 0
-                  ? <div className="text-center py-8 text-zinc-600 text-sm">該当する受付はありません</div>
+                  ? <div className="text-center py-8 text-gray-400 text-sm">該当する受付はありません</div>
                   : historyTickets.map(t => <HistoryCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} />)
                 }
               </div>
@@ -872,16 +871,16 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
         const qrSrc  = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(url)}`
         return (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
-            <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 w-full max-w-xs text-center relative">
+            <div className="bg-white border border-gray-200 rounded-3xl p-6 w-full max-w-xs text-center relative">
               <button onClick={() => setShowQrModal(false)}
-                className="absolute top-4 right-4 p-1.5 rounded-xl bg-zinc-800 text-zinc-400 hover:text-white">
+                className="absolute top-4 right-4 p-1.5 rounded-xl bg-gray-100 text-gray-500 hover:text-gray-900">
                 <X size={16} />
               </button>
-              <p className="font-black text-white text-base mb-1">お客様受付 QR</p>
-              <p className="text-zinc-500 text-xs mb-4">このQRをお客様のLINEで読み取ってもらってください</p>
+              <p className="font-black text-gray-900 text-base mb-1">お客様受付 QR</p>
+              <p className="text-gray-500 text-xs mb-4">このQRをお客様のLINEで読み取ってもらってください</p>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={qrSrc} alt="受付QR" width={240} height={240} className="mx-auto rounded-2xl bg-white p-2" />
-              <button onClick={() => { onLogout() }} className="mt-5 text-xs text-zinc-600 hover:text-zinc-400">
+              <button onClick={() => { onLogout() }} className="mt-5 text-xs text-gray-500 hover:text-gray-700">
                 店舗を切り替える
               </button>
             </div>
@@ -957,14 +956,14 @@ export default function StoreAdminPage() {
   }
 
   if (view === 'loading') return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-      <Loader2 size={36} className="animate-spin text-indigo-400" />
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <Loader2 size={36} className="animate-spin text-indigo-600" />
     </div>
   )
   if (view === 'select_store') return (
     <>
       {fetchError && (
-        <div className="fixed top-4 left-4 right-4 bg-red-900/90 text-red-200 text-sm px-4 py-3 rounded-xl z-50 backdrop-blur-sm border border-red-500/30">
+        <div className="fixed top-4 left-4 right-4 bg-red-600 text-white text-sm px-4 py-3 rounded-xl z-50 backdrop-blur-sm border border-red-700">
           エラー: {fetchError}
         </div>
       )}

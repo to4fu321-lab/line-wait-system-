@@ -73,7 +73,7 @@ function Toast({ msg, type, onUndo, onClose }: {
   }
   return (
     <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-5 py-3 rounded-2xl text-white text-sm font-bold shadow-2xl max-w-xs ${
-      type === 'err' ? 'bg-red-600' : 'bg-zinc-800 border border-zinc-600'
+      type === 'err' ? 'bg-red-600' : 'bg-gray-900 border border-gray-700'
     }`}>
       <span className="flex-1">{msg}</span>
       {onUndo && (
@@ -122,8 +122,8 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
                       : '対応完了・連絡済み'
 
   return (
-    <div className={`bg-zinc-900/60 border rounded-2xl overflow-hidden ${
-      item.status === 'received' ? 'border-zinc-700/50' : 'border-zinc-800/40 opacity-70'
+    <div className={`bg-white border rounded-2xl overflow-hidden ${
+      item.status === 'received' ? 'border-gray-300' : 'border-gray-100 opacity-70'
     }`}>
       <button className="w-full text-left p-4 flex gap-3" onClick={() => setOpen(v => !v)}>
         <div className="flex-1 min-w-0">
@@ -136,38 +136,38 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
             </span>
             {/* 支払いバッジ — 常時表示、未払いは目立つ赤 */}
             {item.prepaid ? (
-              <span className="text-xs px-2 py-0.5 rounded-full border font-bold bg-emerald-500/15 text-emerald-300 border-emerald-500/30">
+              <span className="text-xs px-2 py-0.5 rounded-full border font-bold bg-emerald-100 text-emerald-700 border-emerald-300">
                 支払済
               </span>
             ) : (
-              <span className="text-xs px-2.5 py-0.5 rounded-full border font-black bg-red-500/25 text-red-300 border-red-500/50 animate-pulse">
+              <span className="text-xs px-2.5 py-0.5 rounded-full border font-black bg-red-100 text-red-700 border-red-400 animate-pulse">
                 未払い
               </span>
             )}
-            {item.slip_number && <span className="text-xs font-mono text-zinc-500">#{item.slip_number}</span>}
+            {item.slip_number && <span className="text-xs font-mono text-gray-500">#{item.slip_number}</span>}
           </div>
           {item.child?.school_name && (
-            <p className="text-xs font-black text-amber-300 truncate mt-1 leading-tight">{item.child.school_name}</p>
+            <p className="text-xs font-black text-amber-600 truncate mt-1 leading-tight">{item.child.school_name}</p>
           )}
-          <p className={`font-black text-lg leading-tight truncate ${item.child?.school_name ? '' : 'mt-1.5'} ${item.child ? 'text-white' : 'text-zinc-200'}`}>
+          <p className={`font-black text-lg leading-tight truncate ${item.child?.school_name ? '' : 'mt-1.5'} ${item.child ? 'text-gray-900' : 'text-gray-900'}`}>
             {item.child?.name ?? item.customer?.name ?? '（顧客不明）'}
           </p>
           {item.child && (
-            <p className="text-xs text-zinc-500 truncate">保護者: {item.customer?.name}</p>
+            <p className="text-xs text-gray-500 truncate">保護者: {item.customer?.name}</p>
           )}
-          <p className="text-xs text-zinc-400 mt-0.5 truncate">{item.item_name}{item.content ? ` — ${item.content}` : ''}</p>
+          <p className="text-xs text-gray-600 mt-0.5 truncate">{item.item_name}{item.content ? ` — ${item.content}` : ''}</p>
           <div className="flex items-center gap-3 mt-0.5">
-            <p className="text-xs text-zinc-600">受取: {fmtDate(item.received_date)}</p>
-            {item.price != null && <p className="text-xs text-zinc-500">¥{item.price.toLocaleString()}</p>}
+            <p className="text-xs text-gray-400">受取: {fmtDate(item.received_date)}</p>
+            {item.price != null && <p className="text-xs text-gray-500">¥{item.price.toLocaleString()}</p>}
           </div>
         </div>
-        {open ? <ChevronUp size={15} className="text-zinc-500 mt-1 shrink-0" /> : <ChevronDown size={15} className="text-zinc-500 mt-1 shrink-0" />}
+        {open ? <ChevronUp size={15} className="text-gray-500 mt-1 shrink-0" /> : <ChevronDown size={15} className="text-gray-500 mt-1 shrink-0" />}
       </button>
       {open && (
-        <div className="px-4 pb-4 space-y-3 border-t border-zinc-800/60">
-          {item.notes && <p className="text-xs text-zinc-400 pt-3">{item.notes}</p>}
+        <div className="px-4 pb-4 space-y-3 border-t border-gray-100">
+          {item.notes && <p className="text-xs text-gray-600 pt-3">{item.notes}</p>}
           {item.customer?.tel && (
-            <a href={`tel:${item.customer.tel}`} className="flex items-center gap-1.5 text-xs text-indigo-400">
+            <a href={`tel:${item.customer.tel}`} className="flex items-center gap-1.5 text-xs text-indigo-600">
               <Phone size={12} />{item.customer.tel}
             </a>
           )}
@@ -176,15 +176,15 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
             <button
               onClick={() => update({ prepaid: false }, '未払いに戻しました', { prepaid: true })}
               disabled={loading}
-              className="w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all border-2 bg-emerald-900/30 border-emerald-500/40 text-emerald-300">
+              className="w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all border-2 bg-emerald-100 border-emerald-200 text-emerald-700">
               <Banknote size={15} />✅ 支払済み — タップで未払いに戻す
             </button>
           ) : confirmPay ? (
-            <div className="rounded-xl border border-emerald-500/40 bg-emerald-900/20 p-3 space-y-2">
-              <p className="text-xs text-emerald-200 font-bold text-center">支払い完了にしますか？</p>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-2">
+              <p className="text-xs text-emerald-700 font-bold text-center">支払い完了にしますか？</p>
               <div className="flex gap-2">
                 <button onClick={() => setConfirmPay(false)}
-                  className="flex-1 py-2 rounded-xl bg-zinc-800 text-zinc-400 text-xs font-bold">キャンセル</button>
+                  className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-600 text-xs font-bold">キャンセル</button>
                 <button onClick={() => { update({ prepaid: true }, '支払い完了にしました'); setConfirmPay(false) }}
                   disabled={loading}
                   className="flex-1 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold flex items-center justify-center gap-1">
@@ -195,12 +195,12 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
           ) : (
             <button
               onClick={() => setConfirmPay(true)}
-              className="w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all border-2 bg-red-900/30 border-red-500/50 text-red-300">
+              className="w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all border-2 bg-red-100 border-red-400 text-red-700">
               <Banknote size={15} />⚠️ 未払い — タップして支払い確認
             </button>
           )}
           <a href={`/${storeId}/admin/crm?customerId=${item.customer_id}`}
-            className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
             <User size={11} />顧客詳細
           </a>
           <div className="flex flex-wrap gap-2 pt-1">
@@ -224,7 +224,7 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
                   { status: item.status, completed_date: item.completed_date, delivered_date: item.delivered_date, notified: item.notified }
                 )}
                 disabled={loading}
-                className="py-2 px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs rounded-xl transition-colors flex items-center gap-1">
+                className="py-2 px-3 bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 text-xs rounded-xl transition-colors flex items-center gap-1">
                 <RotateCcw size={11} />受付中に戻す
               </button>
             )}
@@ -270,7 +270,7 @@ function PurchaseCard({ item, storeId, onRefresh, onToast }: {
   }
 
   return (
-    <div className={`bg-zinc-900/60 border rounded-2xl overflow-hidden ${item.status === 'delivered' ? 'border-zinc-800/40 opacity-60' : 'border-zinc-700/50'}`}>
+    <div className={`bg-white border rounded-2xl overflow-hidden ${item.status === 'delivered' ? 'border-gray-100 opacity-60' : 'border-gray-300'}`}>
       <button className="w-full text-left p-4 flex gap-3" onClick={() => setOpen(v => !v)}>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -279,29 +279,29 @@ function PurchaseCard({ item, storeId, onRefresh, onToast }: {
             </span>
           </div>
           {item.child?.school_name && (
-            <p className="text-xs font-black text-amber-300 truncate mt-1 leading-tight">{item.child.school_name}</p>
+            <p className="text-xs font-black text-amber-600 truncate mt-1 leading-tight">{item.child.school_name}</p>
           )}
-          <p className={`font-black text-lg leading-tight truncate ${item.child?.school_name ? '' : 'mt-1.5'} ${item.child ? 'text-white' : 'text-zinc-200'}`}>
+          <p className={`font-black text-lg leading-tight truncate ${item.child?.school_name ? '' : 'mt-1.5'} ${item.child ? 'text-gray-900' : 'text-gray-900'}`}>
             {item.child?.name ?? item.customer?.name ?? '（顧客不明）'}
           </p>
           {item.child && (
-            <p className="text-xs text-zinc-500 truncate">保護者: {item.customer?.name}</p>
+            <p className="text-xs text-gray-500 truncate">保護者: {item.customer?.name}</p>
           )}
-          <p className="text-xs text-zinc-400 mt-0.5 truncate">{item.item_name}</p>
-          <p className="text-xs text-zinc-600 mt-0.5">依頼: {fmtDate(item.ordered_date)}</p>
+          <p className="text-xs text-gray-600 mt-0.5 truncate">{item.item_name}</p>
+          <p className="text-xs text-gray-400 mt-0.5">依頼: {fmtDate(item.ordered_date)}</p>
         </div>
-        {open ? <ChevronUp size={15} className="text-zinc-500 mt-1 shrink-0" /> : <ChevronDown size={15} className="text-zinc-500 mt-1 shrink-0" />}
+        {open ? <ChevronUp size={15} className="text-gray-500 mt-1 shrink-0" /> : <ChevronDown size={15} className="text-gray-500 mt-1 shrink-0" />}
       </button>
       {open && (
-        <div className="px-4 pb-4 space-y-3 border-t border-zinc-800/60">
-          {item.notes && <p className="text-xs text-zinc-400 pt-3">{item.notes}</p>}
-          {item.price != null && <p className="text-xs text-zinc-400">金額: ¥{item.price.toLocaleString()}</p>}
+        <div className="px-4 pb-4 space-y-3 border-t border-gray-100">
+          {item.notes && <p className="text-xs text-gray-600 pt-3">{item.notes}</p>}
+          {item.price != null && <p className="text-xs text-gray-600">金額: ¥{item.price.toLocaleString()}</p>}
           {item.customer?.tel && (
-            <a href={`tel:${item.customer.tel}`} className="flex items-center gap-1.5 text-xs text-indigo-400">
+            <a href={`tel:${item.customer.tel}`} className="flex items-center gap-1.5 text-xs text-indigo-600">
               <Phone size={12} />{item.customer.tel}
             </a>
           )}
-          <a href={`/${storeId}/admin/crm?customerId=${item.customer_id}`} className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
+          <a href={`/${storeId}/admin/crm?customerId=${item.customer_id}`} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
             <User size={11} />顧客詳細
           </a>
           {nextStep && (
@@ -333,7 +333,7 @@ function PurchaseCard({ item, storeId, onRefresh, onToast }: {
               '依頼受付に戻しました',
               { status: item.status, arrived_date: item.arrived_date, delivered_date: item.delivered_date, notified: item.notified }
             )}
-              disabled={loading} className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs rounded-xl transition-colors flex items-center justify-center gap-1">
+              disabled={loading} className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 text-xs rounded-xl transition-colors flex items-center justify-center gap-1">
               <RotateCcw size={11} />依頼受付に戻す
             </button>
           )}
@@ -371,14 +371,14 @@ function MakerGroup({ maker, items, storeId, onRefresh, onToast }: {
   }
 
   return (
-    <div className="bg-zinc-900/60 border border-zinc-700/50 rounded-2xl overflow-hidden">
+    <div className="bg-white border border-gray-300 rounded-2xl overflow-hidden">
       <div className="px-4 py-3 flex items-center gap-3">
         <button className="flex-1 text-left flex items-center gap-2" onClick={() => setOpen(v => !v)}>
           <div>
-            <p className="font-bold text-zinc-100 text-sm">{maker}</p>
-            <p className="text-xs text-zinc-500">{items.length}件 未発注</p>
+            <p className="font-bold text-gray-900 text-sm">{maker}</p>
+            <p className="text-xs text-gray-500">{items.length}件 未発注</p>
           </div>
-          {open ? <ChevronUp size={14} className="text-zinc-500 ml-auto" /> : <ChevronDown size={14} className="text-zinc-500 ml-auto" />}
+          {open ? <ChevronUp size={14} className="text-gray-500 ml-auto" /> : <ChevronDown size={14} className="text-gray-500 ml-auto" />}
         </button>
         <button onClick={markOrdered} disabled={loading}
           className="shrink-0 px-3 py-2 bg-orange-700 hover:bg-orange-600 text-white text-xs font-bold rounded-xl flex items-center gap-1.5">
@@ -387,18 +387,18 @@ function MakerGroup({ maker, items, storeId, onRefresh, onToast }: {
         </button>
       </div>
       {open && (
-        <div className="border-t border-zinc-800/60 divide-y divide-zinc-800/40">
+        <div className="border-t border-gray-100 divide-y divide-gray-100">
           {items.map(item => (
             <div key={item.id} className="px-4 py-3">
-              <p className="text-sm font-medium text-zinc-100">{item.item_name}</p>
-              <p className="text-xs text-zinc-500 mt-0.5">
+              <p className="text-sm font-medium text-gray-900">{item.item_name}</p>
+              <p className="text-xs text-gray-500 mt-0.5">
                 {item.customer?.name ?? '顧客不明'}{item.child ? ` / ${item.child.name}` : ''}
                 {' · '}{fmtDate(item.ordered_date)}
               </p>
-              {item.notes && <p className="text-xs text-zinc-600 mt-0.5">{item.notes}</p>}
-              {item.price != null && <p className="text-xs text-zinc-600">¥{item.price.toLocaleString()}</p>}
+              {item.notes && <p className="text-xs text-gray-400 mt-0.5">{item.notes}</p>}
+              {item.price != null && <p className="text-xs text-gray-400">¥{item.price.toLocaleString()}</p>}
               <a href={`/${storeId}/admin/crm?customerId=${item.customer_id}`}
-                className="inline-flex items-center gap-1 text-xs text-zinc-600 hover:text-zinc-400 mt-1">
+                className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 mt-1">
                 <User size={10} />顧客詳細
               </a>
             </div>
@@ -421,7 +421,7 @@ function MakerOrderPanel({ purchases, storeId, onRefresh, onToast }: {
 
   if (Object.keys(grouped).length === 0) {
     return (
-      <div className="text-center py-10 text-zinc-600">
+      <div className="text-center py-10 text-gray-400">
         <p className="text-sm">未発注の追加購入はありません</p>
       </div>
     )
@@ -461,8 +461,8 @@ function OrderCard({ item, storeId, onRefresh, onToast }: {
   const amount = item.total_amount ?? item.items?.reduce((s, i) => s + (i.unit_price ?? 0) * i.quantity, 0) ?? 0
 
   return (
-    <div className={`bg-zinc-900/60 border rounded-2xl overflow-hidden ${
-      item.status === 'delivered' || item.status === 'cancelled' ? 'border-zinc-800/40 opacity-60' : 'border-zinc-700/50'
+    <div className={`bg-white border rounded-2xl overflow-hidden ${
+      item.status === 'delivered' || item.status === 'cancelled' ? 'border-gray-100 opacity-60' : 'border-gray-300'
     }`}>
       <button className="w-full text-left p-4 flex gap-3" onClick={() => setOpen(v => !v)}>
         <div className="flex-1 min-w-0">
@@ -473,28 +473,28 @@ function OrderCard({ item, storeId, onRefresh, onToast }: {
             <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${PAYMENT_STATUS_COLORS[item.payment_status]}`}>
               {PAYMENT_STATUS_LABELS[item.payment_status]}
             </span>
-            {item.order_number && <span className="text-xs font-mono text-zinc-500">#{item.order_number}</span>}
+            {item.order_number && <span className="text-xs font-mono text-gray-500">#{item.order_number}</span>}
           </div>
           {item.child?.school_name && (
-            <p className="text-xs font-black text-amber-300 truncate mt-1 leading-tight">{item.child.school_name}</p>
+            <p className="text-xs font-black text-amber-600 truncate mt-1 leading-tight">{item.child.school_name}</p>
           )}
-          <p className={`font-black text-lg leading-tight truncate ${item.child?.school_name ? '' : 'mt-1.5'} ${item.child ? 'text-white' : 'text-zinc-200'}`}>
+          <p className={`font-black text-lg leading-tight truncate ${item.child?.school_name ? '' : 'mt-1.5'} ${item.child ? 'text-gray-900' : 'text-gray-900'}`}>
             {item.child?.name ?? item.customer?.name ?? '（顧客不明）'}
           </p>
           {item.child && (
-            <p className="text-xs text-zinc-500 truncate">保護者: {item.customer?.name}</p>
+            <p className="text-xs text-gray-500 truncate">保護者: {item.customer?.name}</p>
           )}
-          <p className="text-xs text-zinc-400 mt-0.5">{totalItems}点 {amount > 0 ? `/ ¥${amount.toLocaleString()}` : ''}</p>
-          <p className="text-xs text-zinc-600 mt-0.5">{fmtDate(item.created_at)}</p>
+          <p className="text-xs text-gray-600 mt-0.5">{totalItems}点 {amount > 0 ? `/ ¥${amount.toLocaleString()}` : ''}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{fmtDate(item.created_at)}</p>
         </div>
-        {open ? <ChevronUp size={15} className="text-zinc-500 mt-1 shrink-0" /> : <ChevronDown size={15} className="text-zinc-500 mt-1 shrink-0" />}
+        {open ? <ChevronUp size={15} className="text-gray-500 mt-1 shrink-0" /> : <ChevronDown size={15} className="text-gray-500 mt-1 shrink-0" />}
       </button>
       {open && (
-        <div className="px-4 pb-4 space-y-3 border-t border-zinc-800/60">
+        <div className="px-4 pb-4 space-y-3 border-t border-gray-100">
           {item.items && item.items.length > 0 && (
             <div className="space-y-1 pt-3">
               {item.items.map(i => (
-                <div key={i.id} className="flex items-center gap-2 text-xs text-zinc-400">
+                <div key={i.id} className="flex items-center gap-2 text-xs text-gray-600">
                   <span className="flex-1 truncate">{i.item_name}{i.size_label ? ` (${i.size_label})` : ''}</span>
                   <span>×{i.quantity}</span>
                   {i.unit_price && <span>¥{(i.unit_price * i.quantity).toLocaleString()}</span>}
@@ -502,9 +502,9 @@ function OrderCard({ item, storeId, onRefresh, onToast }: {
               ))}
             </div>
           )}
-          {item.notes && <p className="text-xs text-zinc-400">{item.notes}</p>}
+          {item.notes && <p className="text-xs text-gray-600">{item.notes}</p>}
           {item.customer?.id && (
-            <a href={`/${storeId}/admin/crm?customerId=${item.customer.id}`} className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
+            <a href={`/${storeId}/admin/crm?customerId=${item.customer.id}`} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
               <User size={11} />顧客詳細
             </a>
           )}
@@ -529,13 +529,13 @@ function OrderCard({ item, storeId, onRefresh, onToast }: {
             )}
             {(item.status === 'processing' || item.status === 'ready') && (
               <button onClick={() => updateStatus('confirmed')} disabled={loading}
-                className="py-2 px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs rounded-xl flex items-center gap-1">
+                className="py-2 px-3 bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 text-xs rounded-xl flex items-center gap-1">
                 <RotateCcw size={11} />戻す
               </button>
             )}
           </div>
           <a href={`/${storeId}/admin/orders`}
-            className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300 mt-1">
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 mt-1">
             <ChevronRight size={11} />注文詳細を開く
           </a>
         </div>
@@ -656,19 +656,19 @@ export default function RepairsPage() {
     + orders.length
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="min-h-screen bg-gray-50 text-gray-900">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-zinc-950/90 backdrop-blur border-b border-zinc-800/60">
+      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-gray-200">
         <div className="max-w-2xl mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
-              <ClipboardList size={17} className="text-indigo-400" />
+              <ClipboardList size={17} className="text-indigo-600" />
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="text-base font-bold text-zinc-100">依頼管理</h1>
+              <h1 className="text-base font-bold text-gray-900">依頼管理</h1>
             </div>
             {totalBadge > 0 && (
-              <span className="bg-red-500/20 text-red-300 border border-red-500/30 text-xs font-black px-2 py-0.5 rounded-full">
+              <span className="bg-red-100 text-red-700 border border-red-300 text-xs font-black px-2 py-0.5 rounded-full">
                 計{totalBadge}件
               </span>
             )}
@@ -680,30 +680,30 @@ export default function RepairsPage() {
           </div>
 
           {/* Main tabs */}
-          <div className="flex gap-1 mt-3 bg-zinc-900/60 border border-zinc-800/60 rounded-xl p-1">
+          <div className="flex gap-1 mt-3 bg-gray-100 border border-gray-200 rounded-xl p-1">
             <button onClick={() => setTab('request')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-xs font-semibold transition-colors ${tab === 'request' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}>
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-xs font-semibold transition-colors ${tab === 'request' ? 'bg-white text-gray-900' : 'text-gray-500'}`}>
               <ClipboardList size={14} />依頼一覧
               {repairs.length > 0 && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${tab === 'request' ? 'bg-indigo-500/30 text-indigo-300' : 'bg-zinc-800 text-zinc-600'}`}>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${tab === 'request' ? 'bg-indigo-500/30 text-indigo-600' : 'bg-gray-200 text-gray-500'}`}>
                   {repairs.length}
                 </span>
               )}
             </button>
             <button onClick={() => setTab('purchase')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-xs font-semibold transition-colors ${tab === 'purchase' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}>
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-xs font-semibold transition-colors ${tab === 'purchase' ? 'bg-white text-gray-900' : 'text-gray-500'}`}>
               <ShoppingBag size={14} />追加購入
               {(purchaseCounts.pending + purchaseCounts.on_order + purchaseCounts.arrived) > 0 && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${tab === 'purchase' ? 'bg-blue-500/30 text-blue-300' : 'bg-zinc-800 text-zinc-600'}`}>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${tab === 'purchase' ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-500'}`}>
                   {purchaseCounts.pending + purchaseCounts.on_order + purchaseCounts.arrived}
                 </span>
               )}
             </button>
             <button onClick={() => setTab('order')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-xs font-semibold transition-colors ${tab === 'order' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500'}`}>
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-xs font-semibold transition-colors ${tab === 'order' ? 'bg-white text-gray-900' : 'text-gray-500'}`}>
               <ShoppingCart size={14} />注文管理
               {orders.length > 0 && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${tab === 'order' ? 'bg-emerald-500/30 text-emerald-300' : 'bg-zinc-800 text-zinc-600'}`}>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${tab === 'order' ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-200 text-gray-500'}`}>
                   {orders.length}
                 </span>
               )}
@@ -714,7 +714,7 @@ export default function RepairsPage() {
 
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
         {fetchError && (
-          <div className="bg-red-900/40 border border-red-700/50 rounded-xl px-4 py-3 text-xs text-red-400">
+          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs text-red-600">
             DBエラー: {fetchError}
           </div>
         )}
@@ -723,20 +723,20 @@ export default function RepairsPage() {
         {tab === 'request' && (
           <div className="flex gap-1.5 flex-wrap">
             {([
-              { key: 'all'          as const, label: 'すべて',    count: reqCounts.all,          color: 'text-zinc-300' },
-              { key: 'repair'       as const, label: 'お直し',    count: reqCounts.repair,       color: 'text-amber-300' },
-              { key: 'walk_in'      as const, label: '来店依頼',  count: reqCounts.walk_in,      color: 'text-sky-300' },
-              { key: 'hold_request' as const, label: '取置き依頼', count: reqCounts.hold_request, color: 'text-violet-300' },
+              { key: 'all'          as const, label: 'すべて',    count: reqCounts.all,          color: 'text-gray-700' },
+              { key: 'repair'       as const, label: 'お直し',    count: reqCounts.repair,       color: 'text-amber-600' },
+              { key: 'walk_in'      as const, label: '来店依頼',  count: reqCounts.walk_in,      color: 'text-sky-600' },
+              { key: 'hold_request' as const, label: '取置き依頼', count: reqCounts.hold_request, color: 'text-violet-600' },
             ]).map(f => (
               <button key={f.key}
                 onClick={() => setRequestFilter(f.key)}
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                   requestFilter === f.key
-                    ? 'bg-zinc-700 border-zinc-500 text-zinc-100'
-                    : 'bg-zinc-900/60 border-zinc-800 text-zinc-500'
+                    ? 'bg-amber-500 border-amber-500 text-white'
+                    : 'bg-white border-gray-200 text-gray-500'
                 }`}>
                 {f.label}
-                {f.count > 0 && <span className={`font-bold ${requestFilter === f.key ? 'text-zinc-100' : f.color}`}>{f.count}</span>}
+                {f.count > 0 && <span className={`font-bold ${requestFilter === f.key ? 'text-white' : f.color}`}>{f.count}</span>}
               </button>
             ))}
           </div>
@@ -749,7 +749,7 @@ export default function RepairsPage() {
               <button onClick={() => setPurchaseViewMode(m => m === 'order_mgmt' ? 'list' : 'order_mgmt')}
                 className={`w-full py-3 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors ${
                   purchaseViewMode === 'order_mgmt'
-                    ? 'bg-zinc-700 text-zinc-300'
+                    ? 'bg-gray-200 hover:bg-gray-300 text-gray-700'
                     : 'bg-orange-700 hover:bg-orange-600 text-white'
                 }`}>
                 <Package size={15} />
@@ -758,20 +758,20 @@ export default function RepairsPage() {
             )}
             <div className="grid grid-cols-3 gap-2">
               {([
-                { key: 'pending'  as const, label: '依頼受付中', value: purchaseCounts.pending,  color: 'text-blue-400' },
-                { key: 'on_order' as const, label: '発注済み',   value: purchaseCounts.on_order, color: 'text-orange-400' },
-                { key: 'arrived'  as const, label: '入荷済み',   value: purchaseCounts.arrived,  color: 'text-emerald-400' },
+                { key: 'pending'  as const, label: '依頼受付中', value: purchaseCounts.pending,  color: 'text-blue-600' },
+                { key: 'on_order' as const, label: '発注済み',   value: purchaseCounts.on_order, color: 'text-orange-600' },
+                { key: 'arrived'  as const, label: '入荷済み',   value: purchaseCounts.arrived,  color: 'text-emerald-600' },
               ]).map(s => (
                 <button key={s.key}
                   onClick={() => setPurchaseFilter(f => f === s.key ? null : s.key)}
                   className={`rounded-xl p-3 text-center transition-all border ${
                     purchaseFilter === s.key
-                      ? 'bg-zinc-800 border-zinc-600 ring-1 ring-inset ring-zinc-500'
-                      : 'bg-zinc-900/60 border-zinc-800/60'
+                      ? 'bg-gray-200 border-gray-400 ring-1 ring-inset ring-gray-400'
+                      : 'bg-white border-gray-200'
                   }`}>
                   <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
-                  <div className="text-xs text-zinc-500 mt-0.5">{s.label}</div>
-                  {purchaseFilter === s.key && <div className="text-[10px] text-zinc-600 mt-0.5">絞込中 ✕</div>}
+                  <div className="text-xs text-gray-500 mt-0.5">{s.label}</div>
+                  {purchaseFilter === s.key && <div className="text-[10px] text-gray-400 mt-0.5">絞込中 ✕</div>}
                 </button>
               ))}
             </div>
@@ -782,20 +782,20 @@ export default function RepairsPage() {
         {tab === 'order' && (
           <div className="grid grid-cols-3 gap-2">
             {([
-              { key: 'active' as const, label: '手配中',   value: orderCounts.active, color: 'text-amber-400' },
-              { key: 'ready'  as const, label: '準備完了', value: orderCounts.ready,  color: 'text-emerald-400' },
-              { key: 'unpaid' as const, label: '未入金',   value: orderCounts.unpaid, color: 'text-red-400' },
+              { key: 'active' as const, label: '手配中',   value: orderCounts.active, color: 'text-amber-600' },
+              { key: 'ready'  as const, label: '準備完了', value: orderCounts.ready,  color: 'text-emerald-600' },
+              { key: 'unpaid' as const, label: '未入金',   value: orderCounts.unpaid, color: 'text-red-600' },
             ]).map(s => (
               <button key={s.key}
                 onClick={() => setOrderFilter(f => f === s.key ? null : s.key)}
                 className={`rounded-xl p-3 text-center transition-all border ${
                   orderFilter === s.key
-                    ? 'bg-zinc-800 border-zinc-600 ring-1 ring-inset ring-zinc-500'
-                    : 'bg-zinc-900/60 border-zinc-800/60'
+                    ? 'bg-gray-200 border-gray-400 ring-1 ring-inset ring-gray-400'
+                    : 'bg-white border-gray-200'
                 }`}>
                 <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
-                <div className="text-xs text-zinc-500 mt-0.5">{s.label}</div>
-                {orderFilter === s.key && <div className="text-[10px] text-zinc-600 mt-0.5">絞込中 ✕</div>}
+                <div className="text-xs text-gray-500 mt-0.5">{s.label}</div>
+                {orderFilter === s.key && <div className="text-[10px] text-gray-400 mt-0.5">絞込中 ✕</div>}
               </button>
             ))}
           </div>
@@ -803,20 +803,20 @@ export default function RepairsPage() {
 
         {/* List */}
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-zinc-600">
+          <div className="flex items-center justify-center py-16 text-gray-400">
             <Loader2 size={24} className="animate-spin" />
           </div>
         ) : tab === 'request' ? (
           repairs.length === 0 ? (
-            <div className="text-center py-16 text-zinc-600">
+            <div className="text-center py-16 text-gray-400">
               <ClipboardList size={32} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">作業中の依頼はありません</p>
-              <p className="text-xs mt-1 text-zinc-700">完了済みはお渡しタブで確認できます</p>
+              <p className="text-xs mt-1 text-gray-300">完了済みはお渡しタブで確認できます</p>
             </div>
           ) : filteredRepairs.length === 0 ? (
-            <div className="text-center py-10 text-zinc-600">
+            <div className="text-center py-10 text-gray-400">
               <p className="text-sm">該当する依頼はありません</p>
-              <button onClick={() => setRequestFilter('all')} className="mt-2 text-xs text-indigo-400">絞り込みを解除</button>
+              <button onClick={() => setRequestFilter('all')} className="mt-2 text-xs text-indigo-600">絞り込みを解除</button>
             </div>
           ) : (
             <div className="space-y-3">
@@ -832,14 +832,14 @@ export default function RepairsPage() {
               storeId={storeId} onRefresh={fetchAll} onToast={showToast}
             />
           ) : purchases.length === 0 ? (
-            <div className="text-center py-16 text-zinc-600">
+            <div className="text-center py-16 text-gray-400">
               <ShoppingBag size={32} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">対応中の追加購入はありません</p>
             </div>
           ) : filteredPurchases.length === 0 ? (
-            <div className="text-center py-10 text-zinc-600">
+            <div className="text-center py-10 text-gray-400">
               <p className="text-sm">該当する追加購入はありません</p>
-              <button onClick={() => setPurchaseFilter(null)} className="mt-2 text-xs text-indigo-400">絞り込みを解除</button>
+              <button onClick={() => setPurchaseFilter(null)} className="mt-2 text-xs text-indigo-600">絞り込みを解除</button>
             </div>
           ) : (
             <div className="space-y-3">
@@ -850,18 +850,18 @@ export default function RepairsPage() {
           )
         ) : (
           orders.length === 0 ? (
-            <div className="text-center py-16 text-zinc-600">
+            <div className="text-center py-16 text-gray-400">
               <ShoppingCart size={32} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">対応中の注文はありません</p>
               <a href={`/${storeId}/admin/orders`}
-                className="inline-flex items-center gap-1 mt-3 text-xs text-indigo-400 hover:text-indigo-300">
+                className="inline-flex items-center gap-1 mt-3 text-xs text-indigo-600 hover:text-indigo-700">
                 注文一覧・新規注文を開く <ChevronRight size={12} />
               </a>
             </div>
           ) : filteredOrders.length === 0 ? (
-            <div className="text-center py-10 text-zinc-600">
+            <div className="text-center py-10 text-gray-400">
               <p className="text-sm">該当する注文はありません</p>
-              <button onClick={() => setOrderFilter(null)} className="mt-2 text-xs text-indigo-400">絞り込みを解除</button>
+              <button onClick={() => setOrderFilter(null)} className="mt-2 text-xs text-indigo-600">絞り込みを解除</button>
             </div>
           ) : (
             <div className="space-y-3">
@@ -869,7 +869,7 @@ export default function RepairsPage() {
                 <OrderCard key={o.id} item={o} storeId={storeId} onRefresh={fetchAll} onToast={showToast} />
               ))}
               <a href={`/${storeId}/admin/orders`}
-                className="flex items-center justify-center gap-1 py-3 text-xs text-zinc-500 hover:text-zinc-300 border border-zinc-800/60 rounded-xl">
+                className="flex items-center justify-center gap-1 py-3 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-xl">
                 注文一覧・新規注文を開く <ChevronRight size={12} />
               </a>
             </div>

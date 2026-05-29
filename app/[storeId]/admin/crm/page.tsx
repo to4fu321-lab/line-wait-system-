@@ -64,7 +64,7 @@ function Toast({ msg, type, onUndo, onClose }: {
   }
   return (
     <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-5 py-3 rounded-2xl text-white text-sm font-bold shadow-2xl max-w-xs ${
-      type === 'err' ? 'bg-red-600' : 'bg-zinc-800 border border-zinc-600'
+      type === 'err' ? 'bg-red-600' : 'bg-gray-100 border border-gray-300'
     }`}>
       <span className="flex-1">{msg}</span>
       {onUndo && (
@@ -80,7 +80,7 @@ function Toast({ msg, type, onUndo, onClose }: {
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-bold text-zinc-400 mb-1.5">
+      <label className="block text-xs font-bold text-gray-600 mb-1.5">
         {label}{required && <span className="text-red-400 ml-1">*</span>}
       </label>
       {children}
@@ -109,25 +109,25 @@ function CustomerInfoPanel({ customerId, storeId }: { customerId: string; storeI
       .eq('id', customerId).single()
       .then(({ data: d }) => { setData(d as CustomerInfoData | null); setLoading(false) })
   }, [customerId])
-  if (loading) return <div className="flex justify-center py-2"><Loader2 size={14} className="animate-spin text-zinc-500" /></div>
-  if (!data)   return <p className="text-zinc-600 text-xs">顧客情報なし</p>
+  if (loading) return <div className="flex justify-center py-2"><Loader2 size={14} className="animate-spin text-gray-500" /></div>
+  if (!data)   return <p className="text-gray-400 text-xs">顧客情報なし</p>
   return (
     <div className="space-y-1.5">
-      {data.kana && <p className="text-zinc-400 text-xs">{data.kana}</p>}
+      {data.kana && <p className="text-gray-600 text-xs">{data.kana}</p>}
       {data.tel  && (
-        <a href={`tel:${data.tel}`} className="flex items-center gap-1.5 text-blue-400 text-xs font-bold">
+        <a href={`tel:${data.tel}`} className="flex items-center gap-1.5 text-blue-600 text-xs font-bold">
           <Phone size={11} />{data.tel}
         </a>
       )}
       {(data.children ?? []).map(c => (
         <div key={c.id} className="flex items-center gap-1.5">
-          <GraduationCap size={11} className="text-amber-400 shrink-0" />
-          <span className="text-amber-300 text-xs font-bold">{c.name}</span>
-          {c.school_name && <span className="text-zinc-500 text-xs truncate">{c.school_name}{c.grade && ` ${c.grade}`}</span>}
+          <GraduationCap size={11} className="text-amber-600 shrink-0" />
+          <span className="text-amber-600 text-xs font-bold">{c.name}</span>
+          {c.school_name && <span className="text-gray-500 text-xs truncate">{c.school_name}{c.grade && ` ${c.grade}`}</span>}
         </div>
       ))}
       <a href={`/${storeId}/admin/crm?customerId=${customerId}`}
-        className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 mt-0.5">
+        className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 mt-0.5">
         <User size={10} />顧客管理で編集
       </a>
     </div>
@@ -159,30 +159,30 @@ function RepairItem({ repair, showCustomer = false, storeId, onComplete, onDeliv
   return (
     <div className={`rounded-2xl border p-4 transition-all ${
       repair.status === 'delivered'
-        ? 'bg-zinc-900/30 border-zinc-800/40'
+        ? 'bg-gray-50 border-gray-200'
         : repair.status === 'completed'
-        ? 'bg-emerald-950/40 border-emerald-500/20'
-        : 'bg-gradient-to-br from-amber-950/40 to-orange-950/30 border-amber-500/20'
+        ? 'bg-emerald-50 border-emerald-200'
+        : 'bg-amber-50 border-amber-200'
     }`}>
       <div className="flex items-start gap-3">
         <div className={`shrink-0 mt-0.5 w-8 h-8 rounded-xl flex items-center justify-center ${
-          repair.status === 'delivered' ? 'bg-zinc-800'
-          : repair.status === 'completed' ? 'bg-emerald-500/20'
-          : 'bg-amber-500/20'
+          repair.status === 'delivered' ? 'bg-gray-100'
+          : repair.status === 'completed' ? 'bg-emerald-100'
+          : 'bg-amber-100'
         }`}>
-          {repair.status === 'delivered' ? <Package size={14} className="text-zinc-500" />
-          : repair.status === 'completed' ? <CheckCheck size={14} className="text-emerald-400" />
-          : <Scissors size={14} className="text-amber-400" />}
+          {repair.status === 'delivered' ? <Package size={14} className="text-gray-500" />
+          : repair.status === 'completed' ? <CheckCheck size={14} className="text-emerald-600" />
+          : <Scissors size={14} className="text-amber-600" />}
         </div>
         <div className="flex-1 min-w-0">
           {(customerName || childName) && (
             <button onClick={() => repair.customer_id && setCustOpen(v => !v)}
               className="w-full text-left active:opacity-70 mb-2">
-              <p className={`font-black text-lg leading-tight truncate ${childName ? 'text-white' : 'text-zinc-200'}`}>
+              <p className={`font-black text-lg leading-tight truncate ${childName ? 'text-gray-900' : 'text-gray-800'}`}>
                 {childName ?? customerName} 様
               </p>
               {childName && customerName && (
-                <p className="text-zinc-500 text-xs truncate">保護者: {customerName}</p>
+                <p className="text-gray-500 text-xs truncate">保護者: {customerName}</p>
               )}
             </button>
           )}
@@ -191,24 +191,24 @@ function RepairItem({ repair, showCustomer = false, storeId, onComplete, onDeliv
               {REPAIR_STATUS_LABELS[repair.status]}
             </span>
             {repair.slip_number && (
-              <span className="text-xs text-zinc-500 font-mono">#{repair.slip_number}</span>
+              <span className="text-xs text-gray-500 font-mono">#{repair.slip_number}</span>
             )}
             {repair.notified && (
-              <span className="text-xs bg-emerald-900/50 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">
+              <span className="text-xs bg-emerald-100 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-full">
                 LINE通知済み
               </span>
             )}
             {isOverdue && (
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1">
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600 border border-red-300 flex items-center gap-1">
                 <AlertCircle size={10} />お渡し{overdueDays}日超過
               </span>
             )}
           </div>
-          <p className="font-bold text-white text-sm">{repair.item_name}</p>
-          <p className="text-zinc-400 text-xs mt-0.5">{repair.content}</p>
-          {repair.price != null && <p className="text-zinc-500 text-xs mt-0.5">¥{repair.price.toLocaleString()}</p>}
-          {repair.notes && <p className="text-zinc-600 text-xs mt-1 italic">📝 {repair.notes}</p>}
-          <div className="flex items-center gap-3 mt-1.5 text-zinc-600 text-xs">
+          <p className="font-bold text-gray-900 text-sm">{repair.item_name}</p>
+          <p className="text-gray-600 text-xs mt-0.5">{repair.content}</p>
+          {repair.price != null && <p className="text-gray-500 text-xs mt-0.5">¥{repair.price.toLocaleString()}</p>}
+          {repair.notes && <p className="text-gray-400 text-xs mt-1 italic">📝 {repair.notes}</p>}
+          <div className="flex items-center gap-3 mt-1.5 text-gray-400 text-xs">
             <span className="flex items-center gap-1"><CalendarDays size={10} />受付 {fmtDate(repair.received_date)}</span>
             {repair.completed_date && <span className="flex items-center gap-1"><CheckCheck size={10} />完了 {fmtDate(repair.completed_date)}</span>}
             {repair.delivered_date && <span className="flex items-center gap-1"><Package size={10} />お渡し {fmtDate(repair.delivered_date)}</span>}
@@ -217,7 +217,7 @@ function RepairItem({ repair, showCustomer = false, storeId, onComplete, onDeliv
       </div>
 
       {custOpen && repair.customer_id && storeId && (
-        <div className="mt-3 pt-3 border-t border-white/10 animate-fade-in">
+        <div className="mt-3 pt-3 border-t border-gray-200 animate-fade-in">
           <CustomerInfoPanel customerId={repair.customer_id} storeId={storeId} />
         </div>
       )}
@@ -225,7 +225,7 @@ function RepairItem({ repair, showCustomer = false, storeId, onComplete, onDeliv
       {repair.status === 'received' && (
         <button onClick={async () => { setLoading('complete'); await onComplete(repair.id); setLoading(null) }}
           disabled={!!loading}
-          className="w-full mt-3 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-emerald-500/80 to-teal-500/80 hover:from-emerald-500 hover:to-teal-500 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+          className="w-full mt-3 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-emerald-500 to-teal-500 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
           {loading === 'complete' ? <><Loader2 size={13} className="animate-spin" />処理中...</> : <><CheckCheck size={14} />お直し完了・LINE通知を送る</>}
         </button>
       )}
@@ -234,12 +234,12 @@ function RepairItem({ repair, showCustomer = false, storeId, onComplete, onDeliv
         <div className="mt-3 space-y-2">
           <button onClick={async () => { setLoading('deliver'); await onDeliver(repair.id); setLoading(null) }}
             disabled={!!loading}
-            className="w-full py-2.5 rounded-xl font-bold text-sm bg-zinc-700/80 hover:bg-zinc-600 text-zinc-200 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+            className="w-full py-2.5 rounded-xl font-bold text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
             {loading === 'deliver' ? <><Loader2 size={13} className="animate-spin" />処理中...</> : <><Package size={14} />お渡し済みにする</>}
           </button>
           <button onClick={async () => { setLoading('revert'); await onRevert(repair.id); setLoading(null) }}
             disabled={!!loading}
-            className="w-full py-2 rounded-xl font-bold text-xs border border-amber-500/20 text-amber-500/70 hover:text-amber-400 hover:border-amber-500/40 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
+            className="w-full py-2 rounded-xl font-bold text-xs border border-amber-200 text-amber-600 hover:text-amber-600 hover:border-amber-300 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
             {loading === 'revert' ? <Loader2 size={12} className="animate-spin" /> : <><RotateCcw size={12} />預かり中に戻す</>}
           </button>
         </div>
@@ -273,25 +273,25 @@ function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrd
     : 0
 
   const cardBg =
-    order.status === 'delivered' ? 'bg-zinc-900/30 border-zinc-800/40' :
-    order.status === 'arrived'   ? 'bg-emerald-950/40 border-emerald-500/20' :
-    order.status === 'stocked'   ? 'bg-gradient-to-br from-violet-950/40 to-purple-950/30 border-violet-500/20' :
-    order.status === 'on_order'  ? 'bg-gradient-to-br from-orange-950/40 to-amber-950/30 border-orange-500/20' :
-                                   'bg-gradient-to-br from-blue-950/40 to-indigo-950/30 border-blue-500/20'
+    order.status === 'delivered' ? 'bg-gray-50 border-gray-200' :
+    order.status === 'arrived'   ? 'bg-emerald-50 border-emerald-200' :
+    order.status === 'stocked'   ? 'bg-violet-50 border-violet-200' :
+    order.status === 'on_order'  ? 'bg-orange-50 border-orange-200' :
+                                   'bg-blue-50 border-blue-200'
 
   const iconBg =
-    order.status === 'delivered' ? 'bg-zinc-800' :
-    order.status === 'arrived'   ? 'bg-emerald-500/20' :
-    order.status === 'stocked'   ? 'bg-violet-500/20' :
-    order.status === 'on_order'  ? 'bg-orange-500/20' :
-                                   'bg-blue-500/20'
+    order.status === 'delivered' ? 'bg-gray-100' :
+    order.status === 'arrived'   ? 'bg-emerald-100' :
+    order.status === 'stocked'   ? 'bg-violet-100' :
+    order.status === 'on_order'  ? 'bg-orange-100' :
+                                   'bg-blue-100'
 
   const icon =
-    order.status === 'delivered' ? <Package size={14} className="text-zinc-500" /> :
-    order.status === 'arrived'   ? <CheckCheck size={14} className="text-emerald-400" /> :
-    order.status === 'stocked'   ? <ShoppingBag size={14} className="text-violet-400" /> :
-    order.status === 'on_order'  ? <ShoppingBag size={14} className="text-orange-400" /> :
-                                   <ShoppingBag size={14} className="text-blue-400" />
+    order.status === 'delivered' ? <Package size={14} className="text-gray-500" /> :
+    order.status === 'arrived'   ? <CheckCheck size={14} className="text-emerald-600" /> :
+    order.status === 'stocked'   ? <ShoppingBag size={14} className="text-violet-600" /> :
+    order.status === 'on_order'  ? <ShoppingBag size={14} className="text-orange-600" /> :
+                                   <ShoppingBag size={14} className="text-blue-600" />
 
   return (
     <div className={`rounded-2xl border p-4 transition-all ${cardBg}`}>
@@ -303,11 +303,11 @@ function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrd
           {(customerName || childName) && (
             <button onClick={() => order.customer_id && setCustOpen(v => !v)}
               className="w-full text-left active:opacity-70 mb-2">
-              <p className={`font-black text-lg leading-tight truncate ${childName ? 'text-white' : 'text-zinc-200'}`}>
+              <p className={`font-black text-lg leading-tight truncate ${childName ? 'text-gray-900' : 'text-gray-800'}`}>
                 {childName ?? customerName} 様
               </p>
               {childName && customerName && (
-                <p className="text-zinc-500 text-xs truncate">保護者: {customerName}</p>
+                <p className="text-gray-500 text-xs truncate">保護者: {customerName}</p>
               )}
             </button>
           )}
@@ -316,20 +316,20 @@ function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrd
               {PURCHASE_STATUS_LABELS[order.status]}
             </span>
             {order.notified && (
-              <span className="text-xs bg-emerald-900/50 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">
+              <span className="text-xs bg-emerald-100 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-full">
                 LINE通知済み
               </span>
             )}
             {isOverdue && (
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1">
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600 border border-red-300 flex items-center gap-1">
                 <AlertCircle size={10} />お渡し{overdueDays}日超過
               </span>
             )}
           </div>
-          <p className="font-bold text-white text-sm">{order.item_name}</p>
-          {order.notes && <p className="text-zinc-400 text-xs mt-0.5">{order.notes}</p>}
-          {order.price != null && <p className="text-zinc-500 text-xs mt-0.5">¥{order.price.toLocaleString()}</p>}
-          <div className="flex items-center gap-3 mt-1.5 text-zinc-600 text-xs">
+          <p className="font-bold text-gray-900 text-sm">{order.item_name}</p>
+          {order.notes && <p className="text-gray-600 text-xs mt-0.5">{order.notes}</p>}
+          {order.price != null && <p className="text-gray-500 text-xs mt-0.5">¥{order.price.toLocaleString()}</p>}
+          <div className="flex items-center gap-3 mt-1.5 text-gray-400 text-xs">
             <span className="flex items-center gap-1"><CalendarDays size={10} />受付 {fmtDate(order.ordered_date)}</span>
             {order.arrived_date   && <span className="flex items-center gap-1"><Bell size={10} />入荷 {fmtDate(order.arrived_date)}</span>}
             {order.delivered_date && <span className="flex items-center gap-1"><Package size={10} />お渡し {fmtDate(order.delivered_date)}</span>}
@@ -338,7 +338,7 @@ function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrd
       </div>
 
       {custOpen && order.customer_id && storeId && (
-        <div className="mt-3 pt-3 border-t border-white/10 animate-fade-in">
+        <div className="mt-3 pt-3 border-t border-gray-200 animate-fade-in">
           <CustomerInfoPanel customerId={order.customer_id} storeId={storeId} />
         </div>
       )}
@@ -371,7 +371,7 @@ function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrd
           </button>
           <button onClick={async () => { setLoading('revert'); await onRevert(order.id); setLoading(null) }}
             disabled={!!loading}
-            className="w-full py-2 rounded-xl font-bold text-xs border border-blue-500/20 text-blue-500/70 hover:text-blue-400 hover:border-blue-500/40 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
+            className="w-full py-2 rounded-xl font-bold text-xs border border-blue-300 text-blue-600 hover:text-blue-600 hover:border-blue-400 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
             {loading === 'revert' ? <Loader2 size={12} className="animate-spin" /> : <><RotateCcw size={12} />依頼受付に戻す</>}
           </button>
         </div>
@@ -382,7 +382,7 @@ function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrd
         <div className="mt-3">
           <button onClick={async () => { setLoading('deliver'); await onDeliver(order.id); setLoading(null) }}
             disabled={!!loading}
-            className="w-full py-2.5 rounded-xl font-bold text-sm bg-zinc-700/80 hover:bg-zinc-600 text-zinc-200 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+            className="w-full py-2.5 rounded-xl font-bold text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
             {loading === 'deliver' ? <><Loader2 size={13} className="animate-spin" />処理中...</> : <><Package size={14} />お渡し済みにする</>}
           </button>
         </div>
@@ -440,10 +440,10 @@ function NewRepairForm({ customerId, childId, storeId, onSaved, onCancel, defaul
   }
 
   return (
-    <div className="bg-zinc-900/80 border border-zinc-700/60 rounded-2xl p-4 space-y-3">
+    <div className="bg-white border border-gray-200 rounded-2xl p-4 space-y-3">
       <div className="flex items-center justify-between mb-1">
-        <p className="font-black text-white text-sm">依頼受付</p>
-        <button onClick={onCancel} className="p-1 text-zinc-500 hover:text-white"><X size={16} /></button>
+        <p className="font-black text-gray-900 text-sm">依頼受付</p>
+        <button onClick={onCancel} className="p-1 text-gray-500 hover:text-gray-900"><X size={16} /></button>
       </div>
       {/* 依頼タイプ選択 */}
       <div className="flex gap-1">
@@ -451,49 +451,49 @@ function NewRepairForm({ customerId, childId, storeId, onSaved, onCancel, defaul
           <button key={opt.value} type="button"
             onClick={() => { setReqType(opt.value); setError(null) }}
             className={`flex-1 text-[11px] font-bold py-2 rounded-xl border transition-all ${
-              reqType === opt.value ? 'bg-indigo-600/30 border-indigo-500/60 text-indigo-300' : 'bg-zinc-800 border-zinc-700 text-zinc-500'
+              reqType === opt.value ? 'bg-indigo-50 border-indigo-400 text-indigo-700' : 'bg-gray-100 border-gray-300 text-gray-500'
             }`}>
             {opt.label}
           </button>
         ))}
       </div>
       <Field label="商品名" required>
-        <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none"
+        <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
           placeholder={currentOpt.placeholder.item} value={itemName} onChange={e => { setItemName(e.target.value); setError(null) }} />
       </Field>
       <Field label={contentLabel} required={contentRequired}>
-        <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none"
+        <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
           placeholder={currentOpt.placeholder.content} value={content} onChange={e => { setContent(e.target.value); setError(null) }} />
       </Field>
       <div className="grid grid-cols-2 gap-2">
         <Field label="伝票番号">
-          <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm font-mono focus:border-indigo-500 focus:outline-none"
+          <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm font-mono focus:border-indigo-500 focus:outline-none placeholder-gray-400"
             placeholder="例：001" value={slipNumber} onChange={e => setSlipNumber(e.target.value)} />
         </Field>
         <Field label="金額（円）">
-          <input type="number" inputMode="numeric" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none"
+          <input type="number" inputMode="numeric" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
             placeholder="例：500" value={price} onChange={e => setPrice(e.target.value)} />
         </Field>
       </div>
       {/* 支払い状況 */}
       <button type="button" onClick={() => setPrepaid(v => !v)}
-        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${prepaid ? 'border-emerald-500 bg-emerald-500/10' : 'border-red-500/60 bg-red-900/10'}`}>
+        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${prepaid ? 'border-emerald-500 bg-emerald-500/10' : 'border-red-400 bg-red-50'}`}>
         <div className="text-left">
-          <p className={`font-bold text-sm ${prepaid ? 'text-emerald-300' : 'text-red-300'}`}>
+          <p className={`font-bold text-sm ${prepaid ? 'text-emerald-700' : 'text-red-700'}`}>
             {prepaid ? '✅ 支払済み' : '⚠️ 未払い'}
           </p>
-          <p className="text-xs text-zinc-500 mt-0.5">受付時に支払いを頂いた場合は「支払済み」に</p>
+          <p className="text-xs text-gray-500 mt-0.5">受付時に支払いを頂いた場合は「支払済み」に</p>
         </div>
-        <div className={`w-12 h-6 rounded-full transition-colors shrink-0 ${prepaid ? 'bg-emerald-500' : 'bg-zinc-600'}`}>
+        <div className={`w-12 h-6 rounded-full transition-colors shrink-0 ${prepaid ? 'bg-emerald-500' : 'bg-gray-300'}`}>
           <div className={`w-5 h-5 bg-white rounded-full mt-0.5 shadow-lg transition-transform ${prepaid ? 'translate-x-6' : 'translate-x-0.5'}`} />
         </div>
       </button>
       <Field label="メモ">
-        <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none"
+        <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
           placeholder="スタッフへの申し送り等" value={notes} onChange={e => setNotes(e.target.value)} />
       </Field>
       {error && (
-        <div className="flex items-center gap-2 text-red-400 text-xs bg-red-900/20 border border-red-500/20 rounded-xl px-3 py-2">
+        <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 border border-red-200 rounded-xl px-3 py-2">
           <AlertCircle size={13} />{error}
         </div>
       )}
@@ -536,33 +536,33 @@ function NewPurchaseForm({ customerId, childId, storeId, onSaved, onCancel }: {
   }
 
   return (
-    <div className="bg-zinc-900/80 border border-zinc-700/60 rounded-2xl p-4 space-y-3">
+    <div className="bg-white border border-gray-200 rounded-2xl p-4 space-y-3">
       <div className="flex items-center justify-between mb-1">
-        <p className="font-black text-white text-sm flex items-center gap-2">
-          <ShoppingBag size={14} className="text-blue-400" />新規発注登録
+        <p className="font-black text-gray-900 text-sm flex items-center gap-2">
+          <ShoppingBag size={14} className="text-blue-600" />新規発注登録
         </p>
-        <button onClick={onCancel} className="p-1 text-zinc-500 hover:text-white"><X size={16} /></button>
+        <button onClick={onCancel} className="p-1 text-gray-500 hover:text-gray-900"><X size={16} /></button>
       </div>
       <Field label="商品名" required>
-        <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none"
+        <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
           placeholder="例：○○高校学ラン 165A" value={itemName} onChange={e => { setItemName(e.target.value); setError(null) }} />
       </Field>
       <Field label="メーカー">
-        <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none"
+        <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
           placeholder="例：トンボ、カンコー、菅公" value={maker} onChange={e => setMaker(e.target.value)} />
       </Field>
       <div className="grid grid-cols-2 gap-2">
         <Field label="金額（円）">
-          <input type="number" inputMode="numeric" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none"
+          <input type="number" inputMode="numeric" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
             placeholder="例：25000" value={price} onChange={e => setPrice(e.target.value)} />
         </Field>
         <Field label="メモ">
-          <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none"
+          <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
             placeholder="色・サイズなど" value={notes} onChange={e => setNotes(e.target.value)} />
         </Field>
       </div>
       {error && (
-        <div className="flex items-center gap-2 text-red-400 text-xs bg-red-900/20 border border-red-500/20 rounded-xl px-3 py-2">
+        <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 border border-red-200 rounded-xl px-3 py-2">
           <AlertCircle size={13} />{error}
         </div>
       )}
@@ -625,27 +625,27 @@ function ChildCard({
   }
 
   return (
-    <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl overflow-hidden">
-      <button onClick={handleExpand} className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-zinc-800/40 transition-colors">
-        <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
-          <GraduationCap size={16} className="text-indigo-300" />
+    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+      <button onClick={handleExpand} className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-gray-50 transition-colors">
+        <div className="w-9 h-9 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0">
+          <GraduationCap size={16} className="text-indigo-700" />
         </div>
         <div className="flex-1 min-w-0">
           {child.school_name && (
-            <p className="font-black text-amber-300 text-xs leading-tight truncate">
+            <p className="font-black text-amber-600 text-xs leading-tight truncate">
               {[child.school_name, child.grade].filter(Boolean).join(' ')}
             </p>
           )}
-          <p className="font-black text-white text-xl leading-tight truncate">{child.name}</p>
+          <p className="font-black text-gray-900 text-xl leading-tight truncate">{child.name}</p>
           {!child.school_name && child.grade && (
-            <p className="text-zinc-500 text-xs">{child.grade}</p>
+            <p className="text-gray-500 text-xs">{child.grade}</p>
           )}
         </div>
-        {expanded ? <ChevronUp size={16} className="text-zinc-500 shrink-0" /> : <ChevronDown size={16} className="text-zinc-500 shrink-0" />}
+        {expanded ? <ChevronUp size={16} className="text-gray-500 shrink-0" /> : <ChevronDown size={16} className="text-gray-500 shrink-0" />}
       </button>
 
       {expanded && (
-        <div className="px-4 pb-4 space-y-3 border-t border-zinc-800/60 pt-3">
+        <div className="px-4 pb-4 space-y-3 border-t border-gray-200 pt-3">
           {loading ? (
             <div className="flex justify-center py-4"><Loader2 size={20} className="animate-spin text-indigo-400" /></div>
           ) : (
@@ -666,12 +666,12 @@ function ChildCard({
               )}
 
               {/* お直し履歴 */}
-              <div className="border-t border-zinc-800/40 pt-2">
-                <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <div className="border-t border-gray-200 pt-2">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <Scissors size={11} />依頼履歴 ({repairs.length}件)
                 </p>
                 {repairs.length === 0 ? (
-                  <p className="text-zinc-700 text-xs text-center py-3">履歴はありません</p>
+                  <p className="text-gray-300 text-xs text-center py-3">履歴はありません</p>
                 ) : (
                   <div className="space-y-2">
                     {repairs.map(r => (
@@ -683,12 +683,12 @@ function ChildCard({
               </div>
 
               {/* 追加購入履歴 */}
-              <div className="pt-2 border-t border-zinc-800/40">
-                <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <div className="pt-2 border-t border-gray-200">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <ShoppingBag size={11} />追加購入 ({purchases.length}件)
                 </p>
                 {purchases.length === 0 ? (
-                  <p className="text-zinc-700 text-xs text-center py-3">追加購入履歴はありません</p>
+                  <p className="text-gray-300 text-xs text-center py-3">追加購入履歴はありません</p>
                 ) : (
                   <div className="space-y-2">
                     {purchases.map(o => (
@@ -706,7 +706,7 @@ function ChildCard({
                   </div>
                 ) : (
                   <button onClick={() => setShowNewPurchase(true)}
-                    className="w-full mt-2 py-2.5 rounded-xl border border-dashed border-blue-500/30 text-blue-400/70 hover:text-blue-300 hover:border-blue-500/50 transition-colors text-xs font-bold flex items-center justify-center gap-1.5">
+                    className="w-full mt-2 py-2.5 rounded-xl border border-dashed border-blue-300 text-blue-600 hover:text-blue-600 hover:border-blue-400 transition-colors text-xs font-bold flex items-center justify-center gap-1.5">
                     <Plus size={12} />追加購入を登録する
                   </button>
                 )}
@@ -747,41 +747,41 @@ function EditChildForm({ child, onSaved, onCancel, schoolOptions }: {
   }
 
   return (
-    <div className="bg-zinc-900/80 border border-amber-500/30 rounded-2xl p-4 space-y-3">
+    <div className="bg-white border border-amber-200 rounded-2xl p-4 space-y-3">
       <div className="flex items-center justify-between mb-1">
-        <p className="font-black text-white text-sm flex items-center gap-2">
-          <Pencil size={14} className="text-amber-400" />お子様情報を編集
+        <p className="font-black text-gray-900 text-sm flex items-center gap-2">
+          <Pencil size={14} className="text-amber-600" />お子様情報を編集
         </p>
-        <button onClick={onCancel} className="p-1 text-zinc-500 hover:text-white"><X size={16} /></button>
+        <button onClick={onCancel} className="p-1 text-gray-500 hover:text-gray-900"><X size={16} /></button>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Field label="お名前" required>
-          <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-amber-500 focus:outline-none"
+          <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-amber-500 focus:outline-none"
             value={name} onChange={e => { setName(e.target.value); setError(null) }} />
         </Field>
         <Field label="フリガナ">
-          <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-amber-500 focus:outline-none"
+          <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-amber-500 focus:outline-none placeholder-gray-400"
             placeholder="ヤマダ ハナコ" value={kana} onChange={e => setKana(e.target.value)} />
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Field label="学校名">
           <select value={schoolName} onChange={e => setSchoolName(e.target.value)}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-amber-500 focus:outline-none">
+            className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-amber-500 focus:outline-none">
             <option value="">選択</option>
             {(schoolOptions ?? SCHOOL_OPTIONS).map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </Field>
         <Field label="学年">
           <select value={grade} onChange={e => setGrade(e.target.value)}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-amber-500 focus:outline-none">
+            className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-amber-500 focus:outline-none">
             <option value="">選択</option>
             {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
           </select>
         </Field>
       </div>
       {error && (
-        <div className="flex items-center gap-2 text-red-400 text-xs bg-red-900/20 border border-red-500/20 rounded-xl px-3 py-2">
+        <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 border border-red-200 rounded-xl px-3 py-2">
           <AlertCircle size={13} />{error}
         </div>
       )}
@@ -818,33 +818,33 @@ function EditCustomerForm({ customer, onSaved, onCancel }: {
   }
 
   return (
-    <div className="bg-zinc-900/80 border border-amber-500/30 rounded-2xl p-4 space-y-3">
+    <div className="bg-white border border-amber-200 rounded-2xl p-4 space-y-3">
       <div className="flex items-center justify-between mb-1">
-        <p className="font-black text-white text-sm flex items-center gap-2">
-          <Pencil size={14} className="text-amber-400" />保護者情報を編集
+        <p className="font-black text-gray-900 text-sm flex items-center gap-2">
+          <Pencil size={14} className="text-amber-600" />保護者情報を編集
         </p>
-        <button onClick={onCancel} className="p-1 text-zinc-500 hover:text-white"><X size={16} /></button>
+        <button onClick={onCancel} className="p-1 text-gray-500 hover:text-gray-900"><X size={16} /></button>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Field label="お名前" required>
-          <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-amber-500 focus:outline-none"
+          <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-amber-500 focus:outline-none"
             value={name} onChange={e => { setName(e.target.value); setError(null) }} />
         </Field>
         <Field label="フリガナ">
-          <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-amber-500 focus:outline-none"
+          <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-amber-500 focus:outline-none placeholder-gray-400"
             placeholder="ヤマダ タロウ" value={kana} onChange={e => setKana(e.target.value)} />
         </Field>
       </div>
       <Field label="電話番号">
-        <input type="tel" inputMode="tel" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-amber-500 focus:outline-none"
+        <input type="tel" inputMode="tel" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-amber-500 focus:outline-none placeholder-gray-400"
           placeholder="090-1234-5678" value={tel} onChange={e => setTel(e.target.value)} />
       </Field>
       <Field label="メモ">
-        <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-amber-500 focus:outline-none"
+        <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-amber-500 focus:outline-none placeholder-gray-400"
           placeholder="アレルギー・注意事項など" value={notes} onChange={e => setNotes(e.target.value)} />
       </Field>
       {error && (
-        <div className="flex items-center gap-2 text-red-400 text-xs bg-red-900/20 border border-red-500/20 rounded-xl px-3 py-2">
+        <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 border border-red-200 rounded-xl px-3 py-2">
           <AlertCircle size={13} />{error}
         </div>
       )}
@@ -884,41 +884,41 @@ function AddChildFormCRM({ customerId, storeId, onSaved, onCancel, schoolOptions
   }
 
   return (
-    <div className="bg-zinc-900/80 border border-indigo-500/30 rounded-2xl p-4 space-y-3">
+    <div className="bg-white border border-indigo-200 rounded-2xl p-4 space-y-3">
       <div className="flex items-center justify-between mb-1">
-        <p className="font-black text-white text-sm flex items-center gap-2">
-          <GraduationCap size={14} className="text-indigo-400" />お子様を追加
+        <p className="font-black text-gray-900 text-sm flex items-center gap-2">
+          <GraduationCap size={14} className="text-indigo-600" />お子様を追加
         </p>
-        <button onClick={onCancel} className="p-1 text-zinc-500 hover:text-white"><X size={16} /></button>
+        <button onClick={onCancel} className="p-1 text-gray-500 hover:text-gray-900"><X size={16} /></button>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Field label="お名前" required>
-          <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none"
+          <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
             placeholder="山田 花子" value={name} onChange={e => { setName(e.target.value); setError(null) }} />
         </Field>
         <Field label="フリガナ">
-          <input type="text" className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none"
+          <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
             placeholder="ヤマダ ハナコ" value={kana} onChange={e => setKana(e.target.value)} />
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Field label="学校名">
           <select value={schoolName} onChange={e => setSchoolName(e.target.value)}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none">
+            className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none">
             <option value="">選択</option>
             {(schoolOptions ?? SCHOOL_OPTIONS).map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </Field>
         <Field label="学年">
           <select value={grade} onChange={e => setGrade(e.target.value)}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none">
+            className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none">
             <option value="">選択</option>
             {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
           </select>
         </Field>
       </div>
       {error && (
-        <div className="flex items-center gap-2 text-red-400 text-xs bg-red-900/20 border border-red-500/20 rounded-xl px-3 py-2">
+        <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 border border-red-200 rounded-xl px-3 py-2">
           <AlertCircle size={13} />{error}
         </div>
       )}
@@ -1416,17 +1416,17 @@ export default function CRMPage() {
   const pendingTotal = stats.repairReceived + stats.repairCompleted + stats.purchaseReceived + stats.purchaseInProgress + stats.purchaseArrived
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-gray-50 text-gray-900">
       {toast && <Toast msg={toast.msg} type={toast.type} onUndo={toast.onUndo} onClose={() => setToast(null)} />}
 
       {/* ヘッダー */}
-      <div className="sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-xl border-b border-white/5 px-4 py-3">
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-gray-200 px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           <div className="flex-1">
-            <h1 className="font-black text-white text-base flex items-center gap-2">
+            <h1 className="font-black text-gray-900 text-base flex items-center gap-2">
               顧客管理（CRM）
             </h1>
-            {storeName && <p className="text-zinc-500 text-xs">{storeName}</p>}
+            {storeName && <p className="text-gray-500 text-xs">{storeName}</p>}
           </div>
         </div>
       </div>
@@ -1438,16 +1438,16 @@ export default function CRMPage() {
         {/* ══════════════════════════════════════════════════
             顧客管理セクション
            ══════════════════════════════════════════════════ */}
-        <section className="border-t border-white/5 pt-4">
+        <section className="border-t border-gray-200 pt-4">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-black text-zinc-300">顧客管理</h2>
+            <h2 className="text-sm font-black text-gray-700">顧客管理</h2>
             <div className="flex items-center gap-2">
               <button onClick={() => setShowQrModal(true)}
-                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border bg-indigo-500/20 border-indigo-500/40 text-indigo-300">
+                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border bg-indigo-100 border-indigo-200 text-indigo-700">
                 <QrCode size={12} />新規登録QR
               </button>
               <button onClick={() => { setShowDeleted(v => !v); setSearchQuery(''); setCustomers([]); setAllCustomers([]); setSelectedCustomer(null); setKanaFilter(null) }}
-                className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${showDeleted ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200'}`}>
+                className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${showDeleted ? 'bg-red-100 border-red-300 text-red-600' : 'bg-gray-100 border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-gray-200'}`}>
                 {showDeleted ? <><EyeOff size={12} />削除済みを非表示</> : <><Eye size={12} />削除済みを表示</>}
               </button>
             </div>
@@ -1455,14 +1455,14 @@ export default function CRMPage() {
 
           {/* 検索 */}
           <div className="relative mb-2">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
             <input type="text" value={searchQuery}
               onChange={e => { setSearchQuery(e.target.value); setKanaFilter(null) }}
               placeholder="保護者名・お子様名・フリガナ・電話番号"
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-10 pr-9 py-3 text-sm text-white placeholder-zinc-600 focus:border-indigo-500 focus:outline-none transition-colors" />
+              className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-9 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:outline-none transition-colors" />
             {searchQuery && (
               <button onClick={() => { setSearchQuery(''); setCustomers([]); setSelectedCustomer(null) }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white">
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-900">
                 <X size={14} />
               </button>
             )}
@@ -1482,10 +1482,10 @@ export default function CRMPage() {
                     className={`px-3 h-8 rounded-lg text-xs font-bold transition-all active:scale-90 ${
                       active
                         ? 'bg-amber-500 text-white shadow-lg shadow-amber-900/40'
-                        : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                        : 'bg-gray-200 text-gray-500 hover:bg-gray-300 hover:text-gray-900'
                     }`}>
                     {s}
-                    {count > 0 && <span className={`ml-1 ${active ? 'text-amber-100' : 'text-zinc-600'}`}>({count})</span>}
+                    {count > 0 && <span className={`ml-1 ${active ? 'text-amber-100' : 'text-gray-500'}`}>({count})</span>}
                   </button>
                 )
               })}
@@ -1505,11 +1505,11 @@ export default function CRMPage() {
                     className={`min-w-[2.25rem] h-9 px-2 rounded-lg text-sm font-black transition-all active:scale-90 disabled:opacity-25 disabled:cursor-default ${
                       active
                         ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-900/40'
-                        : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                        : 'bg-gray-200 text-gray-500 hover:bg-gray-300 hover:text-gray-900'
                     }`}>
                     {row}
                     {count > 0 && !active && (
-                      <span className="block text-[9px] text-zinc-600 font-normal leading-none -mt-0.5">{count}</span>
+                      <span className="block text-[9px] text-gray-500 font-normal leading-none -mt-0.5">{count}</span>
                     )}
                   </button>
                 )
@@ -1533,7 +1533,7 @@ export default function CRMPage() {
               <div className="flex justify-center py-6"><Loader2 size={24} className="animate-spin text-indigo-400" /></div>
             )
             if (list.length === 0) return (
-              <div className="text-center py-6 text-zinc-600">
+              <div className="text-center py-6 text-gray-500">
                 <User size={28} className="mx-auto mb-2 opacity-40" />
                 <p className="text-sm">{isSearchMode ? '該当する顧客が見つかりません' : '顧客がいません'}</p>
               </div>
@@ -1545,41 +1545,41 @@ export default function CRMPage() {
                     <button onClick={() => { setSelectedCustomer(prev => prev?.id === c.id ? null : c); setEditingCustomer(false); setShowAddChild(false) }}
                       className={`w-full text-left px-4 py-3 rounded-xl border transition-all active:scale-[0.98] ${
                         selectedCustomer?.id === c.id
-                          ? 'bg-indigo-600/30 border-indigo-500/50 text-white'
-                          : 'bg-zinc-900/60 border-zinc-800/60 text-zinc-300 hover:border-zinc-600'
+                          ? 'bg-indigo-50 border-indigo-400 text-gray-900'
+                          : 'bg-white border-gray-200 text-gray-700 hover:border-gray-400'
                       }`}>
                       <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${selectedCustomer?.id === c.id ? 'bg-indigo-500/40' : 'bg-zinc-800'}`}>
-                          <User size={16} className={selectedCustomer?.id === c.id ? 'text-indigo-300' : 'text-zinc-500'} />
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${selectedCustomer?.id === c.id ? 'bg-indigo-100' : 'bg-gray-100'}`}>
+                          <User size={16} className={selectedCustomer?.id === c.id ? 'text-indigo-600' : 'text-gray-500'} />
                         </div>
                         <div className="flex-1 min-w-0">
                           {childMatchMap[c.id] ? (
                             <>
                               <p className="font-black text-white text-base leading-tight truncate">{childMatchMap[c.id]}</p>
-                              <p className="text-xs text-zinc-500 truncate">保護者: {c.name}{c.kana ? ` (${c.kana})` : ''}</p>
+                              <p className="text-xs text-gray-500 truncate">保護者: {c.name}{c.kana ? ` (${c.kana})` : ''}</p>
                             </>
                           ) : (
                             <>
                               <p className="font-bold text-sm truncate">{c.name}</p>
-                              <p className="text-xs text-zinc-500 truncate">
+                              <p className="text-xs text-gray-500 truncate">
                                 {c.kana ?? c.tel ?? 'LINE未連携'}
                               </p>
                             </>
                           )}
                           {Object.keys(storeNameMap).length > 1 && storeNameMap[(c as any).store_id] && (
-                            <p className="text-[10px] text-zinc-600">{storeNameMap[(c as any).store_id]}</p>
+                            <p className="text-[10px] text-gray-500">{storeNameMap[(c as any).store_id]}</p>
                           )}
                         </div>
                         {c.line_user_id
                           ? <MessageCircle size={13} className="text-emerald-400 shrink-0" />
-                          : <span className="text-[10px] text-zinc-600 shrink-0">LINE未</span>
+                          : <span className="text-[10px] text-gray-500 shrink-0">LINE未</span>
                         }
                       </div>
                     </button>
 
                     {/* 選択中顧客 — インライン展開 */}
                     {selectedCustomer?.id === c.id && (
-                      <div ref={inlineDetailRef} className="space-y-4 border border-white/5 rounded-2xl p-4 bg-zinc-900/30">
+                      <div ref={inlineDetailRef} className="space-y-4 border border-gray-200 rounded-2xl p-4 bg-gray-100">
 
                         {/* 保護者情報 */}
                         {editingCustomer ? (
@@ -1594,25 +1594,25 @@ export default function CRMPage() {
                             onCancel={() => setEditingCustomer(false)}
                           />
                         ) : (
-                          <div className="bg-zinc-900/60 border border-white/8 rounded-2xl p-4">
+                          <div className="bg-white/80 border border-white/8 rounded-2xl p-4">
                             <div className="flex items-start gap-3">
                               <div className="w-11 h-11 rounded-xl bg-indigo-600/20 border border-indigo-500/20 flex items-center justify-center shrink-0">
                                 <User size={20} className="text-indigo-400" />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="font-black text-white text-base">{selectedCustomer.name}</p>
-                                {selectedCustomer.kana && <p className="text-zinc-500 text-xs">{selectedCustomer.kana}</p>}
+                                {selectedCustomer.kana && <p className="text-gray-500 text-xs">{selectedCustomer.kana}</p>}
                                 <div className="flex items-center gap-3 mt-1 flex-wrap">
                                   {selectedCustomer.tel && (
-                                    <span className="flex items-center gap-1 text-zinc-400 text-xs"><Phone size={11} />{selectedCustomer.tel}</span>
+                                    <span className="flex items-center gap-1 text-gray-500 text-xs"><Phone size={11} />{selectedCustomer.tel}</span>
                                   )}
                                   {selectedCustomer.line_user_id
                                     ? <span className="flex items-center gap-1 text-emerald-400 text-xs"><MessageCircle size={11} />LINE連携済み</span>
-                                    : <span className="text-zinc-600 text-xs">LINE未連携</span>
+                                    : <span className="text-gray-500 text-xs">LINE未連携</span>
                                   }
                                 </div>
                                 {selectedCustomer.notes && (
-                                  <p className="text-zinc-500 text-xs mt-1 bg-zinc-800/50 rounded-lg px-2 py-1">📝 {selectedCustomer.notes}</p>
+                                  <p className="text-gray-500 text-xs mt-1 bg-gray-200/50 rounded-lg px-2 py-1">📝 {selectedCustomer.notes}</p>
                                 )}
                               </div>
                               <div className="flex items-center gap-1.5 shrink-0">
@@ -1623,13 +1623,13 @@ export default function CRMPage() {
                                   </button>
                                 ) : (
                                   <button onClick={() => setDeleteTarget(selectedCustomer)}
-                                    className="p-2 rounded-xl bg-zinc-800/60 border border-zinc-700/50 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/30 active:scale-90 transition-all">
+                                    className="p-2 rounded-xl bg-gray-200/60 border border-gray-300/50 text-gray-500 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/30 active:scale-90 transition-all">
                                     <Trash2 size={14} />
                                   </button>
                                 )}
                                 {!showDeleted && (
                                   <button onClick={() => setEditingCustomer(true)}
-                                    className="p-2 rounded-xl bg-zinc-800/60 border border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-700 active:scale-90 transition-all">
+                                    className="p-2 rounded-xl bg-gray-200/60 border border-gray-300/50 text-gray-500 hover:text-gray-900 hover:bg-gray-300 active:scale-90 transition-all">
                                     <Pencil size={14} />
                                   </button>
                                 )}
@@ -1641,7 +1641,7 @@ export default function CRMPage() {
                         {/* お子様一覧 */}
                         {!editingCustomer && (
                           <div className="space-y-2">
-                            <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider">お子様 ({customerChildren.length}人)</p>
+                            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">お子様 ({customerChildren.length}人)</p>
 
                             {customerChildren.map(child => (
                               editingChild?.id === child.id ? (
@@ -1674,11 +1674,11 @@ export default function CRMPage() {
                                   />
                                   <div className="absolute top-3 right-2 flex items-center gap-1">
                                     <button onClick={() => setEditingChild(child)}
-                                      className="p-1.5 rounded-lg bg-zinc-800/60 border border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-700 active:scale-90 transition-all">
+                                      className="p-1.5 rounded-lg bg-gray-200/60 border border-gray-300/50 text-gray-500 hover:text-gray-900 hover:bg-gray-300 active:scale-90 transition-all">
                                       <Pencil size={12} />
                                     </button>
                                     <button onClick={() => setDeleteChildTarget(child)}
-                                      className="p-1.5 rounded-lg bg-zinc-800/60 border border-zinc-700/50 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/30 active:scale-90 transition-all">
+                                      className="p-1.5 rounded-lg bg-gray-200/60 border border-gray-300/50 text-gray-500 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/30 active:scale-90 transition-all">
                                       <Trash2 size={12} />
                                     </button>
                                   </div>
@@ -1700,7 +1700,7 @@ export default function CRMPage() {
                               />
                             ) : (
                               <button onClick={() => setShowAddChild(true)}
-                                className="w-full py-3 rounded-xl border border-dashed border-indigo-500/30 text-indigo-400/70 hover:text-indigo-300 hover:border-indigo-500/50 transition-colors text-sm font-bold flex items-center justify-center gap-2">
+                                className="w-full py-3 rounded-xl border border-dashed border-indigo-300 text-indigo-400/70 hover:text-indigo-300 hover:border-indigo-500/50 transition-colors text-sm font-bold flex items-center justify-center gap-2">
                                 <Plus size={14} />お子様を追加
                               </button>
                             )}
@@ -1719,16 +1719,16 @@ export default function CRMPage() {
       {/* 削除確認モーダル */}
       {deleteTarget && !deleteMode && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
-          <div className="bg-zinc-900 border border-white/10 rounded-t-3xl p-6 w-full max-w-md">
+          <div className="bg-white border border-white/10 rounded-t-3xl p-6 w-full max-w-md">
             <h3 className="text-white font-black text-lg mb-1">顧客を削除しますか？</h3>
-            <p className="text-zinc-300 text-sm font-bold mb-2">{deleteTarget.name} 様</p>
+            <p className="text-gray-700 text-sm font-bold mb-2">{deleteTarget.name} 様</p>
 
             {/* お子様リスト警告 */}
             {customerChildren.length > 0 && (
               <div className="mb-4 px-3 py-2.5 bg-red-500/10 border border-red-500/20 rounded-xl">
                 <p className="text-red-400 text-xs font-bold mb-1.5">⚠️ 以下のお子様も一緒に削除されます</p>
                 {customerChildren.map(ch => (
-                  <p key={ch.id} className="text-zinc-300 text-xs ml-2">・{ch.name}{ch.school_name ? `（${ch.school_name}）` : ''}</p>
+                  <p key={ch.id} className="text-gray-700 text-xs ml-2">・{ch.name}{ch.school_name ? `（${ch.school_name}）` : ''}</p>
                 ))}
               </div>
             )}
@@ -1741,7 +1741,7 @@ export default function CRMPage() {
                 </div>
                 <div>
                   <p className="font-bold text-amber-300 text-sm">通常削除（非表示）</p>
-                  <p className="text-zinc-500 text-xs mt-0.5">データは保持されます。「削除済みを表示」から復元可能です</p>
+                  <p className="text-gray-500 text-xs mt-0.5">データは保持されます。「削除済みを表示」から復元可能です</p>
                 </div>
               </button>
               <button onClick={() => setDeleteMode('hard')}
@@ -1751,11 +1751,11 @@ export default function CRMPage() {
                 </div>
                 <div>
                   <p className="font-bold text-red-400 text-sm">完全削除</p>
-                  <p className="text-zinc-500 text-xs mt-0.5">データベースから完全に削除されます。復元不可</p>
+                  <p className="text-gray-500 text-xs mt-0.5">データベースから完全に削除されます。復元不可</p>
                 </div>
               </button>
             </div>
-            <button onClick={() => setDeleteTarget(null)} className="w-full mt-3 py-3 rounded-2xl bg-zinc-800 text-zinc-400 font-bold text-sm">キャンセル</button>
+            <button onClick={() => setDeleteTarget(null)} className="w-full mt-3 py-3 rounded-2xl bg-gray-200 text-gray-500 font-bold text-sm">キャンセル</button>
           </div>
         </div>
       )}
@@ -1763,21 +1763,21 @@ export default function CRMPage() {
       {/* 削除最終確認 */}
       {deleteTarget && deleteMode && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
-          <div className="bg-zinc-900 border border-white/10 rounded-t-3xl p-6 w-full max-w-md">
+          <div className="bg-white border border-white/10 rounded-t-3xl p-6 w-full max-w-md">
             <h3 className="text-white font-black text-lg mb-1">
               {deleteMode === 'soft' ? '通常削除しますか？' : '完全削除しますか？'}
             </h3>
-            <p className="text-zinc-300 text-sm font-bold mb-1">{deleteTarget.name} 様</p>
+            <p className="text-gray-700 text-sm font-bold mb-1">{deleteTarget.name} 様</p>
             {customerChildren.length > 0 && (
               <p className="text-red-400 text-xs mb-1">お子様 {customerChildren.length}人（{customerChildren.map(c => c.name).join('・')}）も削除されます</p>
             )}
-            <p className="text-zinc-600 text-xs mb-5 mt-1">
+            <p className="text-gray-500 text-xs mb-5 mt-1">
               {deleteMode === 'soft'
                 ? 'データは保持されます。「削除済みを表示」から復元できます'
                 : '⚠️ お直し・購入履歴・整理券も全て削除されます。この操作は取り消せません'}
             </p>
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => setDeleteMode(null)} className="py-4 rounded-xl bg-zinc-800 text-white font-bold">戻る</button>
+              <button onClick={() => setDeleteMode(null)} className="py-4 rounded-xl bg-gray-200 text-white font-bold">戻る</button>
               <button onClick={handleDelete} disabled={deleteLoading}
                 className={`py-4 rounded-xl font-black text-white flex items-center justify-center gap-2 disabled:opacity-60 transition-all active:scale-95 ${deleteMode === 'soft' ? 'bg-amber-500' : 'bg-red-600'}`}>
                 {deleteLoading && <Loader2 size={16} className="animate-spin" />}
@@ -1795,17 +1795,17 @@ export default function CRMPage() {
         const qrSrc  = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(url)}`
         return (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
-            <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 w-full max-w-xs text-center relative">
+            <div className="bg-white border border-white/10 rounded-3xl p-6 w-full max-w-xs text-center relative">
               <button onClick={() => setShowQrModal(false)}
-                className="absolute top-4 right-4 p-1.5 rounded-xl bg-zinc-800 text-zinc-400 hover:text-white">
+                className="absolute top-4 right-4 p-1.5 rounded-xl bg-gray-200 text-gray-500 hover:text-gray-900">
                 <X size={16} />
               </button>
               <p className="font-black text-white text-base mb-1">新規会員登録</p>
-              <p className="text-zinc-500 text-xs mb-4">お客様のLINEでこのQRコードを読み取ってもらってください</p>
+              <p className="text-gray-500 text-xs mb-4">お客様のLINEでこのQRコードを読み取ってもらってください</p>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={qrSrc} alt="登録QRコード" width={240} height={240}
                 className="mx-auto rounded-2xl bg-white p-2" />
-              <p className="text-zinc-600 text-[10px] mt-4 break-all">{url}</p>
+              <p className="text-gray-500 text-[10px] mt-4 break-all">{url}</p>
             </div>
           </div>
         )
@@ -1814,12 +1814,12 @@ export default function CRMPage() {
       {/* お子様削除確認モーダル */}
       {deleteChildTarget && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
-          <div className="bg-zinc-900 border border-white/10 rounded-t-3xl p-6 w-full max-w-md">
+          <div className="bg-white border border-white/10 rounded-t-3xl p-6 w-full max-w-md">
             <h3 className="text-white font-black text-lg mb-1">お子様を削除しますか？</h3>
-            <p className="text-zinc-400 text-sm mb-1">{deleteChildTarget.name} さん</p>
-            <p className="text-zinc-600 text-xs mb-5">お直し・追加購入履歴のお子様紐付けが外れます（履歴は保持されます）</p>
+            <p className="text-gray-500 text-sm mb-1">{deleteChildTarget.name} さん</p>
+            <p className="text-gray-500 text-xs mb-5">お直し・追加購入履歴のお子様紐付けが外れます（履歴は保持されます）</p>
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => setDeleteChildTarget(null)} className="py-4 rounded-xl bg-zinc-800 text-white font-bold">キャンセル</button>
+              <button onClick={() => setDeleteChildTarget(null)} className="py-4 rounded-xl bg-gray-200 text-white font-bold">キャンセル</button>
               <button onClick={handleDeleteChild} disabled={deleteChildLoading}
                 className="py-4 rounded-xl bg-red-600 text-white font-black flex items-center justify-center gap-2 disabled:opacity-60 active:scale-95 transition-all">
                 {deleteChildLoading && <Loader2 size={16} className="animate-spin" />}

@@ -71,7 +71,7 @@ export function BottomNav() {
             href={item.path(storeId)}
             onClick={() => setFabOpen(false)}
             style={{ touchAction: 'manipulation' }}
-            className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-full px-4 py-2.5 text-sm font-medium text-zinc-100 shadow-xl whitespace-nowrap"
+            className="flex items-center gap-2 bg-white border border-gray-200 rounded-full px-4 py-2.5 text-sm font-medium text-gray-900 shadow-xl whitespace-nowrap"
           >
             <span>{item.emoji}</span>
             {item.label}
@@ -91,7 +91,7 @@ export function BottomNav() {
         </button>
       </div>
 
-      <nav className="fixed bottom-0 inset-x-0 z-50 bg-zinc-900 border-t border-zinc-800">
+      <nav className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-gray-200 shadow-sm">
         <div className="flex max-w-lg mx-auto">
           {TABS.map(tab => {
             const active       = isActive(tab)
@@ -106,11 +106,11 @@ export function BottomNav() {
                 prefetch={false}
                 style={{ touchAction: 'manipulation' }}
                 className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 relative transition-none ${
-                  active ? 'text-indigo-400' : 'text-zinc-500 active:text-zinc-300'
+                  active ? 'text-indigo-600' : 'text-gray-400 active:text-gray-600'
                 }`}
               >
                 {active && (
-                  <span className="absolute top-0 left-2 right-2 h-0.5 bg-indigo-500 rounded-full" />
+                  <span className="absolute top-0 left-2 right-2 h-0.5 bg-indigo-600 rounded-full" />
                 )}
                 <span className="relative inline-flex">
                   <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
@@ -120,7 +120,7 @@ export function BottomNav() {
                     </span>
                   )}
                 </span>
-                <span className={`text-[9px] leading-none font-medium ${active ? 'text-indigo-400' : 'text-zinc-500'}`}>
+                <span className={`text-[9px] leading-none font-medium ${active ? 'text-indigo-600' : 'text-gray-400'}`}>
                   {tab.label}
                 </span>
               </Link>
