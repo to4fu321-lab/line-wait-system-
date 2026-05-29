@@ -55,18 +55,37 @@ export interface ScheduledTask {
   channel:              ScheduleChannel
 }
 
+// ──────────────────────────────────────────────
+// バッチ処理
+// ──────────────────────────────────────────────
+
+/**
+ * バッチの時間バケット。slotStart と現在時刻の差分で自動分類。
+ * - now:   0〜5分以内  → 今すぐ
+ * - soon:  5〜15分以内 → まもなく
+ * - later: 15〜30分以内→ 準備
+ */
+export type TimeBucket = 'now' | 'soon' | 'later'
+
+export const TIME_BUCKET_LABEL: Record<TimeBucket, string> = {
+  now:   '今すぐ',
+  soon:  'まもなく（15分以内）',
+  later: '準備（30分以内）',
+}
+
 /**
  * バッチ調理指示。
- * 直近ホライゾン内で同じメニューに割り当てられたタスクをまとめた「厨房への指示単位」。
- * BatchView で表示するデータ形式。
+ * 集計キー = stationType × timeBucket × menuName の3次元。
+ * 同じメニューでも時間帯が違えば別のバッチ指示として分離される。
  */
 export interface BatchInstruction {
   menuName:      string
   stationType:   StationType
+  timeBucket:    TimeBucket
   totalQty:      number
-  freshQty:      number         // 今から調理が必要な個数
-  bufferQty:     number         // 作り置きから仕上げるだけでよい個数
-  earliestStart: Date           // 最も早い slotStart（「この時刻までに取り掛かれ」の基準）
+  freshQty:      number
+  bufferQty:     number
+  earliestStart: Date
   latestStart:   Date
   tasks:         ScheduledTask[]
 }

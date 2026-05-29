@@ -11,6 +11,7 @@ import type {
   BatchInstruction,
   ScheduleResult,
   ScheduleChannel,
+  TimeBucket,
   VirtualBuffer,
   BufferConsumeResult,
 } from '@/types/kitchen-scheduler'
@@ -348,10 +349,25 @@ export function buildSchedule(
 // ── 3. 動的バッチ指示の生成 ─────────────────────────────────
 
 /**
- * 直近 horizonMinutes 以内に開始予定のタスクをメニュー名でグルーピングし、
- * 「〇〇を合計△個作る」形式のバッチ指示配列を生成する。
+ * slotStart と現在時刻の差分から時間バケットを算出する。
+ * - now:   0〜5分以内
+ * - soon:  5〜15分以内
+ * - later: 15〜30分以内
+ */
+function getTimeBucket(slotStart: Date, now: Date): TimeBucket {
+  const diffMin = (slotStart.getTime() - now.getTime()) / 60_000
+  if (diffMin <= 5)  return 'now'
+  if (diffMin <= 15) return 'soon'
+  return 'later'
+}
+
+/**
+ * 直近 horizonMinutes 以内に開始予定のタスクを
+ * stationType × timeBucket × menuName の3次元キーでグルーピングし、
+ * バッチ指示配列を生成する。
  *
- * BatchView コンポーネントへ渡すデータ形式として使用。
+ * 同じメニューでも時間帯が違えば別のバッチ指示として分離されるため、
+ * キャパシティ溢れによる「まもなく」への押し出しが可視化される。
  *
  * @param tasks          buildSchedule() で生成されたタスクリスト
  * @param now            現在時刻
@@ -368,7 +384,11 @@ export function computeBatchInstructions(
   const map = new Map<string, BatchInstruction>()
 
   for (const task of relevant) {
-    const existing = map.get(task.menuName)
+    const bucket = getTimeBucket(task.slotStart, now)
+    // 3次元集計キー
+    const key    = `${task.stationType}::${bucket}::${task.menuName}`
+
+    const existing = map.get(key)
     if (existing) {
       existing.totalQty  += task.quantity
       existing.freshQty  += task.freshQty
@@ -377,9 +397,10 @@ export function computeBatchInstructions(
       if (task.slotStart > existing.latestStart)   existing.latestStart   = task.slotStart
       existing.tasks.push(task)
     } else {
-      map.set(task.menuName, {
+      map.set(key, {
         menuName:      task.menuName,
         stationType:   task.stationType,
+        timeBucket:    bucket,
         totalQty:      task.quantity,
         freshQty:      task.freshQty,
         bufferQty:     task.bufferQty,
@@ -390,10 +411,12 @@ export function computeBatchInstructions(
     }
   }
 
-  // 開始時刻の早い順に並べる（厨房への時系列指示順）
-  return Array.from(map.values()).sort(
-    (a, b) => a.earliestStart.getTime() - b.earliestStart.getTime()
-  )
+  // timeBucket 順（now → soon → later）→ 同バケット内は earliestStart 昇順
+  const bucketOrder: Record<TimeBucket, number> = { now: 0, soon: 1, later: 2 }
+  return Array.from(map.values()).sort((a, b) => {
+    const bd = bucketOrder[a.timeBucket] - bucketOrder[b.timeBucket]
+    return bd !== 0 ? bd : a.earliestStart.getTime() - b.earliestStart.getTime()
+  })
 }
 
 // ── ユーティリティ（外部公開） ──────────────────────────────
