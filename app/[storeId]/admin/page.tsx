@@ -807,8 +807,13 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
 
   const handleToggleOpen = async () => {
     if (isOpen === null) return
-    const next = !isOpen; setIsOpen(next)
-    await supabase.from('stores').update({ is_open: next }).eq('id', store.id)
+    const next = !isOpen
+    setIsOpen(next)
+    const { error } = await supabase.from('stores').update({ is_open: next }).eq('id', store.id)
+    if (error) {
+      setIsOpen(!next)
+      showToast('err', '受付切替失敗: ' + error.message)
+    }
   }
 
   const handleAction = async (id: string, status: QueueStatus) => {
