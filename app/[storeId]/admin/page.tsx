@@ -4,16 +4,16 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import {
   BellRing, CheckCheck, UserX, RefreshCw, Clock, Users,
-  Loader2, Store, Settings, Plus, Trash2, Phone, User, GraduationCap,
-  ChevronRight, ChevronDown, ChevronUp, LayoutDashboard, X, MapPin, BellOff, Bell, AlertCircle,
-  CalendarDays, ShoppingBag, QrCode,
+  Loader2, Store, Phone, User, GraduationCap,
+  ChevronRight, LayoutDashboard, X, MapPin, BellOff, Bell,
+  CalendarDays, QrCode,
 } from 'lucide-react'
 import { BottomNav } from './_components/BottomNav'
 import { supabase, getTodayStart } from '@/lib/supabase'
-import type { Queue, QueueStatus, WaitThreshold } from '@/types/database'
+import type { Queue, QueueStatus } from '@/types/database'
 import {
   CATEGORY_LABELS, CATEGORY_ICONS, STATUS_LABELS,
-  GENDER_LABELS, GENDER_STYLES, DEFAULT_THRESHOLDS,
+  GENDER_LABELS, GENDER_STYLES,
 } from '@/types/database'
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BAmZx5b8ScrgrqWa822FdQhtfHV2CSyqvxNeQX-Ds1KsqztPPRtZRyBP_LaQZmCLejg8Ivd7Gu4cBxKtNwodb3o'
@@ -208,7 +208,6 @@ function WaitingCard({ ticket, storeId, onAction, onCheckIn }: {
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap mb-1">
-            {/* 遠隔バッジ */}
             {ticket.is_remote && (
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
                 ticket.checked_in
@@ -282,9 +281,9 @@ function WaitingCard({ ticket, storeId, onAction, onCheckIn }: {
         </div>
       ) : (
         <button onClick={() => act('calling')} disabled={!!loading}
-          className="w-full mt-3 flex items-center justify-center gap-2 py-3 rounded-xl font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-amber-900/40">
-          {loading === 'calling' ? <Loader2 size={16} className="animate-spin" /> : <BellRing size={16} />}
-          呼出
+          className="w-full mt-3 flex items-center justify-center gap-2 py-3.5 rounded-xl font-black text-base bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-amber-900/40">
+          {loading === 'calling' ? <Loader2 size={18} className="animate-spin" /> : <BellRing size={18} />}
+          呼 出
         </button>
       )}
     </div>
@@ -359,15 +358,15 @@ function CallingCard({ ticket, storeId, onAction }: { ticket: Queue; storeId: st
 
       <div className="grid grid-cols-3 gap-2 mt-3">
         <button onClick={() => act('completed')} disabled={!!loading}
-          className="flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white active:scale-95 disabled:opacity-50 shadow-lg shadow-emerald-900/40 transition-all">
-          {loading === 'completed' ? <Loader2 size={14} className="animate-spin" /> : <CheckCheck size={14} />}完了
+          className="flex items-center justify-center gap-1.5 py-3.5 rounded-xl font-black text-base bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white active:scale-95 disabled:opacity-50 shadow-lg shadow-emerald-900/40 transition-all">
+          {loading === 'completed' ? <Loader2 size={16} className="animate-spin" /> : <CheckCheck size={16} />}完了
         </button>
         <button onClick={recall} disabled={!!loading}
-          className="flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm bg-orange-500/30 hover:bg-orange-500/50 text-orange-300 border border-orange-500/30 active:scale-95 disabled:opacity-50 transition-all">
+          className="flex items-center justify-center gap-1.5 py-3.5 rounded-xl font-black text-sm bg-orange-500/30 hover:bg-orange-500/50 text-orange-300 border border-orange-500/30 active:scale-95 disabled:opacity-50 transition-all">
           {loading === 'recalling' ? <Loader2 size={14} className="animate-spin" /> : <BellRing size={14} />}再呼出
         </button>
         <button onClick={() => act('cancelled')} disabled={!!loading}
-          className="flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm bg-zinc-700/80 hover:bg-zinc-600 text-zinc-300 active:scale-95 disabled:opacity-50 transition-all">
+          className="flex items-center justify-center gap-1.5 py-3.5 rounded-xl font-black text-sm bg-zinc-700/80 hover:bg-zinc-600 text-zinc-300 active:scale-95 disabled:opacity-50 transition-all">
           {loading === 'cancelled' ? <Loader2 size={14} className="animate-spin" /> : <UserX size={14} />}不在
         </button>
       </div>
@@ -407,7 +406,6 @@ function HistoryCard({ ticket, storeId, onAction }: {
             }`}>{STATUS_LABELS[ticket.status]}</span>
             {ticket.is_remote && <span className="text-xs text-zinc-500">🏠</span>}
             <span className="text-xs text-zinc-500">{CATEGORY_ICONS[ticket.category]} {CATEGORY_LABELS[ticket.category]}</span>
-            {/* 受付時刻 + 待ち時間 */}
             <span className="text-xs text-zinc-600">{recvTime}受付 · {waitMin}分</span>
           </div>
           <button onClick={() => (ticket as any).customer_id && setCustOpen(v => !v)}
@@ -451,265 +449,20 @@ function HistoryCard({ ticket, storeId, onAction }: {
 }
 
 // ============================================================
-// 設定パネル
-// ============================================================
-function SettingsPanel({
-  noticeThreshold, waitThresholds, allowRemote, notificationPlan, pushSettings,
-  onNoticeChange, onThresholdsChange, onRemoteChange, onPlanChange, onPushSettingsChange,
-  onSave, saving, isTestMode, testLoading, onTestModeToggle, onTestSeed, onTestClear,
-  alertDaysRepair, alertDaysPurchase, onAlertRepairChange, onAlertPurchaseChange,
-  schoolNames, onSchoolNamesChange,
-}: {
-  noticeThreshold: number; waitThresholds: WaitThreshold[]; allowRemote: boolean
-  notificationPlan: 'calling_only' | 'full'
-  pushSettings: { queue_new: boolean; purchase_new: boolean }
-  onNoticeChange: (v: number) => void
-  onThresholdsChange: (v: WaitThreshold[]) => void
-  onRemoteChange: (v: boolean) => void
-  onPlanChange: (v: 'calling_only' | 'full') => void
-  onPushSettingsChange: (v: { queue_new: boolean; purchase_new: boolean }) => void
-  onSave: () => void; saving: boolean
-  isTestMode: boolean; testLoading: string | null
-  onTestModeToggle: () => void; onTestSeed: () => void; onTestClear: () => void
-  alertDaysRepair: number
-  alertDaysPurchase: number
-  onAlertRepairChange: (v: number) => void
-  onAlertPurchaseChange: (v: number) => void
-  schoolNames: string[]
-  onSchoolNamesChange: (v: string[]) => void
-}) {
-  return (
-    <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 space-y-5">
-      <h3 className="font-black text-white flex items-center gap-2 text-base">
-        <Settings size={16} className="text-indigo-400" />設定
-      </h3>
-
-      {/* ① LINE通知プラン */}
-      <div>
-        <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">LINE通知</label>
-        <div className="grid grid-cols-2 gap-2 mb-2">
-          {([
-            { value: 'calling_only', label: '呼出のみ', desc: '1通/人 — 呼出時のみ', icon: '🔔' },
-            { value: 'full',         label: '全通知',   desc: '3通/人 — 受付・もうすぐ・呼出', icon: '📲' },
-          ] as const).map(opt => (
-            <button key={opt.value} type="button" onClick={() => onPlanChange(opt.value)}
-              className={`flex flex-col items-start px-3 py-2.5 rounded-xl border-2 transition-all text-left ${
-                notificationPlan === opt.value ? 'border-indigo-500 bg-indigo-500/10' : 'border-zinc-700 bg-zinc-800/50'
-              }`}>
-              <span className="text-sm font-bold mb-0.5">
-                {opt.icon} <span className={notificationPlan === opt.value ? 'text-indigo-300' : 'text-zinc-400'}>{opt.label}</span>
-              </span>
-              <span className="text-[11px] text-zinc-500">{opt.desc}</span>
-            </button>
-          ))}
-        </div>
-        {/* まもなく通知: 全通知プランのみ表示 */}
-        {notificationPlan === 'full' && (
-          <div className="bg-zinc-800/60 rounded-xl px-3 py-2.5 flex items-center gap-3">
-            <span className="text-xs text-zinc-400 flex-1">もうすぐ通知 — 残り</span>
-            <input type="number" min={1} max={20} value={noticeThreshold}
-              onChange={e => onNoticeChange(Number(e.target.value))}
-              className="w-14 bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-center font-black text-base text-white focus:border-indigo-500 focus:outline-none" />
-            <span className="text-xs text-zinc-500">番目で通知</span>
-          </div>
-        )}
-      </div>
-
-      {/* ② ブラウザ通知（新規受付のみ — 実装済み） */}
-      <div>
-        <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">ブラウザ通知（端末）</label>
-        <button type="button"
-          onClick={() => onPushSettingsChange({ ...pushSettings, queue_new: !pushSettings.queue_new })}
-          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${
-            pushSettings.queue_new ? 'border-indigo-500 bg-indigo-500/10' : 'border-zinc-700 bg-zinc-800/50'
-          }`}>
-          <div className="text-left">
-            <p className={`font-bold text-sm ${pushSettings.queue_new ? 'text-indigo-300' : 'text-zinc-400'}`}>🔔 新規受付</p>
-            <p className="text-xs text-zinc-500 mt-0.5">お客様が受付した時に端末へ通知</p>
-          </div>
-          <div className={`w-12 h-6 rounded-full transition-colors shrink-0 ${pushSettings.queue_new ? 'bg-indigo-500' : 'bg-zinc-600'}`}>
-            <div className={`w-5 h-5 bg-white rounded-full mt-0.5 shadow transition-transform ${pushSettings.queue_new ? 'translate-x-6' : 'translate-x-0.5'}`} />
-          </div>
-        </button>
-        <p className="text-xs text-zinc-600 mt-1.5">ヘッダーの🔔ボタンで端末通知を許可してください</p>
-      </div>
-
-      {/* ③ 遠隔チェックイン */}
-      <div>
-        <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">遠隔チェックイン</label>
-        <button type="button" onClick={() => onRemoteChange(!allowRemote)}
-          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${
-            allowRemote ? 'border-indigo-500 bg-indigo-500/10' : 'border-zinc-700 bg-zinc-800/50'
-          }`}>
-          <div className="text-left">
-            <p className={`font-bold text-sm ${allowRemote ? 'text-indigo-300' : 'text-zinc-400'}`}>
-              🏠 来店前の順番取りを許可
-            </p>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              {allowRemote ? 'OFFにすると現地受付のみになります' : '顧客が自宅から順番取りできるようになります'}
-            </p>
-          </div>
-          <div className={`w-12 h-6 rounded-full transition-colors shrink-0 ${allowRemote ? 'bg-indigo-500' : 'bg-zinc-600'}`}>
-            <div className={`w-5 h-5 bg-white rounded-full mt-0.5 shadow-lg transition-transform ${allowRemote ? 'translate-x-6' : 'translate-x-0.5'}`} />
-          </div>
-        </button>
-      </div>
-
-      {/* ④ 待ち案内メッセージ */}
-      <div>
-        <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">待ち案内メッセージ（顧客画面表示）</label>
-        <div className="space-y-2">
-          {waitThresholds.map((t, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <div className="flex items-center gap-1 shrink-0">
-                <input type="number" min={1} max={99} placeholder="∞" value={t.max_wait ?? ''}
-                  onChange={e => {
-                    const val = e.target.value === '' ? null : Number(e.target.value)
-                    const up = [...waitThresholds]; up[i] = { ...up[i], max_wait: val }; onThresholdsChange(up)
-                  }}
-                  className="w-12 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-center text-xs text-white focus:border-indigo-500 focus:outline-none" />
-                <span className="text-zinc-500 text-[10px]">組↓</span>
-              </div>
-              <input type="text" value={t.text}
-                onChange={e => {
-                  const up = [...waitThresholds]; up[i] = { ...up[i], text: e.target.value }; onThresholdsChange(up)
-                }}
-                className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-zinc-600 focus:border-indigo-500 focus:outline-none"
-                placeholder="表示するメッセージ" />
-              <button onClick={() => onThresholdsChange(waitThresholds.filter((_,j) => j !== i))}
-                className="shrink-0 p-1.5 rounded-lg bg-red-900/40 text-red-400 hover:bg-red-900/60 transition-colors">
-                <Trash2 size={12} />
-              </button>
-            </div>
-          ))}
-          <button onClick={() => onThresholdsChange([...waitThresholds, { max_wait: null, text: '' }])}
-            className="w-full flex items-center justify-center gap-2 py-1.5 rounded-xl border border-dashed border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 transition-colors text-xs">
-            <Plus size={12} />行を追加
-          </button>
-        </div>
-      </div>
-
-      {/* ⑤ 未お渡しアラート */}
-      <div>
-        <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block flex items-center gap-1.5">
-          <AlertCircle size={11} className="text-amber-400" />未お渡しアラート（入荷・完了から N日後に警告）
-        </label>
-        {[
-          { label: 'お直し完了', value: alertDaysRepair,   onChange: onAlertRepairChange },
-          { label: '取置き入荷', value: alertDaysPurchase, onChange: onAlertPurchaseChange },
-        ].map(({ label, value, onChange }) => (
-          <div key={label} className="flex items-center gap-2 mb-1.5">
-            <span className="text-xs text-zinc-400 w-20 shrink-0">{label}</span>
-            <div className="flex items-center gap-1">
-              {[3, 5, 7, 14, 30].map(d => (
-                <button key={d} onClick={() => onChange(d)}
-                  className={`w-9 h-7 rounded-lg text-xs font-bold transition-all ${
-                    value === d ? 'bg-amber-500 text-white' : 'bg-zinc-800 text-zinc-500 hover:bg-zinc-700'
-                  }`}>{d}</button>
-              ))}
-              <span className="text-xs text-zinc-600 ml-1">日</span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ⑥ 学校名マスタ */}
-      <div>
-        <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block flex items-center gap-1.5">
-          <GraduationCap size={11} className="text-indigo-400" />学校名マスタ（CRM・受付フォームで使用）
-        </label>
-        <div className="space-y-1.5 mb-2">
-          {schoolNames.map((s, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <input type="text" value={s}
-                onChange={e => {
-                  const up = [...schoolNames]; up[i] = e.target.value; onSchoolNamesChange(up)
-                }}
-                className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-none" />
-              <button onClick={() => onSchoolNamesChange(schoolNames.filter((_, j) => j !== i))}
-                className="shrink-0 p-1.5 rounded-lg bg-red-900/40 text-red-400 hover:bg-red-900/60 transition-colors">
-                <Trash2 size={12} />
-              </button>
-            </div>
-          ))}
-        </div>
-        <button onClick={() => onSchoolNamesChange([...schoolNames, ''])}
-          className="w-full flex items-center justify-center gap-2 py-1.5 rounded-xl border border-dashed border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 transition-colors text-xs">
-          <Plus size={12} />学校を追加
-        </button>
-      </div>
-
-      <button onClick={onSave} disabled={saving}
-        className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-indigo-900/40">
-        {saving ? <><Loader2 size={16} className="animate-spin inline mr-2" />保存中...</> : '設定を保存'}
-      </button>
-
-      {/* ⑥ テストモード */}
-      <div className="border-t border-white/10 pt-4">
-        <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">🧪 テストモード</label>
-        <button type="button" onClick={onTestModeToggle} disabled={testLoading === 'toggle'}
-          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all mb-2 ${
-            isTestMode ? 'border-amber-500 bg-amber-500/10' : 'border-zinc-700 bg-zinc-800/50'
-          }`}>
-          <div className="text-left">
-            <p className={`font-bold text-sm ${isTestMode ? 'text-amber-300' : 'text-zinc-400'}`}>
-              ⚠️ テストモード {isTestMode ? 'ON' : 'OFF'}
-            </p>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              {isTestMode ? 'LINE・ブラウザ通知をすべてスキップ中' : 'ONにすると通知が送信されません'}
-            </p>
-          </div>
-          <div className={`w-12 h-6 rounded-full transition-colors shrink-0 ${isTestMode ? 'bg-amber-500' : 'bg-zinc-600'}`}>
-            <div className={`w-5 h-5 bg-white rounded-full mt-0.5 shadow-lg transition-transform ${isTestMode ? 'translate-x-6' : 'translate-x-0.5'}`} />
-          </div>
-        </button>
-        <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={onTestSeed} disabled={!!testLoading}
-            className="flex flex-col items-center gap-1 py-3 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs font-bold hover:bg-blue-500/20 active:scale-95 disabled:opacity-40 transition-all">
-            {testLoading === 'seed' ? <Loader2 size={16} className="animate-spin" /> : <span className="text-lg">📥</span>}
-            <span>テストデータ投入</span>
-            <span className="text-zinc-500 font-normal text-[10px]">顧客5人・待ち3件・取置き&お直し各5件</span>
-          </button>
-          <button type="button" onClick={onTestClear} disabled={!!testLoading}
-            className="flex flex-col items-center gap-1 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-bold hover:bg-red-500/20 active:scale-95 disabled:opacity-40 transition-all">
-            {testLoading === 'clear' ? <Loader2 size={16} className="animate-spin" /> : <span className="text-lg">🗑</span>}
-            <span>テストデータ削除</span>
-            <span className="text-zinc-500 font-normal text-[10px]">【テスト】タグを全消去</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ============================================================
 // ダッシュボード
 // ============================================================
 function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; groupCode: string | null; onLogout: () => void }) {
-  const [queues,          setQueues]          = useState<Queue[]>([])
-  const [refreshing,      setRefreshing]      = useState(false)
-  const [historyTab,      setHistoryTab]      = useState<HistoryTab>('completed')
-  const [historyVisible,  setHistoryVisible]  = useState(false)
-  const [toast,           setToast]           = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
-  const [isOpen,            setIsOpen]            = useState<boolean | null>(null)
-  const [noticeThreshold,   setNoticeThreshold]   = useState(3)
-  const [waitThresholds,    setWaitThresholds]    = useState<WaitThreshold[]>(DEFAULT_THRESHOLDS)
-  const [allowRemote,       setAllowRemote]       = useState(false)
-  const [notificationPlan,  setNotificationPlan]  = useState<'calling_only' | 'full'>('calling_only')
-  const [pushSettings,      setPushSettings]      = useState({ queue_new: true, purchase_new: true })
-  const [isTestMode,        setIsTestMode]        = useState(false)
-  const [activeFittings,    setActiveFittings]    = useState(1)
-  const [alertDaysRepair,     setAlertDaysRepair]     = useState(7)
-  const [alertDaysPurchase,   setAlertDaysPurchase]   = useState(7)
-  const [schoolNames,         setSchoolNames]         = useState<string[]>([])
-  const [pendingRepairCount,  setPendingRepairCount]  = useState(0)
-  const [pendingPurchaseCount,setPendingPurchaseCount]= useState(0)
-  const [testLoading,         setTestLoading]         = useState<'seed'|'clear'|'toggle'|null>(null)
-  const [saving,            setSaving]            = useState(false)
-  const [showSettings,        setShowSettings]        = useState(false)
-  const [showDetails,         setShowDetails]         = useState(false)
-  const [showQrModal,         setShowQrModal]         = useState(false)
-  const [pushStatus,          setPushStatus]          = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle')
+  const [queues,         setQueues]         = useState<Queue[]>([])
+  const [refreshing,     setRefreshing]     = useState(false)
+  const [historyTab,     setHistoryTab]     = useState<HistoryTab>('completed')
+  const [historyVisible, setHistoryVisible] = useState(false)
+  const [toast,          setToast]          = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
+  const [isOpen,         setIsOpen]         = useState<boolean | null>(null)
+  const [notificationPlan, setNotificationPlan] = useState<'calling_only' | 'full'>('calling_only')
+  const [isTestMode,     setIsTestMode]     = useState(false)
+  const [activeFittings, setActiveFittings] = useState(1)
+  const [showQrModal,    setShowQrModal]    = useState(false)
+  const [pushStatus,     setPushStatus]     = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle')
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const setupPush = useCallback(async (storeId: string) => {
@@ -746,23 +499,13 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
 
   const fetchStoreStatus = useCallback(async () => {
     const { data } = await supabase.from('stores')
-      .select('is_open, notice_threshold, wait_thresholds, allow_remote, notification_plan, push_settings, is_test_mode, active_fittings, alert_days_repair, alert_days_purchase, school_names')
+      .select('is_open, notification_plan, is_test_mode, active_fittings')
       .eq('id', store.id).single()
     if (data) {
       setIsOpen(data.is_open ?? false)
-      if (data.notice_threshold != null) setNoticeThreshold(data.notice_threshold)
-      if (Array.isArray(data.wait_thresholds) && data.wait_thresholds.length > 0)
-        setWaitThresholds(data.wait_thresholds as WaitThreshold[])
-      if (data.allow_remote != null) setAllowRemote(data.allow_remote)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if ((data as any).notification_plan) setNotificationPlan((data as any).notification_plan)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if ((data as any).push_settings) setPushSettings((data as any).push_settings)
       if ((data as any).is_test_mode != null) setIsTestMode((data as any).is_test_mode)
       if ((data as any).active_fittings != null) setActiveFittings((data as any).active_fittings)
-      if ((data as any).alert_days_repair   != null) setAlertDaysRepair((data as any).alert_days_repair)
-      if ((data as any).alert_days_purchase != null) setAlertDaysPurchase((data as any).alert_days_purchase)
-      if (Array.isArray((data as any).school_names)) setSchoolNames((data as any).school_names)
     }
   }, [store.id])
 
@@ -775,35 +518,18 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     setRefreshing(false)
   }, [store.id])
 
-  const fetchPendingCounts = useCallback(async () => {
-    const [repairRes, purchaseRes] = await Promise.all([
-      supabase.from('repair_histories').select('id', { count: 'exact', head: true })
-        .eq('store_id', store.id).in('status', ['received', 'completed']),
-      (supabase.from('purchase_orders') as any).select('id', { count: 'exact', head: true })
-        .eq('store_id', store.id).in('status', ['ordered', 'on_order', 'arrived']),
-    ])
-    setPendingRepairCount(repairRes.count ?? 0)
-    setPendingPurchaseCount(purchaseRes.count ?? 0)
-  }, [store.id])
-
   useEffect(() => {
-    fetchStoreStatus(); fetchQueues(); fetchPendingCounts()
-    // 通知が既に許可済みなら自動サブスクリプション（ユーザー操作不要で再登録）
+    fetchStoreStatus(); fetchQueues()
     if (typeof window !== 'undefined' && 'Notification' in window && (window as any).Notification.permission === 'granted') {
       setupPush(store.id)
     }
     const channel = supabase.channel(`admin-${store.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'queues', filter: `store_id=eq.${store.id}` },
         () => fetchQueues())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'repair_histories', filter: `store_id=eq.${store.id}` },
-        () => fetchPendingCounts())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_orders', filter: `store_id=eq.${store.id}` },
-        () => fetchPendingCounts())
       .subscribe()
-    // Realtime が動かない環境向けのポーリングフォールバック
-    const pollId = setInterval(() => { fetchQueues(); fetchPendingCounts() }, 10000)
+    const pollId = setInterval(() => { fetchQueues() }, 10000)
     return () => { supabase.removeChannel(channel); clearInterval(pollId) }
-  }, [store.id, fetchQueues, fetchStoreStatus, fetchPendingCounts])
+  }, [store.id, fetchQueues, fetchStoreStatus])
 
   const handleToggleOpen = async () => {
     if (isOpen === null) return
@@ -823,7 +549,6 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     const labels: Record<QueueStatus, string> = { calling:'呼出', completed:'完了', cancelled:'不在', waiting:'待機に戻しました' }
     showToast('ok', labels[status])
     if (status === 'calling') {
-      // 呼出通知を本人に送る（DBから最新データを取得してクロージャの古い値を避ける）
       const { data: freshTicket } = await supabase.from('queues')
         .select('line_user_id, ticket_number, customer_name').eq('id', id).single()
       if (freshTicket?.line_user_id) {
@@ -838,12 +563,10 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
       } else {
         showToast('err', '📵 LINE未連携のため通知できません')
       }
-      // 呼出中は waiting+calling 両方でカウントするため位置は変わらない → threshold通知不要
     }
     if (status === 'completed' || status === 'cancelled') {
-      // 少し待ってからトースト表示（直前の「完了」トーストと競合しないよう）
       await new Promise(res => setTimeout(res, 800))
-      if (notificationPlan !== 'full') return  // 呼出のみプランは threshold 通知しない
+      if (notificationPlan !== 'full') return
       try {
         const r = await fetch('/api/notify-threshold', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -875,68 +598,12 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     await (supabase.from('stores') as any).update({ active_fittings: n }).eq('id', store.id)
   }
 
-  const handleTestModeToggle = async () => {
-    setTestLoading('toggle')
-    const next = !isTestMode
-    const r = await fetch('/api/test/mode', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ storeId: store.id, enabled: next }),
-    })
-    const j = await r.json()
-    if (j.ok) { setIsTestMode(next); showToast('ok', next ? '⚠️ テストモードON — 通知は送信されません' : '✅ テストモードOFF — 通常運用に戻りました', 4000) }
-    else showToast('err', '切替失敗: ' + j.error)
-    setTestLoading(null)
-  }
-
-  const handleTestSeed = async () => {
-    if (!confirm('テストデータを投入します。よろしいですか？')) return
-    setTestLoading('seed')
-    const r = await fetch('/api/test/seed', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ storeId: store.id }),
-    })
-    const j = await r.json()
-    if (j.ok) { showToast('ok', `✅ 投入完了 (${j.created?.length ?? 0}件)`, 4000); fetchQueues(); fetchPendingCounts() }
-    else showToast('err', '投入失敗: ' + j.error)
-    setTestLoading(null)
-  }
-
-  const handleTestClear = async () => {
-    if (!confirm('【テスト】タグのデータをすべて削除します。よろしいですか？')) return
-    setTestLoading('clear')
-    const r = await fetch('/api/test/clear', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ storeId: store.id }),
-    })
-    const j = await r.json()
-    if (j.ok) { showToast('ok', `🗑 削除完了 (${j.deleted?.join('・') ?? '0件'})`, 4000); fetchQueues(); fetchPendingCounts() }
-    else showToast('err', '削除失敗: ' + j.error)
-    setTestLoading(null)
-  }
-
-  const handleSaveSettings = async () => {
-    setSaving(true)
-    const { error } = await (supabase.from('stores') as any).update({
-      notice_threshold:   noticeThreshold,
-      wait_thresholds:    waitThresholds,
-      allow_remote:       allowRemote,
-      notification_plan:  notificationPlan,
-      push_settings:      pushSettings,
-      alert_days_repair:  alertDaysRepair,
-      alert_days_purchase: alertDaysPurchase,
-      school_names: schoolNames.filter(s => s.trim()),
-    }).eq('id', store.id)
-    setSaving(false)
-    showToast(error ? 'err' : 'ok', error ? '保存失敗: ' + error.message : '設定を保存しました')
-  }
-
-  const waitingTickets  = queues.filter(q => q.status === 'waiting')
-  const callingTickets  = queues.filter(q => q.status === 'calling')
-  const historyTickets  = queues.filter(q => q.status === historyTab)
-  const remoteCount     = waitingTickets.filter(q => q.is_remote && !q.checked_in).length
-  const total           = queues.length
-  const completed       = queues.filter(q => q.status === 'completed').length
-  const cancelledCount  = queues.filter(q => q.status === 'cancelled').length
+  const waitingTickets = queues.filter(q => q.status === 'waiting')
+  const callingTickets = queues.filter(q => q.status === 'calling')
+  const historyTickets = queues.filter(q => q.status === historyTab)
+  const remoteCount    = waitingTickets.filter(q => q.is_remote && !q.checked_in).length
+  const completed      = queues.filter(q => q.status === 'completed').length
+  const cancelledCount = queues.filter(q => q.status === 'cancelled').length
 
   const toggleHistory = (tab: HistoryTab) => {
     if (historyVisible && historyTab === tab) {
@@ -950,7 +617,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
   return (
     <div className="min-h-screen bg-zinc-950 text-white flex flex-col">
 
-      {/* ヘッダー — コンパクト化 */}
+      {/* ヘッダー */}
       <div className="bg-gradient-to-br from-indigo-950 via-zinc-900 to-zinc-950 border-b border-white/5 px-4 pt-safe-top pt-4 pb-3">
 
         {/* 行1: 店舗名 / ボタン群 */}
@@ -988,9 +655,9 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
           </div>
         </div>
 
-        {/* 行2: 受付切替ボタン */}
+        {/* 行2: 受付切替ボタン（大きく・太字・わかりやすいラベル） */}
         <button onClick={handleToggleOpen} disabled={isOpen === null}
-          className={`w-full py-3 rounded-2xl text-sm font-black mb-2 active:scale-[0.98] transition-all shadow-lg disabled:opacity-50 ${
+          className={`w-full py-4 rounded-2xl font-black text-lg mb-2 active:scale-[0.98] transition-all shadow-lg disabled:opacity-50 ${
             isOpen === null  ? 'bg-zinc-700 text-zinc-400' :
             isOpen           ? 'bg-gradient-to-r from-emerald-500 to-teal-500 shadow-emerald-900/40 text-white'
                              : 'bg-gradient-to-r from-red-600 to-rose-600 shadow-red-900/40 text-white'
@@ -1006,77 +673,68 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
           </div>
         )}
 
-        {/* 行3: ステータスバー + 詳細トグル */}
-        <div className="flex items-center gap-2">
-          {/* 待機バッジ */}
-          <div className="flex items-center gap-1 bg-blue-500/15 border border-blue-500/25 rounded-xl px-2.5 py-1.5">
-            <Clock size={12} className="text-blue-400 shrink-0" />
-            <span className="text-blue-300 text-xs font-black tabular-nums">{waitingTickets.length}</span>
-            <span className="text-blue-500 text-[10px] font-bold">待機</span>
+        {/* 行3: 状態バッジ 4つ（常時表示）— 完了・不在はタップで履歴展開 */}
+        <div className="grid grid-cols-4 gap-1.5">
+          <div className="flex flex-col items-center gap-0.5 bg-blue-500/15 border border-blue-500/25 rounded-xl px-1 py-2.5">
+            <span className="text-blue-300 text-2xl font-black tabular-nums leading-none">{waitingTickets.length}</span>
+            <span className="text-blue-500 text-[10px] font-bold mt-0.5">待機</span>
           </div>
-          {/* 呼出中バッジ */}
-          <div className={`flex items-center gap-1 rounded-xl px-2.5 py-1.5 ${callingTickets.length > 0 ? 'bg-amber-500/20 border border-amber-500/30' : 'bg-white/4 border border-white/8'}`}>
-            <BellRing size={12} className={callingTickets.length > 0 ? 'text-amber-400 animate-pulse shrink-0' : 'text-zinc-600 shrink-0'} />
-            <span className={`text-xs font-black tabular-nums ${callingTickets.length > 0 ? 'text-amber-300' : 'text-zinc-500'}`}>{callingTickets.length}</span>
-            <span className={`text-[10px] font-bold ${callingTickets.length > 0 ? 'text-amber-500' : 'text-zinc-600'}`}>呼出中</span>
+          <div className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2.5 ${
+            callingTickets.length > 0 ? 'bg-amber-500/20 border border-amber-500/30' : 'bg-white/4 border border-white/8'
+          }`}>
+            <span className={`text-2xl font-black tabular-nums leading-none ${callingTickets.length > 0 ? 'text-amber-300 animate-pulse' : 'text-zinc-600'}`}>
+              {callingTickets.length}
+            </span>
+            <span className={`text-[10px] font-bold mt-0.5 ${callingTickets.length > 0 ? 'text-amber-500' : 'text-zinc-600'}`}>呼出中</span>
           </div>
-          {/* 遠隔バッジ（条件付き） */}
-          {remoteCount > 0 && (
-            <div className="flex items-center gap-1 bg-zinc-700/50 border border-zinc-600/40 rounded-xl px-2.5 py-1.5">
-              <MapPin size={12} className="text-zinc-400 shrink-0" />
-              <span className="text-zinc-300 text-xs font-black tabular-nums">{remoteCount}</span>
-              <span className="text-zinc-500 text-[10px] font-bold">遠隔</span>
-            </div>
-          )}
-          {/* 詳細トグル */}
-          <button onClick={() => setShowDetails(v => !v)}
-            className="ml-auto flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/5 border border-white/10 text-zinc-500 text-xs font-bold hover:bg-white/10 active:scale-95 transition-all">
-            詳細{showDetails ? <ChevronUp size={11}/> : <ChevronDown size={11}/>}
+          <button onClick={() => toggleHistory('completed')} style={{ touchAction: 'manipulation' }}
+            className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2.5 active:scale-95 transition-all ${
+              historyVisible && historyTab === 'completed'
+                ? 'bg-emerald-500/20 border border-emerald-500/30'
+                : 'bg-white/4 border border-white/8'
+            }`}>
+            <span className="text-emerald-400 text-2xl font-black tabular-nums leading-none">{completed}</span>
+            <span className="text-zinc-600 text-[10px] font-bold mt-0.5">完了 ▾</span>
+          </button>
+          <button onClick={() => toggleHistory('cancelled')} style={{ touchAction: 'manipulation' }}
+            className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2.5 active:scale-95 transition-all ${
+              historyVisible && historyTab === 'cancelled'
+                ? 'bg-zinc-600/30 border border-zinc-500/30'
+                : 'bg-white/4 border border-white/8'
+            }`}>
+            <span className="text-zinc-400 text-2xl font-black tabular-nums leading-none">{cancelledCount}</span>
+            <span className="text-zinc-600 text-[10px] font-bold mt-0.5">不在 ▾</span>
           </button>
         </div>
 
-        {/* 折りたたみ詳細（本日合計・完了・不在・フィッティング台数） */}
-        {showDetails && (
-          <div className="mt-2 space-y-1.5 animate-fade-in">
-            <div className="grid grid-cols-3 gap-1.5">
-              <div className="bg-white/4 border border-white/5 rounded-xl px-2 py-1.5 text-center">
-                <div className="text-base font-black tabular-nums text-zinc-300">{total}</div>
-                <div className="text-zinc-600 text-[10px]">本日合計</div>
-              </div>
-              {([
-                { key: 'completed' as HistoryTab, label: '完了', value: completed,      color: 'text-emerald-400', activeBg: 'bg-emerald-500/10 border-emerald-500/30' },
-                { key: 'cancelled' as HistoryTab, label: '不在', value: cancelledCount, color: 'text-zinc-400',    activeBg: 'bg-zinc-500/10 border-zinc-500/30' },
-              ]).map(s => (
-                <button key={s.key} onClick={() => toggleHistory(s.key)}
-                  className={`border rounded-xl px-2 py-1.5 text-center transition-all active:scale-95 ${
-                    historyVisible && historyTab === s.key ? s.activeBg : 'bg-white/4 border-white/5'
-                  }`}>
-                  <div className={`text-base font-black tabular-nums ${s.color}`}>{s.value}</div>
-                  <div className="text-zinc-600 text-[10px] flex items-center justify-center gap-0.5">
-                    {s.label}{historyVisible && historyTab === s.key ? <ChevronUp size={9}/> : <ChevronDown size={9}/>}
-                  </div>
-                </button>
-              ))}
-            </div>
-            {/* フィッティング台数 ± ステッパー */}
-            <div className="flex items-center gap-2 bg-white/4 border border-white/5 rounded-xl px-3 py-2">
-              <span className="text-zinc-500 text-xs font-bold flex-1">稼働フィッティング台数</span>
-              <div className="flex items-center gap-2">
-                <button onClick={() => activeFittings > 1 && handleFittingsChange(activeFittings - 1)}
-                  disabled={activeFittings <= 1}
-                  className="w-7 h-7 rounded-lg bg-zinc-800 text-zinc-300 font-black text-lg flex items-center justify-center hover:bg-zinc-700 active:scale-90 disabled:opacity-30 transition-all">
-                  −
-                </button>
-                <span className="text-white font-black text-lg tabular-nums w-8 text-center">{activeFittings}</span>
-                <button onClick={() => activeFittings < 30 && handleFittingsChange(activeFittings + 1)}
-                  disabled={activeFittings >= 30}
-                  className="w-7 h-7 rounded-lg bg-zinc-800 text-zinc-300 font-black text-lg flex items-center justify-center hover:bg-zinc-700 active:scale-90 disabled:opacity-30 transition-all">
-                  ＋
-                </button>
-              </div>
-            </div>
+        {/* 遠隔待ちバッジ（遠隔がいる時のみ） */}
+        {remoteCount > 0 && (
+          <div className="flex items-center gap-1.5 mt-1.5 bg-zinc-800/60 border border-zinc-700/50 rounded-xl px-3 py-1.5">
+            <MapPin size={12} className="text-zinc-400 shrink-0" />
+            <span className="text-zinc-300 text-xs font-black">{remoteCount}</span>
+            <span className="text-zinc-500 text-xs">組が遠隔待ち（到着前）</span>
           </div>
         )}
+
+        {/* フィッティング台数（常時表示） */}
+        <div className="flex items-center gap-3 mt-2 bg-white/4 border border-white/8 rounded-xl px-3 py-2.5">
+          <span className="text-zinc-400 text-xs font-bold flex-1">フィッティング稼働台数</span>
+          <button
+            onClick={() => activeFittings > 1 && handleFittingsChange(activeFittings - 1)}
+            disabled={activeFittings <= 1}
+            style={{ touchAction: 'manipulation' }}
+            className="w-9 h-9 rounded-xl bg-zinc-700 text-white font-black text-xl flex items-center justify-center hover:bg-zinc-600 active:scale-90 disabled:opacity-30 transition-all">
+            −
+          </button>
+          <span className="text-white font-black text-2xl tabular-nums w-10 text-center">{activeFittings}</span>
+          <button
+            onClick={() => activeFittings < 30 && handleFittingsChange(activeFittings + 1)}
+            disabled={activeFittings >= 30}
+            style={{ touchAction: 'manipulation' }}
+            className="w-9 h-9 rounded-xl bg-zinc-700 text-white font-black text-xl flex items-center justify-center hover:bg-zinc-600 active:scale-90 disabled:opacity-30 transition-all">
+            ＋
+          </button>
+        </div>
 
       </div>
 
@@ -1093,27 +751,6 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
       <div className="flex-1 overflow-y-auto">
         <div className="p-4 space-y-4">
 
-          {showSettings && (
-            <div className="animate-fade-in">
-              <SettingsPanel
-                noticeThreshold={noticeThreshold} waitThresholds={waitThresholds} allowRemote={allowRemote}
-                notificationPlan={notificationPlan} pushSettings={pushSettings}
-                onNoticeChange={setNoticeThreshold} onThresholdsChange={setWaitThresholds} onRemoteChange={setAllowRemote}
-                onPlanChange={setNotificationPlan} onPushSettingsChange={setPushSettings}
-                onSave={handleSaveSettings} saving={saving}
-                isTestMode={isTestMode} testLoading={testLoading}
-                onTestModeToggle={handleTestModeToggle}
-                onTestSeed={handleTestSeed} onTestClear={handleTestClear}
-                alertDaysRepair={alertDaysRepair}
-                alertDaysPurchase={alertDaysPurchase}
-                onAlertRepairChange={setAlertDaysRepair}
-                onAlertPurchaseChange={setAlertDaysPurchase}
-                schoolNames={schoolNames}
-                onSchoolNamesChange={setSchoolNames}
-              />
-            </div>
-          )}
-
           {/* 呼出中 — 最優先・フル幅 */}
           {callingTickets.length > 0 && (
             <div className="space-y-3">
@@ -1128,7 +765,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
             </div>
           )}
 
-          {/* クイックリンク */}
+          {/* 予約管理クイックリンク */}
           <a href={`/${store.id}/admin/reservations`}
             style={{ touchAction: 'manipulation' }}
             className="flex items-center gap-2 px-3 py-2.5 bg-violet-500/10 border border-violet-500/20 rounded-xl active:opacity-70">
@@ -1160,7 +797,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
             ) : waitingTickets.map(t => <WaitingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onCheckIn={handleCheckIn} />)}
           </div>
 
-          {/* 履歴（詳細から完了/不在タップで表示） */}
+          {/* 履歴（完了・不在バッジのタップで表示） */}
           {historyVisible && (
             <div className="bg-white/3 border border-white/5 rounded-2xl overflow-hidden animate-fade-in">
               <div className="flex border-b border-white/5">
