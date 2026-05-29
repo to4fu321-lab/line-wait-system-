@@ -44,7 +44,7 @@ function Toast({ msg, type = 'ok', onUndo, onClose }: {
   }
   return (
     <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-5 py-3 rounded-2xl text-white text-sm font-bold shadow-2xl max-w-xs ${
-      type === 'err' ? 'bg-red-600' : 'bg-zinc-800 border border-zinc-600'
+      type === 'err' ? 'bg-red-600' : 'bg-gray-200 border border-gray-300'
     }`}>
       <span className="flex-1">{msg}</span>
       {onUndo && (
@@ -90,8 +90,8 @@ function AddItemForm({
   }
 
   return (
-    <div className="bg-zinc-800/60 border border-zinc-700/50 rounded-xl p-4 mt-3 space-y-3">
-      <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">商品を追加</p>
+    <div className="bg-gray-200/60 border border-gray-300/50 rounded-xl p-4 mt-3 space-y-3">
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">商品を追加</p>
       <div className="grid grid-cols-2 gap-2">
         <div className="col-span-2">
           <input
@@ -99,7 +99,7 @@ function AddItemForm({
             placeholder="商品名 *"
             value={itemName}
             onChange={e => setItemName(e.target.value)}
-            className="w-full bg-zinc-900/60 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500/50"
+            className="w-full bg-white/80 border border-gray-300/50 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:border-indigo-500/50"
           />
         </div>
         <input
@@ -107,7 +107,7 @@ function AddItemForm({
           placeholder="サイズ"
           value={sizeLabel}
           onChange={e => setSizeLabel(e.target.value)}
-          className="bg-zinc-900/60 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500/50"
+          className="bg-white/80 border border-gray-300/50 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:border-indigo-500/50"
         />
         <input
           type="number"
@@ -115,20 +115,20 @@ function AddItemForm({
           min={1}
           value={quantity}
           onChange={e => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-          className="bg-zinc-900/60 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500/50"
+          className="bg-white/80 border border-gray-300/50 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:border-indigo-500/50"
         />
         <input
           type="number"
           placeholder="単価（円）"
           value={unitPrice}
           onChange={e => setUnitPrice(e.target.value)}
-          className="bg-zinc-900/60 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500/50"
+          className="bg-white/80 border border-gray-300/50 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:border-indigo-500/50"
         />
       </div>
       <div className="flex gap-2 justify-end">
         <button
           onClick={onCancel}
-          className="px-4 py-2 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+          className="px-4 py-2 text-xs text-gray-500 hover:text-gray-800 transition-colors"
         >
           キャンセル
         </button>
@@ -247,7 +247,7 @@ function OrderCard({
   const isDone = order.status === 'delivered' || order.status === 'cancelled'
 
   return (
-    <div className={`bg-zinc-900/60 border rounded-2xl overflow-hidden transition-all ${isDone ? 'border-zinc-800/60 opacity-70' : 'border-zinc-700/50'}`}>
+    <div className={`bg-white/80 border rounded-2xl overflow-hidden transition-all ${isDone ? 'border-gray-200/60 opacity-70' : 'border-gray-300/50'}`}>
       {/* Header */}
       <button
         className="w-full text-left p-4 flex items-start gap-3"
@@ -256,7 +256,7 @@ function OrderCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             {order.order_number && (
-              <span className="text-xs font-mono text-zinc-500">#{order.order_number}</span>
+              <span className="text-xs font-mono text-gray-500">#{order.order_number}</span>
             )}
             <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${ORDER_STATUS_COLORS[order.status]}`}>
               {ORDER_STATUS_LABELS[order.status]}
@@ -266,39 +266,39 @@ function OrderCard({
             </span>
           </div>
           <div className="mt-1.5 flex items-center gap-2">
-            <User size={13} className="text-zinc-500 shrink-0" />
-            <span className="text-sm font-medium text-zinc-100 truncate">
+            <User size={13} className="text-gray-500 shrink-0" />
+            <span className="text-sm font-medium text-gray-900 truncate">
               {order.customer?.name ?? '（顧客未設定）'}
             </span>
             {order.child && (
-              <span className="text-xs text-zinc-500 truncate">/ {order.child.name}</span>
+              <span className="text-xs text-gray-500 truncate">/ {order.child.name}</span>
             )}
           </div>
-          <div className="mt-1 flex items-center gap-3 text-xs text-zinc-500">
+          <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
             <span>{dateLabel}</span>
             {items.length > 0 && (
               <span>{items.length}点</span>
             )}
             {computedTotal > 0 && (
-              <span className="text-zinc-300 font-medium">
+              <span className="text-gray-700 font-medium">
                 ¥{computedTotal.toLocaleString()}
               </span>
             )}
           </div>
         </div>
         {expanded ? (
-          <ChevronUp size={16} className="text-zinc-500 mt-1 shrink-0" />
+          <ChevronUp size={16} className="text-gray-500 mt-1 shrink-0" />
         ) : (
-          <ChevronDown size={16} className="text-zinc-500 mt-1 shrink-0" />
+          <ChevronDown size={16} className="text-gray-500 mt-1 shrink-0" />
         )}
       </button>
 
       {/* Expanded Detail */}
       {expanded && (
-        <div className="px-4 pb-4 space-y-4 border-t border-zinc-800/60">
+        <div className="px-4 pb-4 space-y-4 border-t border-gray-200/60">
           {/* Meta */}
           {(order.height || order.weight || order.notes) && (
-            <div className="pt-3 grid grid-cols-2 gap-2 text-xs text-zinc-400">
+            <div className="pt-3 grid grid-cols-2 gap-2 text-xs text-gray-500">
               {order.height && (
                 <div className="flex items-center gap-1.5">
                   <Ruler size={12} />
@@ -322,32 +322,32 @@ function OrderCard({
 
           {/* Items */}
           <div className="pt-2 space-y-2">
-            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
               <Package size={12} />
               注文明細
             </p>
             {items.length === 0 && (
-              <p className="text-xs text-zinc-600 italic">明細なし</p>
+              <p className="text-xs text-gray-500 italic">明細なし</p>
             )}
             {items.map(item => (
               <div
                 key={item.id}
-                className="bg-zinc-800/40 border border-zinc-700/40 rounded-xl p-3 flex items-start gap-2"
+                className="bg-gray-200/40 border border-gray-300/40 rounded-xl p-3 flex items-start gap-2"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm text-zinc-100">{item.item_name}</span>
+                    <span className="text-sm text-gray-900">{item.item_name}</span>
                     {item.size_label && (
-                      <span className="text-xs text-zinc-500">{item.size_label}</span>
+                      <span className="text-xs text-gray-500">{item.size_label}</span>
                     )}
-                    <span className="text-xs text-zinc-500">×{item.quantity}</span>
+                    <span className="text-xs text-gray-500">×{item.quantity}</span>
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     <span className={`text-xs px-2 py-0.5 rounded-full border ${ORDER_STATUS_COLORS[item.status === 'on_order' ? 'processing' : item.status === 'stocked' ? 'confirmed' : item.status === 'ready' ? 'ready' : item.status === 'delivered' ? 'delivered' : item.status === 'cancelled' ? 'cancelled' : 'draft']}`}>
                       {ORDER_ITEM_STATUS_LABELS[item.status]}
                     </span>
                     {item.unit_price != null && (
-                      <span className="text-xs text-zinc-400">¥{item.unit_price.toLocaleString()}</span>
+                      <span className="text-xs text-gray-500">¥{item.unit_price.toLocaleString()}</span>
                     )}
                   </div>
                 </div>
@@ -355,7 +355,7 @@ function OrderCard({
                   {ITEM_STATUS_NEXT[item.status] && !isDone && (
                     <button
                       onClick={() => advanceItemStatus(item)}
-                      className="text-xs px-2 py-1 bg-zinc-700/60 hover:bg-zinc-600/60 text-zinc-300 rounded-lg transition-colors whitespace-nowrap"
+                      className="text-xs px-2 py-1 bg-gray-300/60 hover:bg-gray-400/60 text-gray-700 rounded-lg transition-colors whitespace-nowrap"
                     >
                       {ORDER_ITEM_STATUS_LABELS[ITEM_STATUS_NEXT[item.status]!]}
                     </button>
@@ -375,7 +375,7 @@ function OrderCard({
             {!isDone && !showAddItem && (
               <button
                 onClick={() => setShowAddItem(true)}
-                className="w-full flex items-center justify-center gap-1.5 py-2.5 border border-dashed border-zinc-700/50 hover:border-indigo-500/40 rounded-xl text-xs text-zinc-500 hover:text-indigo-400 transition-colors"
+                className="w-full flex items-center justify-center gap-1.5 py-2.5 border border-dashed border-gray-300/50 hover:border-indigo-500/40 rounded-xl text-xs text-gray-500 hover:text-indigo-400 transition-colors"
               >
                 <Plus size={13} />
                 商品を追加
@@ -407,7 +407,7 @@ function OrderCard({
                   confirmPay ? (
                     <div className="w-full flex items-center gap-2 bg-emerald-900/20 border border-emerald-700/30 rounded-xl p-3">
                       <span className="text-xs text-emerald-200 flex-1">支払い完了にしますか？</span>
-                      <button onClick={() => setConfirmPay(false)} className="text-xs text-zinc-400 px-2 py-1">戻る</button>
+                      <button onClick={() => setConfirmPay(false)} className="text-xs text-gray-500 px-2 py-1">戻る</button>
                       <button onClick={advancePayment} className="text-xs text-white bg-emerald-600 hover:bg-emerald-500 px-3 py-1 rounded-lg flex items-center gap-1">
                         <CreditCard size={11} />支払い完了
                       </button>
@@ -429,14 +429,14 @@ function OrderCard({
               {!confirmCancel ? (
                 <button
                   onClick={() => setConfirmCancel(true)}
-                  className="py-2 px-3 bg-zinc-800 hover:bg-red-900/40 text-zinc-500 hover:text-red-400 text-xs rounded-xl transition-colors"
+                  className="py-2 px-3 bg-gray-200 hover:bg-red-900/40 text-gray-500 hover:text-red-400 text-xs rounded-xl transition-colors"
                 >
                   キャンセル
                 </button>
               ) : (
                 <div className="w-full flex items-center gap-2 bg-red-900/20 border border-red-700/30 rounded-xl p-3">
                   <span className="text-xs text-red-300 flex-1">キャンセルしますか？</span>
-                  <button onClick={() => setConfirmCancel(false)} className="text-xs text-zinc-400 px-2 py-1">戻る</button>
+                  <button onClick={() => setConfirmCancel(false)} className="text-xs text-gray-500 px-2 py-1">戻る</button>
                   <button onClick={cancelOrder} className="text-xs text-white bg-red-600 hover:bg-red-500 px-3 py-1 rounded-lg transition-colors">確定</button>
                 </div>
               )}
@@ -510,24 +510,24 @@ function NewOrderForm({
   }
 
   return (
-    <div className="bg-zinc-900/80 border border-zinc-700/50 rounded-2xl p-5 space-y-4">
+    <div className="bg-white/95 border border-gray-300/50 rounded-2xl p-5 space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-zinc-100">新規注文</h3>
-        <button onClick={onCancel} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+        <h3 className="text-sm font-semibold text-gray-900">新規注文</h3>
+        <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 transition-colors">
           <X size={16} />
         </button>
       </div>
 
       {/* Customer search */}
       <div className="space-y-2">
-        <label className="text-xs text-zinc-400">顧客</label>
+        <label className="text-xs text-gray-500">顧客</label>
         {selectedCustomer ? (
-          <div className="flex items-center gap-2 bg-zinc-800/60 border border-zinc-700/50 rounded-xl px-3 py-2">
+          <div className="flex items-center gap-2 bg-gray-200/60 border border-gray-300/50 rounded-xl px-3 py-2">
             <User size={13} className="text-indigo-400" />
-            <span className="text-sm text-zinc-100 flex-1">{selectedCustomer.name}</span>
+            <span className="text-sm text-gray-900 flex-1">{selectedCustomer.name}</span>
             <button
               onClick={() => { setSelectedCustomer(null); setCustomerSearch('') }}
-              className="text-zinc-500 hover:text-zinc-300"
+              className="text-gray-500 hover:text-gray-700"
             >
               <X size={13} />
             </button>
@@ -539,18 +539,18 @@ function NewOrderForm({
               placeholder="名前・かな で検索"
               value={customerSearch}
               onChange={e => setCustomerSearch(e.target.value)}
-              className="w-full bg-zinc-800/60 border border-zinc-700/50 rounded-xl px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500/50"
+              className="w-full bg-gray-200/60 border border-gray-300/50 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:border-indigo-500/50"
             />
             {customers.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700/50 rounded-xl overflow-hidden z-10 shadow-xl">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-gray-200 border border-gray-300/50 rounded-xl overflow-hidden z-10 shadow-xl">
                 {customers.map(c => (
                   <button
                     key={c.id}
                     onClick={() => { setSelectedCustomer(c); setCustomerSearch(c.name); setCustomers([]) }}
-                    className="w-full text-left px-3 py-2.5 hover:bg-zinc-700/60 transition-colors"
+                    className="w-full text-left px-3 py-2.5 hover:bg-gray-300/60 transition-colors"
                   >
-                    <div className="text-sm text-zinc-100">{c.name}</div>
-                    {c.kana && <div className="text-xs text-zinc-500">{c.kana}</div>}
+                    <div className="text-sm text-gray-900">{c.name}</div>
+                    {c.kana && <div className="text-xs text-gray-500">{c.kana}</div>}
                   </button>
                 ))}
               </div>
@@ -562,11 +562,11 @@ function NewOrderForm({
       {/* Child select */}
       {children.length > 0 && (
         <div className="space-y-2">
-          <label className="text-xs text-zinc-400">お子様</label>
+          <label className="text-xs text-gray-500">お子様</label>
           <select
             value={selectedChildId}
             onChange={e => setSelectedChildId(e.target.value)}
-            className="w-full bg-zinc-800/60 border border-zinc-700/50 rounded-xl px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500/50"
+            className="w-full bg-gray-200/60 border border-gray-300/50 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-indigo-500/50"
           >
             <option value="">選択しない</option>
             {children.map(ch => (
@@ -579,43 +579,43 @@ function NewOrderForm({
       {/* Height / Weight */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <label className="text-xs text-zinc-400 flex items-center gap-1"><Ruler size={11} />身長 (cm)</label>
+          <label className="text-xs text-gray-500 flex items-center gap-1"><Ruler size={11} />身長 (cm)</label>
           <input
             type="number"
             placeholder="例: 155"
             value={height}
             onChange={e => setHeight(e.target.value)}
-            className="w-full bg-zinc-800/60 border border-zinc-700/50 rounded-xl px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500/50"
+            className="w-full bg-gray-200/60 border border-gray-300/50 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:border-indigo-500/50"
           />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs text-zinc-400 flex items-center gap-1"><Weight size={11} />体重 (kg)</label>
+          <label className="text-xs text-gray-500 flex items-center gap-1"><Weight size={11} />体重 (kg)</label>
           <input
             type="number"
             placeholder="例: 45"
             value={weight}
             onChange={e => setWeight(e.target.value)}
-            className="w-full bg-zinc-800/60 border border-zinc-700/50 rounded-xl px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500/50"
+            className="w-full bg-gray-200/60 border border-gray-300/50 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:border-indigo-500/50"
           />
         </div>
       </div>
 
       {/* Notes */}
       <div className="space-y-1.5">
-        <label className="text-xs text-zinc-400 flex items-center gap-1"><FileText size={11} />メモ</label>
+        <label className="text-xs text-gray-500 flex items-center gap-1"><FileText size={11} />メモ</label>
         <textarea
           placeholder="備考・ご要望など"
           value={notes}
           onChange={e => setNotes(e.target.value)}
           rows={2}
-          className="w-full bg-zinc-800/60 border border-zinc-700/50 rounded-xl px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500/50 resize-none"
+          className="w-full bg-gray-200/60 border border-gray-300/50 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:border-indigo-500/50 resize-none"
         />
       </div>
 
       <div className="flex gap-2 justify-end">
         <button
           onClick={onCancel}
-          className="px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+          className="px-4 py-2 text-sm text-gray-500 hover:text-gray-800 transition-colors"
         >
           キャンセル
         </button>
@@ -715,17 +715,17 @@ export default function OrdersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="min-h-screen bg-gray-50 text-gray-900">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-zinc-950/90 backdrop-blur border-b border-zinc-800/60">
+      <div className="sticky top-0 z-40 bg-gray-50/90 backdrop-blur border-b border-gray-200/60">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
               <ShoppingBag size={18} className="text-indigo-400" />
             </div>
             <div>
-              <h1 className="text-base font-bold text-zinc-100">注文管理</h1>
-              <p className="text-xs text-zinc-500">{orders.length}件</p>
+              <h1 className="text-base font-bold text-gray-900">注文管理</h1>
+              <p className="text-xs text-gray-500">{orders.length}件</p>
             </div>
           </div>
           <button
@@ -749,21 +749,21 @@ export default function OrdersPage() {
         )}
 
         {/* Filter Tabs */}
-        <div className="flex gap-1 bg-zinc-900/60 border border-zinc-800/60 rounded-xl p-1">
+        <div className="flex gap-1 bg-white/80 border border-gray-200/60 rounded-xl p-1">
           {FILTER_TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setFilterTab(tab.id)}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors ${
                 filterTab === tab.id
-                  ? 'bg-zinc-800 text-zinc-100'
-                  : 'text-zinc-500 hover:text-zinc-300'
+                  ? 'bg-gray-200 text-gray-900'
+                  : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               {tab.label}
               {tab.count != null && tab.count > 0 && (
                 <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                  filterTab === tab.id ? 'bg-indigo-500/30 text-indigo-300' : 'bg-zinc-800/60 text-zinc-600'
+                  filterTab === tab.id ? 'bg-indigo-500/30 text-indigo-300' : 'bg-gray-200/60 text-gray-500'
                 }`}>
                   {tab.count}
                 </span>
@@ -779,9 +779,9 @@ export default function OrdersPage() {
             { label: '準備完了', value: orders.filter(o => o.status === 'ready').length, color: 'text-emerald-400' },
             { label: '未入金', value: orders.filter(o => o.payment_status === 'unpaid' && o.status !== 'cancelled').length, color: 'text-red-400' },
           ].map(stat => (
-            <div key={stat.label} className="bg-zinc-900/60 border border-zinc-800/60 rounded-xl p-3 text-center">
+            <div key={stat.label} className="bg-white/80 border border-gray-200/60 rounded-xl p-3 text-center">
               <div className={`text-xl font-bold ${stat.color}`}>{stat.value}</div>
-              <div className="text-xs text-zinc-500 mt-0.5">{stat.label}</div>
+              <div className="text-xs text-gray-500 mt-0.5">{stat.label}</div>
             </div>
           ))}
         </div>
@@ -790,14 +790,14 @@ export default function OrdersPage() {
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3].map(i => (
-              <div key={i} className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-4 animate-pulse">
-                <div className="h-4 bg-zinc-800 rounded w-1/3 mb-2" />
-                <div className="h-3 bg-zinc-800 rounded w-1/2" />
+              <div key={i} className="bg-white/80 border border-gray-200/60 rounded-2xl p-4 animate-pulse">
+                <div className="h-4 bg-gray-200 rounded w-1/3 mb-2" />
+                <div className="h-3 bg-gray-200 rounded w-1/2" />
               </div>
             ))}
           </div>
         ) : filteredOrders.length === 0 ? (
-          <div className="text-center py-16 text-zinc-600">
+          <div className="text-center py-16 text-gray-500">
             <ShoppingBag size={32} className="mx-auto mb-3 opacity-30" />
             <p className="text-sm">注文がありません</p>
           </div>

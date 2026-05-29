@@ -103,13 +103,13 @@ function ProductForm({
   return (
     <form
       onSubmit={e => { e.preventDefault(); onSave(f) }}
-      className="grid grid-cols-2 gap-3 p-4 bg-zinc-900/80 border border-zinc-700/60 rounded-2xl"
+      className="grid grid-cols-2 gap-3 p-4 bg-white/95 border border-gray-300 rounded-2xl"
     >
       {/* code */}
       <div>
-        <label className="block text-xs text-zinc-400 mb-1">品番</label>
+        <label className="block text-xs text-gray-500 mb-1">品番</label>
         <input
-          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+          className="w-full bg-gray-200 border border-gray-300 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
           placeholder="H001"
           value={f.code}
           onChange={set('code')}
@@ -118,10 +118,10 @@ function ProductForm({
 
       {/* name */}
       <div>
-        <label className="block text-xs text-zinc-400 mb-1">商品名 <span className="text-red-400">*</span></label>
+        <label className="block text-xs text-gray-500 mb-1">商品名 <span className="text-red-400">*</span></label>
         <input
           required
-          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+          className="w-full bg-gray-200 border border-gray-300 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
           placeholder="○○高校ブレザー"
           value={f.name}
           onChange={set('name')}
@@ -130,9 +130,9 @@ function ProductForm({
 
       {/* category */}
       <div>
-        <label className="block text-xs text-zinc-400 mb-1">カテゴリ</label>
+        <label className="block text-xs text-gray-500 mb-1">カテゴリ</label>
         <select
-          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500"
+          className="w-full bg-gray-200 border border-gray-300 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-indigo-500"
           value={f.category}
           onChange={set('category')}
         >
@@ -143,9 +143,9 @@ function ProductForm({
 
       {/* maker */}
       <div>
-        <label className="block text-xs text-zinc-400 mb-1">メーカー</label>
+        <label className="block text-xs text-gray-500 mb-1">メーカー</label>
         <input
-          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+          className="w-full bg-gray-200 border border-gray-300 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
           placeholder="トンボ"
           value={f.maker}
           onChange={set('maker')}
@@ -154,9 +154,9 @@ function ProductForm({
 
       {/* gender */}
       <div>
-        <label className="block text-xs text-zinc-400 mb-1">性別</label>
+        <label className="block text-xs text-gray-500 mb-1">性別</label>
         <select
-          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500"
+          className="w-full bg-gray-200 border border-gray-300 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-indigo-500"
           value={f.gender}
           onChange={set('gender')}
         >
@@ -166,11 +166,11 @@ function ProductForm({
 
       {/* price */}
       <div>
-        <label className="block text-xs text-zinc-400 mb-1">標準価格（円）</label>
+        <label className="block text-xs text-gray-500 mb-1">標準価格（円）</label>
         <input
           type="number"
           min={0}
-          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+          className="w-full bg-gray-200 border border-gray-300 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
           placeholder="25000"
           value={f.price}
           onChange={set('price')}
@@ -179,9 +179,9 @@ function ProductForm({
 
       {/* sizes */}
       <div className="col-span-2">
-        <label className="block text-xs text-zinc-400 mb-1">サイズ（カンマ区切り）</label>
+        <label className="block text-xs text-gray-500 mb-1">サイズ（カンマ区切り）</label>
         <input
-          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+          className="w-full bg-gray-200 border border-gray-300 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
           placeholder="155A, 160A, 165A, 170A"
           value={f.sizes}
           onChange={set('sizes')}
@@ -190,10 +190,10 @@ function ProductForm({
 
       {/* notes */}
       <div className="col-span-2">
-        <label className="block text-xs text-zinc-400 mb-1">備考</label>
+        <label className="block text-xs text-gray-500 mb-1">備考</label>
         <textarea
           rows={2}
-          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 resize-none"
+          className="w-full bg-gray-200 border border-gray-300 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 resize-none"
           placeholder="備考・特記事項"
           value={f.notes}
           onChange={set('notes')}
@@ -209,8 +209,8 @@ function ProductForm({
         >
           {f.is_active
             ? <ToggleRight size={28} className="text-indigo-400" />
-            : <ToggleLeft  size={28} className="text-zinc-500" />}
-          <span className={f.is_active ? 'text-indigo-300' : 'text-zinc-500'}>
+            : <ToggleLeft  size={28} className="text-gray-500" />}
+          <span className={f.is_active ? 'text-indigo-300' : 'text-gray-500'}>
             {f.is_active ? '有効' : '無効'}
           </span>
         </button>
@@ -221,7 +221,7 @@ function ProductForm({
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 rounded-xl bg-zinc-700 text-zinc-200 text-sm font-medium hover:bg-zinc-600 transition"
+          className="px-4 py-2 rounded-xl bg-gray-300 text-gray-800 text-sm font-medium hover:bg-gray-400 transition"
         >
           キャンセル
         </button>
@@ -441,11 +441,11 @@ export default function ProductsPage() {
   // ── render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="min-h-screen bg-gray-50 text-gray-900">
       {toast && <Toast message={toast.message} kind={toast.kind} />}
 
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-zinc-950/90 backdrop-blur border-b border-white/5 px-4 py-3 flex items-center gap-3">
+      <header className="sticky top-0 z-30 bg-gray-50/90 backdrop-blur border-b border-gray-200 px-4 py-3 flex items-center gap-3">
         <Package size={20} className="text-indigo-400 shrink-0" />
         <h1 className="font-bold text-base flex-1">商品マスタ管理</h1>
         <div className="flex items-center gap-2">
@@ -453,8 +453,8 @@ export default function ProductsPage() {
           <label
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition ${
               csvImporting
-                ? 'bg-zinc-700 text-zinc-400 pointer-events-none'
-                : 'bg-zinc-700 hover:bg-zinc-600 text-zinc-200'
+                ? 'bg-gray-300 text-gray-500 pointer-events-none'
+                : 'bg-gray-300 hover:bg-gray-400 text-gray-800'
             }`}
           >
             {csvImporting
@@ -529,16 +529,16 @@ export default function ProductsPage() {
         {!migrationNeeded && (
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
               <input
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl pl-8 pr-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-gray-200 border border-gray-300 rounded-xl pl-8 pr-3 py-2 text-sm text-gray-900 placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
                 placeholder="名前・品番・メーカーで検索"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
             </div>
             <select
-              className="bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500"
+              className="bg-gray-200 border border-gray-300 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-indigo-500"
               value={filterCategory}
               onChange={e => setFilterCategory(e.target.value)}
             >
@@ -559,7 +559,7 @@ export default function ProductsPage() {
         {!loading && !migrationNeeded && (
           <div className="space-y-3">
             {filtered.length === 0 && (
-              <p className="text-center text-zinc-500 text-sm py-12">
+              <p className="text-center text-gray-500 text-sm py-12">
                 {search || filterCategory ? '条件に一致する商品がありません' : '商品がまだ登録されていません'}
               </p>
             )}
@@ -567,7 +567,7 @@ export default function ProductsPage() {
             {filtered.map(p => (
               <div key={p.id}>
                 <div
-                  className={`rounded-2xl border bg-zinc-900/60 border-zinc-800/40 px-4 py-3 ${
+                  className={`rounded-2xl border bg-white/80 border-gray-200 px-4 py-3 ${
                     !p.is_active ? 'opacity-50' : ''
                   }`}
                 >
@@ -576,7 +576,7 @@ export default function ProductsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         {p.code && (
-                          <span className="text-[10px] bg-zinc-700 text-zinc-300 px-1.5 py-0.5 rounded font-mono">
+                          <span className="text-[10px] bg-gray-300 text-gray-700 px-1.5 py-0.5 rounded font-mono">
                             {p.code}
                           </span>
                         )}
@@ -591,10 +591,10 @@ export default function ProductsPage() {
                           </span>
                         )}
                       </div>
-                      <p className="font-semibold text-sm text-zinc-100 mt-1 truncate">{p.name}</p>
+                      <p className="font-semibold text-sm text-gray-900 mt-1 truncate">{p.name}</p>
                       <div className="flex items-center gap-3 mt-0.5">
                         {p.maker && (
-                          <span className="text-xs text-zinc-500">{p.maker}</span>
+                          <span className="text-xs text-gray-500">{p.maker}</span>
                         )}
                         {p.price != null && (
                           <span className="text-xs text-emerald-400 font-medium">
@@ -603,12 +603,12 @@ export default function ProductsPage() {
                         )}
                       </div>
                       {p.sizes && p.sizes.length > 0 && (
-                        <p className="text-[11px] text-zinc-500 mt-1">
+                        <p className="text-[11px] text-gray-500 mt-1">
                           {p.sizes.join(' / ')}
                         </p>
                       )}
                       {p.notes && (
-                        <p className="text-xs text-zinc-500 mt-1 italic">{p.notes}</p>
+                        <p className="text-xs text-gray-500 mt-1 italic">{p.notes}</p>
                       )}
                     </div>
 
@@ -616,26 +616,26 @@ export default function ProductsPage() {
                     <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => toggleActive(p)}
-                        className="p-1.5 rounded-lg hover:bg-zinc-700 transition"
+                        className="p-1.5 rounded-lg hover:bg-gray-300 transition"
                         title={p.is_active ? '無効にする' : '有効にする'}
                       >
                         {p.is_active
                           ? <ToggleRight size={18} className="text-indigo-400" />
-                          : <ToggleLeft  size={18} className="text-zinc-500" />}
+                          : <ToggleLeft  size={18} className="text-gray-500" />}
                       </button>
                       <button
                         onClick={() => editingId === p.id ? setEditingId(null) : startEdit(p)}
-                        className="p-1.5 rounded-lg hover:bg-zinc-700 transition"
+                        className="p-1.5 rounded-lg hover:bg-gray-300 transition"
                       >
                         {editingId === p.id
-                          ? <ChevronUp   size={16} className="text-zinc-400" />
-                          : <ChevronDown size={16} className="text-zinc-400" />}
+                          ? <ChevronUp   size={16} className="text-gray-500" />
+                          : <ChevronDown size={16} className="text-gray-500" />}
                       </button>
                       <button
                         onClick={() => startEdit(p)}
-                        className="p-1.5 rounded-lg hover:bg-zinc-700 transition"
+                        className="p-1.5 rounded-lg hover:bg-gray-300 transition"
                       >
-                        <Pencil size={15} className="text-zinc-400" />
+                        <Pencil size={15} className="text-gray-500" />
                       </button>
                       <button
                         onClick={() => setDeleteTarget(p)}
@@ -667,16 +667,16 @@ export default function ProductsPage() {
       {/* Delete confirm dialog */}
       {deleteTarget && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4">
-            <p className="font-bold text-base text-zinc-100">削除の確認</p>
-            <p className="text-sm text-zinc-300">
+          <div className="bg-white border border-gray-300 rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4">
+            <p className="font-bold text-base text-gray-900">削除の確認</p>
+            <p className="text-sm text-gray-700">
               「<span className="font-semibold text-white">{deleteTarget.name}</span>」を削除しますか？
               <br />この操作は元に戻せません。
             </p>
             <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setDeleteTarget(null)}
-                className="px-4 py-2 rounded-xl bg-zinc-700 text-zinc-200 text-sm font-medium hover:bg-zinc-600 transition"
+                className="px-4 py-2 rounded-xl bg-gray-300 text-gray-800 text-sm font-medium hover:bg-gray-400 transition"
               >
                 キャンセル
               </button>

@@ -20,13 +20,13 @@ type DayHours = { open: string; close: string; closed: boolean }
 type BusinessHours = { hours: Partial<Record<DayKey, DayHours>> }
 
 const DAY_LABELS: { key: DayKey; label: string; color: string }[] = [
-  { key: 'mon', label: '月', color: 'text-zinc-300' },
-  { key: 'tue', label: '火', color: 'text-zinc-300' },
-  { key: 'wed', label: '水', color: 'text-zinc-300' },
-  { key: 'thu', label: '木', color: 'text-zinc-300' },
-  { key: 'fri', label: '金', color: 'text-zinc-300' },
-  { key: 'sat', label: '土', color: 'text-blue-400'  },
-  { key: 'sun', label: '日', color: 'text-red-400'   },
+  { key: 'mon', label: '月', color: 'text-gray-700' },
+  { key: 'tue', label: '火', color: 'text-gray-700' },
+  { key: 'wed', label: '水', color: 'text-gray-700' },
+  { key: 'thu', label: '木', color: 'text-gray-700' },
+  { key: 'fri', label: '金', color: 'text-gray-700' },
+  { key: 'sat', label: '土', color: 'text-blue-600'  },
+  { key: 'sun', label: '日', color: 'text-red-600'   },
 ]
 
 const DEFAULT_HOURS: BusinessHours = {
@@ -49,24 +49,24 @@ function BigToggle({ on, onToggle, label, sub, emoji, color }: {
     indigo: 'border-indigo-500 bg-indigo-500/10',
     amber:  'border-amber-500 bg-amber-500/10',
   }[color]
-  const textActive = { indigo: 'text-indigo-300', amber: 'text-amber-300' }[color]
+  const textActive = { indigo: 'text-indigo-700', amber: 'text-amber-600' }[color]
   const trackActive = { indigo: 'bg-indigo-500', amber: 'bg-amber-500' }[color]
   const iconBg = { indigo: 'bg-indigo-500/20', amber: 'bg-amber-500/20' }[color]
   return (
     <button type="button" onClick={onToggle} style={{ touchAction: 'manipulation' }}
       className={`w-full flex items-center gap-4 px-5 py-5 rounded-2xl border-2 transition-all active:scale-[0.98] ${
-        on ? active : 'border-zinc-700 bg-zinc-800/50'
+        on ? active : 'border-gray-300 bg-gray-100'
       }`}>
-      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 text-3xl ${on ? iconBg : 'bg-zinc-800'}`}>
+      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 text-3xl ${on ? iconBg : 'bg-gray-100'}`}>
         {emoji}
       </div>
       <div className="text-left flex-1">
-        <p className={`font-black text-lg leading-tight ${on ? textActive : 'text-zinc-400'}`}>
+        <p className={`font-black text-lg leading-tight ${on ? textActive : 'text-gray-600'}`}>
           {label}&nbsp;&nbsp;{on ? 'オン' : 'オフ'}
         </p>
-        <p className="text-zinc-500 text-sm mt-0.5">{sub}</p>
+        <p className="text-gray-500 text-sm mt-0.5">{sub}</p>
       </div>
-      <div className={`w-14 h-7 rounded-full transition-colors shrink-0 ${on ? trackActive : 'bg-zinc-600'}`}>
+      <div className={`w-14 h-7 rounded-full transition-colors shrink-0 ${on ? trackActive : 'bg-gray-300'}`}>
         <div className={`w-6 h-6 bg-white rounded-full mt-0.5 shadow-lg transition-transform ${on ? 'translate-x-7' : 'translate-x-0.5'}`} />
       </div>
     </button>
@@ -159,19 +159,19 @@ export default function StaffSettingsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <Loader2 size={28} className="animate-spin text-zinc-600" />
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 size={28} className="animate-spin text-gray-400" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="min-h-screen bg-gray-50 text-gray-900">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-zinc-950/90 backdrop-blur border-b border-zinc-800/60">
+      <div className="sticky top-0 z-40 bg-gray-50/90 backdrop-blur border-b border-gray-100">
         <div className="max-w-lg mx-auto px-4 py-4">
-          <h1 className="text-xl font-black text-white">設定</h1>
-          {storeName && <p className="text-sm text-zinc-500 mt-0.5">{storeName}</p>}
+          <h1 className="text-xl font-black text-gray-900">設定</h1>
+          {storeName && <p className="text-sm text-gray-500 mt-0.5">{storeName}</p>}
         </div>
       </div>
 
@@ -185,7 +185,7 @@ export default function StaffSettingsPage() {
           className={`w-full flex items-center gap-4 px-5 py-5 rounded-2xl border-2 transition-all active:scale-[0.98] ${
             pushStatus === 'granted'     ? 'border-emerald-500/60 bg-emerald-500/10 cursor-default' :
             pushStatus === 'denied'      ? 'border-red-500/40 bg-red-500/10' :
-            pushStatus === 'unsupported' ? 'border-zinc-700 bg-zinc-800/40 cursor-not-allowed opacity-60' :
+            pushStatus === 'unsupported' ? 'border-gray-300 bg-gray-100 cursor-not-allowed opacity-60' :
             'border-indigo-500/50 bg-indigo-500/10 hover:border-indigo-400'
           }`}>
           <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${
@@ -193,20 +193,20 @@ export default function StaffSettingsPage() {
             pushStatus === 'denied'  ? 'bg-red-500/20' : 'bg-indigo-500/20'
           }`}>
             {pushStatus === 'denied'
-              ? <BellOff size={28} className="text-red-400" />
-              : <Bell size={28} className={pushStatus === 'granted' ? 'text-emerald-400' : 'text-indigo-400'} />}
+              ? <BellOff size={28} className="text-red-600" />
+              : <Bell size={28} className={pushStatus === 'granted' ? 'text-emerald-600' : 'text-indigo-600'} />}
           </div>
           <div className="text-left flex-1">
             <p className={`font-black text-lg leading-tight ${
-              pushStatus === 'granted' ? 'text-emerald-300' :
-              pushStatus === 'denied'  ? 'text-red-300' : 'text-white'
+              pushStatus === 'granted' ? 'text-emerald-700' :
+              pushStatus === 'denied' ? 'text-red-600' : 'text-gray-900'
             }`}>
               {pushStatus === 'granted'     ? '受付通知　オン' :
                pushStatus === 'denied'      ? '通知がブロック中' :
                pushStatus === 'unsupported' ? '通知非対応' :
                '受付通知をオンにする'}
             </p>
-            <p className="text-zinc-500 text-sm mt-1">
+            <p className="text-gray-500 text-sm mt-1">
               {pushStatus === 'granted'     ? 'お客様が受付したとき通知が届きます' :
                pushStatus === 'denied'      ? 'ブラウザの設定から通知を許可してください' :
                pushStatus === 'unsupported' ? 'このブラウザは通知に対応していません' :
@@ -226,43 +226,43 @@ export default function StaffSettingsPage() {
             window.location.href = `/${storeId}/admin`
           }}
           style={{ touchAction: 'manipulation' }}
-          className="w-full flex items-center gap-4 px-5 py-5 rounded-2xl border border-zinc-700/50 bg-zinc-900/60 hover:bg-zinc-800/60 active:scale-[0.98] transition-all">
-          <div className="w-14 h-14 rounded-2xl bg-zinc-800 flex items-center justify-center shrink-0">
-            <Store size={28} className="text-zinc-400" />
+          className="w-full flex items-center gap-4 px-5 py-5 rounded-2xl border border-gray-200 bg-white hover:bg-gray-100 active:scale-[0.98] transition-all">
+          <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center shrink-0">
+            <Store size={28} className="text-gray-600" />
           </div>
           <div className="text-left flex-1">
-            <p className="font-black text-lg text-zinc-200">店舗を切り替える</p>
-            <p className="text-zinc-500 text-sm mt-1">別の店舗に切り替えます（再ログインが必要）</p>
+            <p className="font-black text-lg text-gray-700">店舗を切り替える</p>
+            <p className="text-gray-500 text-sm mt-1">別の店舗に切り替えます（再ログインが必要）</p>
           </div>
         </button>
 
         {/* ③ 営業時間 */}
-        <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl overflow-hidden">
+        <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
           <div className="flex items-center gap-2 px-5 pt-4 pb-3">
-            <Clock size={20} className="text-zinc-400" />
-            <p className="font-black text-lg text-zinc-100">営業時間</p>
+            <Clock size={20} className="text-gray-600" />
+            <p className="font-black text-lg text-gray-900">営業時間</p>
           </div>
           {DAY_LABELS.map(({ key, label, color }) => {
             const h = businessHours.hours[key] ?? DEFAULT_HOURS.hours[key]!
             const update = (patch: Partial<DayHours>) =>
               setBusinessHours(prev => ({ hours: { ...prev.hours, [key]: { ...h, ...patch } } }))
             return (
-              <div key={key} className={`flex items-center gap-3 px-4 py-3 border-t border-zinc-800/60 ${h.closed ? 'opacity-40' : ''}`}>
+              <div key={key} className={`flex items-center gap-3 px-4 py-3 border-t border-gray-100 ${h.closed ? 'opacity-40' : ''}`}>
                 <span className={`w-7 text-base font-black text-center ${color}`}>{label}</span>
                 {h.closed ? (
-                  <span className="flex-1 text-zinc-500 text-base">定休日</span>
+                  <span className="flex-1 text-gray-500 text-base">定休日</span>
                 ) : (
                   <div className="flex items-center gap-2 flex-1">
                     <input type="time" value={h.open} onChange={e => update({ open: e.target.value })}
-                      className="bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-base text-white focus:border-indigo-500 focus:outline-none w-28" />
-                    <span className="text-zinc-600">〜</span>
+                      className="bg-gray-100 border border-gray-300 rounded-xl px-3 py-2 text-base text-gray-900 focus:border-indigo-500 focus:outline-none w-28" />
+                    <span className="text-gray-400">〜</span>
                     <input type="time" value={h.close} onChange={e => update({ close: e.target.value })}
-                      className="bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-base text-white focus:border-indigo-500 focus:outline-none w-28" />
+                      className="bg-gray-100 border border-gray-300 rounded-xl px-3 py-2 text-base text-gray-900 focus:border-indigo-500 focus:outline-none w-28" />
                   </div>
                 )}
                 <button onClick={() => update({ closed: !h.closed })}
                   className={`shrink-0 px-3 py-2 rounded-xl text-sm font-bold transition-colors ${
-                    h.closed ? 'bg-zinc-700 text-zinc-400 hover:bg-emerald-900/40 hover:text-emerald-300' : 'bg-red-900/30 text-red-400 hover:bg-red-900/50'
+                    h.closed ? 'bg-gray-200 text-gray-600 hover:bg-emerald-100 hover:text-emerald-700' : 'bg-red-100 text-red-700 hover:bg-red-200'
                   }`}>
                   {h.closed ? '開店' : '定休'}
                 </button>
@@ -293,13 +293,13 @@ export default function StaffSettingsPage() {
 
         {/* 保存 */}
         {saveError && (
-          <p className="text-red-400 text-sm bg-red-900/20 border border-red-500/20 rounded-xl px-4 py-3">{saveError}</p>
+          <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-4 py-3">{saveError}</p>
         )}
         <button
           onClick={handleSave}
           disabled={saving}
           className={`w-full py-4 rounded-2xl font-black text-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg ${
-            saved ? 'bg-emerald-600 text-white shadow-emerald-900/40' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-900/40'
+            saved ? 'bg-emerald-600 text-white shadow-emerald-200/60' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-200/60'
           }`}>
           {saved
             ? <><Check size={20} />保存しました</>
