@@ -136,7 +136,7 @@ function ReservationCard({ res, onUpdate, onDelete }: {
               {res.child.school_name}{res.child.grade && ` ${res.child.grade}`}
             </p>
           )}
-          <p className={`font-black text-xl leading-tight truncate mt-0.5 ${inactive ? 'text-gray-500' : 'text-white'}`}>
+          <p className={`font-black text-xl leading-tight truncate mt-0.5 ${inactive ? 'text-gray-500' : 'text-gray-900'}`}>
             {res.child?.name ?? res.customer?.name ?? '（顧客未登録）'} 様
           </p>
           {res.child && (
@@ -146,11 +146,11 @@ function ReservationCard({ res, onUpdate, onDelete }: {
           )}
           {res.customer?.tel && (
             <a href={`tel:${res.customer.tel}`}
-              className="text-xs text-blue-400 flex items-center gap-1 mt-0.5">
+              className="text-xs text-blue-600 flex items-center gap-1 mt-0.5">
               <Phone size={10} />{res.customer.tel}
             </a>
           )}
-          {res.purpose && <p className="text-xs text-gray-500 mt-1">📋 {res.purpose}</p>}
+          {res.purpose && <p className="text-xs text-gray-600 mt-1">📋 {res.purpose}</p>}
           {res.notes   && <p className="text-xs text-gray-500 mt-0.5 italic">📝 {res.notes}</p>}
         </div>
 
