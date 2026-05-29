@@ -52,20 +52,6 @@ export interface Database {
         Update: { id?: string; name?: string; created_at?: string }
         Relationships: []
       }
-      stores: {
-        Row: Store
-        Insert: {
-          id?: string; group_id?: string | null; name: string; pin?: string
-          is_open?: boolean; wait_thresholds?: WaitThreshold[]; notice_threshold?: number
-          created_at?: string
-        }
-        Update: {
-          id?: string; group_id?: string | null; name?: string; pin?: string
-          is_open?: boolean; wait_thresholds?: WaitThreshold[]; notice_threshold?: number
-          created_at?: string
-        }
-        Relationships: []
-      }
       queues: {
         Row: Queue
         Insert: {
@@ -82,12 +68,72 @@ export interface Database {
         }
         Relationships: []
       }
+      takeout_orders: {
+        Row: {
+          id: string; store_id: string; order_number: string; line_user_id: string | null
+          customer_name: string | null; status: string; total_amount: number
+          notes: string | null; pickup_time: string | null; order_source: string
+          notified_preparing: boolean; notified_ready: boolean
+          estimated_ready_at: string | null; created_at: string; updated_at: string
+        }
+        Insert: {
+          id?: string; store_id: string; order_number: string; line_user_id?: string | null
+          customer_name?: string | null; status?: string; total_amount?: number
+          notes?: string | null; pickup_time?: string | null; order_source?: string
+          notified_preparing?: boolean; notified_ready?: boolean
+          estimated_ready_at?: string | null; created_at?: string; updated_at?: string
+        }
+        Update: {
+          id?: string; store_id?: string; order_number?: string; line_user_id?: string | null
+          customer_name?: string | null; status?: string; total_amount?: number
+          notes?: string | null; pickup_time?: string | null; order_source?: string
+          notified_preparing?: boolean; notified_ready?: boolean
+          estimated_ready_at?: string | null; updated_at?: string
+        }
+        Relationships: []
+      }
+      takeout_order_items: {
+        Row: {
+          id: string; order_id: string; menu_id: string | null; name: string
+          unit_price: number; quantity: number; notes: string | null
+          is_done: boolean; created_at: string
+        }
+        Insert: {
+          id?: string; order_id: string; menu_id?: string | null; name: string
+          unit_price?: number; quantity?: number; notes?: string | null
+          is_done?: boolean; created_at?: string
+        }
+        Update: {
+          id?: string; order_id?: string; menu_id?: string | null; name?: string
+          unit_price?: number; quantity?: number; notes?: string | null
+          is_done?: boolean
+        }
+        Relationships: []
+      }
+      stores: {
+        Row: Store & { takeout_settings: Record<string, unknown>; business_type: string }
+        Insert: {
+          id?: string; group_id?: string | null; name: string; pin?: string
+          is_open?: boolean; wait_thresholds?: WaitThreshold[]; notice_threshold?: number
+          takeout_settings?: Record<string, unknown>; business_type?: string; created_at?: string
+        }
+        Update: {
+          id?: string; group_id?: string | null; name?: string; pin?: string
+          is_open?: boolean; wait_thresholds?: WaitThreshold[]; notice_threshold?: number
+          takeout_settings?: Record<string, unknown>; business_type?: string; created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
       get_next_ticket_number: {
         Args: { p_store_id: string }
         Returns: number
+      }
+      get_next_order_number: {
+        Args: { p_store_id: string }
+        Returns: string
       }
     }
     Enums: {

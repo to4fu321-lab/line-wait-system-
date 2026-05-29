@@ -8,6 +8,8 @@ export type TakeoutOrderStatus =
   | 'completed'  // お渡し済み
   | 'cancelled'  // キャンセル
 
+export type OrderSource = 'line' | 'phone' | 'walkin' | 'app'
+
 export const DEFAULT_STATUS_LABELS: Record<TakeoutOrderStatus, string> = {
   pending:   '受付',
   preparing: '調理中',
@@ -120,6 +122,7 @@ export interface TakeoutOrderItem {
   unit_price: number
   quantity:   number
   notes:      string | null
+  is_done:    boolean
   created_at: string
 }
 
@@ -132,6 +135,8 @@ export interface TakeoutOrder {
   status:             TakeoutOrderStatus
   total_amount:       number
   notes:              string | null
+  pickup_time:        string | null
+  order_source:       OrderSource
   notified_preparing: boolean
   notified_ready:     boolean
   estimated_ready_at: string | null
