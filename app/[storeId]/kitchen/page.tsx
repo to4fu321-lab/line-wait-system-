@@ -227,11 +227,7 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
         </div>
 
         {/* 右カラム：キュー（タブレットのみ常時表示） */}
-        <div className={`
-          md:w-80 lg:w-96 md:border-l md:border-zinc-800
-          md:flex md:flex-col md:overflow-hidden
-          ${queueOrders.length === 0 ? 'hidden md:flex' : ''}
-        `}>
+        <div className="hidden md:flex md:flex-col md:w-80 lg:w-96 md:border-l md:border-zinc-800 md:overflow-hidden">
           {/* キューヘッダー */}
           <div className="px-4 md:px-5 py-3 border-b border-zinc-800 shrink-0">
             <span className="text-xs text-zinc-500 font-medium">
