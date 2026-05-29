@@ -1555,7 +1555,7 @@ export default function CRMPage() {
                         <div className="flex-1 min-w-0">
                           {childMatchMap[c.id] ? (
                             <>
-                              <p className="font-black text-white text-base leading-tight truncate">{childMatchMap[c.id]}</p>
+                              <p className="font-black text-gray-900 text-base leading-tight truncate">{childMatchMap[c.id]}</p>
                               <p className="text-xs text-gray-500 truncate">保護者: {c.name}{c.kana ? ` (${c.kana})` : ''}</p>
                             </>
                           ) : (
@@ -1579,7 +1579,7 @@ export default function CRMPage() {
 
                     {/* 選択中顧客 — インライン展開 */}
                     {selectedCustomer?.id === c.id && (
-                      <div ref={inlineDetailRef} className="space-y-4 border border-gray-200 rounded-2xl p-4 bg-gray-100">
+                      <div ref={inlineDetailRef} className="space-y-4 border border-gray-200 rounded-2xl p-4 bg-gray-50">
 
                         {/* 保護者情報 */}
                         {editingCustomer ? (

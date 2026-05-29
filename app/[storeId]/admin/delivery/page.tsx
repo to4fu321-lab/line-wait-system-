@@ -96,8 +96,8 @@ function PaymentBadge({ status, onToggle, loading }: {
   // 支払い済み → 未払いに戻す確認
   if (isPaid && confirmUnpay) {
     return (
-      <div className="flex items-center gap-1.5 bg-red-900/40 border border-red-500/40 rounded-xl px-2 py-1">
-        <span className="text-[10px] text-red-200 font-bold">未払いに戻す？</span>
+      <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-xl px-2 py-1">
+        <span className="text-[10px] text-red-700 font-bold">未払いに戻す？</span>
         <button onClick={() => setConfirmUnpay(false)} className="text-[10px] text-gray-500 px-1">✕</button>
         <button onClick={() => { setConfirmUnpay(false); onToggle() }} disabled={loading}
           className="text-[10px] text-white bg-red-600 px-2 py-0.5 rounded-lg font-bold">
