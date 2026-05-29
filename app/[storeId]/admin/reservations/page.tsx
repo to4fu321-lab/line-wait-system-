@@ -73,7 +73,7 @@ function Toast({ msg, type, onUndo, onClose }: {
   }
   return (
     <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-5 py-3 rounded-2xl text-white text-sm font-bold shadow-2xl max-w-xs ${
-      type === 'err' ? 'bg-red-600' : 'bg-gray-200 border border-gray-300'
+      type === 'err' ? 'bg-red-600' : 'bg-gray-800 border border-gray-600'
     }`}>
       <span className="flex-1">{msg}</span>
       {onUndo && (
@@ -107,19 +107,19 @@ function ReservationCard({ res, onUpdate, onDelete }: {
       inactive
         ? 'bg-gray-100 border-gray-200'
         : res.status === 'called'
-        ? 'bg-amber-950/40 border-amber-500/30 ring-1 ring-amber-500/10'
+        ? 'bg-amber-50 border-amber-200 ring-1 ring-amber-200'
         : res.status === 'arrived'
-        ? 'bg-emerald-950/30 border-emerald-500/20'
-        : 'bg-gradient-to-br from-indigo-950/40 to-zinc-900/60 border-indigo-500/20'
+        ? 'bg-emerald-50 border-emerald-200'
+        : 'bg-blue-50 border-blue-200'
     }`}>
       <div className="flex items-start gap-3">
         {/* 時刻バッジ */}
         <div className="shrink-0 text-center w-12">
           <p className={`text-xl font-black tabular-nums leading-tight ${
             inactive ? 'text-gray-500'
-            : res.status === 'called' ? 'text-amber-300 animate-pulse'
-            : res.status === 'arrived' ? 'text-emerald-300'
-            : 'text-indigo-300'
+            : res.status === 'called' ? 'text-amber-600 animate-pulse'
+            : res.status === 'arrived' ? 'text-emerald-600'
+            : 'text-indigo-600'
           }`}>{fmtTime(res.reserved_at)}</p>
           <p className="text-[9px] text-gray-500 mt-0.5">予約</p>
         </div>

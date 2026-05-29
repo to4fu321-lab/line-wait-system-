@@ -1594,42 +1594,42 @@ export default function CRMPage() {
                             onCancel={() => setEditingCustomer(false)}
                           />
                         ) : (
-                          <div className="bg-white/80 border border-white/8 rounded-2xl p-4">
+                          <div className="bg-white border border-gray-200 rounded-2xl p-4">
                             <div className="flex items-start gap-3">
-                              <div className="w-11 h-11 rounded-xl bg-indigo-600/20 border border-indigo-500/20 flex items-center justify-center shrink-0">
-                                <User size={20} className="text-indigo-400" />
+                              <div className="w-11 h-11 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0">
+                                <User size={20} className="text-indigo-600" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-black text-white text-base">{selectedCustomer.name}</p>
+                                <p className="font-black text-gray-900 text-base">{selectedCustomer.name}</p>
                                 {selectedCustomer.kana && <p className="text-gray-500 text-xs">{selectedCustomer.kana}</p>}
                                 <div className="flex items-center gap-3 mt-1 flex-wrap">
                                   {selectedCustomer.tel && (
-                                    <span className="flex items-center gap-1 text-gray-500 text-xs"><Phone size={11} />{selectedCustomer.tel}</span>
+                                    <span className="flex items-center gap-1 text-gray-600 text-xs"><Phone size={11} />{selectedCustomer.tel}</span>
                                   )}
                                   {selectedCustomer.line_user_id
-                                    ? <span className="flex items-center gap-1 text-emerald-400 text-xs"><MessageCircle size={11} />LINE連携済み</span>
-                                    : <span className="text-gray-500 text-xs">LINE未連携</span>
+                                    ? <span className="flex items-center gap-1 text-emerald-600 text-xs"><MessageCircle size={11} />LINE連携済み</span>
+                                    : <span className="text-gray-400 text-xs">LINE未連携</span>
                                   }
                                 </div>
                                 {selectedCustomer.notes && (
-                                  <p className="text-gray-500 text-xs mt-1 bg-gray-200/50 rounded-lg px-2 py-1">📝 {selectedCustomer.notes}</p>
+                                  <p className="text-gray-500 text-xs mt-1 bg-gray-100 rounded-lg px-2 py-1">📝 {selectedCustomer.notes}</p>
                                 )}
                               </div>
                               <div className="flex items-center gap-1.5 shrink-0">
                                 {showDeleted ? (
                                   <button onClick={() => handleRestore(selectedCustomer)}
-                                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30 active:scale-90 transition-all text-xs font-bold">
+                                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-100 border border-emerald-200 text-emerald-600 hover:bg-emerald-200 active:scale-90 transition-all text-xs font-bold">
                                     <ArchiveRestore size={13} />復元
                                   </button>
                                 ) : (
                                   <button onClick={() => setDeleteTarget(selectedCustomer)}
-                                    className="p-2 rounded-xl bg-gray-200/60 border border-gray-300/50 text-gray-500 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/30 active:scale-90 transition-all">
+                                    className="p-2 rounded-xl bg-gray-100 border border-gray-200 text-gray-400 hover:text-red-600 hover:bg-red-50 hover:border-red-300 active:scale-90 transition-all">
                                     <Trash2 size={14} />
                                   </button>
                                 )}
                                 {!showDeleted && (
                                   <button onClick={() => setEditingCustomer(true)}
-                                    className="p-2 rounded-xl bg-gray-200/60 border border-gray-300/50 text-gray-500 hover:text-gray-900 hover:bg-gray-300 active:scale-90 transition-all">
+                                    className="p-2 rounded-xl bg-gray-100 border border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-gray-200 active:scale-90 transition-all">
                                     <Pencil size={14} />
                                   </button>
                                 )}
