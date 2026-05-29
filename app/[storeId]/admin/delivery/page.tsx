@@ -160,11 +160,16 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle }: {
           {/* 顧客名 */}
           {item.customer && (
             <button onClick={() => setCustOpen(v => !v)}
-              className="text-xs font-bold text-indigo-300 mb-1 flex items-center gap-1 w-full text-left active:opacity-70">
-              <User size={10} />
-              {item.customer.name}
-              {item.child && <span className="text-amber-300">（{item.child.name}）</span>}
-              <ChevronDown size={10} className={`ml-auto shrink-0 transition-transform ${custOpen ? 'rotate-180' : ''}`} />
+              className="w-full text-left active:opacity-70 flex items-start justify-between gap-2 mb-2">
+              <div className="min-w-0 flex-1">
+                <p className={`font-black text-lg leading-tight truncate ${item.child ? 'text-white' : 'text-indigo-300'}`}>
+                  {item.child?.name ?? item.customer.name}
+                </p>
+                {item.child && (
+                  <p className="text-xs text-zinc-500 truncate">保護者: {item.customer.name}</p>
+                )}
+              </div>
+              <ChevronDown size={14} className={`mt-1 shrink-0 text-zinc-500 transition-transform ${custOpen ? 'rotate-180' : ''}`} />
             </button>
           )}
 
@@ -248,7 +253,8 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle }: {
         <div className="mt-3 bg-zinc-900 border border-indigo-500/30 rounded-2xl p-4 space-y-3 animate-fade-in">
           <p className="text-sm font-black text-white text-center">お渡し確認</p>
           <p className="text-xs text-zinc-400 text-center">
-            <span className="font-bold text-white">{item.customer?.name ?? '（名前なし）'}</span> 様にお渡ししますか？
+            <span className="font-bold text-white">{item.child?.name ?? item.customer?.name ?? '（名前なし）'}</span> 様にお渡ししますか？
+            {item.child && <span className="text-zinc-500">（保護者: {item.customer?.name}）</span>}
           </p>
 
           {/* 支払い確認 */}
