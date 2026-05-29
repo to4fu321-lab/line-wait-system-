@@ -177,9 +177,13 @@ function RepairItem({ repair, showCustomer = false, storeId, onComplete, onDeliv
         <div className="flex-1 min-w-0">
           {(customerName || childName) && (
             <button onClick={() => repair.customer_id && setCustOpen(v => !v)}
-              className="text-xs font-bold text-indigo-300 mb-1 flex items-center gap-1 w-full text-left active:opacity-70">
-              <User size={10} />{customerName}{childName && <span className="text-amber-300">（{childName}）</span>}
-              {repair.customer_id && <ChevronDown size={10} className={`ml-auto shrink-0 transition-transform ${custOpen ? 'rotate-180' : ''}`} />}
+              className="w-full text-left active:opacity-70 mb-2">
+              <p className={`font-black text-lg leading-tight truncate ${childName ? 'text-white' : 'text-zinc-200'}`}>
+                {childName ?? customerName} 様
+              </p>
+              {childName && customerName && (
+                <p className="text-zinc-500 text-xs truncate">保護者: {customerName}</p>
+              )}
             </button>
           )}
           <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -298,9 +302,13 @@ function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrd
         <div className="flex-1 min-w-0">
           {(customerName || childName) && (
             <button onClick={() => order.customer_id && setCustOpen(v => !v)}
-              className="text-xs font-bold text-indigo-300 mb-1 flex items-center gap-1 w-full text-left active:opacity-70">
-              <User size={10} />{customerName}{childName && <span className="text-amber-300">（{childName}）</span>}
-              {order.customer_id && <ChevronDown size={10} className={`ml-auto shrink-0 transition-transform ${custOpen ? 'rotate-180' : ''}`} />}
+              className="w-full text-left active:opacity-70 mb-2">
+              <p className={`font-black text-lg leading-tight truncate ${childName ? 'text-white' : 'text-zinc-200'}`}>
+                {childName ?? customerName} 様
+              </p>
+              {childName && customerName && (
+                <p className="text-zinc-500 text-xs truncate">保護者: {customerName}</p>
+              )}
             </button>
           )}
           <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -623,10 +631,15 @@ function ChildCard({
           <GraduationCap size={16} className="text-indigo-300" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-bold text-white text-sm">{child.name}</p>
-          <p className="text-zinc-500 text-xs">
-            {[child.school_name, child.grade].filter(Boolean).join(' · ') || 'お子様'}
-          </p>
+          {child.school_name && (
+            <p className="font-black text-amber-300 text-xs leading-tight truncate">
+              {[child.school_name, child.grade].filter(Boolean).join(' ')}
+            </p>
+          )}
+          <p className="font-black text-white text-xl leading-tight truncate">{child.name}</p>
+          {!child.school_name && child.grade && (
+            <p className="text-zinc-500 text-xs">{child.grade}</p>
+          )}
         </div>
         {expanded ? <ChevronUp size={16} className="text-zinc-500 shrink-0" /> : <ChevronDown size={16} className="text-zinc-500 shrink-0" />}
       </button>
@@ -1540,16 +1553,22 @@ export default function CRMPage() {
                           <User size={16} className={selectedCustomer?.id === c.id ? 'text-indigo-300' : 'text-zinc-500'} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-bold text-sm truncate">{c.name}</p>
-                          <p className="text-xs text-zinc-500 truncate">
-                            {childMatchMap[c.id]
-                              ? <span className="text-indigo-400">子: {childMatchMap[c.id]}</span>
-                              : (c.kana ?? c.tel ?? 'LINE未連携')
-                            }
-                            {Object.keys(storeNameMap).length > 1 && storeNameMap[(c as any).store_id] && (
-                              <span className="ml-1.5 text-zinc-600 text-[10px]">· {storeNameMap[(c as any).store_id]}</span>
-                            )}
-                          </p>
+                          {childMatchMap[c.id] ? (
+                            <>
+                              <p className="font-black text-white text-base leading-tight truncate">{childMatchMap[c.id]}</p>
+                              <p className="text-xs text-zinc-500 truncate">保護者: {c.name}{c.kana ? ` (${c.kana})` : ''}</p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="font-bold text-sm truncate">{c.name}</p>
+                              <p className="text-xs text-zinc-500 truncate">
+                                {c.kana ?? c.tel ?? 'LINE未連携'}
+                              </p>
+                            </>
+                          )}
+                          {Object.keys(storeNameMap).length > 1 && storeNameMap[(c as any).store_id] && (
+                            <p className="text-[10px] text-zinc-600">{storeNameMap[(c as any).store_id]}</p>
+                          )}
                         </div>
                         {c.line_user_id
                           ? <MessageCircle size={13} className="text-emerald-400 shrink-0" />

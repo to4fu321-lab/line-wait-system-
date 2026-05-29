@@ -35,7 +35,7 @@ interface RepairRow {
   notified: boolean; request_type: RequestType | null; prepaid: boolean | null
   created_at: string; updated_at: string
   customer?: { id: string; name: string; tel: string | null }
-  child?: { name: string } | null
+  child?: { name: string; school_name: string | null } | null
 }
 
 interface PurchaseRow {
@@ -44,7 +44,7 @@ interface PurchaseRow {
   price: number | null; ordered_date: string; arrived_date: string | null
   delivered_date: string | null; notified: boolean; created_at: string; updated_at: string
   customer?: { id: string; name: string; tel: string | null }
-  child?: { name: string } | null
+  child?: { name: string; school_name: string | null } | null
 }
 
 interface OrderRow {
@@ -52,7 +52,7 @@ interface OrderRow {
   order_number: string | null; status: OrderStatus; payment_status: PaymentStatus
   total_amount: number | null; notes: string | null; created_at: string; updated_at: string
   customer?: { id: string; name: string } | null
-  child?: { name: string } | null
+  child?: { name: string; school_name: string | null } | null
   items?: { id: string; item_name: string; size_label: string | null; quantity: number; unit_price: number | null; status: string }[]
 }
 
@@ -146,7 +146,10 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
             )}
             {item.slip_number && <span className="text-xs font-mono text-zinc-500">#{item.slip_number}</span>}
           </div>
-          <p className={`font-black text-lg leading-tight truncate mt-1.5 ${item.child ? 'text-white' : 'text-zinc-200'}`}>
+          {item.child?.school_name && (
+            <p className="text-xs font-black text-amber-300 truncate mt-1 leading-tight">{item.child.school_name}</p>
+          )}
+          <p className={`font-black text-lg leading-tight truncate ${item.child?.school_name ? '' : 'mt-1.5'} ${item.child ? 'text-white' : 'text-zinc-200'}`}>
             {item.child?.name ?? item.customer?.name ?? '（顧客不明）'}
           </p>
           {item.child && (
@@ -275,7 +278,10 @@ function PurchaseCard({ item, storeId, onRefresh, onToast }: {
               {PURCHASE_STATUS_LABELS[item.status]}
             </span>
           </div>
-          <p className={`font-black text-lg leading-tight truncate mt-1.5 ${item.child ? 'text-white' : 'text-zinc-200'}`}>
+          {item.child?.school_name && (
+            <p className="text-xs font-black text-amber-300 truncate mt-1 leading-tight">{item.child.school_name}</p>
+          )}
+          <p className={`font-black text-lg leading-tight truncate ${item.child?.school_name ? '' : 'mt-1.5'} ${item.child ? 'text-white' : 'text-zinc-200'}`}>
             {item.child?.name ?? item.customer?.name ?? '（顧客不明）'}
           </p>
           {item.child && (
@@ -469,7 +475,10 @@ function OrderCard({ item, storeId, onRefresh, onToast }: {
             </span>
             {item.order_number && <span className="text-xs font-mono text-zinc-500">#{item.order_number}</span>}
           </div>
-          <p className={`font-black text-lg leading-tight truncate mt-1.5 ${item.child ? 'text-white' : 'text-zinc-200'}`}>
+          {item.child?.school_name && (
+            <p className="text-xs font-black text-amber-300 truncate mt-1 leading-tight">{item.child.school_name}</p>
+          )}
+          <p className={`font-black text-lg leading-tight truncate ${item.child?.school_name ? '' : 'mt-1.5'} ${item.child ? 'text-white' : 'text-zinc-200'}`}>
             {item.child?.name ?? item.customer?.name ?? '（顧客不明）'}
           </p>
           {item.child && (
@@ -569,16 +578,16 @@ export default function RepairsPage() {
     ] = await Promise.all([
       // スタッフに作業がある（received）もののみ表示
       (supabase as any).from('repair_histories')
-        .select('*, customer:customers(id,name,tel), child:children(name)')
+        .select('*, customer:customers(id,name,tel), child:children(name,school_name)')
         .eq('store_id', storeId)
         .eq('status', 'received')
         .order('received_date', { ascending: true }),
       (supabase as any).from('purchase_orders')
-        .select('*, customer:customers(id,name,tel), child:children(name)')
+        .select('*, customer:customers(id,name,tel), child:children(name,school_name)')
         .eq('store_id', storeId).neq('status', 'delivered')
         .order('ordered_date', { ascending: true }),
       (supabase as any).from('orders')
-        .select('*, customer:customers(id,name), child:children(name), items:order_items(*)')
+        .select('*, customer:customers(id,name), child:children(name,school_name), items:order_items(*)')
         .eq('store_id', storeId).not('status', 'in', '("delivered","cancelled")')
         .order('created_at', { ascending: false }),
     ])
