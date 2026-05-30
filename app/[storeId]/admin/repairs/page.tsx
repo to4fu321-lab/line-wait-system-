@@ -6,7 +6,8 @@ import {
   Scissors, ShoppingBag, Loader2, ChevronDown, ChevronUp,
   Phone, User, Check, RotateCcw, Package, ClipboardList,
   Banknote, Plus, AlertCircle, CreditCard, CheckCheck,
-  History, CalendarDays, Copy, X, Pencil, Truck,
+  History, CalendarDays, Copy, X, Pencil, Truck, Trash2,
+  Search, Database,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
@@ -130,9 +131,10 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit }: {
   onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
   onEdit?: (item: RepairRow) => void
 }) {
-  const [open,       setOpen]       = useState(false)
-  const [loading,    setLoading]    = useState(false)
-  const [confirmPay, setConfirmPay] = useState(false)
+  const [open,          setOpen]          = useState(false)
+  const [loading,       setLoading]       = useState(false)
+  const [confirmPay,    setConfirmPay]    = useState(false)
+  const [confirmCancel, setConfirmCancel] = useState(false)
 
   const reqType = (item.request_type ?? 'repair') as RequestType
   const name    = item.child?.name ?? item.customer?.name ?? '（顧客不明）'
@@ -197,6 +199,16 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit }: {
       onClick: () => update(
         { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true },
         '確保済みにしました',
+        { status: 'received', completed_date: null, notified: false }
+      ),
+    }
+  } else if (reqType === 'inquiry') {
+    primaryBtn = {
+      label: '✅ 問合せ対応完了',
+      color: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-200',
+      onClick: () => update(
+        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true },
+        '問合せ対応完了にしました',
         { status: 'received', completed_date: null, notified: false }
       ),
     }
@@ -352,6 +364,34 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit }: {
               <RotateCcw size={11} />受付中に戻す
             </button>
           )}
+
+          {/* Cancel / delete */}
+          {!confirmCancel ? (
+            <button onClick={() => setConfirmCancel(true)}
+              className="w-full py-2 rounded-xl font-bold text-xs border border-red-200 bg-red-50 text-red-500 flex items-center justify-center gap-1.5 hover:bg-red-100 active:scale-95 transition-all">
+              <Trash2 size={11} />キャンセル（削除）
+            </button>
+          ) : (
+            <div className="rounded-xl border border-red-300 bg-red-50 p-3 space-y-2">
+              <p className="text-xs text-red-700 font-black text-center">本当に削除しますか？</p>
+              <p className="text-[10px] text-red-500 text-center">この操作は取り消せません</p>
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmCancel(false)}
+                  className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-600 text-xs font-bold">戻る</button>
+                <button onClick={async () => {
+                  setLoading(true)
+                  const { error } = await (supabase as any).from('repair_histories').delete().eq('id', item.id)
+                  setLoading(false)
+                  if (error) { onToast('err', '削除に失敗しました'); return }
+                  onToast('ok', '削除しました')
+                  onRefresh()
+                }} disabled={loading}
+                  className="flex-1 py-2 rounded-xl bg-red-600 text-white text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50">
+                  {loading ? <Loader2 size={12} className="animate-spin" /> : <><Trash2 size={12} />削除</>}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -364,8 +404,9 @@ function PurchaseCard({ item, storeId, onRefresh, onToast, onEdit }: {
   onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
   onEdit?: (item: PurchaseRow) => void
 }) {
-  const [open,    setOpen]    = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [open,          setOpen]          = useState(false)
+  const [loading,       setLoading]       = useState(false)
+  const [confirmCancel, setConfirmCancel] = useState(false)
 
   async function update(patch: Record<string, unknown>, msg: string, undoPatch?: Record<string, unknown>) {
     setLoading(true)
@@ -494,6 +535,34 @@ function PurchaseCard({ item, storeId, onRefresh, onToast, onEdit }: {
               className="w-full py-2 rounded-xl font-bold text-xs border border-gray-200 bg-gray-50 text-gray-500 flex items-center justify-center gap-1.5 hover:bg-gray-100">
               <RotateCcw size={11} />依頼受付に戻す
             </button>
+          )}
+
+          {/* Cancel / delete */}
+          {!confirmCancel ? (
+            <button onClick={() => setConfirmCancel(true)}
+              className="w-full py-2 rounded-xl font-bold text-xs border border-red-200 bg-red-50 text-red-500 flex items-center justify-center gap-1.5 hover:bg-red-100 active:scale-95 transition-all">
+              <Trash2 size={11} />キャンセル（削除）
+            </button>
+          ) : (
+            <div className="rounded-xl border border-red-300 bg-red-50 p-3 space-y-2">
+              <p className="text-xs text-red-700 font-black text-center">本当に削除しますか？</p>
+              <p className="text-[10px] text-red-500 text-center">この操作は取り消せません</p>
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmCancel(false)}
+                  className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-600 text-xs font-bold">戻る</button>
+                <button onClick={async () => {
+                  setLoading(true)
+                  const { error } = await (supabase as any).from('purchase_orders').delete().eq('id', item.id)
+                  setLoading(false)
+                  if (error) { onToast('err', '削除に失敗しました'); return }
+                  onToast('ok', '削除しました')
+                  onRefresh()
+                }} disabled={loading}
+                  className="flex-1 py-2 rounded-xl bg-red-600 text-white text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50">
+                  {loading ? <Loader2 size={12} className="animate-spin" /> : <><Trash2 size={12} />削除</>}
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -742,15 +811,19 @@ function PaymentBadge({ status, onToggle, loading }: {
 }
 
 // ── Waiting Card (お渡し待ち) ─────────────────────────────────
-function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle }: {
+function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRevertWaiting, onDelete }: {
   item: DeliveryItem
   alertDays: number
   onDeliver: (item: DeliveryItem, paid: boolean) => Promise<void>
   onPaymentToggle: (item: DeliveryItem) => Promise<void>
+  onRevertWaiting: (item: DeliveryItem) => Promise<void>
+  onDelete: (item: DeliveryItem) => Promise<void>
 }) {
   const [confirmOpen,   setConfirmOpen]   = useState(false)
   const [payAtDeliver,  setPayAtDeliver]  = useState(item.payment_status === 'paid')
   const [unpaidConfirm, setUnpaidConfirm] = useState(false)
+  const [confirmRevert, setConfirmRevert] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [loading,       setLoading]       = useState<string | null>(null)
 
   const isOverdue = item.ready_date &&
@@ -764,41 +837,50 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle }: {
   const itemContent = item.sub_label ? `${item.item_name} — ${item.sub_label}` : item.item_name
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-      <div className="p-4">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
-            item.kind === 'repair'
-              ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
-              : 'bg-teal-100 text-teal-700 border-teal-300'
-          }`}>
-            {item.kind === 'repair' ? 'お直し完了' : '取置き入荷済み'}
-          </span>
-          {item.notified && (
-            <span className="text-[10px] bg-emerald-100 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-full font-bold">
-              LINE通知済み
-            </span>
-          )}
-          {isOverdue && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-300 flex items-center gap-1">
-              <AlertCircle size={9} />{overdueDays}日超過
-            </span>
-          )}
-          {item.slip_number && (
-            <span className="text-xs font-mono text-gray-400">#{item.slip_number}</span>
-          )}
+    <div className={`border rounded-xl shadow-sm overflow-hidden ${
+      isOverdue ? 'bg-red-50 border-red-300' : 'bg-white border-slate-200'
+    }`}>
+      {/* Compact content area */}
+      <div className="px-3 pt-3 pb-2">
+        <div className="flex items-start gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1 flex-wrap mb-1">
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
+                item.kind === 'repair'
+                  ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                  : 'bg-teal-100 text-teal-700 border-teal-300'
+              }`}>
+                {item.kind === 'repair' ? '✂️ お直し完了' : '📦 入荷済み'}
+              </span>
+              {isOverdue && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-300 flex items-center gap-0.5">
+                  <AlertCircle size={8} />{overdueDays}日超過
+                </span>
+              )}
+              {item.notified && (
+                <span className="text-[10px] bg-emerald-100 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-full font-bold">
+                  通知済み
+                </span>
+              )}
+            </div>
+            {item.child?.school_name && (
+              <p className="text-[10px] font-black text-amber-600 truncate leading-tight">{item.child.school_name}</p>
+            )}
+            <p className="font-black text-base leading-tight truncate text-slate-900">{studentName}</p>
+            {parentName && <p className="text-[10px] text-slate-400 truncate">保護者: {parentName}</p>}
+            <p className="text-xs text-slate-600 mt-0.5 leading-snug truncate">{itemContent}</p>
+          </div>
+          <div className="shrink-0 text-right">
+            {item.price != null && (
+              <p className={`text-sm font-black ${item.payment_status === 'paid' ? 'text-gray-400' : 'text-red-600'}`}>
+                ¥{item.price.toLocaleString()}
+              </p>
+            )}
+            <p className="text-[10px] text-slate-400">{fmtDate(item.received_date)}</p>
+          </div>
         </div>
-        {item.child?.school_name && (
-          <p className="text-xs font-black text-amber-600 truncate mt-1.5 leading-tight">{item.child.school_name}</p>
-        )}
-        <p className={`font-black text-xl leading-tight truncate ${item.child?.school_name ? '' : 'mt-1.5'} text-slate-900`}>
-          {studentName}
-        </p>
-        {parentName && (
-          <p className="text-[10px] text-slate-400 truncate leading-tight">保護者: {parentName}</p>
-        )}
-        <p className="text-sm font-semibold text-slate-800 mt-1.5 leading-snug">{itemContent}</p>
-        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+
+        <div className="flex items-center gap-2 mt-1.5">
           <PaymentBadge
             status={item.payment_status}
             loading={loading === 'payment'}
@@ -808,83 +890,110 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle }: {
               setLoading(null)
             }}
           />
-          {item.price != null && (
-            <span className={`text-sm font-black ${item.payment_status === 'paid' ? 'text-gray-500' : 'text-red-700'}`}>
-              ¥{item.price.toLocaleString()}
-            </span>
+          {item.customer?.tel && (
+            <a href={`tel:${item.customer.tel}`} className="flex items-center gap-1 text-blue-600 text-[10px] font-bold">
+              <Phone size={9} />{item.customer.tel}
+            </a>
           )}
-          <div className="text-right ml-auto shrink-0">
-            <p className="text-xs text-slate-500">依頼受け日: {fmtDate(item.received_date)}</p>
-            {item.desired_completion_date && (
-              <p className="text-xs font-semibold text-slate-500">希望完了日: {fmtDate(item.desired_completion_date)}</p>
-            )}
-          </div>
+          {item.slip_number && (
+            <span className="text-[10px] font-mono text-gray-400">#{item.slip_number}</span>
+          )}
         </div>
-        {item.customer?.tel && (
-          <a href={`tel:${item.customer.tel}`} className="flex items-center gap-1.5 text-blue-600 text-xs font-bold mt-2">
-            <Phone size={11} />{item.customer.tel}
-          </a>
-        )}
       </div>
 
-      {!confirmOpen ? (
-        <div className="px-4 pb-4 border-t border-slate-100 pt-3">
+      {/* Action area */}
+      {confirmDelete ? (
+        <div className="px-3 pb-3 space-y-2">
+          <p className="text-xs text-red-700 font-black text-center">本当に削除しますか？</p>
+          <div className="flex gap-2">
+            <button onClick={() => setConfirmDelete(false)}
+              className="flex-1 py-2 rounded-lg bg-gray-100 text-gray-600 text-xs font-bold">戻る</button>
+            <button onClick={async () => {
+              setLoading('delete'); await onDelete(item); setLoading(null)
+            }} disabled={!!loading}
+              className="flex-1 py-2 rounded-lg bg-red-600 text-white text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50">
+              {loading === 'delete' ? <Loader2 size={11} className="animate-spin" /> : <><Trash2 size={11} />削除</>}
+            </button>
+          </div>
+        </div>
+      ) : confirmRevert ? (
+        <div className="px-3 pb-3 space-y-2">
+          <p className="text-xs text-amber-700 font-black text-center">前の状態（作業中/発注中）に戻しますか？</p>
+          <div className="flex gap-2">
+            <button onClick={() => setConfirmRevert(false)}
+              className="flex-1 py-2 rounded-lg bg-gray-100 text-gray-600 text-xs font-bold">キャンセル</button>
+            <button onClick={async () => {
+              setLoading('revert'); await onRevertWaiting(item); setLoading(null); setConfirmRevert(false)
+            }} disabled={!!loading}
+              className="flex-1 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50">
+              {loading === 'revert' ? <Loader2 size={11} className="animate-spin" /> : <><RotateCcw size={11} />戻す</>}
+            </button>
+          </div>
+        </div>
+      ) : !confirmOpen ? (
+        <div className="px-3 pb-3 space-y-1.5">
           <button onClick={() => setConfirmOpen(true)}
-            className="w-full py-4 rounded-xl font-bold text-lg bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20">
-            <Package size={18} />お渡し済みにする
+            className="w-full py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-md shadow-indigo-900/15">
+            <Package size={15} />お渡し済みにする
           </button>
+          <div className="flex gap-1.5">
+            <button onClick={() => setConfirmRevert(true)}
+              className="flex-1 py-1.5 rounded-lg font-bold text-[10px] border border-amber-200 bg-amber-50 text-amber-600 flex items-center justify-center gap-1 hover:bg-amber-100 active:scale-95 transition-all">
+              <RotateCcw size={9} />前の状態に戻す
+            </button>
+            <button onClick={() => setConfirmDelete(true)}
+              className="flex-1 py-1.5 rounded-lg font-bold text-[10px] border border-red-200 bg-red-50 text-red-500 flex items-center justify-center gap-1 hover:bg-red-100 active:scale-95 transition-all">
+              <Trash2 size={9} />キャンセル
+            </button>
+          </div>
         </div>
       ) : (
-        <div className="px-4 pb-4 border-t border-slate-100 pt-3 space-y-3">
-          <p className="text-sm font-black text-gray-900 text-center">お渡し確認</p>
-          <p className="text-xs text-gray-600 text-center">
-            <span className="font-bold text-gray-900">{studentName}</span> 様にお渡ししますか？
-            {item.child && <span className="text-gray-500">（保護者: {parentName}）</span>}
-          </p>
+        <div className="px-3 pb-3 space-y-2 border-t border-slate-100 pt-2">
+          <p className="text-xs font-black text-gray-900 text-center">お渡し確認</p>
           <button onClick={() => setPayAtDeliver(v => !v)}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${
+            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border-2 transition-all ${
               payAtDeliver ? 'border-emerald-500 bg-emerald-500/10' : 'border-gray-300 bg-gray-200/50'
             }`}>
-            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
               payAtDeliver ? 'border-emerald-500 bg-emerald-500' : 'border-gray-300'
             }`}>
-              {payAtDeliver && <CheckCheck size={11} className="text-white" />}
+              {payAtDeliver && <CheckCheck size={9} className="text-white" />}
             </div>
             <div className="text-left">
-              <p className={`text-sm font-bold ${payAtDeliver ? 'text-emerald-700' : 'text-gray-500'}`}>代金を受け取った</p>
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className={`text-xs font-bold ${payAtDeliver ? 'text-emerald-700' : 'text-gray-500'}`}>代金を受け取った</p>
+              <p className="text-[10px] text-gray-500">
                 {item.price != null ? `¥${item.price.toLocaleString()}` : '金額未設定'}
               </p>
             </div>
           </button>
           {unpaidConfirm && (
-            <div className="rounded-xl border-2 border-red-500 bg-red-50 px-4 py-3 space-y-2">
-              <p className="text-sm font-black text-red-700 text-center flex items-center justify-center gap-1.5">
-                <AlertCircle size={16} />まだ未払いです！
+            <div className="rounded-xl border-2 border-red-500 bg-red-50 px-3 py-2.5 space-y-2">
+              <p className="text-xs font-black text-red-700 text-center flex items-center justify-center gap-1">
+                <AlertCircle size={13} />まだ未払いです！
               </p>
               <div className="flex gap-2">
                 <button onClick={() => setUnpaidConfirm(false)}
-                  className="flex-1 py-2 rounded-xl font-bold text-xs bg-gray-200 text-gray-700">戻る</button>
+                  className="flex-1 py-1.5 rounded-xl font-bold text-xs bg-gray-200 text-gray-700">戻る</button>
                 <button onClick={async () => {
                   setUnpaidConfirm(false); setLoading('deliver')
                   await onDeliver(item, false); setLoading(null); setConfirmOpen(false)
                 }} disabled={!!loading}
-                  className="flex-1 py-2 rounded-xl font-bold text-xs bg-red-600 text-white disabled:opacity-50 flex items-center justify-center gap-1">
-                  {loading === 'deliver' ? <Loader2 size={12} className="animate-spin" /> : '未払いのままお渡し'}
+                  className="flex-1 py-1.5 rounded-xl font-bold text-xs bg-red-600 text-white disabled:opacity-50 flex items-center justify-center gap-1">
+                  {loading === 'deliver' ? <Loader2 size={11} className="animate-spin" /> : '未払いのままお渡し'}
                 </button>
               </div>
             </div>
           )}
           <div className="grid grid-cols-2 gap-2">
             <button onClick={() => { setConfirmOpen(false); setUnpaidConfirm(false) }}
-              className="py-3 rounded-xl font-bold text-sm bg-gray-300 text-gray-700">キャンセル</button>
+              className="py-2.5 rounded-xl font-bold text-sm bg-gray-300 text-gray-700">キャンセル</button>
             <button onClick={async () => {
               if (!payAtDeliver && item.payment_status !== 'paid') { setUnpaidConfirm(true); return }
               setLoading('deliver')
               await onDeliver(item, payAtDeliver)
               setLoading(null); setConfirmOpen(false)
             }} disabled={!!loading || unpaidConfirm}
-              className="py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white disabled:opacity-50 flex items-center justify-center gap-1.5">
+              className="py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white disabled:opacity-50 flex items-center justify-center gap-1.5">
               {loading === 'deliver' ? <><Loader2 size={13} className="animate-spin" />処理中...</> : <><Package size={13} />お渡し</>}
             </button>
           </div>
@@ -1093,21 +1202,23 @@ type SortOrder = 'priority' | 'received_asc' | 'deadline_asc' | 'school' | 'name
 export default function RepairsPage() {
   const { storeId } = useParams<{ storeId: string }>()
 
-  const [tab,          setTab]          = useState<ActiveTab>('repair')
+  const [tab,            setTab]            = useState<ActiveTab>('repair')
   const [deliverySubTab, setDeliverySubTab] = useState<DeliverySubTab>('waiting')
-  const [repairs,      setRepairs]      = useState<RepairRow[]>([])
-  const [purchases,    setPurchases]    = useState<PurchaseRow[]>([])
-  const [waiting,      setWaiting]      = useState<DeliveryItem[]>([])
-  const [history,      setHistory]      = useState<DeliveryItem[]>([])
-  const [loading,      setLoading]      = useState(true)
-  const [histLoading,  setHistLoading]  = useState(false)
-  const [histFetched,  setHistFetched]  = useState(false)
-  const [alertDays,    setAlertDays]    = useState(7)
-  const [fetchError,   setFetchError]   = useState<string | null>(null)
-  const [toast,        setToast]        = useState<{ type: 'ok' | 'err'; msg: string; onUndo?: () => Promise<void> } | null>(null)
-  const [sortOrder,    setSortOrder]    = useState<SortOrder>('priority')
-  const [editItem,     setEditItem]     = useState<RepairRow | PurchaseRow | null>(null)
-  const [editKind,     setEditKind]     = useState<'repair' | 'purchase' | null>(null)
+  const [repairs,        setRepairs]        = useState<RepairRow[]>([])
+  const [purchases,      setPurchases]      = useState<PurchaseRow[]>([])
+  const [waiting,        setWaiting]        = useState<DeliveryItem[]>([])
+  const [history,        setHistory]        = useState<DeliveryItem[]>([])
+  const [loading,        setLoading]        = useState(true)
+  const [histLoading,    setHistLoading]    = useState(false)
+  const [histFetched,    setHistFetched]    = useState(false)
+  const [alertDays,      setAlertDays]      = useState(7)
+  const [fetchError,     setFetchError]     = useState<string | null>(null)
+  const [toast,          setToast]          = useState<{ type: 'ok' | 'err'; msg: string; onUndo?: () => Promise<void> } | null>(null)
+  const [sortOrder,      setSortOrder]      = useState<SortOrder>('priority')
+  const [editItem,       setEditItem]       = useState<RepairRow | PurchaseRow | null>(null)
+  const [editKind,       setEditKind]       = useState<'repair' | 'purchase' | null>(null)
+  const [searchText,     setSearchText]     = useState('')
+  const [dummyLoading,   setDummyLoading]   = useState(false)
 
   const showToast = useCallback((type: 'ok' | 'err', msg: string, onUndo?: () => Promise<void>) => {
     setToast({ type, msg, onUndo })
@@ -1240,6 +1351,87 @@ export default function RepairsPage() {
     }
   }, [showToast])
 
+  // ── Revert waiting item to previous state ─────────────────
+  const handleRevertWaiting = useCallback(async (item: DeliveryItem) => {
+    const table = item.kind === 'repair' ? 'repair_histories' : 'purchase_orders'
+    const update: Record<string, unknown> = { status: item.kind === 'repair' ? 'received' : 'on_order', delivered_date: null }
+    if (item.kind === 'repair') { update.completed_date = null; update.work_started = true }
+    else update.arrived_date = null
+    const { error } = await (supabase as any).from(table).update(update).eq('id', item.id)
+    if (error) { showToast('err', `戻し失敗: ${error.message}`); return }
+    setWaiting(prev => prev.filter(i => i.id !== item.id))
+    await fetchAll()
+    showToast('ok', '前の状態に戻しました')
+  }, [showToast, fetchAll])
+
+  const handleDeleteWaiting = useCallback(async (item: DeliveryItem) => {
+    const table = item.kind === 'repair' ? 'repair_histories' : 'purchase_orders'
+    const { error } = await (supabase as any).from(table).delete().eq('id', item.id)
+    if (error) { showToast('err', `削除失敗: ${error.message}`); return }
+    setWaiting(prev => prev.filter(i => i.id !== item.id))
+    showToast('ok', '削除しました')
+  }, [showToast])
+
+  // ── Dummy data generator ───────────────────────────────────
+  const generateDummy = useCallback(async () => {
+    if (!storeId) return
+    setDummyLoading(true)
+    const SCHOOLS = ['○○中学校', '△△高等学校', '□□中学校', '◇◇高等学校']
+    const ITEMS   = ['スラックス', 'ブレザー', 'スカート', 'セーター', 'シャツ', 'ネクタイ', 'ソックス']
+    const NAMES   = ['田中花子', '鈴木太郎', '佐藤次郎', '山田美咲', '伊藤健一', '渡辺あかり', '中村大輔']
+    const CONTENTS = ['裾上げ 3cm', 'ウエスト調整', 'ほつれ修理', 'ボタン付け直し', 'サイズ変更 M→L', 'ファスナー交換']
+    const TYPES: Array<'repair' | 'walk_in' | 'hold_request' | 'inquiry'> = ['repair', 'repair', 'repair', 'walk_in', 'hold_request', 'inquiry']
+
+    const rand = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)]
+    const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10)
+
+    // Find or create a test customer
+    const custName = rand(NAMES)
+    let { data: existingCusts } = await (supabase as any)
+      .from('customers').select('id').eq('store_id', storeId).eq('name', custName).limit(1)
+    let customerId = existingCusts?.[0]?.id
+    if (!customerId) {
+      const { data: newCust } = await (supabase as any)
+        .from('customers').insert({
+          store_id: storeId, name: custName, kana: null,
+          tel: `090-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`,
+          school_name: rand(SCHOOLS), created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+        }).select('id').single()
+      customerId = newCust?.id
+    }
+    if (!customerId) { setDummyLoading(false); showToast('err', '顧客作成に失敗しました'); return }
+
+    // Randomly create a repair or purchase
+    const kind = Math.random() < 0.6 ? 'repair' : 'purchase'
+    if (kind === 'repair') {
+      const reqType = rand(TYPES)
+      await (supabase as any).from('repair_histories').insert({
+        store_id: storeId, customer_id: customerId,
+        item_name: rand(ITEMS), content: rand(CONTENTS),
+        status: 'received', request_type: reqType,
+        received_date: daysAgo(Math.floor(Math.random() * 14)),
+        desired_completion_date: Math.random() < 0.6 ? daysAgo(-Math.floor(Math.random() * 14)) : null,
+        work_started: Math.random() < 0.3,
+        prepaid: Math.random() < 0.5,
+        price: [500, 800, 1200, 2000, 3000][Math.floor(Math.random() * 5)],
+        notified: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      })
+    } else {
+      const MAKERS = ['カンコー', 'トンボ', 'スクールタイガー', null]
+      await (supabase as any).from('purchase_orders').insert({
+        store_id: storeId, customer_id: customerId,
+        item_name: rand(ITEMS), maker: rand(MAKERS),
+        status: rand(['received', 'ordered', 'on_order'] as const),
+        ordered_date: daysAgo(Math.floor(Math.random() * 10)),
+        price: [3000, 5000, 8000, 12000][Math.floor(Math.random() * 4)],
+        notified: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      })
+    }
+    await fetchAll()
+    setDummyLoading(false)
+    showToast('ok', `ダミーデータを追加しました（${kind === 'repair' ? 'お直し' : '発注'}）`)
+  }, [storeId, fetchAll, showToast])
+
   // ── Sort + derived ─────────────────────────────────────────
   const todayDate = new Date(); todayDate.setHours(0, 0, 0, 0)
 
@@ -1283,22 +1475,44 @@ export default function RepairsPage() {
   const purchaseOnOrder   = purchases.filter(p => p.status === 'on_order')
   const purchaseStocked   = purchases.filter(p => p.status === 'stocked')
 
+  // Search filter helpers
+  function matchSearch(fields: (string | null | undefined)[]): boolean {
+    if (!searchText.trim()) return true
+    const q = searchText.toLowerCase()
+    return fields.some(f => f?.toLowerCase().includes(q))
+  }
+
+  const filteredRepairs = sortedRepairs.filter(r =>
+    matchSearch([r.content, r.item_name, r.child?.name, r.customer?.name, r.child?.school_name, r.slip_number])
+  )
+  const filteredPurchases = purchases.filter(p =>
+    matchSearch([p.item_name, p.maker, p.notes, p.child?.name, p.customer?.name, p.child?.school_name])
+  )
+  const filteredPurchaseUnordered = filteredPurchases.filter(p => ['received', 'ordered'].includes(p.status))
+  const filteredPurchaseOnOrder   = filteredPurchases.filter(p => p.status === 'on_order')
+  const filteredPurchaseStocked   = filteredPurchases.filter(p => p.status === 'stocked')
+
   // ダッシュボード counts
   const repairNotStarted  = repairs.filter(r => r.request_type === 'repair' && !r.work_started)
   const repairInProgress  = repairs.filter(r => r.request_type === 'repair' && r.work_started)
-  const repairOther       = repairs.filter(r => r.request_type !== 'repair')
+  const pendingInquiry    = repairs.filter(r => r.request_type === 'inquiry')
+  const repairOther       = repairs.filter(r => r.request_type !== 'repair' && r.request_type !== 'inquiry')
   const overdueRepairs    = repairs.filter(r => {
     if (!r.desired_completion_date) return false
     const d = new Date(r.desired_completion_date); d.setHours(0, 0, 0, 0)
     return d < todayDate
   })
+  const waitingUnpaid = waiting.filter(i => i.payment_status !== 'paid')
+  const waitingPaid   = waiting.filter(i => i.payment_status === 'paid')
+  const waitingAlert  = waiting.filter(i =>
+    i.ready_date && (Date.now() - new Date(i.ready_date).getTime()) / 86400000 > alertDays
+  )
 
-  // 作業可能数（今すぐアクションを起こせる件数）
-  const actionableNow =
-    repairNotStarted.length +   // 作業開始ボタン
-    repairOther.length +        // 来店・取置き対応
-    purchaseUnordered.length +  // 発注ボタン
-    waiting.length              // お渡しボタン
+  // 未着手数（未着手お直し + 未対応問合せ + お渡しアラート）
+  const pendingCount =
+    repairNotStarted.length +
+    pendingInquiry.length +
+    waitingAlert.length
 
   // 全案件合計（進行中含む）
   const totalActive =
@@ -1306,60 +1520,85 @@ export default function RepairsPage() {
     purchases.length +
     waiting.length
 
-  const waitingUnpaid = waiting.filter(i => i.payment_status !== 'paid')
-  const waitingPaid   = waiting.filter(i => i.payment_status === 'paid')
+  const filteredWaiting = [...waitingUnpaid, ...waitingPaid].filter(i =>
+    matchSearch([i.item_name, i.sub_label, i.child?.name, i.customer?.name, i.child?.school_name, i.slip_number])
+  )
 
 
   return (
     <div className="min-h-screen bg-slate-100 text-gray-900">
       {/* ── Header / Dashboard ────────────────────────────── */}
       <div className="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-gray-200">
-        <div className="max-w-2xl mx-auto px-4 pt-4 pb-0">
+        <div className="max-w-2xl mx-auto px-4 pt-3 pb-0">
 
           {/* Title row */}
-          <div className="flex items-center gap-3 mb-3">
-            <h1 className="text-base font-bold text-gray-900 flex-1">業務ダッシュボード</h1>
+          <div className="flex items-center gap-2 mb-2">
+            <h1 className="text-sm font-bold text-gray-900 flex-1">業務ダッシュボード</h1>
+            <button onClick={generateDummy} disabled={dummyLoading}
+              className="flex items-center gap-1 px-2 py-1.5 bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-500 text-[10px] font-bold rounded-lg transition-all disabled:opacity-50"
+              title="テスト用ダミーデータを追加">
+              {dummyLoading ? <Loader2 size={11} className="animate-spin" /> : <Database size={11} />}
+              テスト追加
+            </button>
             <a href={`/${storeId}/admin/crm`}
-              className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold rounded-xl transition-all">
-              <Plus size={14} />依頼受付
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold rounded-xl transition-all">
+              <Plus size={13} />依頼受付
             </a>
           </div>
 
           {/* Dashboard card — タブ切り替えも兼ねる */}
-          <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl px-4 py-3 text-white">
-            <div className="flex items-center gap-3 mb-3">
+          <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl px-4 py-2.5 text-white">
+            <div className="flex items-center gap-3 mb-2">
               <div>
-                <p className="text-[10px] font-bold opacity-70 uppercase tracking-wider mb-0.5">今すぐ対応できる件数</p>
-                <div className="flex items-baseline gap-2">
-                  <span className={`font-black leading-none ${actionableNow >= 10 ? 'text-5xl' : 'text-6xl'}`}>
-                    {actionableNow}
+                <p className="text-[9px] font-bold opacity-70 uppercase tracking-wider mb-0.5">未着手数</p>
+                <div className="flex items-baseline gap-1.5">
+                  <span className={`font-black leading-none ${pendingCount >= 10 ? 'text-4xl' : 'text-5xl'}`}>
+                    {pendingCount}
                   </span>
-                  <span className="text-base font-bold opacity-70">件</span>
+                  <span className="text-sm font-bold opacity-70">件</span>
+                  <span className="text-[9px] opacity-50">/ 全{totalActive}件</span>
                 </div>
               </div>
               {overdueRepairs.length > 0 && (
-                <div className="ml-auto bg-red-500/30 border border-red-400/50 rounded-xl px-3 py-2 text-center">
-                  <p className="text-2xl font-black text-red-200">{overdueRepairs.length}</p>
-                  <p className="text-[9px] font-bold text-red-200 opacity-90">🚨 期限超過</p>
+                <div className="ml-auto bg-red-500/30 border border-red-400/50 rounded-xl px-2.5 py-1.5 text-center">
+                  <p className="text-xl font-black text-red-200">{overdueRepairs.length}</p>
+                  <p className="text-[8px] font-bold text-red-200 opacity-90">🚨 期限超過</p>
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-2 border-t border-white/20 pt-3">
+
+            {/* Progress breakdown */}
+            <div className="flex items-center gap-1 flex-wrap mb-2">
+              {[
+                { label: 'お直し未着手', count: repairNotStarted.length, color: 'bg-white/20' },
+                { label: 'お直し中',     count: repairInProgress.length,  color: 'bg-white/10' },
+                { label: '問合せ',       count: pendingInquiry.length,     color: 'bg-rose-400/40' },
+                { label: '発注待ち',     count: purchaseUnordered.length,  color: 'bg-white/20' },
+                { label: '発注中',       count: purchaseOnOrder.length,    color: 'bg-white/10' },
+                { label: 'お渡し待ち',   count: waiting.length,            color: 'bg-white/20' },
+              ].filter(s => s.count > 0).map(s => (
+                <span key={s.label} className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${s.color} text-white/90`}>
+                  {s.label} {s.count}
+                </span>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-3 gap-1.5 border-t border-white/20 pt-2">
               {([
                 { id: 'repair'   as const, emoji: '✂️', label: 'お直し',    count: repairs.length },
                 { id: 'purchase' as const, emoji: '📦', label: '発注',      count: purchases.length },
                 { id: 'delivery' as const, emoji: '🎁', label: 'お渡し待ち', count: waiting.length },
               ]).map(t => (
-                <button key={t.id} onClick={() => setTab(t.id)}
-                  className={`rounded-xl py-2.5 text-center active:scale-95 transition-all ${
+                <button key={t.id} onClick={() => { setTab(t.id); setSearchText('') }}
+                  className={`rounded-xl py-2 text-center active:scale-95 transition-all ${
                     tab === t.id
                       ? 'bg-white/25 ring-2 ring-white/60'
                       : 'hover:bg-white/10'
                   }`}>
-                  <p className={`text-3xl font-black leading-none ${t.count > 0 ? 'text-white' : 'text-white/30'}`}>
+                  <p className={`text-2xl font-black leading-none ${t.count > 0 ? 'text-white' : 'text-white/30'}`}>
                     {t.count}
                   </p>
-                  <p className={`text-[10px] font-bold mt-1 ${tab === t.id ? 'text-white' : 'text-white/60'}`}>
+                  <p className={`text-[9px] font-bold mt-0.5 ${tab === t.id ? 'text-white' : 'text-white/60'}`}>
                     {t.emoji} {t.label}
                   </p>
                 </button>
@@ -1407,29 +1646,36 @@ export default function RepairsPage() {
 
         ) : tab === 'repair' ? (
           /* ── ①お直しタブ ─────────────────────────────────── */
-          <div className="space-y-4">
-            {/* Sort dropdown */}
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-bold text-slate-600 shrink-0">並び替え:</label>
+          <div className="space-y-3">
+            {/* Search + Sort row */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text" value={searchText} onChange={e => setSearchText(e.target.value)}
+                  placeholder="名前・品名・学校で絞り込み"
+                  className="w-full pl-8 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
               <select value={sortOrder} onChange={e => setSortOrder(e.target.value as SortOrder)}
-                className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-700 font-medium focus:border-indigo-500 focus:outline-none">
-                <option value="priority">作業優先順（期限近い順）</option>
-                <option value="received_asc">依頼受け日順（古い順）</option>
-                <option value="deadline_asc">希望完了日順（近い順）</option>
+                className="bg-white border border-slate-300 rounded-xl px-2 py-2 text-xs text-slate-700 font-medium focus:border-indigo-500 focus:outline-none shrink-0">
+                <option value="priority">優先順</option>
+                <option value="received_asc">受付日順</option>
+                <option value="deadline_asc">期限順</option>
                 <option value="school">学校順</option>
                 <option value="name">顧客名順</option>
                 <option value="unpaid_first">未払い優先</option>
               </select>
             </div>
 
-            {sortedRepairs.length === 0 ? (
+            {filteredRepairs.length === 0 ? (
               <div className="text-center py-16 text-gray-400">
                 <Scissors size={36} className="mx-auto mb-3 opacity-30" />
-                <p className="text-sm font-bold">対応中のお直し・依頼はありません</p>
+                <p className="text-sm font-bold">{searchText ? '該当するお直しがありません' : '対応中のお直し・依頼はありません'}</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {sortedRepairs.map(r => (
+                {filteredRepairs.map(r => (
                   <RepairCard key={r.id} item={r} storeId={storeId} onRefresh={fetchAll} onToast={showToast}
                     onEdit={item => { setEditItem(item); setEditKind('repair') }} />
                 ))}
@@ -1439,24 +1685,34 @@ export default function RepairsPage() {
 
         ) : tab === 'purchase' ? (
           /* ── ②発注タブ ───────────────────────────────────── */
-          <div className="space-y-6">
-            {purchases.length === 0 ? (
+          <div className="space-y-4">
+            {/* Search */}
+            <div className="relative">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text" value={searchText} onChange={e => setSearchText(e.target.value)}
+                placeholder="名前・品名・メーカーで絞り込み"
+                className="w-full pl-8 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+
+            {filteredPurchases.length === 0 ? (
               <div className="text-center py-16 text-gray-400">
                 <ShoppingBag size={36} className="mx-auto mb-3 opacity-30" />
-                <p className="text-sm font-bold">対応中の発注はありません</p>
+                <p className="text-sm font-bold">{searchText ? '該当する発注がありません' : '対応中の発注はありません'}</p>
               </div>
             ) : (
               <>
                 {/* 未発注: 集約リスト */}
-                {purchaseUnordered.length > 0 && (
+                {filteredPurchaseUnordered.length > 0 && (
                   <section>
                     <div className="flex items-center gap-2 mb-3">
                       <span className="w-2.5 h-2.5 rounded-full bg-orange-500 shrink-0" />
                       <p className="text-sm font-black text-orange-700">未発注 — メーカーへ発注してください</p>
-                      <span className="ml-auto text-sm font-black text-orange-600">{purchaseUnordered.length}件</span>
+                      <span className="ml-auto text-sm font-black text-orange-600">{filteredPurchaseUnordered.length}件</span>
                     </div>
                     <AggregatedOrderList
-                      orders={purchaseUnordered}
+                      orders={filteredPurchaseUnordered}
                       storeId={storeId} onRefresh={fetchAll} onToast={showToast}
                       onEdit={item => { setEditItem(item); setEditKind('purchase') }}
                     />
@@ -1464,15 +1720,15 @@ export default function RepairsPage() {
                 )}
 
                 {/* 発注済み: 入荷待ち */}
-                {purchaseOnOrder.length > 0 && (
+                {filteredPurchaseOnOrder.length > 0 && (
                   <section>
                     <div className="flex items-center gap-2 mb-3">
                       <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" />
                       <p className="text-sm font-black text-blue-700">発注済み — 入荷を待っています</p>
-                      <span className="ml-auto text-sm font-black text-blue-600">{purchaseOnOrder.length}件</span>
+                      <span className="ml-auto text-sm font-black text-blue-600">{filteredPurchaseOnOrder.length}件</span>
                     </div>
                     <div className="space-y-3">
-                      {purchaseOnOrder.map(p => (
+                      {filteredPurchaseOnOrder.map(p => (
                         <PurchaseCard key={p.id} item={p} storeId={storeId} onRefresh={fetchAll} onToast={showToast}
                           onEdit={item => { setEditItem(item); setEditKind('purchase') }} />
                       ))}
@@ -1481,15 +1737,15 @@ export default function RepairsPage() {
                 )}
 
                 {/* 在庫確保済み */}
-                {purchaseStocked.length > 0 && (
+                {filteredPurchaseStocked.length > 0 && (
                   <section>
                     <div className="flex items-center gap-2 mb-3">
                       <span className="w-2.5 h-2.5 rounded-full bg-teal-500 shrink-0" />
                       <p className="text-sm font-black text-teal-700">在庫確保済み — お渡し待ちに移動できます</p>
-                      <span className="ml-auto text-sm font-black text-teal-600">{purchaseStocked.length}件</span>
+                      <span className="ml-auto text-sm font-black text-teal-600">{filteredPurchaseStocked.length}件</span>
                     </div>
                     <div className="space-y-3">
-                      {purchaseStocked.map(p => (
+                      {filteredPurchaseStocked.map(p => (
                         <PurchaseCard key={p.id} item={p} storeId={storeId} onRefresh={fetchAll} onToast={showToast}
                           onEdit={item => { setEditItem(item); setEditKind('purchase') }} />
                       ))}
@@ -1503,20 +1759,32 @@ export default function RepairsPage() {
         ) : tab === 'delivery' ? (
           /* ── ③お渡しタブ ─────────────────────────────────── */
           deliverySubTab === 'waiting' ? (
-            waiting.length === 0 ? (
-              <div className="text-center py-16 text-gray-500">
-                <Package size={44} className="mx-auto mb-3 opacity-15" />
-                <p className="text-sm font-bold">お渡し待ちのアイテムはありません</p>
-                <p className="text-xs mt-1 text-gray-400">お直し完了・入荷済みの商品がここに表示されます</p>
+            <>
+              {/* Search */}
+              <div className="relative mb-3">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text" value={searchText} onChange={e => setSearchText(e.target.value)}
+                  placeholder="名前・品名で絞り込み"
+                  className="w-full pl-8 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:border-indigo-500 focus:outline-none"
+                />
               </div>
-            ) : (
-              <div className="space-y-3">
-                {[...waitingUnpaid, ...waitingPaid].map(item => (
-                  <WaitingCard key={item.id} item={item} alertDays={alertDays}
-                    onDeliver={handleDeliver} onPaymentToggle={handlePaymentToggle} />
-                ))}
-              </div>
-            )
+              {filteredWaiting.length === 0 ? (
+                <div className="text-center py-16 text-gray-500">
+                  <Package size={44} className="mx-auto mb-3 opacity-15" />
+                  <p className="text-sm font-bold">{searchText ? '該当するアイテムがありません' : 'お渡し待ちのアイテムはありません'}</p>
+                  {!searchText && <p className="text-xs mt-1 text-gray-400">お直し完了・入荷済みの商品がここに表示されます</p>}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredWaiting.map(item => (
+                    <WaitingCard key={item.id} item={item} alertDays={alertDays}
+                      onDeliver={handleDeliver} onPaymentToggle={handlePaymentToggle}
+                      onRevertWaiting={handleRevertWaiting} onDelete={handleDeleteWaiting} />
+                  ))}
+                </div>
+              )}
+            </>
           ) : (
             histLoading ? (
               <div className="flex justify-center py-12">
