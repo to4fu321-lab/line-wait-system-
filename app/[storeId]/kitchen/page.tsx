@@ -208,6 +208,7 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
   }
 
   const insertTestOrder = async () => {
+    unlockAudio()  // Realtimeで音が鳴る前に AudioContext を解除しておく
     const { data: orderNumber } = await supabase
       .rpc('get_next_order_number', { p_store_id: storeId })
     if (!orderNumber) return
