@@ -1,24 +1,104 @@
 import type { TakeoutOrderStatus } from '@/types/takeout'
 
-// 音声ファイルは public/sounds/ に配置してください
-// ファイルがなくても無音で動作します
-const SOUND_MAP: Partial<Record<TakeoutOrderStatus, string>> = {
-  pending:   '/sounds/order-in.mp3',      // 新規注文受付音
-  preparing: '/sounds/cooking-start.mp3', // 調理開始音
-  ready:     '/sounds/order-ready.mp3',   // 完成音
-  completed: '/sounds/complete.mp3',      // お渡し完了音
+// ── Web Audio API コンテキスト ─────────────────────────────
+let _ctx: AudioContext | null = null
+
+function getCtx(): AudioContext | null {
+  if (typeof window === 'undefined') return null
+  try {
+    if (!_ctx) {
+      const W = window as never as { webkitAudioContext?: typeof AudioContext }
+      _ctx = new (window.AudioContext || W.webkitAudioContext!)()
+    }
+    if (_ctx.state === 'suspended') _ctx.resume()
+    return _ctx
+  } catch { return null }
 }
 
-const cache = new Map<string, HTMLAudioElement>()
+// ── 単音生成ヘルパー ──────────────────────────────────────
+function note(
+  freq:      number,
+  startTime: number,
+  duration:  number,
+  vol:       number         = 0.25,
+  wave:      OscillatorType = 'sine'
+) {
+  const c = getCtx(); if (!c) return
+  const osc  = c.createOscillator()
+  const gain = c.createGain()
+  osc.connect(gain); gain.connect(c.destination)
+  osc.type = wave
+  osc.frequency.value = freq
+  gain.gain.setValueAtTime(0, startTime)
+  gain.gain.linearRampToValueAtTime(vol, startTime + 0.01)
+  gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration)
+  osc.start(startTime)
+  osc.stop(startTime + duration + 0.02)
+}
+
+// ── ハプティクス ──────────────────────────────────────────
+function vibrate(pattern: number | number[]) {
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    try { navigator.vibrate(pattern) } catch {}
+  }
+}
+
+// ── サウンド定義 ──────────────────────────────────────────
+const SOUNDS: Partial<Record<TakeoutOrderStatus, () => void>> = {
+
+  // 新規注文 — 明るい上昇アルペジオ (C5→E5→G5)
+  pending: () => {
+    const c = getCtx(); if (!c) return; const t = c.currentTime
+    note(523.25, t,        0.13)
+    note(659.25, t + 0.10, 0.13)
+    note(783.99, t + 0.20, 0.20)
+    vibrate([30, 20, 60])
+  },
+
+  // 調理開始 — 短いポップ×2
+  preparing: () => {
+    const c = getCtx(); if (!c) return; const t = c.currentTime
+    note(880, t,        0.06, 0.22, 'square')
+    note(660, t + 0.06, 0.09, 0.16, 'square')
+    vibrate(40)
+  },
+
+  // 完成 — 4音ファンファーレ
+  ready: () => {
+    const c = getCtx(); if (!c) return; const t = c.currentTime
+    note(523.25, t,        0.10)
+    note(659.25, t + 0.08, 0.10)
+    note(783.99, t + 0.16, 0.10)
+    note(1046.5, t + 0.24, 0.30)
+    vibrate([80, 40, 80])
+  },
+
+  // お渡し完了 — チャイム (C6→E6→G6)
+  completed: () => {
+    const c = getCtx(); if (!c) return; const t = c.currentTime
+    note(1046.5, t,        0.12)
+    note(1318.5, t + 0.10, 0.12)
+    note(1568.0, t + 0.20, 0.22)
+    vibrate(50)
+  },
+}
+
+// ── 公開 API ─────────────────────────────────────────────
 
 export function triggerSound(status: TakeoutOrderStatus): void {
-  if (typeof window === 'undefined') return
-  const src = SOUND_MAP[status]
-  if (!src) return
-  try {
-    if (!cache.has(src)) cache.set(src, new Audio(src))
-    const audio = cache.get(src)!
-    audio.currentTime = 0
-    audio.play().catch(() => {})
-  } catch {}
+  try { SOUNDS[status]?.() } catch {}
+}
+
+/** 汎用ハプティクス */
+export function triggerHaptic(type: 'success' | 'error' | 'light' = 'success') {
+  switch (type) {
+    case 'success': vibrate(50);              break
+    case 'error':   vibrate([200, 100, 200]); break
+    case 'light':   vibrate(20);              break
+  }
+}
+
+/** ユーザー操作後に AudioContext をアンロック（初回タップ時に呼ぶ） */
+export function unlockAudio(): void {
+  getCtx()
 }
