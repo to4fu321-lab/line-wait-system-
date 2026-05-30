@@ -165,6 +165,7 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
   }, [storeId, loadOrders, loadTodayCount, loadSettings])
 
   const advanceStatus = async (order: TakeoutOrder) => {
+    unlockAudio()  // ボタンタップのタイミングでアンロック
     const nextStatus = getNextStatus(order.status, settings)
     if (!nextStatus) return
 
@@ -282,13 +283,13 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
           <div className="flex items-center gap-2">
             <DateDisplay />
             <button
-              onClick={() => setSoundEnabled(v => !v)}
+              onClick={() => { unlockAudio(); setSoundEnabled(v => !v) }}
               className={`text-base w-8 h-8 rounded-lg border flex items-center justify-center active:scale-90 transition-all ${
                 soundEnabled
                   ? 'bg-zinc-800 border-zinc-700 text-zinc-300'
                   : 'bg-zinc-900 border-zinc-800 text-zinc-600'
               }`}
-              title={soundEnabled ? 'サウンドON' : 'サウンドOFF'}
+              title={soundEnabled ? 'サウンドON（タップでOFF）' : 'サウンドOFF（タップでON）'}
             >
               {soundEnabled ? '🔊' : '🔇'}
             </button>
