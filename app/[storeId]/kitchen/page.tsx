@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { triggerSound } from '@/lib/kitchen-sounds'
+import { triggerSound, unlockAudio } from '@/lib/kitchen-sounds'
 import type { TakeoutOrder, TakeoutSettings, Menu } from '@/types/takeout'
 import { getNextStatus, getUrgencyLevel, shouldNotify } from '@/types/takeout'
 import { useKitchenScheduler } from '@/lib/useKitchenScheduler'
@@ -11,6 +11,7 @@ import OrderCard        from './_components/OrderCard'
 import ManualOrderModal from './_components/ManualOrderModal'
 import BatchView        from './_components/BatchView'
 import ItemCookView     from './_components/ItemCookView'
+import StarBurst        from './_components/StarBurst'
 
 const WEEKDAYS       = ['日', '月', '火', '水', '木', '金', '土']
 const WEEKDAY_COLORS = ['text-red-400', 'text-zinc-300', 'text-zinc-300', 'text-zinc-300', 'text-zinc-300', 'text-zinc-300', 'text-blue-400']
@@ -80,8 +81,9 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
   const [maxCombo,   setMaxCombo]   = useState(0)
   const [todayCount, setTodayCount] = useState(0)
   const [loading,    setLoading]    = useState(true)
-  const [showManual, setShowManual] = useState(false)
-  const [showBatch,  setShowBatch]  = useState(false)
+  const [showManual,    setShowManual]    = useState(false)
+  const [showBatch,     setShowBatch]     = useState(false)
+  const [burstTrigger,  setBurstTrigger]  = useState(0)
 
   const comboTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const targetMinutes = settings.target_minutes        ?? 15
@@ -129,6 +131,13 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
     if (data) setMenus(data as Menu[])
   }, [storeId])
 
+  // 初回タップで AudioContext をアンロック
+  useEffect(() => {
+    const handler = () => { unlockAudio(); document.removeEventListener('touchstart', handler) }
+    document.addEventListener('touchstart', handler, { once: true })
+    return () => document.removeEventListener('touchstart', handler)
+  }, [])
+
   useEffect(() => {
     Promise.all([loadOrders(), loadTodayCount(), loadSettings(), loadMenus()]).finally(() => setLoading(false))
     const channel = supabase
@@ -156,7 +165,10 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
     if (error) return
 
     await loadOrders()
-    if (nextStatus === 'completed') await loadTodayCount()
+    if (nextStatus === 'completed') {
+      await loadTodayCount()
+      setBurstTrigger(t => t + 1)
+    }
     triggerSound(nextStatus)
 
     if (nextStatus === 'completed') {
@@ -294,26 +306,29 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
         >
           🧪
         </button>
-        <div className="flex-1" />
-        {/* 注文数サマリー */}
-        <div className="flex items-center gap-1.5 text-xs text-zinc-500">
-          {orders.filter(o => o.status === 'pending').length > 0 && (
-            <span className="bg-zinc-800 px-2 py-1 rounded">
-              受付 {orders.filter(o => o.status === 'pending').length}
-            </span>
-          )}
-          {orders.filter(o => o.status === 'preparing').length > 0 && (
-            <span className="bg-amber-950/60 text-amber-400 px-2 py-1 rounded">
-              調理中 {orders.filter(o => o.status === 'preparing').length}
-            </span>
-          )}
-          {readyCount > 0 && (
-            <span className="bg-emerald-900/60 text-emerald-400 px-2 py-1 rounded font-semibold animate-pulse">
-              完成 {readyCount}
-            </span>
-          )}
-        </div>
       </div>
+
+      {/* ─── タイルタブ ─── */}
+      {(() => {
+        const pendingCount  = orders.filter(o => o.status === 'pending').length
+        const prepCount     = orders.filter(o => o.status === 'preparing').length
+        const tiles = [
+          { label: '受付中',   count: pendingCount, icon: '📥', numColor: 'text-blue-300',    bg: 'bg-blue-950/50    border-blue-800/40'    },
+          { label: '調理中',   count: prepCount,    icon: '🍳', numColor: 'text-amber-300',   bg: 'bg-amber-950/50   border-amber-800/40'   },
+          { label: '完成待ち', count: readyCount,   icon: '✅', numColor: 'text-emerald-300', bg: `bg-emerald-950/50 border-emerald-800/40 ${readyCount > 0 ? 'animate-pulse' : ''}` },
+        ]
+        return (
+          <div className="grid grid-cols-3 gap-2 px-3 py-2 bg-zinc-900/40 border-b border-zinc-800 shrink-0">
+            {tiles.map(t => (
+              <div key={t.label} className={`rounded-xl border flex flex-col items-center py-2.5 gap-0.5 ${t.bg}`}>
+                <span className="text-lg leading-none">{t.icon}</span>
+                <span className={`text-3xl font-black tabular-nums leading-none ${t.numColor}`}>{t.count}</span>
+                <span className={`text-[11px] font-bold leading-none ${t.numColor} opacity-70`}>{t.label}</span>
+              </div>
+            ))}
+          </div>
+        )
+      })()}
 
       {/* ─── お渡し待ち（コンパクト） ─── */}
       {readyOrders.length > 0 && (
@@ -344,6 +359,8 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
       {showManual && (
         <ManualOrderModal storeId={storeId} onClose={() => setShowManual(false)} onCreated={loadOrders} />
       )}
+      <StarBurst trigger={burstTrigger} />
+
       {showBatch && (
         <BatchView
           orders={orders.filter(o => o.status !== 'ready')}
