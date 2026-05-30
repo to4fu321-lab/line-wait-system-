@@ -36,6 +36,33 @@ function note(
   osc.stop(startTime + duration + 0.02)
 }
 
+// ── 白ノイズバースト（ジュー音） ──────────────────────────
+function noiseBurst(startTime: number, duration: number, vol = 0.30, filterFreq = 3500) {
+  const c = getCtx(); if (!c || c.state !== 'running') return
+  const bufLen = Math.floor(c.sampleRate * (duration + 0.05))
+  const buf    = c.createBuffer(1, bufLen, c.sampleRate)
+  const data   = buf.getChannelData(0)
+  for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1
+
+  const source = c.createBufferSource()
+  source.buffer = buf
+
+  const filter = c.createBiquadFilter()
+  filter.type = 'bandpass'
+  filter.frequency.value = filterFreq
+  filter.Q.value = 0.8
+
+  const gain = c.createGain()
+  gain.gain.setValueAtTime(vol, startTime)
+  gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration)
+
+  source.connect(filter)
+  filter.connect(gain)
+  gain.connect(c.destination)
+  source.start(startTime)
+  source.stop(startTime + duration + 0.05)
+}
+
 // ── ハプティクス ──────────────────────────────────────────
 function vibrate(pattern: number | number[]) {
   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
@@ -46,47 +73,48 @@ function vibrate(pattern: number | number[]) {
 // ── サウンド定義 ──────────────────────────────────────────
 const SOUNDS: Partial<Record<TakeoutOrderStatus, () => void>> = {
 
-  // 新規注文 — 明るい上昇アルペジオ (C5→E5→G5)
+  // 注文着信 — シンプルな2音コール（ドアベル）
   pending: () => {
     const c = getCtx(); if (!c || c.state !== 'running') return; const t = c.currentTime
-    note(523.25, t,        0.13)
-    note(659.25, t + 0.10, 0.13)
-    note(783.99, t + 0.20, 0.20)
-    vibrate([30, 20, 60])
+    note(1174.66, t,        0.09, 0.22, 'sine')  // D6
+    note(880.00,  t + 0.14, 0.22, 0.28, 'sine')  // A5
+    vibrate([20, 10, 40])
   },
 
-  // 調理開始 — 短いポップ×2
+  // 調理開始 — ジュー（白ノイズ）＋試合開始パンチ
   preparing: () => {
     const c = getCtx(); if (!c || c.state !== 'running') return; const t = c.currentTime
-    note(880, t,        0.06, 0.22, 'square')
-    note(660, t + 0.06, 0.09, 0.16, 'square')
-    vibrate(40)
+    noiseBurst(t, 0.22, 0.32, 3500)                             // ジュー
+    note(220.00, t + 0.04, 0.10, 0.30, 'sawtooth')             // A3 パンチ
+    note(440.00, t + 0.13, 0.09, 0.28, 'sawtooth')             // A4
+    note(659.25, t + 0.21, 0.28, 0.38, 'square')               // E5 GO!
+    vibrate([20, 10, 80])
   },
 
-  // キッチン完成 — 2オクターブ駆け上がりファンファーレ
+  // 出来上がり — 料理タイマー（3短音＋1長音）
   ready: () => {
     const c = getCtx(); if (!c || c.state !== 'running') return; const t = c.currentTime
-    // 低音から一気に駆け上がる
-    note(261.63, t,        0.08, 0.30)  // C4
-    note(329.63, t + 0.07, 0.08, 0.30)  // E4
-    note(392.00, t + 0.14, 0.08, 0.30)  // G4
-    note(523.25, t + 0.21, 0.10, 0.35)  // C5
-    note(659.25, t + 0.30, 0.10, 0.35)  // E5
-    note(783.99, t + 0.39, 0.10, 0.35)  // G5
-    // 最後にメジャー和音を全音同時打ち
-    note(1046.5, t + 0.50, 0.45, 0.40)  // C6
-    note(1318.5, t + 0.50, 0.45, 0.30)  // E6
-    note(1568.0, t + 0.50, 0.45, 0.25)  // G6
-    vibrate([60, 30, 60, 30, 120])
+    note(1046.5, t,        0.07, 0.32, 'sine')   // C6
+    note(1046.5, t + 0.13, 0.07, 0.32, 'sine')   // C6
+    note(1046.5, t + 0.26, 0.07, 0.32, 'sine')   // C6
+    note(1318.5, t + 0.38, 0.60, 0.50, 'sine')   // E6（長め・伸ばす）
+    vibrate([30, 20, 30, 20, 100])
   },
 
-  // お渡し完了 — チャイム (C6→E6→G6)
+  // お渡し完了 — ゲームクリア（スケールラン＋フィナーレ和音）
   completed: () => {
     const c = getCtx(); if (!c || c.state !== 'running') return; const t = c.currentTime
-    note(1046.5, t,        0.12)
-    note(1318.5, t + 0.10, 0.12)
-    note(1568.0, t + 0.20, 0.22)
-    vibrate(50)
+    note(523.25, t,        0.07, 0.18)            // C5
+    note(587.33, t + 0.07, 0.07, 0.18)           // D5
+    note(659.25, t + 0.14, 0.07, 0.20)           // E5
+    note(698.46, t + 0.21, 0.07, 0.20)           // F5
+    note(783.99, t + 0.28, 0.07, 0.22)           // G5
+    note(880.00, t + 0.35, 0.07, 0.22)           // A5
+    note(987.77, t + 0.42, 0.07, 0.22)           // B5
+    note(1046.5, t + 0.50, 0.70, 0.40)           // C6 ─┐
+    note(1318.5, t + 0.50, 0.70, 0.30)           // E6  │ フィナーレ和音
+    note(1568.0, t + 0.50, 0.70, 0.25)           // G6 ─┘
+    vibrate([50, 20, 50, 20, 150])
   },
 }
 
@@ -121,7 +149,6 @@ export function unlockAudio(): void {
   if (_unlocked) return
   const c = getCtx(); if (!c) return
   try {
-    // 無音の1サンプルバッファを再生 — iOS Safari のアンロック定石
     const buf    = c.createBuffer(1, 1, 22050)
     const source = c.createBufferSource()
     source.buffer = buf

@@ -193,7 +193,7 @@ export default function ItemCookView({ orders, settings, onRefresh, onOrderReady
     } finally {
       setInFlight(p => { const n = new Set(p); n.delete(row.itemId); return n })
     }
-  }, [orders, inFlight, onRefresh])
+  }, [orders, inFlight, onRefresh, onOrderReady])
 
   const markBatchDone = useCallback(async (rows: Row[], groupName: string) => {
     const targets = rows.filter(r => !r.isDone && !inFlight.has(r.itemId))
