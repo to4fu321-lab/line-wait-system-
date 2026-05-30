@@ -442,7 +442,8 @@ function NewRepairForm({ customerId, childId, storeId, onSaved, onCancel, defaul
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-4 space-y-3">
+    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+      <div className="p-4 space-y-3 max-h-[80vh] overflow-y-auto">
       <div className="flex items-center justify-between mb-1">
         <p className="font-black text-gray-900 text-sm">依頼受付</p>
         <button onClick={onCancel} className="p-1 text-gray-500 hover:text-gray-900"><X size={16} /></button>
@@ -539,6 +540,7 @@ function NewRepairForm({ customerId, childId, storeId, onSaved, onCancel, defaul
         className="w-full py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
         {loading ? <><Loader2 size={14} className="animate-spin" />保存中...</> : '受付として登録する'}
       </button>
+      </div>
     </div>
   )
 }
@@ -574,7 +576,8 @@ function NewPurchaseForm({ customerId, childId, storeId, onSaved, onCancel }: {
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-4 space-y-3">
+    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+      <div className="p-4 space-y-3 max-h-[80vh] overflow-y-auto">
       <div className="flex items-center justify-between mb-1">
         <p className="font-black text-gray-900 text-sm flex items-center gap-2">
           <ShoppingBag size={14} className="text-blue-600" />新規発注登録
@@ -608,6 +611,7 @@ function NewPurchaseForm({ customerId, childId, storeId, onSaved, onCancel }: {
         className="w-full py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
         {loading ? <><Loader2 size={14} className="animate-spin" />保存中...</> : '依頼として登録する'}
       </button>
+      </div>
     </div>
   )
 }
@@ -1039,6 +1043,61 @@ export default function CRMPage() {
   const timerRef        = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inlineDetailRef = useRef<HTMLDivElement>(null)
 
+  // ── Quick intake (order-first flow) ──────────────────────
+  const [showQuickIntake,    setShowQuickIntake]    = useState(false)
+  const [qiStep,             setQiStep]             = useState<1 | 2 | 3>(1)
+  const [qiKind,             setQiKind]             = useState<'repair' | 'purchase'>('repair')
+  const [qiReqType,          setQiReqType]          = useState<RequestTypeVal>('repair')
+  const [qiItemName,         setQiItemName]         = useState('')
+  const [qiContent,          setQiContent]          = useState('')
+  const [qiPrice,            setQiPrice]            = useState('')
+  const [qiNotes,            setQiNotes]            = useState('')
+  const [qiDesiredDate,      setQiDesiredDate]      = useState('')
+  const [qiMaker,            setQiMaker]            = useState('')
+  const [qiCustomerId,       setQiCustomerId]       = useState<string | null>(null)
+  const [qiChildId,          setQiChildId]          = useState<string | null>(null)
+  const [qiCustomerSearch,   setQiCustomerSearch]   = useState('')
+  const [qiFoundCustomers,   setQiFoundCustomers]   = useState<Customer[]>([])
+  const [qiSearching,        setQiSearching]        = useState(false)
+  const [qiChildren,         setQiChildren]         = useState<Child[]>([])
+  const [qiSaving,           setQiSaving]           = useState(false)
+
+  const resetQi = useCallback(() => {
+    setQiStep(1); setQiKind('repair'); setQiReqType('repair')
+    setQiItemName(''); setQiContent(''); setQiPrice(''); setQiNotes('')
+    setQiDesiredDate(''); setQiMaker('')
+    setQiCustomerId(null); setQiChildId(null)
+    setQiCustomerSearch(''); setQiFoundCustomers([]); setQiChildren([])
+  }, [])
+
+  useEffect(() => {
+    if (!qiCustomerSearch.trim()) { setQiFoundCustomers([]); return }
+    const t = setTimeout(async () => {
+      setQiSearching(true)
+      const { data } = await supabase.from('customers').select('*')
+        .eq('store_id', storeId).is('deleted_at', null)
+        .or(`name.ilike.%${qiCustomerSearch}%,kana.ilike.%${qiCustomerSearch}%,tel.ilike.%${qiCustomerSearch}%`)
+        .order('updated_at', { ascending: false }).limit(10)
+      setQiFoundCustomers(data ?? [])
+      setQiSearching(false)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [qiCustomerSearch, storeId])
+
+  const handleQiSelectCustomer = useCallback(async (customer: Customer) => {
+    setQiCustomerId(customer.id)
+    const { data: kids } = await supabase.from('children').select('*')
+      .eq('customer_id', customer.id).order('name')
+    const childArr = kids ?? []
+    setQiChildren(childArr)
+    if (childArr.length === 0) {
+      setQiChildId(null)
+      setQiStep(3)
+    } else {
+      setQiStep(3)
+    }
+  }, [])
+
   const showToast = useCallback((type: 'ok' | 'err', msg: string, onUndo?: () => Promise<void>) => {
     setToast({ type, msg, onUndo })
   }, [])
@@ -1100,6 +1159,41 @@ export default function CRMPage() {
   }, [storeId])
 
   useEffect(() => { fetchStats() }, [fetchStats])
+
+  const handleQiSave = useCallback(async () => {
+    if (!qiCustomerId || !qiItemName.trim()) return
+    setQiSaving(true)
+    let err: { message: string } | null = null
+    if (qiKind === 'repair') {
+      const res = await (supabase as any).from('repair_histories').insert({
+        store_id: storeId, customer_id: qiCustomerId,
+        child_id: qiChildId ?? null,
+        item_name: qiItemName.trim(), content: qiContent.trim(),
+        price: qiPrice ? parseInt(qiPrice) : null,
+        notes: qiNotes.trim() || null,
+        status: 'received', received_date: new Date().toISOString().slice(0, 10),
+        request_type: qiReqType, prepaid: false,
+        desired_completion_date: qiDesiredDate || null,
+      })
+      err = res.error
+    } else {
+      const res = await supabase.from('purchase_orders').insert({
+        store_id: storeId, customer_id: qiCustomerId,
+        child_id: qiChildId ?? null,
+        item_name: qiItemName.trim(), maker: qiMaker.trim() || null,
+        notes: qiNotes.trim() || null,
+        price: qiPrice ? parseInt(qiPrice) : null,
+        status: 'ordered', ordered_date: new Date().toISOString().slice(0, 10),
+      })
+      err = res.error
+    }
+    setQiSaving(false)
+    if (err) { showToast('err', `保存失敗: ${err.message}`); return }
+    showToast('ok', '依頼を受け付けました')
+    setShowQuickIntake(false)
+    resetQi()
+    fetchStats()
+  }, [qiCustomerId, qiChildId, qiItemName, qiContent, qiPrice, qiNotes, qiDesiredDate, qiMaker, qiKind, qiReqType, storeId, showToast, resetQi, fetchStats])
 
   const fetchAllCustomers = useCallback(async () => {
     if (!storeId || groupStoreIds.length === 0) return
@@ -1466,6 +1560,10 @@ export default function CRMPage() {
             </h1>
             {storeName && <p className="text-gray-500 text-xs">{storeName}</p>}
           </div>
+          <button onClick={() => { resetQi(); setShowQuickIntake(true) }}
+            className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold rounded-xl transition-all">
+            <Plus size={13} />先に内容入力
+          </button>
         </div>
       </div>
 
@@ -1491,19 +1589,21 @@ export default function CRMPage() {
             </div>
           </div>
 
-          {/* 検索 */}
-          <div className="relative mb-2">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
-            <input type="text" value={searchQuery}
-              onChange={e => { setSearchQuery(e.target.value); setKanaFilter(null) }}
-              placeholder="保護者名・お子様名・フリガナ・電話番号"
-              className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-9 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:outline-none transition-colors" />
-            {searchQuery && (
-              <button onClick={() => { setSearchQuery(''); setCustomers([]); setSelectedCustomer(null) }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-900">
-                <X size={14} />
-              </button>
-            )}
+          {/* 検索 — sticky */}
+          <div className="sticky top-[56px] z-20 bg-gray-50 -mx-4 px-4 pb-2 pt-1">
+            <div className="relative">
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
+              <input type="text" value={searchQuery}
+                onChange={e => { setSearchQuery(e.target.value); setKanaFilter(null) }}
+                placeholder="保護者名・お子様名・フリガナ・電話番号"
+                className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-9 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:outline-none transition-colors shadow-sm" />
+              {searchQuery && (
+                <button onClick={() => { setSearchQuery(''); setCustomers([]); setSelectedCustomer(null) }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-900">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* 学校フィルター — 常時表示 */}
@@ -1577,18 +1677,21 @@ export default function CRMPage() {
               </div>
             )
             return (
-              <div className="space-y-2 mb-4 animate-fade-in">
-                {list.map(c => (
+              <div className="space-y-1.5 mb-4 animate-fade-in">
+                {list.map(c => {
+                  const childrenArr = (c as any).children as { id: string; name: string; school_name: string | null }[] | undefined ?? []
+                  const isOpen = selectedCustomer?.id === c.id
+                  return (
                   <Fragment key={c.id}>
                     <button onClick={() => { setSelectedCustomer(prev => prev?.id === c.id ? null : c); setEditingCustomer(false); setShowAddChild(false) }}
                       className={`w-full text-left px-4 py-3 rounded-xl border transition-all active:scale-[0.98] ${
-                        selectedCustomer?.id === c.id
-                          ? 'bg-indigo-50 border-indigo-400 text-gray-900'
+                        isOpen
+                          ? 'bg-indigo-50 border-indigo-400 text-gray-900 rounded-b-none border-b-0'
                           : 'bg-white border-gray-200 text-gray-700 hover:border-gray-400'
                       }`}>
                       <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${selectedCustomer?.id === c.id ? 'bg-indigo-100' : 'bg-gray-100'}`}>
-                          <User size={16} className={selectedCustomer?.id === c.id ? 'text-indigo-600' : 'text-gray-500'} />
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isOpen ? 'bg-indigo-100' : 'bg-gray-100'}`}>
+                          <User size={16} className={isOpen ? 'text-indigo-600' : 'text-gray-500'} />
                         </div>
                         <div className="flex-1 min-w-0">
                           {childMatchMap[c.id] ? (
@@ -1604,20 +1707,39 @@ export default function CRMPage() {
                               </p>
                             </>
                           )}
+                          {/* Children preview chips */}
+                          {childrenArr.length > 0 && !isOpen && (
+                            <div className="flex gap-1 mt-0.5 flex-wrap">
+                              {childrenArr.slice(0, 3).map((ch) => (
+                                <span key={ch.id} className="text-[10px] bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded-full font-bold">
+                                  {ch.name}
+                                </span>
+                              ))}
+                              {childrenArr.length > 3 && (
+                                <span className="text-[10px] text-gray-400 px-1 py-0.5">+{childrenArr.length - 3}人</span>
+                              )}
+                            </div>
+                          )}
                           {Object.keys(storeNameMap).length > 1 && storeNameMap[(c as any).store_id] && (
                             <p className="text-[10px] text-gray-500">{storeNameMap[(c as any).store_id]}</p>
                           )}
                         </div>
-                        {c.line_user_id
-                          ? <MessageCircle size={13} className="text-emerald-600 shrink-0" />
-                          : <span className="text-[10px] text-gray-500 shrink-0">LINE未</span>
-                        }
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {c.line_user_id
+                            ? <MessageCircle size={13} className="text-emerald-600" />
+                            : <span className="text-[10px] text-gray-500">LINE未</span>
+                          }
+                          {isOpen
+                            ? <ChevronUp size={14} className="text-indigo-500" />
+                            : <ChevronDown size={14} className="text-gray-400" />
+                          }
+                        </div>
                       </div>
                     </button>
 
                     {/* 選択中顧客 — インライン展開 */}
-                    {selectedCustomer?.id === c.id && (
-                      <div ref={inlineDetailRef} className="space-y-4 border border-gray-200 rounded-2xl p-4 bg-gray-50">
+                    {isOpen && (
+                      <div ref={inlineDetailRef} className="space-y-4 border border-indigo-200 rounded-b-2xl p-4 bg-indigo-50/30 border-t-0 -mt-px">
 
                         {/* 保護者情報 */}
                         {editingCustomer ? (
@@ -1747,7 +1869,8 @@ export default function CRMPage() {
                       </div>
                     )}
                   </Fragment>
-                ))}
+                  )
+                })}
               </div>
             )
           })()}
@@ -1867,6 +1990,207 @@ export default function CRMPage() {
           </div>
         </div>
       )}
+      {/* ── Quick Intake Modal (order-first flow) ───────── */}
+      {showQuickIntake && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm"
+          onClick={e => { if (e.target === e.currentTarget) { setShowQuickIntake(false); resetQi() } }}>
+          <div className="w-full max-w-lg bg-white rounded-t-3xl shadow-2xl max-h-[90vh] flex flex-col">
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100 shrink-0">
+              <div className="flex items-center gap-2">
+                {qiStep > 1 && (
+                  <button onClick={() => setQiStep(s => (s - 1) as 1 | 2 | 3)}
+                    className="p-1.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+                    <ArrowLeft size={16} />
+                  </button>
+                )}
+                <h2 className="text-base font-black text-gray-900">
+                  {qiStep === 1 ? '①内容を入力' : qiStep === 2 ? '②顧客を選択' : '③お子様 & 確認'}
+                </h2>
+              </div>
+              <button onClick={() => { setShowQuickIntake(false); resetQi() }}
+                className="p-1.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
+
+              {/* ── Step 1: Form ─────────────────────────────── */}
+              {qiStep === 1 && (
+                <>
+                  {/* Kind toggle */}
+                  <div className="flex gap-2 bg-gray-100 rounded-xl p-1">
+                    {([['repair', '✂️ お直し・依頼'], ['purchase', '📦 追加購入']] as const).map(([k, label]) => (
+                      <button key={k} onClick={() => setQiKind(k)}
+                        className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                          qiKind === k ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                        }`}>{label}</button>
+                    ))}
+                  </div>
+
+                  {qiKind === 'repair' && (
+                    <>
+                      <div className="flex gap-1 flex-wrap">
+                        {REQ_TYPE_OPTIONS.map(opt => (
+                          <button key={opt.value} type="button"
+                            onClick={() => setQiReqType(opt.value)}
+                            className={`flex-1 text-[11px] font-bold py-2 rounded-xl border transition-all ${
+                              qiReqType === opt.value ? 'bg-indigo-50 border-indigo-400 text-indigo-700' : 'bg-gray-100 border-gray-300 text-gray-500'
+                            }`}>
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 block mb-1">商品名 <span className="text-red-500">*</span></label>
+                        <input type="text" value={qiItemName} onChange={e => setQiItemName(e.target.value)}
+                          placeholder="例：○○高校スラックス"
+                          className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 block mb-1">内容</label>
+                        <input type="text" value={qiContent} onChange={e => setQiContent(e.target.value)}
+                          placeholder="例：裾上げ5cm"
+                          className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
+                      </div>
+                    </>
+                  )}
+
+                  {qiKind === 'purchase' && (
+                    <>
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 block mb-1">商品名 <span className="text-red-500">*</span></label>
+                        <input type="text" value={qiItemName} onChange={e => setQiItemName(e.target.value)}
+                          placeholder="例：○○高校学ラン 165A"
+                          className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 block mb-1">メーカー</label>
+                        <input type="text" value={qiMaker} onChange={e => setQiMaker(e.target.value)}
+                          placeholder="例：カンコー"
+                          className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
+                      </div>
+                    </>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs font-bold text-gray-600 block mb-1">金額（円）</label>
+                      <input type="number" value={qiPrice} onChange={e => setQiPrice(e.target.value)}
+                        placeholder="例：1200"
+                        className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
+                    </div>
+                    {qiKind === 'repair' && (
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 block mb-1">希望完了日</label>
+                        <input type="date" value={qiDesiredDate} onChange={e => setQiDesiredDate(e.target.value)}
+                          className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-600 block mb-1">メモ</label>
+                    <input type="text" value={qiNotes} onChange={e => setQiNotes(e.target.value)}
+                      placeholder="スタッフへの申し送り等"
+                      className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
+                  </div>
+                  <button
+                    onClick={() => { if (qiItemName.trim()) setQiStep(2) }}
+                    disabled={!qiItemName.trim()}
+                    className="w-full py-3 rounded-xl font-black text-sm bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40 flex items-center justify-center gap-2">
+                    次へ → 顧客を選ぶ
+                  </button>
+                </>
+              )}
+
+              {/* ── Step 2: Customer Search ───────────────────── */}
+              {qiStep === 2 && (
+                <>
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2 text-xs text-indigo-700 font-bold">
+                    {qiKind === 'repair' ? '✂️ ' : '📦 '}{qiItemName}
+                    {qiContent && ` — ${qiContent}`}
+                    {qiPrice && ` ¥${parseInt(qiPrice).toLocaleString()}`}
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-gray-600 block mb-1">顧客を検索</label>
+                    <div className="relative">
+                      <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input type="text" value={qiCustomerSearch}
+                        onChange={e => setQiCustomerSearch(e.target.value)}
+                        placeholder="名前・フリガナ・電話番号"
+                        className="w-full pl-8 pr-3 border border-gray-300 rounded-xl py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
+                    </div>
+                  </div>
+
+                  {qiSearching && <div className="flex justify-center py-4"><Loader2 size={20} className="animate-spin text-indigo-500" /></div>}
+                  {!qiSearching && qiFoundCustomers.length > 0 && (
+                    <div className="space-y-1.5">
+                      {qiFoundCustomers.map(c => (
+                        <button key={c.id} onClick={() => handleQiSelectCustomer(c)}
+                          className="w-full text-left px-3 py-2.5 rounded-xl border border-gray-200 bg-white hover:border-indigo-300 hover:bg-indigo-50 active:scale-[0.98] transition-all flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                            <User size={14} className="text-gray-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-sm text-gray-900 truncate">{c.name}</p>
+                            <p className="text-xs text-gray-500 truncate">{c.kana ?? c.tel ?? 'LINE未連携'}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {!qiSearching && qiCustomerSearch.trim() && qiFoundCustomers.length === 0 && (
+                    <p className="text-center text-gray-400 text-xs py-3">該当する顧客が見つかりません</p>
+                  )}
+                </>
+              )}
+
+              {/* ── Step 3: Child & Confirm ───────────────────── */}
+              {qiStep === 3 && (
+                <>
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2 text-xs text-indigo-700 font-bold">
+                    {qiKind === 'repair' ? '✂️ ' : '📦 '}{qiItemName}
+                    {qiContent && ` — ${qiContent}`}
+                    {qiPrice && ` ¥${parseInt(qiPrice).toLocaleString()}`}
+                  </div>
+
+                  {qiChildren.length > 0 && (
+                    <div>
+                      <label className="text-xs font-bold text-gray-600 block mb-1.5">お子様を選択（任意）</label>
+                      <div className="space-y-1.5">
+                        <button onClick={() => setQiChildId(null)}
+                          className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all text-sm font-bold ${
+                            qiChildId === null ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                          }`}>
+                          保護者本人として登録
+                        </button>
+                        {qiChildren.map(ch => (
+                          <button key={ch.id} onClick={() => setQiChildId(ch.id)}
+                            className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all ${
+                              qiChildId === ch.id ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'
+                            }`}>
+                            <p className="font-bold text-sm text-gray-900">{ch.name}</p>
+                            {ch.school_name && <p className="text-xs text-amber-600">{ch.school_name}{ch.grade ? ` ${ch.grade}` : ''}</p>}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <button onClick={handleQiSave} disabled={qiSaving}
+                    className="w-full py-3.5 rounded-xl font-black text-base bg-gradient-to-r from-indigo-600 to-violet-600 text-white disabled:opacity-50 flex items-center justify-center gap-2">
+                    {qiSaving ? <><Loader2 size={16} className="animate-spin" />登録中...</> : '受付として登録する'}
+                  </button>
+                </>
+              )}
+
+            </div>
+          </div>
+        </div>
+      )}
+
       <BottomNav />
     </div>
   )
