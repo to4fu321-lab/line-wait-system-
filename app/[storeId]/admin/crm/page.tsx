@@ -392,229 +392,225 @@ function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrd
 }
 
 // ============================================================
-// 新規依頼受付フォーム（お直し / 来店依頼 / 取置き依頼）
+// 統合新規依頼受付フォーム
 // ============================================================
-type RequestTypeVal = 'repair' | 'walk_in' | 'hold_request'
-const REQ_TYPE_OPTIONS: { value: RequestTypeVal; label: string; placeholder: { item: string; content: string } }[] = [
-  { value: 'repair',       label: '✂️ お直し',    placeholder: { item: '例：○○高校スラックス', content: '例：裾上げ5cm' } },
-  { value: 'walk_in',      label: '🏪 来店依頼',  placeholder: { item: '例：ブレザー',          content: '例：サイズ確認・在庫確認' } },
-  { value: 'hold_request', label: '📌 取置き依頼', placeholder: { item: '例：体操着上',          content: '例：130サイズ取り置き希望' } },
+type IntakeFormType = 'repair' | 'repair_consult' | 'purchase' | 'inquiry' | 'payment_pending'
+const INTAKE_OPTIONS: {
+  value: IntakeFormType; label: string
+  ph_item: string; ph_content: string
+  showContent: boolean; showPrice: boolean; showSlip: boolean; showDate: boolean; showPrepaid: boolean
+  isPurchase: boolean
+}[] = [
+  { value: 'repair',          label: '✂️ お直し',        ph_item: '例：○○高校スラックス',   ph_content: '例：裾上げ5cm',        showContent: true,  showPrice: true,  showSlip: true,  showDate: true,  showPrepaid: true,  isPurchase: false },
+  { value: 'repair_consult',  label: '🔍 お直し相談',    ph_item: '例：ブレザー',             ph_content: '例：採寸・見積り相談', showContent: true,  showPrice: true,  showSlip: false, showDate: false, showPrepaid: false, isPurchase: false },
+  { value: 'purchase',        label: '📦 追加購入・注文', ph_item: '例：○○高校学ラン 165A',  ph_content: '',                     showContent: false, showPrice: true,  showSlip: false, showDate: false, showPrepaid: false, isPurchase: true  },
+  { value: 'inquiry',         label: '❓ その他問合せ',   ph_item: '例：問合せ内容の概要',    ph_content: '例：詳細',             showContent: true,  showPrice: false, showSlip: false, showDate: false, showPrepaid: false, isPurchase: false },
+  { value: 'payment_pending', label: '💴 入金待ち',      ph_item: '例：未回収案件の概要',    ph_content: '',                     showContent: false, showPrice: true,  showSlip: false, showDate: false, showPrepaid: false, isPurchase: false },
 ]
 
-function NewRepairForm({ customerId, childId, storeId, onSaved, onCancel, defaultType }: {
+function NewIntakeForm({ customerId, childId, storeId, reservationUrl, onSaved, onCancel, defaultType }: {
   customerId: string; childId: string | null; storeId: string
-  onSaved: () => void; onCancel: () => void; defaultType?: RequestTypeVal
+  reservationUrl?: string | null
+  onSaved: () => void; onCancel: () => void; defaultType?: IntakeFormType
 }) {
-  const [reqType,    setReqType]    = useState<RequestTypeVal>(defaultType ?? 'repair')
-  const [itemName,   setItemName]   = useState('')
-  const [content,    setContent]    = useState('')
-  const [slipNumber, setSlipNumber] = useState('')
-  const [price,      setPrice]      = useState('')
-  const [prepaid,    setPrepaid]    = useState(false)
-  const [notes,      setNotes]      = useState('')
+  const [intakeType,  setIntakeType]  = useState<IntakeFormType>(defaultType ?? 'repair')
+  const [itemName,    setItemName]    = useState('')
+  const [content,     setContent]     = useState('')
+  const [maker,       setMaker]       = useState('')
+  const [slipNumber,  setSlipNumber]  = useState('')
+  const [price,       setPrice]       = useState('')
+  const [prepaid,     setPrepaid]     = useState(false)
+  const [notes,       setNotes]       = useState('')
   const [desiredDate, setDesiredDate] = useState('')
-  const [loading,    setLoading]    = useState(false)
-  const [error,      setError]      = useState<string | null>(null)
+  const [loading,     setLoading]     = useState(false)
+  const [error,       setError]       = useState<string | null>(null)
 
-  const currentOpt = REQ_TYPE_OPTIONS.find(o => o.value === reqType) ?? REQ_TYPE_OPTIONS[0]
-  const contentLabel = reqType === 'repair' ? 'お直し内容' : reqType === 'hold_request' ? '依頼内容' : '依頼内容'
-  const contentRequired = reqType === 'repair'
+  const opt = INTAKE_OPTIONS.find(o => o.value === intakeType) ?? INTAKE_OPTIONS[0]
 
   const handleSave = async () => {
-    if (!itemName.trim()) { setError('商品名を入力してください'); return }
-    if (contentRequired && !content.trim()) { setError('お直し内容を入力してください'); return }
+    if (!itemName.trim()) { setError('内容を入力してください'); return }
+    if (intakeType === 'repair' && !content.trim()) { setError('お直し内容を入力してください'); return }
     setLoading(true); setError(null)
-    const { error: err } = await (supabase as any).from('repair_histories').insert({
-      store_id: storeId, customer_id: customerId,
-      child_id: childId ?? null,
-      item_name: itemName.trim(), content: content.trim(),
-      slip_number: slipNumber.trim() || null,
-      price: price ? parseInt(price) : null,
-      notes: notes.trim() || null,
-      status: 'received', received_date: new Date().toISOString().slice(0, 10),
-      request_type: reqType,
-      prepaid,
-      desired_completion_date: desiredDate || null,
-    })
-    setLoading(false)
-    if (err) { setError(`保存失敗: ${err.message}`); return }
+    if (opt.isPurchase) {
+      const { error: err } = await supabase.from('purchase_orders').insert({
+        store_id: storeId, customer_id: customerId,
+        child_id: childId ?? null,
+        item_name: itemName.trim(),
+        maker: maker.trim() || null,
+        notes: notes.trim() || null,
+        price: price ? parseInt(price) : null,
+        status: 'ordered', ordered_date: new Date().toISOString().slice(0, 10),
+      })
+      setLoading(false)
+      if (err) { setError(`保存失敗: ${err.message}`); return }
+    } else {
+      const { error: err } = await (supabase as any).from('repair_histories').insert({
+        store_id: storeId, customer_id: customerId,
+        child_id: childId ?? null,
+        item_name: itemName.trim(), content: content.trim(),
+        slip_number: slipNumber.trim() || null,
+        price: price ? parseInt(price) : null,
+        notes: notes.trim() || null,
+        status: 'received', received_date: new Date().toISOString().slice(0, 10),
+        request_type: intakeType,
+        prepaid,
+        desired_completion_date: desiredDate || null,
+      })
+      setLoading(false)
+      if (err) { setError(`保存失敗: ${err.message}`); return }
+    }
     onSaved()
   }
+
+  const contentLabel =
+    intakeType === 'repair'        ? 'お直し内容' :
+    intakeType === 'repair_consult' ? '相談内容'   : '詳細'
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
       <div className="p-4 space-y-3 max-h-[80vh] overflow-y-auto">
-      <div className="flex items-center justify-between mb-1">
-        <p className="font-black text-gray-900 text-sm">依頼受付</p>
-        <button onClick={onCancel} className="p-1 text-gray-500 hover:text-gray-900"><X size={16} /></button>
-      </div>
-      {/* 依頼タイプ選択 */}
-      <div className="flex gap-1">
-        {REQ_TYPE_OPTIONS.map(opt => (
-          <button key={opt.value} type="button"
-            onClick={() => { setReqType(opt.value); setError(null) }}
-            className={`flex-1 text-[11px] font-bold py-2 rounded-xl border transition-all ${
-              reqType === opt.value ? 'bg-indigo-50 border-indigo-400 text-indigo-700' : 'bg-gray-100 border-gray-300 text-gray-500'
+        <div className="flex items-center justify-between mb-1">
+          <p className="font-black text-gray-900 text-sm">依頼受付</p>
+          <button onClick={onCancel} className="p-1 text-gray-500 hover:text-gray-900"><X size={16} /></button>
+        </div>
+
+        {/* 依頼タイプ選択 */}
+        <div className="grid grid-cols-2 gap-1">
+          {INTAKE_OPTIONS.map(o => (
+            <button key={o.value} type="button"
+              onClick={() => { setIntakeType(o.value); setError(null) }}
+              className={`text-[11px] font-bold py-2 px-1 rounded-xl border transition-all ${
+                intakeType === o.value
+                  ? 'bg-indigo-50 border-indigo-400 text-indigo-700'
+                  : 'bg-gray-100 border-gray-300 text-gray-500'
+              }`}>
+              {o.label}
+            </button>
+          ))}
+          {reservationUrl && (
+            <a href={reservationUrl} target="_blank" rel="noopener noreferrer"
+              className="text-[11px] font-bold py-2 px-1 rounded-xl border border-sky-300 bg-sky-50 text-sky-700 flex items-center justify-center">
+              🗓️ 来店予約（外部）
+            </a>
+          )}
+        </div>
+
+        <Field label={opt.isPurchase ? '商品名' : '内容・商品名'} required>
+          <input type="text"
+            className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
+            placeholder={opt.ph_item} value={itemName}
+            onChange={e => { setItemName(e.target.value); setError(null) }} />
+        </Field>
+
+        {opt.isPurchase && (
+          <Field label="メーカー">
+            <input type="text"
+              className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
+              placeholder="例：カンコー、トンボ"
+              value={maker} onChange={e => setMaker(e.target.value)} />
+          </Field>
+        )}
+
+        {opt.showContent && (
+          <Field label={contentLabel} required={intakeType === 'repair'}>
+            <input type="text"
+              className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
+              placeholder={opt.ph_content} value={content}
+              onChange={e => { setContent(e.target.value); setError(null) }} />
+          </Field>
+        )}
+
+        <div className="grid grid-cols-2 gap-2">
+          {opt.showPrice && (
+            <Field label="金額（円）">
+              <input type="number" inputMode="numeric"
+                className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
+                placeholder="例：1200" value={price} onChange={e => setPrice(e.target.value)} />
+            </Field>
+          )}
+          {opt.showSlip && (
+            <Field label="伝票番号">
+              <input type="text"
+                className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm font-mono focus:border-indigo-500 focus:outline-none placeholder-gray-400"
+                placeholder="例：001" value={slipNumber} onChange={e => setSlipNumber(e.target.value)} />
+            </Field>
+          )}
+        </div>
+
+        {opt.showDate && (
+          <Field label="希望完了日">
+            <div className="space-y-2">
+              <div className="flex gap-1.5 flex-wrap">
+                {[
+                  { label: '1週間後', days: 7 },
+                  { label: '2週間後', days: 14 },
+                  { label: '1ヶ月後', days: 30 },
+                ].map(({ label, days }) => {
+                  const d = new Date(); d.setDate(d.getDate() + days)
+                  const val = d.toISOString().slice(0, 10)
+                  return (
+                    <button key={days} type="button"
+                      onClick={() => setDesiredDate(val)}
+                      className={`text-xs px-3 py-1.5 rounded-xl border font-bold transition-all ${
+                        desiredDate === val
+                          ? 'bg-indigo-600 border-indigo-600 text-white'
+                          : 'bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200'
+                      }`}>
+                      {label}
+                    </button>
+                  )
+                })}
+                {desiredDate && (
+                  <button type="button" onClick={() => setDesiredDate('')}
+                    className="text-xs px-2 py-1.5 rounded-xl border border-gray-300 text-gray-400 hover:bg-gray-100">
+                    クリア
+                  </button>
+                )}
+              </div>
+              <input type="date" value={desiredDate} onChange={e => setDesiredDate(e.target.value)}
+                min={new Date().toISOString().slice(0, 10)}
+                className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none" />
+            </div>
+          </Field>
+        )}
+
+        {opt.showPrepaid && (
+          <button type="button" onClick={() => setPrepaid(v => !v)}
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${
+              prepaid ? 'border-emerald-500 bg-emerald-500/10' : 'border-red-400 bg-red-50'
             }`}>
-            {opt.label}
+            <div className="text-left">
+              <p className={`font-bold text-sm ${prepaid ? 'text-emerald-700' : 'text-red-700'}`}>
+                {prepaid ? '✅ 支払済み' : '⚠️ 未払い'}
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">受付時に支払いを頂いた場合は「支払済み」に</p>
+            </div>
+            <div className={`w-12 h-6 rounded-full transition-colors shrink-0 ${prepaid ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+              <div className={`w-5 h-5 bg-white rounded-full mt-0.5 shadow-lg transition-transform ${prepaid ? 'translate-x-6' : 'translate-x-0.5'}`} />
+            </div>
           </button>
-        ))}
-      </div>
-      <Field label="商品名" required>
-        <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
-          placeholder={currentOpt.placeholder.item} value={itemName} onChange={e => { setItemName(e.target.value); setError(null) }} />
-      </Field>
-      <Field label={contentLabel} required={contentRequired}>
-        <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
-          placeholder={currentOpt.placeholder.content} value={content} onChange={e => { setContent(e.target.value); setError(null) }} />
-      </Field>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="伝票番号">
-          <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm font-mono focus:border-indigo-500 focus:outline-none placeholder-gray-400"
-            placeholder="例：001" value={slipNumber} onChange={e => setSlipNumber(e.target.value)} />
-        </Field>
-        <Field label="金額（円）">
-          <input type="number" inputMode="numeric" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
-            placeholder="例：500" value={price} onChange={e => setPrice(e.target.value)} />
-        </Field>
-      </div>
-      <Field label="希望完了日">
-        <div className="space-y-2">
-          {/* ショートカットボタン */}
-          <div className="flex gap-1.5 flex-wrap">
-            {[
-              { label: '1週間後', days: 7 },
-              { label: '2週間後', days: 14 },
-              { label: '1ヶ月後', days: 30 },
-            ].map(({ label, days }) => {
-              const d = new Date(); d.setDate(d.getDate() + days)
-              const val = d.toISOString().slice(0, 10)
-              return (
-                <button key={days} type="button"
-                  onClick={() => setDesiredDate(val)}
-                  className={`text-xs px-3 py-1.5 rounded-xl border font-bold transition-all ${
-                    desiredDate === val
-                      ? 'bg-indigo-600 border-indigo-600 text-white'
-                      : 'bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200'
-                  }`}>
-                  {label}
-                </button>
-              )
-            })}
-            {desiredDate && (
-              <button type="button" onClick={() => setDesiredDate('')}
-                className="text-xs px-2 py-1.5 rounded-xl border border-gray-300 text-gray-400 hover:bg-gray-100">
-                クリア
-              </button>
-            )}
-          </div>
-          {/* 日付ピッカー */}
-          <input type="date" value={desiredDate} onChange={e => setDesiredDate(e.target.value)}
-            min={new Date().toISOString().slice(0, 10)}
-            className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none" />
-        </div>
-      </Field>
-      {/* 支払い状況 */}
-      <button type="button" onClick={() => setPrepaid(v => !v)}
-        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${prepaid ? 'border-emerald-500 bg-emerald-500/10' : 'border-red-400 bg-red-50'}`}>
-        <div className="text-left">
-          <p className={`font-bold text-sm ${prepaid ? 'text-emerald-700' : 'text-red-700'}`}>
-            {prepaid ? '✅ 支払済み' : '⚠️ 未払い'}
-          </p>
-          <p className="text-xs text-gray-500 mt-0.5">受付時に支払いを頂いた場合は「支払済み」に</p>
-        </div>
-        <div className={`w-12 h-6 rounded-full transition-colors shrink-0 ${prepaid ? 'bg-emerald-500' : 'bg-gray-300'}`}>
-          <div className={`w-5 h-5 bg-white rounded-full mt-0.5 shadow-lg transition-transform ${prepaid ? 'translate-x-6' : 'translate-x-0.5'}`} />
-        </div>
-      </button>
-      <Field label="メモ">
-        <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
-          placeholder="スタッフへの申し送り等" value={notes} onChange={e => setNotes(e.target.value)} />
-      </Field>
-      {error && (
-        <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 border border-red-200 rounded-xl px-3 py-2">
-          <AlertCircle size={13} />{error}
-        </div>
-      )}
-      <button onClick={handleSave} disabled={loading}
-        className="w-full py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
-        {loading ? <><Loader2 size={14} className="animate-spin" />保存中...</> : '受付として登録する'}
-      </button>
-      </div>
-    </div>
-  )
-}
+        )}
 
-// ============================================================
-// 新規発注フォーム
-// ============================================================
-function NewPurchaseForm({ customerId, childId, storeId, onSaved, onCancel }: {
-  customerId: string; childId: string | null; storeId: string; onSaved: () => void; onCancel: () => void
-}) {
-  const [itemName, setItemName] = useState('')
-  const [maker,    setMaker]    = useState('')
-  const [notes,    setNotes]    = useState('')
-  const [price,    setPrice]    = useState('')
-  const [loading,  setLoading]  = useState(false)
-  const [error,    setError]    = useState<string | null>(null)
-
-  const handleSave = async () => {
-    if (!itemName.trim()) { setError('商品名を入力してください'); return }
-    setLoading(true); setError(null)
-    const { error: err } = await supabase.from('purchase_orders').insert({
-      store_id: storeId, customer_id: customerId,
-      child_id: childId ?? null,
-      item_name: itemName.trim(),
-      maker: maker.trim() || null,
-      notes: notes.trim() || null,
-      price: price ? parseInt(price) : null,
-      status: 'ordered', ordered_date: new Date().toISOString().slice(0, 10),
-    })
-    setLoading(false)
-    if (err) { setError(`保存失敗: ${err.message}`); return }
-    onSaved()
-  }
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-      <div className="p-4 space-y-3 max-h-[80vh] overflow-y-auto">
-      <div className="flex items-center justify-between mb-1">
-        <p className="font-black text-gray-900 text-sm flex items-center gap-2">
-          <ShoppingBag size={14} className="text-blue-600" />新規発注登録
-        </p>
-        <button onClick={onCancel} className="p-1 text-gray-500 hover:text-gray-900"><X size={16} /></button>
-      </div>
-      <Field label="商品名" required>
-        <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
-          placeholder="例：○○高校学ラン 165A" value={itemName} onChange={e => { setItemName(e.target.value); setError(null) }} />
-      </Field>
-      <Field label="メーカー">
-        <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
-          placeholder="例：トンボ、カンコー、菅公" value={maker} onChange={e => setMaker(e.target.value)} />
-      </Field>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="金額（円）">
-          <input type="number" inputMode="numeric" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
-            placeholder="例：25000" value={price} onChange={e => setPrice(e.target.value)} />
-        </Field>
         <Field label="メモ">
-          <input type="text" className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
-            placeholder="色・サイズなど" value={notes} onChange={e => setNotes(e.target.value)} />
+          <input type="text"
+            className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
+            placeholder="スタッフへの申し送り等" value={notes} onChange={e => setNotes(e.target.value)} />
         </Field>
-      </div>
-      {error && (
-        <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 border border-red-200 rounded-xl px-3 py-2">
-          <AlertCircle size={13} />{error}
-        </div>
-      )}
-      <button onClick={handleSave} disabled={loading}
-        className="w-full py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
-        {loading ? <><Loader2 size={14} className="animate-spin" />保存中...</> : '依頼として登録する'}
-      </button>
+
+        {error && (
+          <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+            <AlertCircle size={13} />{error}
+          </div>
+        )}
+        <button onClick={handleSave} disabled={loading}
+          className="w-full py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+          {loading ? <><Loader2 size={14} className="animate-spin" />保存中...</> : '受付として登録する'}
+        </button>
       </div>
     </div>
   )
 }
+
 
 // ============================================================
 // お子様カード（展開可能）
@@ -625,12 +621,13 @@ function ChildCard({
   onPurchaseStock, onPurchaseBackOrder,
   onPurchaseArrive, onPurchaseDeliver, onPurchaseRevert,
   onRefreshStats,
-  showToast, schoolOptions, defaultRepairType,
+  showToast, schoolOptions, defaultIntakeType, reservationUrl,
 }: {
   child: Child
   customerId: string
   storeId: string
-  defaultRepairType?: RequestTypeVal
+  defaultIntakeType?: IntakeFormType
+  reservationUrl?: string | null
   onRepairComplete:    (id: string) => Promise<void>
   onRepairDeliver:     (id: string) => Promise<void>
   onRepairRevert:      (id: string) => Promise<void>
@@ -647,8 +644,7 @@ function ChildCard({
   const [repairs,        setRepairs]        = useState<RepairHistory[]>([])
   const [purchases,      setPurchases]      = useState<PurchaseOrder[]>([])
   const [loading,        setLoading]        = useState(false)
-  const [showNewRepair,  setShowNewRepair]  = useState(false)
-  const [showNewPurchase,setShowNewPurchase]= useState(false)
+  const [showNewIntake,  setShowNewIntake]  = useState(false)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -693,15 +689,16 @@ function ChildCard({
           ) : (
             <>
               {/* 依頼受付ボタン（統一） */}
-              {showNewRepair ? (
+              {showNewIntake ? (
                 <div>
-                  <NewRepairForm storeId={storeId} customerId={customerId} childId={child.id}
-                    defaultType={defaultRepairType ?? 'repair'}
-                    onSaved={() => { setShowNewRepair(false); fetchData(); onRefreshStats(); showToast('ok', '依頼を受け付けました') }}
-                    onCancel={() => setShowNewRepair(false)} />
+                  <NewIntakeForm storeId={storeId} customerId={customerId} childId={child.id}
+                    defaultType={defaultIntakeType ?? 'repair'}
+                    reservationUrl={reservationUrl}
+                    onSaved={() => { setShowNewIntake(false); fetchData(); onRefreshStats(); showToast('ok', '依頼を受け付けました') }}
+                    onCancel={() => setShowNewIntake(false)} />
                 </div>
               ) : (
-                <button onClick={() => setShowNewRepair(true)}
+                <button onClick={() => setShowNewIntake(true)}
                   className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] transition-all text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/40">
                   <Plus size={16} />依頼を受け付ける
                 </button>
@@ -739,18 +736,6 @@ function ChildCard({
                         onArrive={onPurchaseArrive} onDeliver={onPurchaseDeliver} onRevert={onPurchaseRevert} />
                     ))}
                   </div>
-                )}
-                {showNewPurchase ? (
-                  <div className="mt-2">
-                    <NewPurchaseForm storeId={storeId} customerId={customerId} childId={child.id}
-                      onSaved={() => { setShowNewPurchase(false); fetchData(); onRefreshStats(); showToast('ok', '発注を登録しました') }}
-                      onCancel={() => setShowNewPurchase(false)} />
-                  </div>
-                ) : (
-                  <button onClick={() => setShowNewPurchase(true)}
-                    className="w-full mt-2 py-2.5 rounded-xl border border-dashed border-blue-300 text-blue-600 hover:text-blue-600 hover:border-blue-400 transition-colors text-xs font-bold flex items-center justify-center gap-1.5">
-                    <Plus size={12} />追加購入を登録する
-                  </button>
                 )}
               </div>
             </>
@@ -979,7 +964,7 @@ export default function CRMPage() {
   const { storeId }  = useParams<{ storeId: string }>()
   const router       = useRouter()
   const searchParams = useSearchParams()
-  const defaultRepairType = (searchParams?.get('type') ?? 'repair') as RequestTypeVal
+  const defaultIntakeType = (searchParams?.get('type') ?? 'repair') as IntakeFormType
 
   const [storeName,        setStoreName]        = useState('')
   const [customers,        setCustomers]        = useState<Customer[]>([])
@@ -1009,6 +994,7 @@ export default function CRMPage() {
   const [schoolFilter,      setSchoolFilter]      = useState<string | null>(null)
   const [groupStoreIds,     setGroupStoreIds]     = useState<string[]>([])
   const [storeNameMap,      setStoreNameMap]      = useState<Record<string, string>>({})
+  const [reservationUrl,    setReservationUrl]    = useState<string | null>(null)
 
   // 未対応統計
   const [stats, setStats] = useState({ repairReceived: 0, repairCompleted: 0, purchaseReceived: 0, purchaseInProgress: 0, purchaseArrived: 0 })
@@ -1046,8 +1032,7 @@ export default function CRMPage() {
   // ── Quick intake (order-first flow) ──────────────────────
   const [showQuickIntake,    setShowQuickIntake]    = useState(false)
   const [qiStep,             setQiStep]             = useState<1 | 2 | 3>(1)
-  const [qiKind,             setQiKind]             = useState<'repair' | 'purchase'>('repair')
-  const [qiReqType,          setQiReqType]          = useState<RequestTypeVal>('repair')
+  const [qiIntakeType,       setQiIntakeType]       = useState<IntakeFormType>('repair')
   const [qiItemName,         setQiItemName]         = useState('')
   const [qiContent,          setQiContent]          = useState('')
   const [qiPrice,            setQiPrice]            = useState('')
@@ -1063,7 +1048,7 @@ export default function CRMPage() {
   const [qiSaving,           setQiSaving]           = useState(false)
 
   const resetQi = useCallback(() => {
-    setQiStep(1); setQiKind('repair'); setQiReqType('repair')
+    setQiStep(1); setQiIntakeType('repair')
     setQiItemName(''); setQiContent(''); setQiPrice(''); setQiNotes('')
     setQiDesiredDate(''); setQiMaker('')
     setQiCustomerId(null); setQiChildId(null)
@@ -1118,7 +1103,7 @@ export default function CRMPage() {
   useEffect(() => {
     if (!storeId) return
     ;(supabase.from('stores') as any)
-      .select('name, group_id, alert_days_repair, alert_days_purchase, school_names')
+      .select('name, group_id, alert_days_repair, alert_days_purchase, school_names, reservation_url')
       .eq('id', storeId).single()
       .then(async ({ data }: { data: any }) => {
         if (data?.name) setStoreName(data.name ?? '')
@@ -1126,6 +1111,7 @@ export default function CRMPage() {
         if (data?.alert_days_purchase != null) setAlertDaysPurchase(data.alert_days_purchase)
         if (Array.isArray(data?.school_names) && data.school_names.length > 0)
           setSchoolOptions(data.school_names)
+        if (data?.reservation_url) setReservationUrl(data.reservation_url)
         if (data?.group_id) {
           const { data: gStores } = await (supabase.from('stores') as any)
             .select('id, name').eq('group_id', data.group_id)
@@ -1164,19 +1150,7 @@ export default function CRMPage() {
     if (!qiCustomerId || !qiItemName.trim()) return
     setQiSaving(true)
     let err: { message: string } | null = null
-    if (qiKind === 'repair') {
-      const res = await (supabase as any).from('repair_histories').insert({
-        store_id: storeId, customer_id: qiCustomerId,
-        child_id: qiChildId ?? null,
-        item_name: qiItemName.trim(), content: qiContent.trim(),
-        price: qiPrice ? parseInt(qiPrice) : null,
-        notes: qiNotes.trim() || null,
-        status: 'received', received_date: new Date().toISOString().slice(0, 10),
-        request_type: qiReqType, prepaid: false,
-        desired_completion_date: qiDesiredDate || null,
-      })
-      err = res.error
-    } else {
+    if (qiIntakeType === 'purchase') {
       const res = await supabase.from('purchase_orders').insert({
         store_id: storeId, customer_id: qiCustomerId,
         child_id: qiChildId ?? null,
@@ -1186,6 +1160,18 @@ export default function CRMPage() {
         status: 'ordered', ordered_date: new Date().toISOString().slice(0, 10),
       })
       err = res.error
+    } else {
+      const res = await (supabase as any).from('repair_histories').insert({
+        store_id: storeId, customer_id: qiCustomerId,
+        child_id: qiChildId ?? null,
+        item_name: qiItemName.trim(), content: qiContent.trim(),
+        price: qiPrice ? parseInt(qiPrice) : null,
+        notes: qiNotes.trim() || null,
+        status: 'received', received_date: new Date().toISOString().slice(0, 10),
+        request_type: qiIntakeType, prepaid: false,
+        desired_completion_date: qiDesiredDate || null,
+      })
+      err = res.error
     }
     setQiSaving(false)
     if (err) { showToast('err', `保存失敗: ${err.message}`); return }
@@ -1193,7 +1179,7 @@ export default function CRMPage() {
     setShowQuickIntake(false)
     resetQi()
     fetchStats()
-  }, [qiCustomerId, qiChildId, qiItemName, qiContent, qiPrice, qiNotes, qiDesiredDate, qiMaker, qiKind, qiReqType, storeId, showToast, resetQi, fetchStats])
+  }, [qiCustomerId, qiChildId, qiItemName, qiContent, qiPrice, qiNotes, qiDesiredDate, qiMaker, qiIntakeType, storeId, showToast, resetQi, fetchStats])
 
   const fetchAllCustomers = useCallback(async () => {
     if (!storeId || groupStoreIds.length === 0) return
@@ -1820,7 +1806,8 @@ export default function CRMPage() {
                                     child={child}
                                     customerId={selectedCustomer.id}
                                     storeId={storeId}
-                                    defaultRepairType={defaultRepairType}
+                                    defaultIntakeType={defaultIntakeType}
+                                    reservationUrl={reservationUrl}
                                     onRepairComplete={handleRepairComplete}
                                     onRepairDeliver={handleRepairDeliver}
                                     onRepairRevert={handleRepairRevert}
@@ -2019,82 +2006,82 @@ export default function CRMPage() {
               {/* ── Step 1: Form ─────────────────────────────── */}
               {qiStep === 1 && (
                 <>
-                  {/* Kind toggle */}
-                  <div className="flex gap-2 bg-gray-100 rounded-xl p-1">
-                    {([['repair', '✂️ お直し・依頼'], ['purchase', '📦 追加購入']] as const).map(([k, label]) => (
-                      <button key={k} onClick={() => setQiKind(k)}
-                        className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-                          qiKind === k ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
-                        }`}>{label}</button>
+                  {/* Intake type buttons */}
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {INTAKE_OPTIONS.map(o => (
+                      <button key={o.value} onClick={() => setQiIntakeType(o.value)}
+                        className={`py-2 rounded-xl text-xs font-bold border transition-all ${
+                          qiIntakeType === o.value ? 'bg-indigo-50 border-indigo-400 text-indigo-700' : 'bg-gray-100 border-gray-300 text-gray-500'
+                        }`}>{o.label}</button>
                     ))}
-                  </div>
-
-                  {qiKind === 'repair' && (
-                    <>
-                      <div className="flex gap-1 flex-wrap">
-                        {REQ_TYPE_OPTIONS.map(opt => (
-                          <button key={opt.value} type="button"
-                            onClick={() => setQiReqType(opt.value)}
-                            className={`flex-1 text-[11px] font-bold py-2 rounded-xl border transition-all ${
-                              qiReqType === opt.value ? 'bg-indigo-50 border-indigo-400 text-indigo-700' : 'bg-gray-100 border-gray-300 text-gray-500'
-                            }`}>
-                            {opt.label}
-                          </button>
-                        ))}
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-gray-600 block mb-1">商品名 <span className="text-red-500">*</span></label>
-                        <input type="text" value={qiItemName} onChange={e => setQiItemName(e.target.value)}
-                          placeholder="例：○○高校スラックス"
-                          className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-gray-600 block mb-1">内容</label>
-                        <input type="text" value={qiContent} onChange={e => setQiContent(e.target.value)}
-                          placeholder="例：裾上げ5cm"
-                          className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
-                      </div>
-                    </>
-                  )}
-
-                  {qiKind === 'purchase' && (
-                    <>
-                      <div>
-                        <label className="text-xs font-bold text-gray-600 block mb-1">商品名 <span className="text-red-500">*</span></label>
-                        <input type="text" value={qiItemName} onChange={e => setQiItemName(e.target.value)}
-                          placeholder="例：○○高校学ラン 165A"
-                          className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-gray-600 block mb-1">メーカー</label>
-                        <input type="text" value={qiMaker} onChange={e => setQiMaker(e.target.value)}
-                          placeholder="例：カンコー"
-                          className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
-                      </div>
-                    </>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs font-bold text-gray-600 block mb-1">金額（円）</label>
-                      <input type="number" value={qiPrice} onChange={e => setQiPrice(e.target.value)}
-                        placeholder="例：1200"
-                        className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
-                    </div>
-                    {qiKind === 'repair' && (
-                      <div>
-                        <label className="text-xs font-bold text-gray-600 block mb-1">希望完了日</label>
-                        <input type="date" value={qiDesiredDate} onChange={e => setQiDesiredDate(e.target.value)}
-                          className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
-                      </div>
+                    {reservationUrl && (
+                      <a href={reservationUrl} target="_blank" rel="noopener noreferrer"
+                        onClick={() => { setShowQuickIntake(false); resetQi() }}
+                        className="py-2 rounded-xl text-xs font-bold border border-sky-300 bg-sky-50 text-sky-700 flex items-center justify-center">
+                        🗓️ 来店予約（外部）
+                      </a>
                     )}
                   </div>
-                  <div>
-                    <label className="text-xs font-bold text-gray-600 block mb-1">メモ</label>
-                    <input type="text" value={qiNotes} onChange={e => setQiNotes(e.target.value)}
-                      placeholder="スタッフへの申し送り等"
-                      className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
-                  </div>
+
+                  {(() => {
+                    const qiOpt = INTAKE_OPTIONS.find(o => o.value === qiIntakeType) ?? INTAKE_OPTIONS[0]
+                    return (
+                      <>
+                        <div>
+                          <label className="text-xs font-bold text-gray-600 block mb-1">
+                            {qiOpt.isPurchase ? '商品名' : '内容・商品名'} <span className="text-red-500">*</span>
+                          </label>
+                          <input type="text" value={qiItemName} onChange={e => setQiItemName(e.target.value)}
+                            placeholder={qiOpt.ph_item}
+                            className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
+                        </div>
+
+                        {qiOpt.isPurchase ? (
+                          <div>
+                            <label className="text-xs font-bold text-gray-600 block mb-1">メーカー</label>
+                            <input type="text" value={qiMaker} onChange={e => setQiMaker(e.target.value)}
+                              placeholder="例：カンコー"
+                              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
+                          </div>
+                        ) : qiOpt.showContent ? (
+                          <div>
+                            <label className="text-xs font-bold text-gray-600 block mb-1">
+                              {qiIntakeType === 'repair' ? 'お直し内容' : qiIntakeType === 'repair_consult' ? '相談内容' : '詳細'}
+                            </label>
+                            <input type="text" value={qiContent} onChange={e => setQiContent(e.target.value)}
+                              placeholder={qiOpt.ph_content}
+                              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
+                          </div>
+                        ) : null}
+
+                        <div className="grid grid-cols-2 gap-2">
+                          {qiOpt.showPrice && (
+                            <div>
+                              <label className="text-xs font-bold text-gray-600 block mb-1">金額（円）</label>
+                              <input type="number" value={qiPrice} onChange={e => setQiPrice(e.target.value)}
+                                placeholder="例：1200"
+                                className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
+                            </div>
+                          )}
+                          {qiOpt.showDate && (
+                            <div>
+                              <label className="text-xs font-bold text-gray-600 block mb-1">希望完了日</label>
+                              <input type="date" value={qiDesiredDate} onChange={e => setQiDesiredDate(e.target.value)}
+                                className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-bold text-gray-600 block mb-1">メモ</label>
+                          <input type="text" value={qiNotes} onChange={e => setQiNotes(e.target.value)}
+                            placeholder="スタッフへの申し送り等"
+                            className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
+                        </div>
+                      </>
+                    )
+                  })()}
+
                   <button
                     onClick={() => { if (qiItemName.trim()) setQiStep(2) }}
                     disabled={!qiItemName.trim()}
@@ -2108,8 +2095,8 @@ export default function CRMPage() {
               {qiStep === 2 && (
                 <>
                   <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2 text-xs text-indigo-700 font-bold">
-                    {qiKind === 'repair' ? '✂️ ' : '📦 '}{qiItemName}
-                    {qiContent && ` — ${qiContent}`}
+                    {INTAKE_OPTIONS.find(o => o.value === qiIntakeType)?.label ?? ''} — {qiItemName}
+                    {qiContent && ` (${qiContent})`}
                     {qiPrice && ` ¥${parseInt(qiPrice).toLocaleString()}`}
                   </div>
 
@@ -2151,8 +2138,8 @@ export default function CRMPage() {
               {qiStep === 3 && (
                 <>
                   <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2 text-xs text-indigo-700 font-bold">
-                    {qiKind === 'repair' ? '✂️ ' : '📦 '}{qiItemName}
-                    {qiContent && ` — ${qiContent}`}
+                    {INTAKE_OPTIONS.find(o => o.value === qiIntakeType)?.label ?? ''} — {qiItemName}
+                    {qiContent && ` (${qiContent})`}
                     {qiPrice && ` ¥${parseInt(qiPrice).toLocaleString()}`}
                   </div>
 

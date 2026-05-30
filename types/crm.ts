@@ -1,18 +1,22 @@
 export type RepairStatus = 'received' | 'completed' | 'delivered'
-export type RequestType  = 'repair' | 'walk_in' | 'hold_request' | 'inquiry'
+export type RequestType = 'repair' | 'walk_in' | 'hold_request' | 'inquiry' | 'repair_consult' | 'payment_pending'
 
 export const REQUEST_TYPE_LABELS: Record<RequestType, string> = {
-  repair:       'お直し',
-  walk_in:      '来店依頼',
-  hold_request: '取置き依頼',
-  inquiry:      '問合せ',
+  repair:          'お直し',
+  walk_in:         '来店依頼',
+  hold_request:    '取置き依頼',
+  inquiry:         'その他問合せ',
+  repair_consult:  'お直し相談',
+  payment_pending: 'お支払い・入金待ち',
 }
 
 export const REQUEST_TYPE_COLORS: Record<RequestType, string> = {
-  repair:       'bg-amber-100 text-amber-700 border-amber-300',
-  walk_in:      'bg-sky-100 text-sky-700 border-sky-300',
-  hold_request: 'bg-violet-100 text-violet-700 border-violet-300',
-  inquiry:      'bg-rose-100 text-rose-700 border-rose-300',
+  repair:          'bg-amber-100 text-amber-700 border-amber-300',
+  walk_in:         'bg-sky-100 text-sky-700 border-sky-300',
+  hold_request:    'bg-violet-100 text-violet-700 border-violet-300',
+  inquiry:         'bg-rose-100 text-rose-700 border-rose-300',
+  repair_consult:  'bg-teal-100 text-teal-700 border-teal-300',
+  payment_pending: 'bg-red-100 text-red-700 border-red-300',
 }
 
 export interface Customer {

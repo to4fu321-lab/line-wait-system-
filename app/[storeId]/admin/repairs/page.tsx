@@ -212,6 +212,26 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit }: {
         { status: 'received', completed_date: null, notified: false }
       ),
     }
+  } else if (reqType === 'repair_consult') {
+    primaryBtn = {
+      label: '✅ 相談完了',
+      color: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-200',
+      onClick: () => update(
+        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true },
+        '相談完了にしました',
+        { status: 'received', completed_date: null, notified: false }
+      ),
+    }
+  } else if (reqType === 'payment_pending') {
+    primaryBtn = {
+      label: '✅ 入金確認・回収完了',
+      color: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-200',
+      onClick: () => update(
+        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true },
+        '入金確認・回収完了にしました',
+        { status: 'received', completed_date: null, notified: false }
+      ),
+    }
   }
 
   const cardBg =
@@ -1380,7 +1400,7 @@ export default function RepairsPage() {
     const ITEMS   = ['スラックス', 'ブレザー', 'スカート', 'セーター', 'シャツ', 'ネクタイ', 'ソックス']
     const NAMES   = ['田中花子', '鈴木太郎', '佐藤次郎', '山田美咲', '伊藤健一', '渡辺あかり', '中村大輔']
     const CONTENTS = ['裾上げ 3cm', 'ウエスト調整', 'ほつれ修理', 'ボタン付け直し', 'サイズ変更 M→L', 'ファスナー交換']
-    const TYPES: Array<'repair' | 'walk_in' | 'hold_request' | 'inquiry'> = ['repair', 'repair', 'repair', 'walk_in', 'hold_request', 'inquiry']
+    const TYPES: Array<RequestType> = ['repair', 'repair', 'repair_consult', 'inquiry', 'payment_pending']
 
     const rand = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)]
     const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10)
@@ -1495,8 +1515,9 @@ export default function RepairsPage() {
   // ダッシュボード counts
   const repairNotStarted  = repairs.filter(r => r.request_type === 'repair' && !r.work_started)
   const repairInProgress  = repairs.filter(r => r.request_type === 'repair' && r.work_started)
+  const repairConsult     = repairs.filter(r => r.request_type === 'repair_consult')
   const pendingInquiry    = repairs.filter(r => r.request_type === 'inquiry')
-  const repairOther       = repairs.filter(r => r.request_type !== 'repair' && r.request_type !== 'inquiry')
+  const pendingPayment    = repairs.filter(r => r.request_type === 'payment_pending')
   const overdueRepairs    = repairs.filter(r => {
     if (!r.desired_completion_date) return false
     const d = new Date(r.desired_completion_date); d.setHours(0, 0, 0, 0)
@@ -1508,10 +1529,12 @@ export default function RepairsPage() {
     i.ready_date && (Date.now() - new Date(i.ready_date).getTime()) / 86400000 > alertDays
   )
 
-  // 未着手数（未着手お直し + 未対応問合せ + お渡しアラート）
+  // 未着手数（未着手お直し + 相談 + 未対応問合せ + 入金待ち + お渡しアラート）
   const pendingCount =
     repairNotStarted.length +
+    repairConsult.length +
     pendingInquiry.length +
+    pendingPayment.length +
     waitingAlert.length
 
   // 全案件合計（進行中含む）
@@ -1572,10 +1595,12 @@ export default function RepairsPage() {
               {[
                 { label: 'お直し未着手', count: repairNotStarted.length, color: 'bg-white/20' },
                 { label: 'お直し中',     count: repairInProgress.length,  color: 'bg-white/10' },
-                { label: '問合せ',       count: pendingInquiry.length,     color: 'bg-rose-400/40' },
-                { label: '発注待ち',     count: purchaseUnordered.length,  color: 'bg-white/20' },
-                { label: '発注中',       count: purchaseOnOrder.length,    color: 'bg-white/10' },
-                { label: 'お渡し待ち',   count: waiting.length,            color: 'bg-white/20' },
+                { label: 'お直し相談',   count: repairConsult.length,     color: 'bg-teal-400/40' },
+                { label: '問合せ',       count: pendingInquiry.length,    color: 'bg-rose-400/40' },
+                { label: '入金待ち',     count: pendingPayment.length,    color: 'bg-red-400/40' },
+                { label: '発注待ち',     count: purchaseUnordered.length, color: 'bg-white/20' },
+                { label: '発注中',       count: purchaseOnOrder.length,   color: 'bg-white/10' },
+                { label: 'お渡し待ち',   count: waiting.length,           color: 'bg-white/20' },
               ].filter(s => s.count > 0).map(s => (
                 <span key={s.label} className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${s.color} text-white/90`}>
                   {s.label} {s.count}
