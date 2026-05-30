@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import type { TakeoutOrder, TakeoutSettings } from '@/types/takeout'
 import { getUrgencyLevel } from '@/types/takeout'
 import { guessMenuIcon } from '@/lib/menu-icons'
+import { triggerSound, unlockAudio } from '@/lib/kitchen-sounds'
 
 type Urgency = 'urgent' | 'warning' | 'normal'
 
@@ -124,12 +125,13 @@ function buildGroups(orders: TakeoutOrder[], targetMinutes: number, doneSet: Set
 }
 
 interface Props {
-  orders:    TakeoutOrder[]
-  settings:  TakeoutSettings
-  onRefresh: () => void
+  orders:         TakeoutOrder[]
+  settings:       TakeoutSettings
+  onRefresh:      () => void
+  onOrderReady?:  () => void  // 注文が完成→ready になった瞬間に発火
 }
 
-export default function ItemCookView({ orders, settings, onRefresh }: Props) {
+export default function ItemCookView({ orders, settings, onRefresh, onOrderReady }: Props) {
   const [doneSet,      setDoneSet]      = useState<Set<string>>(new Set())
   const [inFlight,     setInFlight]     = useState<Set<string>>(new Set())
   const [groupCutoffs, setGroupCutoffs] = useState<Map<string, string>>(new Map())
@@ -175,6 +177,10 @@ export default function ItemCookView({ orders, settings, onRefresh }: Props) {
           .from('takeout_orders')
           .update({ status: 'ready' } as never)
           .eq('id', row.orderId)
+
+        unlockAudio()
+        triggerSound('ready')
+        onOrderReady?.()
 
         fetch('/api/notify-takeout', {
           method: 'POST',

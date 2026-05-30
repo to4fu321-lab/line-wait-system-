@@ -248,6 +248,17 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
     }
   }
 
+  const handleOrderReady = useCallback(() => {
+    setBurstTrigger(t => t + 1)
+    setCombo(prev => {
+      const next = prev + 1
+      setMaxCombo(max => Math.max(max, next))
+      return next
+    })
+    if (comboTimerRef.current) clearTimeout(comboTimerRef.current)
+    comboTimerRef.current = setTimeout(() => setCombo(0), comboTimeout * 1000)
+  }, [comboTimeout])
+
   const cancelOrder = async (order: TakeoutOrder) => {
     const { error } = await supabase
       .from('takeout_orders')
@@ -374,6 +385,7 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
           orders={cookOrders}
           settings={settings}
           onRefresh={loadOrders}
+          onOrderReady={handleOrderReady}
         />
       </div>
 
