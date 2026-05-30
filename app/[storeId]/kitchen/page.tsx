@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { triggerSound, unlockAudio } from '@/lib/kitchen-sounds'
+import { triggerSound, unlockAudio, setSoundMuted, isSoundMuted } from '@/lib/kitchen-sounds'
 import type { TakeoutOrder, TakeoutSettings, Menu } from '@/types/takeout'
 import { getNextStatus, getUrgencyLevel, shouldNotify } from '@/types/takeout'
 import { useKitchenScheduler } from '@/lib/useKitchenScheduler'
@@ -84,6 +84,10 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
   const [showManual,    setShowManual]    = useState(false)
   const [showBatch,     setShowBatch]     = useState(false)
   const [burstTrigger,  setBurstTrigger]  = useState(0)
+  const [soundEnabled,  setSoundEnabled]  = useState(() => {
+    if (typeof window === 'undefined') return true
+    return localStorage.getItem('kitchen_sound') !== 'off'
+  })
 
   const comboTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const targetMinutes = settings.target_minutes        ?? 15
@@ -137,6 +141,12 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
     document.addEventListener('touchstart', handler, { once: true })
     return () => document.removeEventListener('touchstart', handler)
   }, [])
+
+  // サウンド状態を kitchen-sounds グローバルに同期
+  useEffect(() => {
+    setSoundMuted(!soundEnabled)
+    localStorage.setItem('kitchen_sound', soundEnabled ? 'on' : 'off')
+  }, [soundEnabled])
 
   useEffect(() => {
     Promise.all([loadOrders(), loadTodayCount(), loadSettings(), loadMenus()]).finally(() => setLoading(false))
@@ -269,8 +279,19 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
       <div className="bg-zinc-900 border-b border-zinc-800 shrink-0">
         <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800/60">
           <span className="text-base font-bold">{storeName}</span>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <DateDisplay />
+            <button
+              onClick={() => setSoundEnabled(v => !v)}
+              className={`text-base w-8 h-8 rounded-lg border flex items-center justify-center active:scale-90 transition-all ${
+                soundEnabled
+                  ? 'bg-zinc-800 border-zinc-700 text-zinc-300'
+                  : 'bg-zinc-900 border-zinc-800 text-zinc-600'
+              }`}
+              title={soundEnabled ? 'サウンドON' : 'サウンドOFF'}
+            >
+              {soundEnabled ? '🔊' : '🔇'}
+            </button>
             <a href={`/${storeId}/takeout-admin`}
               className="text-xs text-zinc-400 bg-zinc-800 px-2.5 py-1 rounded-lg border border-zinc-700/60">
               ⚙️ 管理

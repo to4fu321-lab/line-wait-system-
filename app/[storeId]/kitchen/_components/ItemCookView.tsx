@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { TakeoutOrder, TakeoutSettings } from '@/types/takeout'
 import { getUrgencyLevel } from '@/types/takeout'
+import { guessMenuIcon } from '@/lib/menu-icons'
 
 type Urgency = 'urgent' | 'warning' | 'normal'
 
@@ -312,13 +313,16 @@ export default function ItemCookView({ orders, settings, onRefresh }: Props) {
                   )}
 
                   <div className="flex-1 min-w-0">
-                    <span className={`font-black text-xl leading-tight block truncate ${
-                      allDone ? 'text-zinc-600 line-through' : 'text-white'
-                    }`}>{group.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl leading-none shrink-0">{guessMenuIcon(group.name)}</span>
+                      <span className={`font-black text-xl leading-tight truncate ${
+                        allDone ? 'text-zinc-600 line-through' : 'text-white'
+                      }`}>{group.name}</span>
+                    </div>
                     {/* サブラベル */}
                     {!allDone && (
                       <span className={`text-[11px] font-bold leading-none ${
-                        group.isActive       ? 'text-orange-400'
+                        group.isActive            ? 'text-orange-400'
                         : group.blockingCount > 0 ? 'text-sky-400'
                         : 'text-zinc-600'
                       }`}>

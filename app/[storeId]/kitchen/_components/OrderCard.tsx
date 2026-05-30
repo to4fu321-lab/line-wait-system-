@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { TakeoutOrder, TakeoutSettings, UrgencyLevel } from '@/types/takeout'
 import { getActionLabel, getNextStatus, getUrgencyLevel } from '@/types/takeout'
+import { guessMenuIcon as guessIcon } from '@/lib/menu-icons'
 
 const URGENCY: Record<UrgencyLevel, { bar: string; border: string; btn: string; timer: string }> = {
   normal:  { bar: 'bg-amber-600',  border: 'border-zinc-700',  btn: 'bg-amber-600 text-white',    timer: 'text-zinc-400'  },
@@ -20,28 +21,6 @@ function useElapsed(createdAt: string) {
     tick(); const id = setInterval(tick, 1000); return () => clearInterval(id)
   }, [createdAt])
   return text
-}
-
-function guessIcon(name: string): string {
-  if (/ビール|生ビ/.test(name))               return '🍺'
-  if (/チューハイ|ハイボール|酎ハイ/.test(name)) return '🥂'
-  if (/日本酒|梅酒/.test(name))               return '🍶'
-  if (/コーラ|ジュース|ソフト/.test(name))     return '🥤'
-  if (/お茶|ウーロン/.test(name))             return '🍵'
-  if (/焼き鳥|やきとり/.test(name))           return '🍢'
-  if (/から揚げ|唐揚げ|竜田|手羽/.test(name))  return '🍗'
-  if (/弁当/.test(name))                      return '🍱'
-  if (/丼/.test(name))                        return '🍚'
-  if (/ポテト|フライ/.test(name))             return '🍟'
-  if (/おにぎり/.test(name))                 return '🍙'
-  if (/枝豆/.test(name))                      return '🫛'
-  if (/キムチ/.test(name))                   return '🌶'
-  if (/コロッケ/.test(name))                 return '🥔'
-  if (/もつ煮/.test(name))                   return '🍲'
-  if (/サラダ/.test(name))                   return '🥗'
-  if (/玉子|たまご/.test(name))              return '🥚'
-  if (/焼きそば/.test(name))                 return '🍜'
-  return '🍽'
 }
 
 interface Props {

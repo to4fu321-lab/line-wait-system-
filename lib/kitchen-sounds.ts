@@ -83,14 +83,22 @@ const SOUNDS: Partial<Record<TakeoutOrderStatus, () => void>> = {
   },
 }
 
+// ── ミュート状態 ─────────────────────────────────────────
+let _muted = false
+
+export function setSoundMuted(muted: boolean): void { _muted = muted }
+export function isSoundMuted(): boolean             { return _muted  }
+
 // ── 公開 API ─────────────────────────────────────────────
 
 export function triggerSound(status: TakeoutOrderStatus): void {
+  if (_muted) return
   try { SOUNDS[status]?.() } catch {}
 }
 
 /** 汎用ハプティクス */
 export function triggerHaptic(type: 'success' | 'error' | 'light' = 'success') {
+  if (_muted) return
   switch (type) {
     case 'success': vibrate(50);              break
     case 'error':   vibrate([200, 100, 200]); break
