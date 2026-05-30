@@ -1353,9 +1353,6 @@ export default function RepairsPage() {
 
           {/* Title row */}
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
-              <LayoutDashboard size={17} className="text-indigo-600" />
-            </div>
             <h1 className="text-base font-bold text-gray-900 flex-1">業務ダッシュボード</h1>
             <a href={`/${storeId}/admin/crm`}
               className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold rounded-xl transition-all">
@@ -1383,7 +1380,6 @@ export default function RepairsPage() {
                 </div>
               )}
             </div>
-            {/* Lane breakdown */}
             <div className="grid grid-cols-3 gap-2 mt-3 border-t border-white/20 pt-3">
               <button onClick={() => setTab('repair')} className="text-center active:scale-95 transition-all">
                 <p className={`text-2xl font-black ${repairs.length > 0 ? 'text-white' : 'text-white/30'}`}>{repairs.length}</p>
@@ -1400,15 +1396,15 @@ export default function RepairsPage() {
             </div>
           </div>
 
-          {/* Tab bar */}
+          {/* Tab bar — バッジなし（上のカードで件数確認済み） */}
           <div className="flex gap-0.5 bg-slate-200 rounded-xl p-1">
             {tabs.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
-                className={`flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-lg transition-all ${
+                className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 rounded-lg transition-all ${
                   tab === t.id ? 'bg-white text-slate-900 shadow-md' : 'text-slate-500 hover:text-slate-700'
                 }`}>
-                <t.icon size={15} />
-                <span className="text-[11px] font-bold leading-none">{t.label}</span>
+                <t.icon size={14} />
+                <span className="text-[10px] font-bold leading-none">{t.label}</span>
               </button>
             ))}
           </div>
