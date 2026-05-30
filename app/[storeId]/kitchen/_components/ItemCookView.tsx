@@ -148,6 +148,9 @@ export default function ItemCookView({ orders, settings, onRefresh, onOrderReady
   const markDone = useCallback(async (row: Row) => {
     if (row.isDone || inFlight.has(row.itemId)) return
 
+    // iOS: AudioContext はユーザータップの同期処理内でしか解除できないため await より前に呼ぶ
+    unlockAudio()
+
     setDoneSet(p  => new Set(p).add(row.itemId))
     setInFlight(p => new Set(p).add(row.itemId))
 
@@ -163,6 +166,7 @@ export default function ItemCookView({ orders, settings, onRefresh, onOrderReady
           .from('takeout_orders')
           .update({ status: 'preparing' } as never)
           .eq('id', row.orderId)
+        triggerSound('preparing')
       }
 
       const { data: remaining } = await supabase
@@ -178,7 +182,6 @@ export default function ItemCookView({ orders, settings, onRefresh, onOrderReady
           .update({ status: 'ready' } as never)
           .eq('id', row.orderId)
 
-        unlockAudio()
         triggerSound('ready')
         onOrderReady?.()
 
