@@ -250,6 +250,7 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
   }
 
   const handleOrderReady = useCallback(() => {
+    triggerSound('ready')
     setBurstTrigger(t => t + 1)
     setCombo(prev => {
       const next = prev + 1

@@ -354,7 +354,6 @@ export default function ItemCookView({ orders, settings, onRefresh, onOrderReady
                     <button
                       onClick={() => {
                         unlockAudio()
-                        triggerSound('ready')
                         markBatchDone(selectedRows, group.name)
                       }}
                       className="flex items-center gap-2 bg-emerald-500 text-white px-4 py-2 rounded-xl font-black text-sm active:scale-95 transition-all shrink-0 shadow-lg shadow-emerald-900/50"
@@ -386,9 +385,9 @@ export default function ItemCookView({ orders, settings, onRefresh, onOrderReady
                         <div
                           onClick={() => {
                             if (!row.isDone) {
-                              unlockAudio()
-                              // 初回タップ（選択開始）= 調理開始サイン → preparing音
-                              if (!groupCutoffs.has(group.name)) triggerSound('preparing')
+                              const isFirst = !groupCutoffs.has(group.name)
+                              // resume完了後に音を鳴らす（iOS: resume は非同期のためコールバック必須）
+                              unlockAudio(isFirst ? () => triggerSound('preparing') : undefined)
                               toggleCutoff(group.name, row.itemId)
                             }
                           }}
