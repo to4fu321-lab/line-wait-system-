@@ -20,19 +20,20 @@ interface DeliveryItem {
   customer_id:    string
   child_id:       string | null
   item_name:      string
-  sub_label:      string          // content or notes
-  status:         string
-  prev_status:    string          // status to revert to
-  received_date:  string
-  ready_date:     string | null   // completed_date or arrived_date
-  delivered_date: string | null
-  price:          number | null
-  slip_number:    string | null
-  notified:       boolean
-  payment_status: string | null   // 'unpaid' | 'paid' | null (column may not exist yet)
-  customer:       { name: string; tel: string | null } | null
-  child:          { name: string; school_name: string | null } | null
-  overdueAlertDays?: number
+  sub_label:               string          // content or notes
+  status:                  string
+  prev_status:             string          // status to revert to
+  received_date:           string
+  ready_date:              string | null   // completed_date or arrived_date
+  desired_completion_date: string | null
+  delivered_date:          string | null
+  price:                   number | null
+  slip_number:             string | null
+  notified:                boolean
+  payment_status:          string | null   // 'unpaid' | 'paid' | null (column may not exist yet)
+  customer:                { name: string; tel: string | null } | null
+  child:                   { name: string; school_name: string | null } | null
+  overdueAlertDays?:       number
 }
 
 // ── utils ─────────────────────────────────────────────────────
@@ -205,7 +206,12 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle }: {
               ¥{item.price.toLocaleString()}
             </span>
           )}
-          <span className="text-sm font-semibold text-slate-600 ml-auto">受取日: {fmtDate(item.received_date)}</span>
+          <div className="text-right ml-auto shrink-0">
+            <p className="text-xs text-slate-500">依頼受け日: {fmtDate(item.received_date)}</p>
+            {item.desired_completion_date && (
+              <p className="text-xs font-semibold text-slate-500">希望完了日: {fmtDate(item.desired_completion_date)}</p>
+            )}
+          </div>
         </div>
 
         {/* 電話番号 */}
@@ -470,9 +476,10 @@ export default function DeliveryPage() {
     sub_label:      kind === 'repair' ? (row.content as string ?? '') : (row.notes as string ?? ''),
     status:         row.status as string,
     prev_status:    kind === 'repair' ? 'completed' : 'arrived',
-    received_date:  kind === 'repair' ? (row.received_date as string) : (row.ordered_date as string),
-    ready_date:     kind === 'repair' ? (row.completed_date as string | null) : (row.arrived_date as string | null),
-    delivered_date: row.delivered_date as string | null,
+    received_date:           kind === 'repair' ? (row.received_date as string) : (row.ordered_date as string),
+    ready_date:              kind === 'repair' ? (row.completed_date as string | null) : (row.arrived_date as string | null),
+    desired_completion_date: kind === 'repair' ? ((row as Record<string, unknown>).desired_completion_date as string | null ?? null) : null,
+    delivered_date:          row.delivered_date as string | null,
     price:          row.price as number | null,
     slip_number:    kind === 'repair' ? (row.slip_number as string | null) : null,
     notified:       row.notified as boolean ?? false,

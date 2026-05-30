@@ -33,6 +33,7 @@ interface RepairRow {
   status: RepairStatus; received_date: string; completed_date: string | null
   delivered_date: string | null; price: number | null; notes: string | null
   notified: boolean; request_type: RequestType | null; prepaid: boolean | null
+  desired_completion_date: string | null
   created_at: string; updated_at: string
   customer?: { id: string; name: string; tel: string | null }
   child?: { name: string; school_name: string | null } | null
@@ -96,6 +97,13 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
   const [confirmPay, setConfirmPay] = useState(false)
   const reqType = (item.request_type ?? 'repair') as RequestType
 
+  const today = new Date(); today.setHours(0,0,0,0)
+  const deadlineDate = item.desired_completion_date ? new Date(item.desired_completion_date) : null
+  if (deadlineDate) deadlineDate.setHours(0,0,0,0)
+  const daysUntilDeadline = deadlineDate ? Math.floor((deadlineDate.getTime() - today.getTime()) / 86400000) : null
+  const isOverdue = daysUntilDeadline !== null && daysUntilDeadline < 0 && item.status === 'received'
+  const isDueSoon = daysUntilDeadline !== null && daysUntilDeadline <= 1 && daysUntilDeadline >= 0 && item.status === 'received'
+
   async function update(
     patch: Record<string, unknown>,
     msg: string,
@@ -122,8 +130,10 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
                       : '対応完了・連絡する'
 
   return (
-    <div className={`bg-white border rounded-2xl overflow-hidden shadow-sm ${
-      item.status === 'received' ? 'border-slate-200' : 'border-slate-100 opacity-70'
+    <div className={`border rounded-2xl overflow-hidden shadow-sm ${
+      isOverdue ? 'bg-red-50 border-red-400 border-2' :
+      isDueSoon ? 'bg-amber-50 border-amber-400' :
+      item.status === 'received' ? 'bg-white border-slate-200' : 'bg-white border-slate-100 opacity-70'
     }`}>
       <button className="w-full text-left p-4 flex gap-3" onClick={() => setOpen(v => !v)}>
         <div className="flex-1 min-w-0">
@@ -136,6 +146,16 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
               {REPAIR_STATUS_LABELS[item.status]}
             </span>
             {item.slip_number && <span className="text-xs font-mono text-gray-400">#{item.slip_number}</span>}
+            {isOverdue && (
+              <span className="text-xs font-black px-2 py-0.5 rounded-full bg-red-600 text-white flex items-center gap-1 animate-pulse">
+                🚨 期限超過 {Math.abs(daysUntilDeadline!)}日
+              </span>
+            )}
+            {isDueSoon && (
+              <span className="text-xs font-black px-2 py-0.5 rounded-full bg-amber-500 text-white flex items-center gap-1">
+                ⚠️ 期限間近
+              </span>
+            )}
           </div>
           {/* 学校名 */}
           {item.child?.school_name && (
@@ -153,23 +173,32 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
           <p className="text-sm font-semibold text-slate-800 mt-1.5 leading-snug">
             {item.item_name}{item.content ? ` — ${item.content}` : ''}
           </p>
-          {/* 支払い状況＋金額を同じ行に */}
-          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            {item.prepaid ? (
-              <span className="text-xs px-2 py-0.5 rounded-full border font-bold bg-emerald-100 text-emerald-700 border-emerald-300">
-                支払済
-              </span>
-            ) : (
-              <span className="text-xs px-2.5 py-0.5 rounded-full border font-black bg-red-600 text-white border-red-600 animate-pulse">
-                未払い
-              </span>
-            )}
-            {item.price != null && (
-              <span className={`text-sm font-black ${item.prepaid ? 'text-gray-500' : 'text-red-700'}`}>
-                ¥{item.price.toLocaleString()}
-              </span>
-            )}
-            <span className="text-sm font-semibold text-slate-600 ml-auto">受取日: {fmtDate(item.received_date)}</span>
+          {/* 支払い状況＋金額＋日付 */}
+          <div className="flex items-end gap-2 mt-1.5">
+            <div className="flex items-center gap-2 flex-wrap flex-1">
+              {item.prepaid ? (
+                <span className="text-xs px-2 py-0.5 rounded-full border font-bold bg-emerald-100 text-emerald-700 border-emerald-300">
+                  支払済
+                </span>
+              ) : (
+                <span className="text-xs px-2.5 py-0.5 rounded-full border font-black bg-red-600 text-white border-red-600 animate-pulse">
+                  未払い
+                </span>
+              )}
+              {item.price != null && (
+                <span className={`text-sm font-black ${item.prepaid ? 'text-gray-500' : 'text-red-700'}`}>
+                  ¥{item.price.toLocaleString()}
+                </span>
+              )}
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-xs text-slate-500">依頼受け日: {fmtDate(item.received_date)}</p>
+              {item.desired_completion_date && (
+                <p className={`text-xs font-semibold ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-slate-500'}`}>
+                  希望完了日: {fmtDate(item.desired_completion_date)}
+                </p>
+              )}
+            </div>
           </div>
         </div>
         {open ? <ChevronUp size={15} className="text-gray-400 mt-1 shrink-0" /> : <ChevronDown size={15} className="text-gray-400 mt-1 shrink-0" />}
@@ -600,6 +629,7 @@ function OrderCard({ item, storeId, onRefresh, onToast }: {
 // ── Main Page ─────────────────────────────────────────────────
 type ActiveTab = 'request' | 'purchase' | 'order'
 type RequestFilter = 'all' | RequestType
+type SortOrder = 'priority' | 'received_asc' | 'deadline_asc' | 'school' | 'name' | 'unpaid_first' | 'item' | 'category'
 
 export default function RepairsPage() {
   const { storeId } = useParams<{ storeId: string }>()
@@ -612,6 +642,7 @@ export default function RepairsPage() {
   const [fetchError,       setFetchError]       = useState<string | null>(null)
   const [toast,            setToast]            = useState<{ type: 'ok' | 'err'; msg: string; onUndo?: () => Promise<void> } | null>(null)
   const [requestFilter,    setRequestFilter]    = useState<RequestFilter>('all')
+  const [sortOrder,        setSortOrder]        = useState<SortOrder>('priority')
   const [purchaseFilter,   setPurchaseFilter]   = useState<'pending' | 'on_order' | 'arrived' | null>(null)
   const [orderFilter,      setOrderFilter]      = useState<'active' | 'ready' | 'unpaid' | null>(null)
   const [purchaseViewMode, setPurchaseViewMode] = useState<'list' | 'order_mgmt'>('list')
@@ -631,7 +662,7 @@ export default function RepairsPage() {
     ] = await Promise.all([
       // スタッフに作業がある（received）もののみ表示
       (supabase as any).from('repair_histories')
-        .select('*, customer:customers(id,name,tel), child:children(name,school_name)')
+        .select('*, desired_completion_date, customer:customers(id,name,tel), child:children(name,school_name)')
         .eq('store_id', storeId)
         .eq('status', 'received')
         .order('received_date', { ascending: true }),
@@ -684,9 +715,45 @@ export default function RepairsPage() {
     unpaid: orders.filter(o => o.payment_status === 'unpaid').length,
   }
 
-  const filteredRepairs = requestFilter === 'all'
-    ? repairs
-    : repairs.filter(r => (r.request_type ?? 'repair') === requestFilter)
+  function priorityScore(r: RepairRow, today: Date): number {
+    if (!r.desired_completion_date) return 500
+    const deadline = new Date(r.desired_completion_date)
+    deadline.setHours(0, 0, 0, 0)
+    const d = Math.floor((deadline.getTime() - today.getTime()) / 86400000)
+    if (d < 0) return d - 1000   // overdue: highest priority (most negative)
+    if (d === 0) return -100
+    if (d === 1) return -50
+    return d
+  }
+
+  const todayDate = new Date(); todayDate.setHours(0,0,0,0)
+  const sortFn = (a: RepairRow, b: RepairRow): number => {
+    switch (sortOrder) {
+      case 'priority':     return priorityScore(a, todayDate) - priorityScore(b, todayDate)
+      case 'received_asc': return a.received_date.localeCompare(b.received_date)
+      case 'deadline_asc': {
+        const da = a.desired_completion_date ?? '9999-12-31'
+        const db = b.desired_completion_date ?? '9999-12-31'
+        return da.localeCompare(db)
+      }
+      case 'school':       return (a.child?.school_name ?? '').localeCompare(b.child?.school_name ?? '', 'ja')
+      case 'name': {
+        const na = a.child?.name ?? a.customer?.name ?? ''
+        const nb = b.child?.name ?? b.customer?.name ?? ''
+        return na.localeCompare(nb, 'ja')
+      }
+      case 'unpaid_first': {
+        const pa = a.prepaid ? 1 : 0
+        const pb = b.prepaid ? 1 : 0
+        if (pa !== pb) return pa - pb
+        return priorityScore(a, todayDate) - priorityScore(b, todayDate)
+      }
+      case 'item':         return a.item_name.localeCompare(b.item_name, 'ja')
+      case 'category':     return (a.request_type ?? '').localeCompare(b.request_type ?? '')
+      default:             return 0
+    }
+  }
+  const filteredRepairs = (requestFilter === 'all' ? repairs : repairs.filter(r => (r.request_type ?? 'repair') === requestFilter)).slice().sort(sortFn)
 
   const filteredPurchases = purchaseFilter === 'pending'
     ? purchases.filter(p => ['received', 'ordered'].includes(p.status))
@@ -774,24 +841,44 @@ export default function RepairsPage() {
 
         {/* 依頼受けタブ — タイプ絞り込み */}
         {tab === 'request' && (
-          <div className="flex gap-1.5 flex-wrap">
-            {([
-              { key: 'all'          as const, label: 'すべて',    count: reqCounts.all,          color: 'text-gray-700' },
-              { key: 'repair'       as const, label: 'お直し',    count: reqCounts.repair,       color: 'text-amber-600' },
-              { key: 'walk_in'      as const, label: '来店依頼',  count: reqCounts.walk_in,      color: 'text-sky-600' },
-              { key: 'hold_request' as const, label: '取置き依頼', count: reqCounts.hold_request, color: 'text-violet-600' },
-            ]).map(f => (
-              <button key={f.key}
-                onClick={() => setRequestFilter(f.key)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold border transition-all active:scale-95 ${
-                  requestFilter === f.key
-                    ? 'bg-slate-800 border-slate-800 text-white shadow-sm'
-                    : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-                }`}>
-                {f.label}
-                {f.count > 0 && <span className={`font-bold ${requestFilter === f.key ? 'text-white' : f.color}`}>{f.count}</span>}
-              </button>
-            ))}
+          <div className="space-y-2">
+            {/* ソート */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-bold text-slate-600 shrink-0">並び替え:</label>
+              <select
+                value={sortOrder}
+                onChange={e => setSortOrder(e.target.value as SortOrder)}
+                className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-700 font-medium focus:border-indigo-500 focus:outline-none">
+                <option value="priority">① 作業優先順位（期限近い順）</option>
+                <option value="received_asc">② 依頼受け日順（古い順）</option>
+                <option value="deadline_asc">③ 希望完了日順（近い順）</option>
+                <option value="school">④ 学校順</option>
+                <option value="name">⑤ 顧客名順</option>
+                <option value="unpaid_first">⑥ 未払い優先</option>
+                <option value="item">⑦ 作業・アイテム順</option>
+                <option value="category">⑧ 購入区分別</option>
+              </select>
+            </div>
+            {/* フィルター（既存） */}
+            <div className="flex gap-1.5 flex-wrap">
+              {([
+                { key: 'all'          as const, label: 'すべて',    count: reqCounts.all,          color: 'text-gray-700' },
+                { key: 'repair'       as const, label: 'お直し',    count: reqCounts.repair,       color: 'text-amber-600' },
+                { key: 'walk_in'      as const, label: '来店依頼',  count: reqCounts.walk_in,      color: 'text-sky-600' },
+                { key: 'hold_request' as const, label: '取置き依頼', count: reqCounts.hold_request, color: 'text-violet-600' },
+              ]).map(f => (
+                <button key={f.key}
+                  onClick={() => setRequestFilter(f.key)}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold border transition-all active:scale-95 ${
+                    requestFilter === f.key
+                      ? 'bg-slate-800 border-slate-800 text-white shadow-sm'
+                      : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                  }`}>
+                  {f.label}
+                  {f.count > 0 && <span className={`font-bold ${requestFilter === f.key ? 'text-white' : f.color}`}>{f.count}</span>}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

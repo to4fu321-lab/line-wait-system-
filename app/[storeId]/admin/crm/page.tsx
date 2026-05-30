@@ -412,6 +412,7 @@ function NewRepairForm({ customerId, childId, storeId, onSaved, onCancel, defaul
   const [price,      setPrice]      = useState('')
   const [prepaid,    setPrepaid]    = useState(false)
   const [notes,      setNotes]      = useState('')
+  const [desiredDate, setDesiredDate] = useState('')
   const [loading,    setLoading]    = useState(false)
   const [error,      setError]      = useState<string | null>(null)
 
@@ -433,6 +434,7 @@ function NewRepairForm({ customerId, childId, storeId, onSaved, onCancel, defaul
       status: 'received', received_date: new Date().toISOString().slice(0, 10),
       request_type: reqType,
       prepaid,
+      desired_completion_date: desiredDate || null,
     })
     setLoading(false)
     if (err) { setError(`保存失敗: ${err.message}`); return }
@@ -475,6 +477,42 @@ function NewRepairForm({ customerId, childId, storeId, onSaved, onCancel, defaul
             placeholder="例：500" value={price} onChange={e => setPrice(e.target.value)} />
         </Field>
       </div>
+      <Field label="希望完了日">
+        <div className="space-y-2">
+          {/* ショートカットボタン */}
+          <div className="flex gap-1.5 flex-wrap">
+            {[
+              { label: '1週間後', days: 7 },
+              { label: '2週間後', days: 14 },
+              { label: '1ヶ月後', days: 30 },
+            ].map(({ label, days }) => {
+              const d = new Date(); d.setDate(d.getDate() + days)
+              const val = d.toISOString().slice(0, 10)
+              return (
+                <button key={days} type="button"
+                  onClick={() => setDesiredDate(val)}
+                  className={`text-xs px-3 py-1.5 rounded-xl border font-bold transition-all ${
+                    desiredDate === val
+                      ? 'bg-indigo-600 border-indigo-600 text-white'
+                      : 'bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200'
+                  }`}>
+                  {label}
+                </button>
+              )
+            })}
+            {desiredDate && (
+              <button type="button" onClick={() => setDesiredDate('')}
+                className="text-xs px-2 py-1.5 rounded-xl border border-gray-300 text-gray-400 hover:bg-gray-100">
+                クリア
+              </button>
+            )}
+          </div>
+          {/* 日付ピッカー */}
+          <input type="date" value={desiredDate} onChange={e => setDesiredDate(e.target.value)}
+            min={new Date().toISOString().slice(0, 10)}
+            className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none" />
+        </div>
+      </Field>
       {/* 支払い状況 */}
       <button type="button" onClick={() => setPrepaid(v => !v)}
         className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${prepaid ? 'border-emerald-500 bg-emerald-500/10' : 'border-red-400 bg-red-50'}`}>
