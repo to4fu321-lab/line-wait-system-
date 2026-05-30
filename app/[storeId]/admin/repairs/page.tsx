@@ -6,7 +6,7 @@ import {
   Scissors, ShoppingBag, Loader2, ChevronDown, ChevronUp,
   Phone, User, Check, RotateCcw, Package, ClipboardList,
   Banknote, Plus, AlertCircle, CreditCard, CheckCheck,
-  History, CalendarDays, Copy,
+  History, CalendarDays, Copy, X, Pencil,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
@@ -125,9 +125,10 @@ function Toast({ msg, type, onUndo, onClose }: {
 }
 
 // ── Repair Card ───────────────────────────────────────────────
-function RepairCard({ item, storeId, onRefresh, onToast }: {
+function RepairCard({ item, storeId, onRefresh, onToast, onEdit }: {
   item: RepairRow; storeId: string; onRefresh: () => void
   onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
+  onEdit?: (item: RepairRow) => void
 }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -291,6 +292,19 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
             className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
             <User size={11} />顧客詳細
           </a>
+          {onEdit && (
+            <button onClick={() => onEdit(item)}
+              className="w-full py-2 rounded-xl font-bold text-xs border border-indigo-200 bg-indigo-50 text-indigo-600 flex items-center justify-center gap-1.5 hover:bg-indigo-100 active:scale-95 transition-all">
+              <Pencil size={11} />注文内容を変更する
+            </button>
+          )}
+          {item.request_type === 'repair' && !item.work_started && (
+            <button onClick={() => update({ work_started: true }, '作業開始しました', { work_started: false })}
+              disabled={loading}
+              className="w-full py-2 rounded-xl font-bold text-xs border border-amber-300 bg-amber-50 text-amber-700 flex items-center justify-center gap-1.5 hover:bg-amber-100 active:scale-95 transition-all disabled:opacity-50">
+              <Scissors size={11} />お直し作業を開始する（作業中に移動）
+            </button>
+          )}
           <div className="flex flex-wrap gap-2 pt-1">
             {item.status === 'received' && (
               <button
@@ -332,9 +346,10 @@ const PURCHASE_STATUS_FLOW: Partial<Record<PurchaseStatus, { next: PurchaseStatu
   stocked:   { next: 'arrived',   label: '入荷・連絡済みにする',   color: 'bg-emerald-700 hover:bg-emerald-600' },
 }
 
-function PurchaseCard({ item, storeId, onRefresh, onToast }: {
+function PurchaseCard({ item, storeId, onRefresh, onToast, onEdit }: {
   item: PurchaseRow; storeId: string; onRefresh: () => void
   onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
+  onEdit?: (item: PurchaseRow) => void
 }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -413,6 +428,12 @@ function PurchaseCard({ item, storeId, onRefresh, onToast }: {
           <a href={`/${storeId}/admin/crm?customerId=${item.customer_id}`} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
             <User size={11} />顧客詳細
           </a>
+          {onEdit && (
+            <button onClick={() => onEdit(item)}
+              className="w-full py-2 rounded-xl font-bold text-xs border border-indigo-200 bg-indigo-50 text-indigo-600 flex items-center justify-center gap-1.5 hover:bg-indigo-100 active:scale-95 transition-all">
+              <Pencil size={11} />注文内容を変更する
+            </button>
+          )}
           {nextStep && (
             <button onClick={() => {
               const patch: Record<string, unknown> = { status: nextStep.next }
@@ -554,9 +575,10 @@ interface OrderGroup {
   orders:     PurchaseRow[]
 }
 
-function AggregatedOrderCard({ group, checked, onCheck, onToast }: {
+function AggregatedOrderCard({ group, checked, onCheck, onToast, onEdit }: {
   group: OrderGroup; checked: boolean; onCheck: () => void
   onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
+  onEdit?: (item: PurchaseRow) => void
 }) {
   const [open,   setOpen]   = useState(false)
   const [copied, setCopied] = useState(false)
@@ -633,6 +655,12 @@ function AggregatedOrderCard({ group, checked, onCheck, onToast }: {
               {order.price != null && (
                 <p className="text-xs font-bold text-gray-600 shrink-0">¥{order.price.toLocaleString()}</p>
               )}
+              {onEdit && (
+                <button onClick={() => onEdit(order)}
+                  className="shrink-0 p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
+                  <Pencil size={11} />
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -641,9 +669,10 @@ function AggregatedOrderCard({ group, checked, onCheck, onToast }: {
   )
 }
 
-function AggregatedOrderList({ orders, storeId, onRefresh, onToast }: {
+function AggregatedOrderList({ orders, storeId, onRefresh, onToast, onEdit }: {
   orders: PurchaseRow[]; storeId: string; onRefresh: () => void
   onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
+  onEdit?: (item: PurchaseRow) => void
 }) {
   const [checked,  setChecked]  = useState<Set<string>>(new Set())
   const [updating, setUpdating] = useState(false)
@@ -731,6 +760,7 @@ function AggregatedOrderList({ orders, storeId, onRefresh, onToast }: {
             checked={checked.has(group.groupKey)}
             onCheck={() => toggleCheck(group.groupKey)}
             onToast={onToast}
+            onEdit={onEdit}
           />
         ))}
       </div>
@@ -1089,6 +1119,116 @@ function CompletedCard({ item, onRevert, onPaymentToggle }: {
   )
 }
 
+// ── Edit Modal ────────────────────────────────────────────────
+function EditModal({ kind, item, onClose, onSave, onToast }: {
+  kind: 'repair' | 'purchase'
+  item: RepairRow | PurchaseRow
+  onClose: () => void
+  onSave: () => void
+  onToast: (t: 'ok' | 'err', m: string) => void
+}) {
+  const [saving,   setSaving]   = useState(false)
+  const [itemName, setItemName] = useState(item.item_name)
+  const [content,  setContent]  = useState(kind === 'repair' ? (item as RepairRow).content : '')
+  const [maker,    setMaker]    = useState(kind === 'purchase' ? ((item as PurchaseRow).maker ?? '') : '')
+  const [price,    setPrice]    = useState(String(item.price ?? ''))
+  const [deadline, setDeadline] = useState(kind === 'repair' ? ((item as RepairRow).desired_completion_date ?? '') : '')
+  const [notes,    setNotes]    = useState(item.notes ?? '')
+
+  async function handleSave() {
+    if (!itemName.trim()) return
+    setSaving(true)
+    const table = kind === 'repair' ? 'repair_histories' : 'purchase_orders'
+    const patch: Record<string, unknown> = {
+      item_name: itemName.trim(),
+      notes:     notes.trim() || null,
+      price:     price ? Number(price) : null,
+      updated_at: new Date().toISOString(),
+    }
+    if (kind === 'repair') {
+      patch.content = content.trim()
+      patch.desired_completion_date = deadline || null
+    } else {
+      patch.maker = maker.trim() || null
+    }
+    const { error } = await (supabase as any).from(table).update(patch).eq('id', item.id)
+    setSaving(false)
+    if (error) { onToast('err', '更新に失敗しました'); return }
+    onToast('ok', '変更を保存しました')
+    onSave()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm"
+      onClick={onClose}>
+      <div className="w-full max-w-lg bg-white rounded-t-3xl px-5 pt-5 pb-8 space-y-4 shadow-2xl"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-black text-gray-900 flex items-center gap-2">
+            <Pencil size={14} className="text-indigo-500" />注文内容を変更
+          </h2>
+          <button onClick={onClose} className="p-1.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="text-xs text-gray-500 bg-gray-50 rounded-xl px-3 py-2 font-medium">
+          {kind === 'repair' ? '✂️ お直し依頼' : '📦 追加購入'}
+          {' — '}
+          {(kind === 'repair' ? (item as RepairRow).customer?.name : (item as PurchaseRow).customer?.name) ?? '顧客不明'}
+        </div>
+        <div>
+          <label className="text-xs font-bold text-gray-600 block mb-1">品名・商品名 <span className="text-red-500">*</span></label>
+          <input type="text" value={itemName} onChange={e => setItemName(e.target.value)}
+            className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none"
+            placeholder="例: ○○中学校 スラックス Mサイズ" />
+        </div>
+        {kind === 'repair' && (
+          <div>
+            <label className="text-xs font-bold text-gray-600 block mb-1">お直し内容</label>
+            <input type="text" value={content} onChange={e => setContent(e.target.value)}
+              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none"
+              placeholder="例: 裾上げ 3cm、サイズ変更 M→L" />
+          </div>
+        )}
+        {kind === 'purchase' && (
+          <div>
+            <label className="text-xs font-bold text-gray-600 block mb-1">メーカー</label>
+            <input type="text" value={maker} onChange={e => setMaker(e.target.value)}
+              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none"
+              placeholder="例: カンコー" />
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-bold text-gray-600 block mb-1">金額（税込）</label>
+            <input type="number" value={price} onChange={e => setPrice(e.target.value)}
+              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none"
+              placeholder="1200" />
+          </div>
+          {kind === 'repair' && (
+            <div>
+              <label className="text-xs font-bold text-gray-600 block mb-1">希望完了日</label>
+              <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)}
+                className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="text-xs font-bold text-gray-600 block mb-1">備考・サイズ変更メモ</label>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+            className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none resize-none"
+            placeholder="数量変更・サイズ変更などの追記事項" />
+        </div>
+        <button onClick={handleSave} disabled={saving || !itemName.trim()}
+          className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm">
+          {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+          変更を保存する
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Repair Work Card (発注・お直し管理タブ用) ────────────────────
 function RepairWorkCard({ item, storeId, onRefresh, onToast }: {
   item: RepairRow; storeId: string; onRefresh: () => void
@@ -1177,7 +1317,7 @@ function RepairWorkCard({ item, storeId, onRefresh, onToast }: {
 }
 
 // ── Main Page ─────────────────────────────────────────────────
-type ActiveTab = 'request' | 'purchase' | 'delivery'
+type ActiveTab = 'request' | 'purchase' | 'repair_work' | 'delivery'
 type DeliverySubTab = 'waiting' | 'history'
 type RequestFilter = 'all' | RequestType
 type SortOrder = 'priority' | 'received_asc' | 'deadline_asc' | 'school' | 'name' | 'unpaid_first' | 'item' | 'category'
@@ -1203,6 +1343,8 @@ export default function RepairsPage() {
   const [sortOrder,        setSortOrder]        = useState<SortOrder>('priority')
   const [purchaseFilter,   setPurchaseFilter]   = useState<PurchaseStageFilter>(null)
   const [repairWorkFilter, setRepairWorkFilter] = useState<RepairWorkStageFilter>(null)
+  const [editItem,         setEditItem]         = useState<RepairRow | PurchaseRow | null>(null)
+  const [editKind,         setEditKind]         = useState<'repair' | 'purchase' | null>(null)
 
   const showToast = useCallback((type: 'ok' | 'err', msg: string, onUndo?: () => Promise<void>) => {
     setToast({ type, msg, onUndo })
@@ -1353,11 +1495,17 @@ export default function RepairsPage() {
   // ── Counts & derived ─────────────────────────────────────────
   const todayDate = new Date(); todayDate.setHours(0,0,0,0)
 
+  // ── 4-lane routing ──────────────────────────────────────────
+  // 依頼一覧: not-yet-started repairs + consultations/holds
+  // お直し管理: repair items actively in progress (work_started=true)
+  const inboxItems = repairs.filter(r => r.request_type !== 'repair' || !r.work_started)
+  const workItems  = repairs.filter(r => r.request_type === 'repair' && r.work_started)
+
   const reqCounts = {
-    all:          repairs.length,
-    repair:       repairs.filter(r => (r.request_type ?? 'repair') === 'repair').length,
-    walk_in:      repairs.filter(r => r.request_type === 'walk_in').length,
-    hold_request: repairs.filter(r => r.request_type === 'hold_request').length,
+    all:          inboxItems.length,
+    repair:       inboxItems.filter(r => (r.request_type ?? 'repair') === 'repair').length,
+    walk_in:      inboxItems.filter(r => r.request_type === 'walk_in').length,
+    hold_request: inboxItems.filter(r => r.request_type === 'hold_request').length,
   }
   const purchaseCounts = {
     not_ordered: purchases.filter(p => ['received', 'ordered'].includes(p.status)).length,
@@ -1416,7 +1564,9 @@ export default function RepairsPage() {
     }
   }
 
-  const filteredRepairs = (requestFilter === 'all' ? repairs : repairs.filter(r => (r.request_type ?? 'repair') === requestFilter)).slice().sort(sortFn)
+  const filteredRepairs      = (requestFilter === 'all' ? repairs : repairs.filter(r => (r.request_type ?? 'repair') === requestFilter)).slice().sort(sortFn)
+  const filteredInboxItems   = (requestFilter === 'all' ? inboxItems : inboxItems.filter(r => (r.request_type ?? 'repair') === requestFilter)).slice().sort(sortFn)
+  const filteredWorkItems    = workItems.slice().sort(sortFn)
 
   const filteredPurchases = purchaseFilter === 'not_ordered'
     ? purchases.filter(p => ['received', 'ordered'].includes(p.status))
@@ -1447,60 +1597,57 @@ export default function RepairsPage() {
             </a>
           </div>
 
-          {/* 今日やること */}
-          <div className="bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-3 mb-3 grid grid-cols-3 divide-x divide-indigo-200">
+          {/* 今日やること — 4レーンの進捗サマリー */}
+          <div className="bg-indigo-50 border border-indigo-200 rounded-2xl px-2 py-3 mb-3 grid grid-cols-4 divide-x divide-indigo-200">
             <button onClick={() => { setTab('request'); setRequestFilter('all') }}
-              className="text-center px-2 active:scale-95 transition-all">
-              <div className={`text-2xl font-black leading-tight ${overdueCount > 0 ? 'text-red-600' : 'text-slate-300'}`}>
-                {overdueCount}
+              className="text-center px-1.5 active:scale-95 transition-all">
+              <div className={`text-xl font-black leading-tight ${inboxItems.length > 0 ? 'text-slate-700' : 'text-slate-300'}`}>
+                {inboxItems.length}
               </div>
-              <div className="text-[10px] text-slate-500 mt-0.5">🚨 期限超過</div>
+              <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">📋 依頼</div>
             </button>
             <button onClick={() => { setTab('purchase'); setPurchaseFilter('not_ordered') }}
-              className="text-center px-2 active:scale-95 transition-all">
-              <div className={`text-2xl font-black leading-tight ${purchaseCounts.not_ordered > 0 ? 'text-orange-600' : 'text-slate-300'}`}>
+              className="text-center px-1.5 active:scale-95 transition-all">
+              <div className={`text-xl font-black leading-tight ${purchaseCounts.not_ordered > 0 ? 'text-orange-600' : 'text-slate-300'}`}>
                 {purchaseCounts.not_ordered}
               </div>
-              <div className="text-[10px] text-slate-500 mt-0.5">📦 未発注</div>
+              <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">📦 未発注</div>
+            </button>
+            <button onClick={() => setTab('repair_work')}
+              className="text-center px-1.5 active:scale-95 transition-all">
+              <div className={`text-xl font-black leading-tight ${workItems.length > 0 ? 'text-amber-600' : 'text-slate-300'}`}>
+                {workItems.length}
+              </div>
+              <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">✂️ 作業中</div>
             </button>
             <button onClick={() => { setTab('delivery'); setDeliverySubTab('waiting') }}
-              className="text-center px-2 active:scale-95 transition-all">
-              <div className={`text-2xl font-black leading-tight ${waiting.length > 0 ? 'text-indigo-600' : 'text-slate-300'}`}>
+              className="text-center px-1.5 active:scale-95 transition-all">
+              <div className={`text-xl font-black leading-tight ${waiting.length > 0 ? 'text-indigo-600' : 'text-slate-300'}`}>
                 {waiting.length}
               </div>
-              <div className="text-[10px] text-slate-500 mt-0.5">🎁 お渡し待ち</div>
+              <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">🎁 お渡し待ち</div>
             </button>
           </div>
 
-          {/* Main tabs */}
-          <div className="flex gap-1 bg-slate-200 rounded-xl p-1">
-            <button onClick={() => setTab('request')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-sm font-bold transition-all ${tab === 'request' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-600 font-medium hover:text-slate-800'}`}>
-              <ClipboardList size={15} />依頼一覧
-              {repairs.length > 0 && (
-                <span className={`text-xs px-1.5 py-0.5 rounded-full font-black ${tab === 'request' ? 'bg-indigo-600 text-white' : 'bg-slate-300 text-slate-600'}`}>
-                  {repairs.length}
-                </span>
-              )}
-            </button>
-            <button onClick={() => setTab('purchase')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-sm font-bold transition-all ${tab === 'purchase' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-600 font-medium hover:text-slate-800'}`}>
-              <ShoppingBag size={15} />発注・お直し
-              {(purchaseCounts.not_ordered + purchaseCounts.on_order + purchaseCounts.arrived + repairWorkCounts.not_started + repairWorkCounts.in_progress) > 0 && (
-                <span className={`text-xs px-1.5 py-0.5 rounded-full font-black ${tab === 'purchase' ? 'bg-blue-600 text-white' : 'bg-slate-300 text-slate-600'}`}>
-                  {purchaseCounts.not_ordered + purchaseCounts.on_order + purchaseCounts.arrived + repairWorkCounts.not_started + repairWorkCounts.in_progress}
-                </span>
-              )}
-            </button>
-            <button onClick={() => setTab('delivery')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-sm font-bold transition-all ${tab === 'delivery' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-600 font-medium hover:text-slate-800'}`}>
-              <Package size={15} />お渡し
-              {waiting.length > 0 && (
-                <span className={`text-xs px-1.5 py-0.5 rounded-full font-black ${tab === 'delivery' ? 'bg-indigo-600 text-white' : 'bg-slate-300 text-slate-600'}`}>
-                  {waiting.length}
-                </span>
-              )}
-            </button>
+          {/* Main tabs — 4 lanes */}
+          <div className="flex gap-0.5 bg-slate-200 rounded-xl p-1">
+            {([
+              { id: 'request'     as const, label: '依頼',  icon: ClipboardList, count: inboxItems.length,    accent: 'bg-indigo-600' },
+              { id: 'purchase'    as const, label: '発注',  icon: ShoppingBag,   count: purchaseCounts.not_ordered + purchaseCounts.on_order + purchaseCounts.arrived, accent: 'bg-blue-600' },
+              { id: 'repair_work' as const, label: 'お直し', icon: Scissors,      count: workItems.length + repairWorkCounts.waiting_pickup, accent: 'bg-amber-600' },
+              { id: 'delivery'    as const, label: 'お渡し', icon: Package,        count: waiting.length,      accent: 'bg-violet-600' },
+            ]).map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)}
+                className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-lg transition-all ${tab === t.id ? 'bg-white text-slate-900 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>
+                <t.icon size={14} />
+                <span className="text-[10px] font-bold leading-none">{t.label}</span>
+                {t.count > 0 && (
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black ${tab === t.id ? `${t.accent} text-white` : 'bg-slate-300 text-slate-600'}`}>
+                    {t.count}
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -1585,21 +1732,22 @@ export default function RepairsPage() {
             <Loader2 size={24} className="animate-spin" />
           </div>
         ) : tab === 'request' ? (
-          repairs.length === 0 ? (
+          inboxItems.length === 0 ? (
             <div className="text-center py-16 text-gray-400">
               <ClipboardList size={32} className="mx-auto mb-3 opacity-30" />
-              <p className="text-sm">作業中の依頼はありません</p>
-              <p className="text-xs mt-1 text-gray-300">完了済みはお渡しタブで確認できます</p>
+              <p className="text-sm">対応待ちの依頼はありません</p>
+              <p className="text-xs mt-1 text-gray-300">お直し作業中はお直し管理タブで確認できます</p>
             </div>
-          ) : filteredRepairs.length === 0 ? (
+          ) : filteredInboxItems.length === 0 ? (
             <div className="text-center py-10 text-gray-400">
               <p className="text-sm">該当する依頼はありません</p>
               <button onClick={() => setRequestFilter('all')} className="mt-2 text-xs text-indigo-600">絞り込みを解除</button>
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredRepairs.map(r => (
-                <RepairCard key={r.id} item={r} storeId={storeId} onRefresh={fetchAll} onToast={showToast} />
+              {filteredInboxItems.map(r => (
+                <RepairCard key={r.id} item={r} storeId={storeId} onRefresh={fetchAll} onToast={showToast}
+                  onEdit={item => { setEditItem(item); setEditKind('repair') }} />
               ))}
             </div>
           )
@@ -1640,6 +1788,7 @@ export default function RepairsPage() {
                 <AggregatedOrderList
                   orders={purchases.filter(p => ['received', 'ordered'].includes(p.status))}
                   storeId={storeId} onRefresh={fetchAll} onToast={showToast}
+                  onEdit={item => { setEditItem(item); setEditKind('purchase') }}
                 />
               ) : filteredPurchases.length === 0 ? (
                 <div className="text-center py-6 text-gray-400">
@@ -1649,139 +1798,149 @@ export default function RepairsPage() {
               ) : (
                 <div className="space-y-3">
                   {filteredPurchases.map(p => (
-                    <PurchaseCard key={p.id} item={p} storeId={storeId} onRefresh={fetchAll} onToast={showToast} />
+                    <PurchaseCard key={p.id} item={p} storeId={storeId} onRefresh={fetchAll} onToast={showToast}
+                      onEdit={item => { setEditItem(item); setEditKind('purchase') }} />
                   ))}
                 </div>
               )}
             </section>
+          </div>
+        ) : tab === 'repair_work' ? (
+          <div className="space-y-4">
+            {/* Sort selector */}
+            <div className="flex items-center gap-2">
+              <select
+                value={sortOrder}
+                onChange={e => setSortOrder(e.target.value as SortOrder)}
+                className="flex-1 text-xs border border-gray-200 rounded-xl px-3 py-2 bg-white text-gray-700 appearance-none"
+              >
+                <option value="priority">優先度順（期日・未対応）</option>
+                <option value="newest">新着順</option>
+                <option value="oldest">古い順</option>
+                <option value="deadline_asc">希望日が近い順</option>
+                <option value="deadline_desc">希望日が遠い順</option>
+                <option value="price_desc">金額が高い順</option>
+              </select>
+            </div>
 
-            {/* ─── 【お直し】 ─── */}
-            <section>
-              <div className="flex items-center gap-2 mb-3">
-                <Scissors size={14} className="text-amber-600" />
-                <span className="text-sm font-black text-amber-700">【お直し】</span>
-                <span className="text-xs text-gray-400">作業進捗を管理します</span>
-              </div>
+            {/* Stage filter chips */}
+            <div className="grid grid-cols-4 gap-1.5">
+              {([
+                { key: 'not_started'    as const, label: '未着手',   value: repairWorkCounts.not_started,    color: 'text-gray-600' },
+                { key: 'in_progress'    as const, label: '作業中',   value: repairWorkCounts.in_progress,    color: 'text-amber-600' },
+                { key: 'waiting_pickup' as const, label: '完了待ち', value: repairWorkCounts.waiting_pickup, color: 'text-emerald-600' },
+                { key: null as RepairWorkStageFilter, label: 'すべて', value: repairOnlyItems.length + repairWorkCounts.waiting_pickup, color: 'text-slate-600' },
+              ]).map(s => (
+                <button key={String(s.key)}
+                  onClick={() => setRepairWorkFilter(s.key)}
+                  className={`rounded-xl p-2 text-center transition-all border ${
+                    repairWorkFilter === s.key
+                      ? 'bg-gray-200 border-gray-400 ring-1 ring-inset ring-gray-400'
+                      : 'bg-white border-gray-200'
+                  }`}>
+                  <div className={`text-lg font-bold ${s.color}`}>{s.value}</div>
+                  <div className="text-[10px] text-gray-500 mt-0.5 leading-tight">{s.label}</div>
+                </button>
+              ))}
+            </div>
 
-              {/* Stage filter chips */}
-              <div className="grid grid-cols-4 gap-1.5 mb-3">
-                {([
-                  { key: 'not_started'    as const, label: '未着手',   value: repairWorkCounts.not_started,    color: 'text-gray-600' },
-                  { key: 'in_progress'    as const, label: '作業中',   value: repairWorkCounts.in_progress,    color: 'text-amber-600' },
-                  { key: 'waiting_pickup' as const, label: '完了待ち', value: repairWorkCounts.waiting_pickup, color: 'text-emerald-600' },
-                  { key: null as RepairWorkStageFilter, label: 'すべて', value: repairOnlyItems.length + repairWorkCounts.waiting_pickup, color: 'text-slate-600' },
-                ]).map(s => (
-                  <button key={String(s.key)}
-                    onClick={() => setRepairWorkFilter(s.key)}
-                    className={`rounded-xl p-2 text-center transition-all border ${
-                      repairWorkFilter === s.key
-                        ? 'bg-gray-200 border-gray-400 ring-1 ring-inset ring-gray-400'
-                        : 'bg-white border-gray-200'
-                    }`}>
-                    <div className={`text-lg font-bold ${s.color}`}>{s.value}</div>
-                    <div className="text-[10px] text-gray-500 mt-0.5 leading-tight">{s.label}</div>
-                  </button>
-                ))}
-              </div>
-
-              {/* 未着手 */}
-              {(repairWorkFilter === null || repairWorkFilter === 'not_started') && (() => {
-                const items = repairOnlyItems.filter(r => !r.work_started)
-                return items.length > 0 ? (
-                  <div className="mb-4">
-                    {repairWorkFilter === null && (
-                      <p className="text-xs font-bold text-gray-500 mb-2 flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-gray-400 inline-block" />未着手
-                      </p>
-                    )}
-                    <div className="space-y-2">
-                      {items.map(r => (
-                        <RepairWorkCard key={r.id} item={r} storeId={storeId} onRefresh={fetchAll} onToast={showToast} />
-                      ))}
-                    </div>
+            {/* 未着手 */}
+            {(repairWorkFilter === null || repairWorkFilter === 'not_started') && (() => {
+              const items = repairOnlyItems.filter(r => !r.work_started).slice().sort(sortFn)
+              return items.length > 0 ? (
+                <div>
+                  {repairWorkFilter === null && (
+                    <p className="text-xs font-bold text-gray-500 mb-2 flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-gray-400 inline-block" />未着手
+                    </p>
+                  )}
+                  <div className="space-y-2">
+                    {items.map(r => (
+                      <RepairWorkCard key={r.id} item={r} storeId={storeId} onRefresh={fetchAll} onToast={showToast} />
+                    ))}
                   </div>
-                ) : repairWorkFilter === 'not_started' ? (
-                  <div className="text-center py-6 text-gray-400">
-                    <p className="text-sm">未着手のお直しはありません</p>
-                  </div>
-                ) : null
-              })()}
-
-              {/* 作業中 */}
-              {(repairWorkFilter === null || repairWorkFilter === 'in_progress') && (() => {
-                const items = repairOnlyItems.filter(r => r.work_started)
-                return items.length > 0 ? (
-                  <div className="mb-4">
-                    {repairWorkFilter === null && (
-                      <p className="text-xs font-bold text-amber-600 mb-2 flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />作業中
-                      </p>
-                    )}
-                    <div className="space-y-2">
-                      {items.map(r => (
-                        <RepairWorkCard key={r.id} item={r} storeId={storeId} onRefresh={fetchAll} onToast={showToast} />
-                      ))}
-                    </div>
-                  </div>
-                ) : repairWorkFilter === 'in_progress' ? (
-                  <div className="text-center py-6 text-gray-400">
-                    <p className="text-sm">作業中のお直しはありません</p>
-                  </div>
-                ) : null
-              })()}
-
-              {/* 完了待ち（お渡し待ち） */}
-              {(repairWorkFilter === null || repairWorkFilter === 'waiting_pickup') && (() => {
-                const items = waiting.filter(i => i.kind === 'repair')
-                return items.length > 0 ? (
-                  <div className="mb-4">
-                    {repairWorkFilter === null && (
-                      <p className="text-xs font-bold text-emerald-600 mb-2 flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />完了待ち（お渡し待ち）
-                      </p>
-                    )}
-                    <div className="space-y-2">
-                      {items.map(item => (
-                        <div key={item.id} className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-3">
-                          <div className="flex-1 min-w-0">
-                            {item.child?.school_name && (
-                              <p className="text-[10px] font-bold text-amber-600 truncate">{item.child.school_name}</p>
-                            )}
-                            <p className="font-bold text-gray-900 text-sm truncate">
-                              {item.child?.name ?? item.customer?.name ?? '（不明）'}
-                            </p>
-                            <p className="text-xs text-gray-500 truncate mt-0.5">
-                              {item.item_name}{item.sub_label ? ` — ${item.sub_label}` : ''}
-                            </p>
-                            {item.slip_number && <p className="text-[10px] font-mono text-gray-400">#{item.slip_number}</p>}
-                          </div>
-                          <div className="shrink-0 text-center">
-                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg block">
-                              ✅ お渡し待ち
-                            </span>
-                            {item.notified && (
-                              <span className="text-[10px] text-emerald-600 mt-0.5 block">LINE通知済</span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : repairWorkFilter === 'waiting_pickup' ? (
-                  <div className="text-center py-6 text-gray-400">
-                    <p className="text-sm">完了待ちのお直しはありません</p>
-                  </div>
-                ) : null
-              })()}
-
-              {/* 全部空のとき */}
-              {repairOnlyItems.length === 0 && waiting.filter(i => i.kind === 'repair').length === 0 && (
-                <div className="text-center py-8 text-gray-400">
-                  <Scissors size={28} className="mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">お直し作業はありません</p>
                 </div>
-              )}
-            </section>
+              ) : repairWorkFilter === 'not_started' ? (
+                <div className="text-center py-6 text-gray-400">
+                  <p className="text-sm">未着手のお直しはありません</p>
+                </div>
+              ) : null
+            })()}
+
+            {/* 作業中 */}
+            {(repairWorkFilter === null || repairWorkFilter === 'in_progress') && (() => {
+              const items = repairOnlyItems.filter(r => r.work_started).slice().sort(sortFn)
+              return items.length > 0 ? (
+                <div>
+                  {repairWorkFilter === null && (
+                    <p className="text-xs font-bold text-amber-600 mb-2 flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />作業中
+                    </p>
+                  )}
+                  <div className="space-y-2">
+                    {items.map(r => (
+                      <RepairWorkCard key={r.id} item={r} storeId={storeId} onRefresh={fetchAll} onToast={showToast} />
+                    ))}
+                  </div>
+                </div>
+              ) : repairWorkFilter === 'in_progress' ? (
+                <div className="text-center py-6 text-gray-400">
+                  <p className="text-sm">作業中のお直しはありません</p>
+                </div>
+              ) : null
+            })()}
+
+            {/* 完了待ち（お渡し待ち） */}
+            {(repairWorkFilter === null || repairWorkFilter === 'waiting_pickup') && (() => {
+              const items = waiting.filter(i => i.kind === 'repair')
+              return items.length > 0 ? (
+                <div>
+                  {repairWorkFilter === null && (
+                    <p className="text-xs font-bold text-emerald-600 mb-2 flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />完了待ち（お渡し待ち）
+                    </p>
+                  )}
+                  <div className="space-y-2">
+                    {items.map(item => (
+                      <div key={item.id} className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          {item.child?.school_name && (
+                            <p className="text-[10px] font-bold text-amber-600 truncate">{item.child.school_name}</p>
+                          )}
+                          <p className="font-bold text-gray-900 text-sm truncate">
+                            {item.child?.name ?? item.customer?.name ?? '（不明）'}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate mt-0.5">
+                            {item.item_name}{item.sub_label ? ` — ${item.sub_label}` : ''}
+                          </p>
+                          {item.slip_number && <p className="text-[10px] font-mono text-gray-400">#{item.slip_number}</p>}
+                        </div>
+                        <div className="shrink-0 text-center">
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg block">
+                            ✅ お渡し待ち
+                          </span>
+                          {item.notified && (
+                            <span className="text-[10px] text-emerald-600 mt-0.5 block">LINE通知済</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : repairWorkFilter === 'waiting_pickup' ? (
+                <div className="text-center py-6 text-gray-400">
+                  <p className="text-sm">完了待ちのお直しはありません</p>
+                </div>
+              ) : null
+            })()}
+
+            {/* 全部空のとき */}
+            {repairOnlyItems.length === 0 && waiting.filter(i => i.kind === 'repair').length === 0 && (
+              <div className="text-center py-16 text-gray-400">
+                <Scissors size={32} className="mx-auto mb-3 opacity-30" />
+                <p className="text-sm">お直し作業はありません</p>
+              </div>
+            )}
           </div>
         ) : (
           // お渡しタブ
@@ -1832,6 +1991,15 @@ export default function RepairsPage() {
       </div>
 
       {toast && <Toast msg={toast.msg} type={toast.type} onUndo={toast.onUndo} onClose={() => setToast(null)} />}
+      {editItem && editKind && (
+        <EditModal
+          kind={editKind}
+          item={editItem}
+          onClose={() => setEditItem(null)}
+          onSave={() => { setEditItem(null); fetchAll() }}
+          onToast={(t, m) => showToast(t, m)}
+        />
+      )}
       <BottomNav />
     </div>
   )
