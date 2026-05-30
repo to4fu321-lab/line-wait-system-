@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import type { Menu, TakeoutOrder, TakeoutSettings } from '@/types/takeout'
 import type { KitchenStation } from '@/types/kitchen-scheduler'
 
+// MenuManager のドロップダウン用（後方互換）
 const STATION_OPTIONS = [
   { value: 'grill',   label: '焼き台',    },
   { value: 'fryer',   label: 'フライヤー', },
@@ -15,6 +16,7 @@ const STATION_OPTIONS = [
   { value: 'counter', label: '盛り付け',  },
   { value: 'other',   label: 'その他',    },
 ]
+// 旧レコード（'grill' 等）の表示用
 const STATION_ICON: Record<string, string> = {
   grill: '🔥', fryer: '🍳', drink: '🥤',
   oven: '♨️', pot: '🍲', steamer: '🫕', counter: '🍱',
@@ -25,6 +27,30 @@ const STATION_LABEL: Record<string, string> = {
   oven: 'オーブン', pot: '鍋', steamer: '蒸し器', counter: '盛り付け',
   other: 'その他',
 }
+
+// ── アイコンパレット（絵文字を直接 station_type として保存） ──
+const ICON_PALETTE: { cat: string; icons: string[] }[] = [
+  {
+    cat: '🔥 熱調理・火力',
+    icons: ['🔥', '🍳', '🥘', '🫕', '🍲', '♨️', '🥞', '🧇'],
+  },
+  {
+    cat: '🍟 揚げ物・焼き物',
+    icons: ['🍟', '🍤', '🍢', '🥩', '🍖', '🥓', '🍗', '🐟'],
+  },
+  {
+    cat: '🍺 ドリンク・バー',
+    icons: ['🍺', '🍻', '🥂', '🍶', '🍸', '🥃', '🥤', '☕', '🍵', '🧋'],
+  },
+  {
+    cat: '🍱 盛り付け・仕込み',
+    icons: ['🍱', '🍚', '🍙', '🥗', '🥚', '🍣', '🍜', '🧆', '🥙', '🥪'],
+  },
+  {
+    cat: '⚙️ 設備・その他',
+    icons: ['❄️', '🧊', '🔪', '⚡', '🧺', '📦', '🪣', '⚙️', '🧹', '🧽'],
+  },
+]
 
 // ─── PIN認証画面 ───────────────────────────────────────────
 function PinScreen({ storePin, onAuth }: { storePin: string; onAuth: () => void }) {
@@ -296,13 +322,13 @@ function StationManager({ storeId }: { storeId: string }) {
   const [loading,     setLoading]     = useState(true)
   const [adding,      setAdding]      = useState(false)
   const [newName,     setNewName]     = useState('')
-  const [newType,     setNewType]     = useState('grill')
+  const [newType,     setNewType]     = useState('🔥')
   const [newCapacity, setNewCapacity] = useState('10')
 
   // インライン編集
   const [editId,       setEditId]       = useState<string | null>(null)
   const [editName,     setEditName]     = useState('')
-  const [editType,     setEditType]     = useState('grill')
+  const [editType,     setEditType]     = useState('🔥')
   const [editCapacity, setEditCapacity] = useState('')
 
   const load = useCallback(async () => {
@@ -352,21 +378,40 @@ function StationManager({ storeId }: { storeId: string }) {
     await load()
   }
 
-  const IconPalette = ({ selected, onSelect }: { selected: string; onSelect: (v: string) => void }) => (
-    <div className="grid grid-cols-4 gap-1.5">
-      {STATION_OPTIONS.map(o => (
-        <button key={o.value} type="button" onClick={() => onSelect(o.value)}
-          className={`flex flex-col items-center py-2 rounded-xl border transition-all ${
-            selected === o.value
-              ? 'border-blue-500 bg-blue-50 text-blue-700'
-              : 'border-gray-200 text-gray-500 bg-white'
-          }`}>
-          <span className="text-2xl leading-none">{STATION_ICON[o.value]}</span>
-          <span className="text-[10px] mt-1 leading-tight text-center">{o.label}</span>
-        </button>
-      ))}
-    </div>
-  )
+  const IconPalette = ({ selected, onSelect }: { selected: string; onSelect: (v: string) => void }) => {
+    const displayIcon = STATION_ICON[selected] ?? selected
+    return (
+      <div>
+        {/* 選択中プレビュー */}
+        <div className="flex items-center gap-2 mb-2 px-1">
+          <span className="text-3xl leading-none">{displayIcon}</span>
+          <span className="text-xs text-gray-400">選択中 — タップで変更</span>
+        </div>
+        {/* カテゴリ別パレット */}
+        {ICON_PALETTE.map(({ cat, icons }) => (
+          <div key={cat} className="mb-2">
+            <p className="text-[10px] font-semibold text-gray-400 mb-1">{cat}</p>
+            <div className="grid grid-cols-8 gap-1">
+              {icons.map(icon => (
+                <button
+                  key={icon}
+                  type="button"
+                  onClick={() => onSelect(icon)}
+                  className={`aspect-square flex items-center justify-center rounded-xl text-xl transition-all active:scale-90 ${
+                    selected === icon || displayIcon === icon
+                      ? 'bg-blue-500 ring-2 ring-blue-300 scale-110 shadow-sm'
+                      : 'bg-gray-100 active:bg-gray-200'
+                  }`}
+                >
+                  {icon}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   if (loading) return <div className="py-4 text-center text-gray-400 text-sm">読み込み中...</div>
 
@@ -428,11 +473,11 @@ function StationManager({ storeId }: { storeId: string }) {
               ) : (
                 /* 通常表示 */
                 <div className="px-4 py-3 flex items-center gap-3">
-                  <span className="text-xl shrink-0">{STATION_ICON[s.station_type] ?? '⚙️'}</span>
+                  <span className="text-xl shrink-0">{STATION_ICON[s.station_type] ?? s.station_type ?? '⚙️'}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{s.name}</p>
                     <p className="text-xs text-gray-400">
-                      {STATION_LABEL[s.station_type] ?? s.station_type} · 同時{s.capacity}個
+                      同時{s.capacity}個
                     </p>
                   </div>
                   <button onClick={() => startEdit(s)}
