@@ -6,13 +6,25 @@ import type { Menu, TakeoutOrder, TakeoutSettings } from '@/types/takeout'
 import type { KitchenStation } from '@/types/kitchen-scheduler'
 
 const STATION_OPTIONS = [
-  { value: 'grill', label: '🔥 焼き台 (grill)'      },
-  { value: 'fryer', label: '🍳 フライヤー (fryer)'   },
-  { value: 'drink', label: '🥤 ドリンク (drink)'     },
-  { value: 'other', label: '📦 その他 (other)'       },
+  { value: 'grill',   label: '焼き台',    },
+  { value: 'fryer',   label: 'フライヤー', },
+  { value: 'drink',   label: 'ドリンク',   },
+  { value: 'oven',    label: 'オーブン',   },
+  { value: 'pot',     label: '鍋',        },
+  { value: 'steamer', label: '蒸し器',    },
+  { value: 'counter', label: '盛り付け',  },
+  { value: 'other',   label: 'その他',    },
 ]
-const STATION_ICON: Record<string, string> = { grill:'🔥', fryer:'🍳', drink:'🥤', other:'📦' }
-const STATION_LABEL: Record<string, string> = { grill:'焼き台', fryer:'フライヤー', drink:'ドリンク', other:'その他' }
+const STATION_ICON: Record<string, string> = {
+  grill: '🔥', fryer: '🍳', drink: '🥤',
+  oven: '♨️', pot: '🍲', steamer: '🫕', counter: '🍱',
+  other: '📦',
+}
+const STATION_LABEL: Record<string, string> = {
+  grill: '焼き台', fryer: 'フライヤー', drink: 'ドリンク',
+  oven: 'オーブン', pot: '鍋', steamer: '蒸し器', counter: '盛り付け',
+  other: 'その他',
+}
 
 // ─── PIN認証画面 ───────────────────────────────────────────
 function PinScreen({ storePin, onAuth }: { storePin: string; onAuth: () => void }) {
@@ -285,7 +297,13 @@ function StationManager({ storeId }: { storeId: string }) {
   const [adding,      setAdding]      = useState(false)
   const [newName,     setNewName]     = useState('')
   const [newType,     setNewType]     = useState('grill')
-  const [newCapacity, setNewCapacity] = useState('30')
+  const [newCapacity, setNewCapacity] = useState('10')
+
+  // インライン編集
+  const [editId,       setEditId]       = useState<string | null>(null)
+  const [editName,     setEditName]     = useState('')
+  const [editType,     setEditType]     = useState('grill')
+  const [editCapacity, setEditCapacity] = useState('')
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -296,17 +314,30 @@ function StationManager({ storeId }: { storeId: string }) {
 
   useEffect(() => { load() }, [load])
 
+  const startEdit = (s: KitchenStation) => {
+    setEditId(s.id)
+    setEditName(s.name)
+    setEditType(s.station_type)
+    setEditCapacity(String(s.capacity))
+  }
+
+  const saveEdit = async () => {
+    if (!editId || !editName.trim()) return
+    await supabase.from('kitchen_stations')
+      .update({ name: editName.trim(), station_type: editType, capacity: parseInt(editCapacity) || 10 } as never)
+      .eq('id', editId)
+    setEditId(null)
+    await load()
+  }
+
   const add = async () => {
     if (!newName.trim()) return
     setAdding(true)
     await supabase.from('kitchen_stations').insert({
-      store_id: storeId,
-      name: newName.trim(),
-      station_type: newType,
-      capacity: parseInt(newCapacity) || 10,
-      is_active: true,
+      store_id: storeId, name: newName.trim(),
+      station_type: newType, capacity: parseInt(newCapacity) || 10, is_active: true,
     })
-    setNewName(''); setNewCapacity('30')
+    setNewName(''); setNewCapacity('10')
     await load()
     setAdding(false)
   }
@@ -321,33 +352,43 @@ function StationManager({ storeId }: { storeId: string }) {
     await load()
   }
 
+  const IconPalette = ({ selected, onSelect }: { selected: string; onSelect: (v: string) => void }) => (
+    <div className="grid grid-cols-4 gap-1.5">
+      {STATION_OPTIONS.map(o => (
+        <button key={o.value} type="button" onClick={() => onSelect(o.value)}
+          className={`flex flex-col items-center py-2 rounded-xl border transition-all ${
+            selected === o.value
+              ? 'border-blue-500 bg-blue-50 text-blue-700'
+              : 'border-gray-200 text-gray-500 bg-white'
+          }`}>
+          <span className="text-2xl leading-none">{STATION_ICON[o.value]}</span>
+          <span className="text-[10px] mt-1 leading-tight text-center">{o.label}</span>
+        </button>
+      ))}
+    </div>
+  )
+
   if (loading) return <div className="py-4 text-center text-gray-400 text-sm">読み込み中...</div>
 
   return (
     <div className="mt-6">
       <p className="text-sm font-semibold text-gray-700 mb-3 px-1">調理機材・ステーション</p>
 
-      {/* 追加フォーム */}
+      {/* 新規追加フォーム */}
       <div className="bg-white rounded-xl border border-gray-200 p-3 mb-3 shadow-sm">
-        <div className="flex gap-2 mb-2">
-          <input value={newName} onChange={e => setNewName(e.target.value)}
-            placeholder="機材名（例: メイン焼き台）"
-            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400" />
-        </div>
-        <div className="flex gap-2 mb-2">
-          <select value={newType} onChange={e => setNewType(e.target.value)}
-            className="flex-1 border border-gray-200 rounded-lg px-2 py-2 text-sm outline-none bg-white">
-            {STATION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-          <div className="relative w-28 shrink-0">
-            <input value={newCapacity} onChange={e => setNewCapacity(e.target.value)}
-              placeholder="同時数" type="number" inputMode="numeric"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400 pr-8" />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]">同時</span>
-          </div>
+        <p className="text-xs font-semibold text-gray-500 mb-2">新規追加</p>
+        <input value={newName} onChange={e => setNewName(e.target.value)}
+          placeholder="機材名（例: メイン焼き台）"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400 mb-2" />
+        <IconPalette selected={newType} onSelect={setNewType} />
+        <div className="relative mt-2">
+          <input value={newCapacity} onChange={e => setNewCapacity(e.target.value)}
+            placeholder="同時調理数" type="number" inputMode="numeric"
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400 pr-10" />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">同時</span>
         </div>
         <button onClick={add} disabled={adding || !newName.trim()}
-          className="w-full py-2 rounded-lg bg-blue-500 text-white text-sm font-semibold disabled:opacity-40">
+          className="w-full mt-2 py-2 rounded-lg bg-blue-500 text-white text-sm font-semibold disabled:opacity-40">
           {adding ? '追加中...' : '＋ 追加'}
         </button>
       </div>
@@ -358,25 +399,57 @@ function StationManager({ storeId }: { storeId: string }) {
       ) : (
         <div className="flex flex-col gap-2">
           {stations.map(s => (
-            <div key={s.id} className={`bg-white rounded-xl border shadow-sm px-4 py-3 flex items-center gap-3 ${
+            <div key={s.id} className={`bg-white rounded-xl border shadow-sm ${
               s.is_active ? 'border-gray-200' : 'border-gray-100 opacity-60'
             }`}>
-              <span className="text-lg shrink-0">{STATION_ICON[s.station_type] ?? '⚙️'}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{s.name}</p>
-                <p className="text-xs text-gray-400">
-                  {STATION_LABEL[s.station_type] ?? s.station_type} · 同時{s.capacity}個
-                </p>
-              </div>
-              <button onClick={() => toggleActive(s)}
-                className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
-                  s.is_active ? 'bg-blue-500' : 'bg-gray-300'
-                }`}>
-                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${
-                  s.is_active ? 'left-5' : 'left-0.5'
-                }`} />
-              </button>
-              <button onClick={() => del(s.id)} className="text-gray-300 text-sm hover:text-red-400 shrink-0">🗑</button>
+              {editId === s.id ? (
+                /* インライン編集モード */
+                <div className="p-3 flex flex-col gap-2">
+                  <input value={editName} onChange={e => setEditName(e.target.value)}
+                    className="border border-blue-300 rounded-lg px-3 py-2 text-sm outline-none" />
+                  <IconPalette selected={editType} onSelect={setEditType} />
+                  <div className="relative">
+                    <input value={editCapacity} onChange={e => setEditCapacity(e.target.value)}
+                      type="number" inputMode="numeric" placeholder="同時調理数"
+                      className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm outline-none pr-10" />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">同時</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={saveEdit}
+                      className="flex-1 py-2 bg-blue-500 text-white text-sm font-semibold rounded-lg">
+                      保存
+                    </button>
+                    <button onClick={() => setEditId(null)}
+                      className="px-4 py-2 text-gray-400 text-sm border border-gray-200 rounded-lg">
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* 通常表示 */
+                <div className="px-4 py-3 flex items-center gap-3">
+                  <span className="text-xl shrink-0">{STATION_ICON[s.station_type] ?? '⚙️'}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{s.name}</p>
+                    <p className="text-xs text-gray-400">
+                      {STATION_LABEL[s.station_type] ?? s.station_type} · 同時{s.capacity}個
+                    </p>
+                  </div>
+                  <button onClick={() => startEdit(s)}
+                    className="text-gray-400 text-xs px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 shrink-0">
+                    編集
+                  </button>
+                  <button onClick={() => toggleActive(s)}
+                    className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
+                      s.is_active ? 'bg-blue-500' : 'bg-gray-300'
+                    }`}>
+                    <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${
+                      s.is_active ? 'left-5' : 'left-0.5'
+                    }`} />
+                  </button>
+                  <button onClick={() => del(s.id)} className="text-gray-300 text-sm hover:text-red-400 shrink-0">🗑</button>
+                </div>
+              )}
             </div>
           ))}
         </div>

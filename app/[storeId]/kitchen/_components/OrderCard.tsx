@@ -5,10 +5,10 @@ import type { TakeoutOrder, TakeoutSettings, UrgencyLevel } from '@/types/takeou
 import { getActionLabel, getNextStatus, getUrgencyLevel } from '@/types/takeout'
 import { guessMenuIcon as guessIcon } from '@/lib/menu-icons'
 
-const URGENCY: Record<UrgencyLevel, { bar: string; border: string; btn: string; timer: string }> = {
-  normal:  { bar: 'bg-amber-600',  border: 'border-zinc-700',  btn: 'bg-amber-600 text-white',    timer: 'text-zinc-400'  },
-  warning: { bar: 'bg-amber-400',  border: 'border-amber-400', btn: 'bg-amber-400 text-zinc-950', timer: 'text-amber-300' },
-  urgent:  { bar: 'bg-red-500',    border: 'border-red-500',   btn: 'bg-red-500 text-white',      timer: 'text-red-400'   },
+const URGENCY: Record<UrgencyLevel, { bar: string; border: string; btn: string; timer: string; num: string }> = {
+  normal:  { bar: 'bg-amber-600',  border: 'border-zinc-700',  btn: 'bg-amber-600 text-white',    timer: 'text-zinc-400',  num: 'text-white'     },
+  warning: { bar: 'bg-amber-400',  border: 'border-amber-400', btn: 'bg-amber-400 text-zinc-950', timer: 'text-amber-300', num: 'text-amber-300'  },
+  urgent:  { bar: 'bg-red-500',    border: 'border-red-500',   btn: 'bg-red-500 text-white',      timer: 'text-red-400',   num: 'text-red-400'    },
 }
 
 function useElapsed(createdAt: string) {
@@ -38,9 +38,9 @@ export default function OrderCard({ order, settings, onAdvance, onCancel }: Prop
   const [swipeX,          setSwipeX]          = useState(0)
   const [showCancelModal, setShowCancelModal] = useState(false)
 
-  const touchStartX    = useRef(0)
-  const touchStartY    = useRef(0)
-  const isHorizSwipe   = useRef(false)
+  const touchStartX  = useRef(0)
+  const touchStartY  = useRef(0)
+  const isHorizSwipe = useRef(false)
 
   const targetMinutes = settings.target_minutes ?? 15
   const urgency       = getUrgencyLevel(order.created_at, order.status, targetMinutes)
@@ -55,16 +55,16 @@ export default function OrderCard({ order, settings, onAdvance, onCancel }: Prop
   const borderColor = isReady ? 'border-emerald-500' : isPending ? 'border-zinc-800' : URGENCY[urgency].border
   const btnColor    = isReady ? 'bg-emerald-500 text-white' : isPending ? 'bg-zinc-700 text-zinc-200' : URGENCY[urgency].btn
   const timerColor  = isReady ? 'text-emerald-400'   : isPending ? 'text-zinc-600'   : URGENCY[urgency].timer
+  const numColor    = isReady ? 'text-emerald-400'   : isPending ? 'text-zinc-500'   : URGENCY[urgency].num
 
   const handleAdvance = async () => {
     setAdvancing(true); try { await onAdvance() } finally { setAdvancing(false) }
   }
 
-  // ── スワイプジェスチャー ─────────────────────────────────
   const onTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current    = e.touches[0].clientX
-    touchStartY.current    = e.touches[0].clientY
-    isHorizSwipe.current   = false
+    touchStartX.current  = e.touches[0].clientX
+    touchStartY.current  = e.touches[0].clientY
+    isHorizSwipe.current = false
   }
 
   const onTouchMove = (e: React.TouchEvent) => {
@@ -107,31 +107,43 @@ export default function OrderCard({ order, settings, onAdvance, onCancel }: Prop
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
         >
-          <div className={`w-1 shrink-0 rounded-l-xl ${barColor}`} />
+          <div className={`w-1.5 shrink-0 rounded-l-xl ${barColor}`} />
 
-          <div className="flex-1 px-3 py-2.5 min-w-0">
-            {/* 注文番号・名前 */}
-            <div className="flex items-center gap-1.5 mb-2">
-              <span className="text-xs font-mono font-bold text-zinc-500">{order.order_number}</span>
-              {order.customer_name && (
-                <span className="text-xs text-zinc-400">{order.customer_name}様</span>
-              )}
-              {order.order_source && order.order_source !== 'line' && (
-                <span className="text-xs text-zinc-600">{order.order_source === 'phone' ? '📞' : '🚶'}</span>
-              )}
+          <div className="flex-1 px-3 py-3 min-w-0">
+
+            {/* 注文番号（最大・太字）＋経過時間 */}
+            <div className="flex items-baseline gap-2 mb-1">
+              <span className={`text-4xl font-black font-mono leading-none tracking-tight ${numColor}`}>
+                {order.order_number}
+              </span>
               <div className="flex-1" />
               <span className={`text-sm font-mono font-bold tabular-nums ${timerColor}`}>{elapsed}</span>
             </div>
 
-            {/* 品目リスト: アイコン＋名前＋大きな数量 */}
-            <div className="flex flex-col gap-2">
+            {/* 顧客名・注文元 */}
+            {(order.customer_name || (order.order_source && order.order_source !== 'line')) && (
+              <div className="flex items-center gap-1.5 mb-2">
+                {order.customer_name && (
+                  <span className="text-xs text-zinc-500">{order.customer_name}様</span>
+                )}
+                {order.order_source === 'phone'  && <span className="text-xs text-zinc-600">📞</span>}
+                {order.order_source === 'walkin' && <span className="text-xs text-zinc-600">🚶</span>}
+              </div>
+            )}
+
+            {/* 品目リスト: アイコン＋品名（大）＋数量（最大） */}
+            <div className="flex flex-col gap-2.5 mt-1">
               {items.length > 0 ? items.map((item, i) => (
-                <div key={i} className="flex items-center gap-2">
+                <div key={i} className="flex items-center gap-2.5">
                   <span className="text-2xl w-8 text-center leading-none shrink-0">{guessIcon(item.name)}</span>
-                  <span className={`flex-1 font-bold text-sm leading-tight ${isReady ? 'text-zinc-500 line-through' : 'text-white'}`}>
+                  <span className={`flex-1 font-bold text-base leading-tight ${isReady ? 'text-zinc-500 line-through' : 'text-white'}`}>
                     {item.name}
                   </span>
-                  <span className={`font-black text-3xl tabular-nums leading-none shrink-0 ${isReady ? 'text-zinc-600' : 'text-white'}`}>
+                  <span className={`font-black text-4xl tabular-nums leading-none shrink-0 ${
+                    isReady ? 'text-zinc-600' :
+                    urgency === 'urgent'  ? 'text-red-400'   :
+                    urgency === 'warning' ? 'text-amber-300' : 'text-white'
+                  }`}>
                     {item.quantity}
                   </span>
                 </div>
@@ -150,7 +162,7 @@ export default function OrderCard({ order, settings, onAdvance, onCancel }: Prop
               className={`shrink-0 w-16 md:w-20 flex flex-col items-center justify-center gap-0.5
                 font-bold text-xs active:opacity-70 transition-opacity select-none rounded-r-xl
                 ${btnColor} ${advancing ? 'opacity-50' : ''}`}>
-              <span className="text-xl">
+              <span className="text-2xl">
                 {isReady ? '🤲' : isPending ? '▶' : urgency === 'urgent' ? '⚡' : '✓'}
               </span>
               <span className="leading-tight text-center px-1">{actionLabel}</span>
