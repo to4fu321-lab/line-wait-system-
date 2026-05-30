@@ -1,11 +1,12 @@
 'use client'
 
 import { useParams } from 'next/navigation'
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import {
   Scissors, ShoppingBag, Loader2, ChevronDown, ChevronUp,
-  Phone, User, Check, Truck, RotateCcw, Package, ChevronRight,
-  ShoppingCart, ClipboardList, Banknote, Plus,
+  Phone, User, Check, RotateCcw, Package, ClipboardList,
+  Banknote, Plus, AlertCircle, CreditCard, CheckCheck,
+  History, CalendarDays,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
@@ -14,16 +15,15 @@ import {
   REQUEST_TYPE_LABELS, REQUEST_TYPE_COLORS,
 } from '@/types/crm'
 import type { RepairStatus, PurchaseStatus, RequestType } from '@/types/crm'
-import {
-  ORDER_STATUS_LABELS, ORDER_STATUS_COLORS,
-  PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS,
-} from '@/types/orders'
-import type { OrderStatus, PaymentStatus } from '@/types/orders'
 import { BottomNav } from '../_components/BottomNav'
 
 function fmtDate(d: string | null) {
   if (!d) return ''
   return new Date(d).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })
+}
+
+function todayJst() {
+  return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
 }
 
 // ── Types ─────────────────────────────────────────────────────
@@ -48,13 +48,50 @@ interface PurchaseRow {
   child?: { name: string; school_name: string | null } | null
 }
 
-interface OrderRow {
-  id: string; store_id: string; customer_id: string | null; child_id: string | null
-  order_number: string | null; status: OrderStatus; payment_status: PaymentStatus
-  total_amount: number | null; notes: string | null; created_at: string; updated_at: string
-  customer?: { id: string; name: string } | null
-  child?: { name: string; school_name: string | null } | null
-  items?: { id: string; item_name: string; size_label: string | null; quantity: number; unit_price: number | null; status: string }[]
+interface DeliveryItem {
+  id:             string
+  kind:           'repair' | 'purchase'
+  store_id:       string
+  customer_id:    string
+  child_id:       string | null
+  item_name:      string
+  sub_label:      string
+  status:         string
+  prev_status:    string
+  received_date:  string
+  ready_date:     string | null
+  desired_completion_date: string | null
+  delivered_date: string | null
+  price:          number | null
+  slip_number:    string | null
+  notified:       boolean
+  payment_status: string | null
+  customer:       { name: string; tel: string | null } | null
+  child:          { name: string; school_name: string | null } | null
+}
+
+function rawToItem(row: Record<string, unknown>, kind: 'repair' | 'purchase'): DeliveryItem {
+  return {
+    id:             row.id as string,
+    kind,
+    store_id:       row.store_id as string,
+    customer_id:    row.customer_id as string,
+    child_id:       row.child_id as string | null,
+    item_name:      row.item_name as string,
+    sub_label:      kind === 'repair' ? (row.content as string ?? '') : (row.notes as string ?? ''),
+    status:         row.status as string,
+    prev_status:    kind === 'repair' ? 'completed' : 'arrived',
+    received_date:  kind === 'repair' ? (row.received_date as string) : (row.ordered_date as string),
+    ready_date:     kind === 'repair' ? (row.completed_date as string | null) : (row.arrived_date as string | null),
+    desired_completion_date: kind === 'repair' ? (row.desired_completion_date as string | null ?? null) : null,
+    delivered_date: row.delivered_date as string | null,
+    price:          row.price as number | null,
+    slip_number:    kind === 'repair' ? (row.slip_number as string | null) : null,
+    notified:       (row.notified as boolean) ?? false,
+    payment_status: row.payment_status as string | null ?? null,
+    customer:       row.customer as { name: string; tel: string | null } | null,
+    child:          row.child as { name: string; school_name: string | null } | null,
+  }
 }
 
 // ── Toast ─────────────────────────────────────────────────────
@@ -124,7 +161,6 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
     } : undefined)
   }
 
-  // ラベルをリクエスト種別に応じて変更
   const completeLabel = reqType === 'repair'       ? 'お直し完了・連絡する'
                       : reqType === 'hold_request' ? '確保済み・連絡する'
                       : '対応完了・連絡する'
@@ -137,7 +173,6 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
     }`}>
       <button className="w-full text-left p-4 flex gap-3" onClick={() => setOpen(v => !v)}>
         <div className="flex-1 min-w-0">
-          {/* ステータスタグ行 */}
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className={`text-xs px-2 py-0.5 rounded-full border font-bold ${REQUEST_TYPE_COLORS[reqType]}`}>
               {REQUEST_TYPE_LABELS[reqType]}
@@ -157,23 +192,18 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
               </span>
             )}
           </div>
-          {/* 学校名 */}
           {item.child?.school_name && (
             <p className="text-xs font-black text-amber-600 truncate mt-1.5 leading-tight">{item.child.school_name}</p>
           )}
-          {/* 生徒氏名（最重要） */}
           <p className={`font-black text-xl leading-tight truncate ${item.child?.school_name ? '' : 'mt-1.5'} text-slate-900`}>
             {item.child?.name ?? item.customer?.name ?? '（顧客不明）'}
           </p>
-          {/* 保護者名：薄く小さく */}
           {item.child && (
             <p className="text-[10px] text-slate-400 truncate leading-tight">保護者: {item.customer?.name}</p>
           )}
-          {/* 依頼内容（ミス防止のため大きく太く） */}
           <p className="text-sm font-semibold text-slate-800 mt-1.5 leading-snug">
             {item.item_name}{item.content ? ` — ${item.content}` : ''}
           </p>
-          {/* 支払い状況＋金額＋日付 */}
           <div className="flex items-end gap-2 mt-1.5">
             <div className="flex items-center gap-2 flex-wrap flex-1">
               {item.prepaid ? (
@@ -204,7 +234,6 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
         {open ? <ChevronUp size={15} className="text-gray-400 mt-1 shrink-0" /> : <ChevronDown size={15} className="text-gray-400 mt-1 shrink-0" />}
       </button>
 
-      {/* 次のアクション — アコーディオンを開かずに操作できる常時表示ボタン */}
       {item.status === 'received' && (
         <div className="px-4 pb-4 border-t border-slate-100 pt-3">
           <button
@@ -231,7 +260,6 @@ function RepairCard({ item, storeId, onRefresh, onToast }: {
               <Phone size={12} />{item.customer.tel}
             </a>
           )}
-          {/* 支払いステータス切り替えボタン */}
           {item.prepaid ? (
             <button
               onClick={() => update({ prepaid: false }, '未払いに戻しました', { prepaid: true })}
@@ -356,7 +384,6 @@ function PurchaseCard({ item, storeId, onRefresh, onToast }: {
         {open ? <ChevronUp size={15} className="text-gray-500 mt-1 shrink-0" /> : <ChevronDown size={15} className="text-gray-500 mt-1 shrink-0" />}
       </button>
 
-      {/* 次のアクション — 常時表示 */}
       {nextStep && item.status !== 'delivered' && (
         <div className="px-4 pb-4 border-t border-slate-100 pt-3">
           <button
@@ -518,108 +545,334 @@ function MakerOrderPanel({ purchases, storeId, onRefresh, onToast }: {
   )
 }
 
-// ── Order Card ────────────────────────────────────────────────
-function OrderCard({ item, storeId, onRefresh, onToast }: {
-  item: OrderRow; storeId: string; onRefresh: () => void
-  onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
+// ── Payment Badge (for delivery items) ───────────────────────
+function PaymentBadge({ status, onToggle, loading }: {
+  status: string | null; onToggle: () => void; loading: boolean
 }) {
-  const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const isPaid = status === 'paid'
+  const [confirmPay,   setConfirmPay]   = useState(false)
+  const [confirmUnpay, setConfirmUnpay] = useState(false)
 
-  async function updateStatus(status: OrderStatus) {
-    const prevStatus = item.status
-    setLoading(true)
-    const { error } = await (supabase as any).from('orders').update({ status, updated_at: new Date().toISOString() }).eq('id', item.id)
-    setLoading(false)
-    if (error) { onToast('err', '更新に失敗しました'); return }
-    onRefresh()
-    onToast('ok', `${ORDER_STATUS_LABELS[status]}にしました`, async () => {
-      await (supabase as any).from('orders').update({ status: prevStatus, updated_at: new Date().toISOString() }).eq('id', item.id)
-      onRefresh()
-    })
+  if (!isPaid && confirmPay) {
+    return (
+      <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-xl px-2 py-1">
+        <span className="text-[10px] text-emerald-700 font-bold">支払い完了？</span>
+        <button onClick={() => setConfirmPay(false)} className="text-[10px] text-gray-500 px-1">✕</button>
+        <button onClick={() => { setConfirmPay(false); onToggle() }} disabled={loading}
+          className="text-[10px] text-white bg-emerald-600 px-2 py-0.5 rounded-lg font-bold flex items-center gap-0.5">
+          <CreditCard size={8} />完了
+        </button>
+      </div>
+    )
   }
+  if (isPaid && confirmUnpay) {
+    return (
+      <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-xl px-2 py-1">
+        <span className="text-[10px] text-red-700 font-bold">未払いに戻す？</span>
+        <button onClick={() => setConfirmUnpay(false)} className="text-[10px] text-gray-500 px-1">✕</button>
+        <button onClick={() => { setConfirmUnpay(false); onToggle() }} disabled={loading}
+          className="text-[10px] text-white bg-red-600 px-2 py-0.5 rounded-lg font-bold">
+          戻す
+        </button>
+      </div>
+    )
+  }
+  return (
+    <button onClick={isPaid ? () => setConfirmUnpay(true) : () => setConfirmPay(true)} disabled={loading}
+      className={`flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full border transition-all active:scale-95 disabled:opacity-50 ${
+        isPaid
+          ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+          : 'bg-red-100 text-red-600 border-red-200'
+      }`}>
+      <CreditCard size={9} />
+      {loading ? <Loader2 size={9} className="animate-spin" /> : (isPaid ? '支払済' : '未払い')}
+    </button>
+  )
+}
 
-  const totalItems = item.items?.length ?? 0
-  const amount = item.total_amount ?? item.items?.reduce((s, i) => s + (i.unit_price ?? 0) * i.quantity, 0) ?? 0
+// ── Waiting Card (お渡し待ち) ─────────────────────────────────
+function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle }: {
+  item: DeliveryItem
+  alertDays: number
+  onDeliver: (item: DeliveryItem, paid: boolean) => Promise<void>
+  onPaymentToggle: (item: DeliveryItem) => Promise<void>
+}) {
+  const [confirmOpen,   setConfirmOpen]   = useState(false)
+  const [payAtDeliver,  setPayAtDeliver]  = useState(item.payment_status === 'paid')
+  const [unpaidConfirm, setUnpaidConfirm] = useState(false)
+  const [loading,       setLoading]       = useState<string | null>(null)
+
+  const isOverdue = item.ready_date &&
+    (Date.now() - new Date(item.ready_date).getTime()) / 86400000 > alertDays
+  const overdueDays = isOverdue
+    ? Math.floor((Date.now() - new Date(item.ready_date!).getTime()) / 86400000)
+    : 0
+
+  const studentName = item.child?.name ?? item.customer?.name ?? '（名前なし）'
+  const parentName  = item.child ? item.customer?.name : null
+  const itemContent = item.sub_label ? `${item.item_name} — ${item.sub_label}` : item.item_name
 
   return (
-    <div className={`bg-white border rounded-2xl overflow-hidden ${
-      item.status === 'delivered' || item.status === 'cancelled' ? 'border-gray-100 opacity-60' : 'border-gray-300'
-    }`}>
-      <button className="w-full text-left p-4 flex gap-3" onClick={() => setOpen(v => !v)}>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${ORDER_STATUS_COLORS[item.status]}`}>
-              {ORDER_STATUS_LABELS[item.status]}
+    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+      <div className="p-4">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
+            item.kind === 'repair'
+              ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
+              : 'bg-teal-100 text-teal-700 border-teal-300'
+          }`}>
+            {item.kind === 'repair' ? 'お直し完了' : '取置き入荷済み'}
+          </span>
+          {item.notified && (
+            <span className="text-[10px] bg-emerald-100 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-full font-bold">
+              LINE通知済み
             </span>
-            <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${PAYMENT_STATUS_COLORS[item.payment_status]}`}>
-              {PAYMENT_STATUS_LABELS[item.payment_status]}
+          )}
+          {isOverdue && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-300 flex items-center gap-1">
+              <AlertCircle size={9} />{overdueDays}日超過
             </span>
-            {item.order_number && <span className="text-xs font-mono text-gray-500">#{item.order_number}</span>}
-          </div>
-          {item.child?.school_name && (
-            <p className="text-xs font-black text-amber-600 truncate mt-1 leading-tight">{item.child.school_name}</p>
           )}
-          <p className={`font-black text-lg leading-tight truncate ${item.child?.school_name ? '' : 'mt-1.5'} ${item.child ? 'text-gray-900' : 'text-gray-900'}`}>
-            {item.child?.name ?? item.customer?.name ?? '（顧客不明）'}
-          </p>
-          {item.child && (
-            <p className="text-xs text-gray-500 truncate">保護者: {item.customer?.name}</p>
+          {item.slip_number && (
+            <span className="text-xs font-mono text-gray-400">#{item.slip_number}</span>
           )}
-          <p className="text-xs text-gray-600 mt-0.5">{totalItems}点 {amount > 0 ? `/ ¥${amount.toLocaleString()}` : ''}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{fmtDate(item.created_at)}</p>
         </div>
-        {open ? <ChevronUp size={15} className="text-gray-500 mt-1 shrink-0" /> : <ChevronDown size={15} className="text-gray-500 mt-1 shrink-0" />}
-      </button>
-      {open && (
-        <div className="px-4 pb-4 space-y-3 border-t border-gray-100">
-          {item.items && item.items.length > 0 && (
-            <div className="space-y-1 pt-3">
-              {item.items.map(i => (
-                <div key={i.id} className="flex items-center gap-2 text-xs text-gray-600">
-                  <span className="flex-1 truncate">{i.item_name}{i.size_label ? ` (${i.size_label})` : ''}</span>
-                  <span>×{i.quantity}</span>
-                  {i.unit_price && <span>¥{(i.unit_price * i.quantity).toLocaleString()}</span>}
-                </div>
-              ))}
+
+        {item.child?.school_name && (
+          <p className="text-xs font-black text-amber-600 truncate mt-1.5 leading-tight">{item.child.school_name}</p>
+        )}
+        <p className={`font-black text-xl leading-tight truncate ${item.child?.school_name ? '' : 'mt-1.5'} text-slate-900`}>
+          {studentName}
+        </p>
+        {parentName && (
+          <p className="text-[10px] text-slate-400 truncate leading-tight">保護者: {parentName}</p>
+        )}
+
+        <p className="text-sm font-semibold text-slate-800 mt-1.5 leading-snug">{itemContent}</p>
+
+        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+          <PaymentBadge
+            status={item.payment_status}
+            loading={loading === 'payment'}
+            onToggle={async () => {
+              setLoading('payment')
+              await onPaymentToggle(item)
+              setLoading(null)
+            }}
+          />
+          {item.price != null && (
+            <span className={`text-sm font-black ${item.payment_status === 'paid' ? 'text-gray-500' : 'text-red-700'}`}>
+              ¥{item.price.toLocaleString()}
+            </span>
+          )}
+          <div className="text-right ml-auto shrink-0">
+            <p className="text-xs text-slate-500">依頼受け日: {fmtDate(item.received_date)}</p>
+            {item.desired_completion_date && (
+              <p className="text-xs font-semibold text-slate-500">希望完了日: {fmtDate(item.desired_completion_date)}</p>
+            )}
+          </div>
+        </div>
+
+        {item.customer?.tel && (
+          <a href={`tel:${item.customer.tel}`}
+            className="flex items-center gap-1.5 text-blue-600 text-xs font-bold mt-2">
+            <Phone size={11} />{item.customer.tel}
+          </a>
+        )}
+      </div>
+
+      {!confirmOpen ? (
+        <div className="px-4 pb-4 border-t border-slate-100 pt-3">
+          <button onClick={() => setConfirmOpen(true)}
+            className="w-full py-4 rounded-xl font-bold text-lg bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20">
+            <Package size={18} />お渡し済みにする
+          </button>
+        </div>
+      ) : (
+        <div className="px-4 pb-4 border-t border-slate-100 pt-3 space-y-3">
+          <p className="text-sm font-black text-gray-900 text-center">お渡し確認</p>
+          <p className="text-xs text-gray-600 text-center">
+            <span className="font-bold text-gray-900">{studentName}</span> 様にお渡ししますか？
+            {item.child && <span className="text-gray-500">（保護者: {parentName}）</span>}
+          </p>
+
+          <button onClick={() => setPayAtDeliver(v => !v)}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${
+              payAtDeliver ? 'border-emerald-500 bg-emerald-500/10' : 'border-gray-300 bg-gray-200/50'
+            }`}>
+            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+              payAtDeliver ? 'border-emerald-500 bg-emerald-500' : 'border-gray-300'
+            }`}>
+              {payAtDeliver && <CheckCheck size={11} className="text-white" />}
+            </div>
+            <div className="text-left">
+              <p className={`text-sm font-bold ${payAtDeliver ? 'text-emerald-700' : 'text-gray-500'}`}>代金を受け取った</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {item.price != null ? `¥${item.price.toLocaleString()}` : '金額未設定'}
+              </p>
+            </div>
+          </button>
+
+          {unpaidConfirm && (
+            <div className="rounded-xl border-2 border-red-500 bg-red-50 px-4 py-3 space-y-2">
+              <p className="text-sm font-black text-red-700 text-center flex items-center justify-center gap-1.5">
+                <AlertCircle size={16} />まだ未払いです！
+              </p>
+              <p className="text-xs text-red-600 text-center">未払いのままお渡し済みにしますか？</p>
+              <div className="flex gap-2">
+                <button onClick={() => setUnpaidConfirm(false)}
+                  className="flex-1 py-2 rounded-xl font-bold text-xs bg-gray-200 text-gray-700 active:scale-95">
+                  戻る
+                </button>
+                <button
+                  onClick={async () => {
+                    setUnpaidConfirm(false)
+                    setLoading('deliver')
+                    await onDeliver(item, false)
+                    setLoading(null)
+                    setConfirmOpen(false)
+                  }}
+                  disabled={!!loading}
+                  className="flex-1 py-2 rounded-xl font-bold text-xs bg-red-600 text-white active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1">
+                  {loading === 'deliver' ? <Loader2 size={12} className="animate-spin" /> : '未払いのままお渡し'}
+                </button>
+              </div>
             </div>
           )}
-          {item.notes && <p className="text-xs text-gray-600">{item.notes}</p>}
-          {item.customer?.id && (
-            <a href={`/${storeId}/admin/crm?customerId=${item.customer.id}`} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
-              <User size={11} />顧客詳細
-            </a>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => { setConfirmOpen(false); setUnpaidConfirm(false) }}
+              className="py-3 rounded-xl font-bold text-sm bg-gray-300 text-gray-700 active:scale-95 transition-all">
+              キャンセル
+            </button>
+            <button
+              onClick={async () => {
+                if (!payAtDeliver && item.payment_status !== 'paid') {
+                  setUnpaidConfirm(true)
+                  return
+                }
+                setLoading('deliver')
+                await onDeliver(item, payAtDeliver)
+                setLoading(null)
+                setConfirmOpen(false)
+              }}
+              disabled={!!loading || unpaidConfirm}
+              className="py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
+              {loading === 'deliver'
+                ? <><Loader2 size={13} className="animate-spin" />処理中...</>
+                : <><Package size={13} />お渡し</>
+              }
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Completed Card (お渡し完了) ───────────────────────────────
+function CompletedCard({ item, onRevert, onPaymentToggle }: {
+  item: DeliveryItem
+  onRevert: (item: DeliveryItem) => Promise<void>
+  onPaymentToggle: (item: DeliveryItem) => Promise<void>
+}) {
+  const [confirmRevert, setConfirmRevert] = useState(false)
+  const [loading,       setLoading]       = useState<string | null>(null)
+  const [custOpen,      setCustOpen]      = useState(false)
+
+  const isUnpaidDelivered = item.payment_status !== 'paid'
+
+  return (
+    <div className={`rounded-2xl border p-4 ${
+      isUnpaidDelivered
+        ? 'border-2 border-red-500 bg-red-50'
+        : 'bg-gray-100 border-gray-200'
+    }`}>
+      <div className="flex items-start gap-3">
+        <div className="shrink-0 mt-0.5 w-8 h-8 rounded-xl flex items-center justify-center bg-gray-200">
+          <Package size={14} className="text-gray-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          {item.customer && (
+            <button onClick={() => setCustOpen(v => !v)}
+              className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1 w-full text-left active:opacity-70">
+              <User size={10} />
+              {item.customer.name}
+              {item.child && <span className="text-gray-500">（{item.child.name}）</span>}
+              <ChevronDown size={10} className={`ml-auto shrink-0 transition-transform text-gray-500 ${custOpen ? 'rotate-180' : ''}`} />
+            </button>
           )}
-          <div className="flex flex-wrap gap-2 pt-1">
-            {item.status === 'confirmed' && (
-              <button onClick={() => updateStatus('processing')} disabled={loading}
-                className="flex-1 py-2 bg-amber-700 hover:bg-amber-600 text-white text-xs font-medium rounded-xl flex items-center justify-center gap-1">
-                <Package size={12} />手配中にする
-              </button>
+          <div className="flex items-center gap-1.5 flex-wrap mb-1">
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full border bg-gray-300/60 text-gray-500 border-gray-300">
+              お渡し済み
+            </span>
+            {isUnpaidDelivered && (
+              <span className="text-xs font-black px-2 py-0.5 rounded-full border bg-red-600 text-white border-red-600 flex items-center gap-1 animate-pulse">
+                <AlertCircle size={9} />代金未回収
+              </span>
             )}
-            {item.status === 'processing' && (
-              <button onClick={() => updateStatus('ready')} disabled={loading}
-                className="flex-1 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium rounded-xl flex items-center justify-center gap-1">
-                <Check size={12} />準備完了にする
-              </button>
-            )}
-            {item.status === 'ready' && (
-              <button onClick={() => updateStatus('delivered')} disabled={loading}
-                className="flex-1 py-2 bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-medium rounded-xl flex items-center justify-center gap-1">
-                <Truck size={12} />お渡し済みにする
-              </button>
-            )}
-            {(item.status === 'processing' || item.status === 'ready') && (
-              <button onClick={() => updateStatus('confirmed')} disabled={loading}
-                className="py-2 px-3 bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 text-xs rounded-xl flex items-center gap-1">
-                <RotateCcw size={11} />戻す
-              </button>
+            <PaymentBadge
+              status={item.payment_status}
+              loading={loading === 'payment'}
+              onToggle={async () => {
+                setLoading('payment')
+                await onPaymentToggle(item)
+                setLoading(null)
+              }}
+            />
+          </div>
+          <p className="font-bold text-gray-700 text-sm">{item.item_name}</p>
+          {item.sub_label && <p className="text-gray-500 text-xs mt-0.5">{item.sub_label}</p>}
+          {item.price != null && <p className="text-gray-500 text-xs mt-0.5">¥{item.price.toLocaleString()}</p>}
+          <div className="flex items-center gap-3 mt-1.5 text-gray-400 text-[10px]">
+            <span className="flex items-center gap-1">
+              <CalendarDays size={9} />受付 {fmtDate(item.received_date)}
+            </span>
+            {item.delivered_date && (
+              <span className="flex items-center gap-1">
+                <Package size={9} />お渡し {fmtDate(item.delivered_date)}
+              </span>
             )}
           </div>
-          <a href={`/${storeId}/admin/orders`}
-            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 mt-1">
-            <ChevronRight size={11} />注文詳細を開く
+        </div>
+      </div>
+
+      {custOpen && item.customer?.tel && (
+        <div className="mt-2 pt-2 border-t border-gray-200">
+          <a href={`tel:${item.customer.tel}`} className="flex items-center gap-1.5 text-blue-600 text-xs font-bold">
+            <Phone size={11} />{item.customer.tel}
           </a>
+        </div>
+      )}
+
+      {!confirmRevert ? (
+        <button onClick={() => setConfirmRevert(true)}
+          className="w-full mt-3 py-2 rounded-xl font-bold text-xs border border-gray-300 text-gray-500 hover:text-gray-700 hover:border-gray-400 transition-all flex items-center justify-center gap-1.5 active:scale-95">
+          <RotateCcw size={11} />お渡しを取り消す
+        </button>
+      ) : (
+        <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+          <p className="text-xs text-center text-amber-700 font-bold">お渡しを取り消して前の状態に戻しますか？</p>
+          <div className="flex gap-2">
+            <button onClick={() => setConfirmRevert(false)}
+              className="flex-1 py-2 rounded-xl font-bold text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 active:scale-95">
+              キャンセル
+            </button>
+            <button
+              onClick={async () => {
+                setLoading('revert')
+                await onRevert(item)
+                setLoading(null)
+                setConfirmRevert(false)
+              }}
+              disabled={!!loading}
+              className="flex-1 py-2 rounded-xl font-bold text-xs bg-amber-600 text-white active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1">
+              {loading === 'revert'
+                ? <Loader2 size={12} className="animate-spin" />
+                : <><RotateCcw size={12} />取り消す</>
+              }
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -627,7 +880,8 @@ function OrderCard({ item, storeId, onRefresh, onToast }: {
 }
 
 // ── Main Page ─────────────────────────────────────────────────
-type ActiveTab = 'request' | 'purchase' | 'order'
+type ActiveTab = 'request' | 'purchase' | 'delivery'
+type DeliverySubTab = 'waiting' | 'history'
 type RequestFilter = 'all' | RequestType
 type SortOrder = 'priority' | 'received_asc' | 'deadline_asc' | 'school' | 'name' | 'unpaid_first' | 'item' | 'category'
 
@@ -635,69 +889,171 @@ export default function RepairsPage() {
   const { storeId } = useParams<{ storeId: string }>()
 
   const [tab,              setTab]              = useState<ActiveTab>('request')
+  const [deliverySubTab,   setDeliverySubTab]   = useState<DeliverySubTab>('waiting')
   const [repairs,          setRepairs]          = useState<RepairRow[]>([])
   const [purchases,        setPurchases]        = useState<PurchaseRow[]>([])
-  const [orders,           setOrders]           = useState<OrderRow[]>([])
+  const [waiting,          setWaiting]          = useState<DeliveryItem[]>([])
+  const [history,          setHistory]          = useState<DeliveryItem[]>([])
   const [loading,          setLoading]          = useState(true)
+  const [histLoading,      setHistLoading]      = useState(false)
+  const [histFetched,      setHistFetched]      = useState(false)
+  const [alertDays,        setAlertDays]        = useState(7)
   const [fetchError,       setFetchError]       = useState<string | null>(null)
   const [toast,            setToast]            = useState<{ type: 'ok' | 'err'; msg: string; onUndo?: () => Promise<void> } | null>(null)
   const [requestFilter,    setRequestFilter]    = useState<RequestFilter>('all')
   const [sortOrder,        setSortOrder]        = useState<SortOrder>('priority')
   const [purchaseFilter,   setPurchaseFilter]   = useState<'pending' | 'on_order' | 'arrived' | null>(null)
-  const [orderFilter,      setOrderFilter]      = useState<'active' | 'ready' | 'unpaid' | null>(null)
   const [purchaseViewMode, setPurchaseViewMode] = useState<'list' | 'order_mgmt'>('list')
 
   const showToast = useCallback((type: 'ok' | 'err', msg: string, onUndo?: () => Promise<void>) => {
     setToast({ type, msg, onUndo })
   }, [])
 
+  // Fetch alert days from store settings
+  useEffect(() => {
+    if (!storeId) return
+    ;(supabase as any).from('stores').select('alert_days_repair')
+      .eq('id', storeId).single()
+      .then(({ data }: { data: { alert_days_repair: number } | null }) => {
+        if (data?.alert_days_repair) setAlertDays(data.alert_days_repair)
+      })
+  }, [storeId])
+
   const fetchAll = useCallback(async () => {
     if (!storeId) return
     setLoading(true)
     setFetchError(null)
     const [
-      { data: repairData, error: repairErr },
+      { data: repairData,  error: repairErr  },
       { data: purchaseData, error: purchaseErr },
-      { data: orderData },
+      { data: waitRepairs },
+      { data: waitPurchases },
     ] = await Promise.all([
-      // スタッフに作業がある（received）もののみ表示
       (supabase as any).from('repair_histories')
         .select('*, desired_completion_date, customer:customers(id,name,tel), child:children(name,school_name)')
-        .eq('store_id', storeId)
-        .eq('status', 'received')
+        .eq('store_id', storeId).eq('status', 'received')
         .order('received_date', { ascending: true }),
       (supabase as any).from('purchase_orders')
         .select('*, customer:customers(id,name,tel), child:children(name,school_name)')
         .eq('store_id', storeId).neq('status', 'delivered')
         .order('ordered_date', { ascending: true }),
-      (supabase as any).from('orders')
-        .select('*, customer:customers(id,name), child:children(name,school_name), items:order_items(*)')
-        .eq('store_id', storeId).not('status', 'in', '("delivered","cancelled")')
-        .order('created_at', { ascending: false }),
+      supabase.from('repair_histories')
+        .select('*, customer:customers(name, tel), child:children(name,school_name)')
+        .eq('store_id', storeId).eq('status', 'completed')
+        .order('completed_date', { ascending: true }),
+      supabase.from('purchase_orders')
+        .select('*, customer:customers(name, tel), child:children(name,school_name)')
+        .eq('store_id', storeId).eq('status', 'arrived')
+        .order('arrived_date', { ascending: true }),
     ])
-    if (repairErr) setFetchError(repairErr.message)
+    if (repairErr)   setFetchError(repairErr.message)
     else if (purchaseErr) setFetchError(purchaseErr.message)
     setRepairs(repairData ?? [])
     setPurchases(purchaseData ?? [])
-    setOrders(orderData ?? [])
+    const waitingItems: DeliveryItem[] = [
+      ...(waitRepairs   ?? []).map((r: Record<string, unknown>) => rawToItem(r, 'repair')),
+      ...(waitPurchases ?? []).map((p: Record<string, unknown>) => rawToItem(p, 'purchase')),
+    ].sort((a, b) => {
+      const da = a.ready_date ?? a.received_date
+      const db = b.ready_date ?? b.received_date
+      return da.localeCompare(db)
+    })
+    setWaiting(waitingItems)
     setLoading(false)
   }, [storeId])
 
+  const fetchHistory = useCallback(async () => {
+    if (!storeId || histFetched) return
+    setHistLoading(true)
+    const [{ data: hRepairs }, { data: hPurchases }] = await Promise.all([
+      supabase.from('repair_histories')
+        .select('*, customer:customers(name, tel), child:children(name,school_name)')
+        .eq('store_id', storeId).eq('status', 'delivered')
+        .order('delivered_date', { ascending: false }).limit(100),
+      supabase.from('purchase_orders')
+        .select('*, customer:customers(name, tel), child:children(name,school_name)')
+        .eq('store_id', storeId).eq('status', 'delivered')
+        .order('delivered_date', { ascending: false }).limit(100),
+    ])
+    const histItems: DeliveryItem[] = [
+      ...(hRepairs   ?? []).map((r: Record<string, unknown>) => rawToItem(r, 'repair')),
+      ...(hPurchases ?? []).map((p: Record<string, unknown>) => rawToItem(p, 'purchase')),
+    ].sort((a, b) => (b.delivered_date ?? '').localeCompare(a.delivered_date ?? ''))
+    setHistory(histItems)
+    setHistLoading(false)
+    setHistFetched(true)
+  }, [storeId, histFetched])
+
   useEffect(() => { fetchAll() }, [fetchAll])
 
-  const handleBulkOrder = useCallback(async () => {
-    const ids = purchases.filter(p => ['received', 'ordered'].includes(p.status)).map(p => p.id)
-    if (!ids.length) return
-    if (!confirm(`依頼受付中 ${ids.length}件をまとめてメーカー発注済みにしますか？`)) return
-    const { error } = await (supabase as any).from('purchase_orders')
-      .update({ status: 'on_order', updated_at: new Date().toISOString() })
-      .in('id', ids)
-    if (error) { showToast('err', '一括発注に失敗しました'); return }
-    showToast('ok', `${ids.length}件を発注済みにしました`)
-    fetchAll()
-  }, [purchases, showToast, fetchAll])
+  useEffect(() => {
+    if (tab === 'delivery' && deliverySubTab === 'history' && !histFetched) fetchHistory()
+  }, [tab, deliverySubTab, histFetched, fetchHistory])
 
-  // 依頼タイプ別件数
+  // ── Delivery actions ──────────────────────────────────────────
+  const handleDeliver = useCallback(async (item: DeliveryItem, paid: boolean) => {
+    const table = item.kind === 'repair' ? 'repair_histories' : 'purchase_orders'
+    const update: Record<string, unknown> = { status: 'delivered', delivered_date: todayJst() }
+    if (paid) update.payment_status = 'paid'
+    const { error } = await (supabase as any).from(table).update(update).eq('id', item.id)
+    if (error) { showToast('err', `受渡処理失敗: ${error.message}`); return }
+    setWaiting(prev => prev.filter(i => i.id !== item.id))
+    const snapshot = { ...item }
+    showToast('ok', '📦 お渡し済みにしました', async () => {
+      const revert: Record<string, unknown> = {
+        status: snapshot.prev_status,
+        delivered_date: null,
+        payment_status: snapshot.payment_status,
+      }
+      if (item.kind === 'repair') revert.completed_date = snapshot.ready_date
+      else                        revert.arrived_date   = snapshot.ready_date
+      await (supabase as any).from(table).update(revert).eq('id', snapshot.id)
+      await fetchAll()
+    })
+    setHistFetched(false)
+  }, [showToast, fetchAll])
+
+  const handleRevert = useCallback(async (item: DeliveryItem) => {
+    const table = item.kind === 'repair' ? 'repair_histories' : 'purchase_orders'
+    const update: Record<string, unknown> = {
+      status: item.prev_status,
+      delivered_date: null,
+      payment_status: 'unpaid',
+    }
+    if (item.kind === 'repair') update.completed_date = item.ready_date
+    else                        update.arrived_date   = item.ready_date
+    const { error } = await (supabase as any).from(table).update(update).eq('id', item.id)
+    if (error) { showToast('err', `取り消し失敗: ${error.message}`); return }
+    setHistory(prev => prev.filter(i => i.id !== item.id))
+    await fetchAll()
+    showToast('ok', '🔄 お渡し前の状態に戻しました')
+  }, [showToast, fetchAll])
+
+  const handlePaymentToggle = useCallback(async (item: DeliveryItem) => {
+    const table = item.kind === 'repair' ? 'repair_histories' : 'purchase_orders'
+    const newStatus  = item.payment_status === 'paid' ? 'unpaid' : 'paid'
+    const prevStatus = item.payment_status
+    const { error } = await (supabase as any).from(table)
+      .update({ payment_status: newStatus }).eq('id', item.id)
+    if (error) { showToast('err', '支払状態の更新に失敗しました'); return }
+    const updater = (prev: DeliveryItem[]) =>
+      prev.map(i => i.id === item.id ? { ...i, payment_status: newStatus } : i)
+    setWaiting(updater)
+    setHistory(updater)
+    if (newStatus === 'unpaid') {
+      showToast('ok', '未払いに戻しました', async () => {
+        await (supabase as any).from(table).update({ payment_status: prevStatus }).eq('id', item.id)
+        const revert = (prev: DeliveryItem[]) =>
+          prev.map(i => i.id === item.id ? { ...i, payment_status: prevStatus } : i)
+        setWaiting(revert)
+        setHistory(revert)
+      })
+    }
+  }, [showToast])
+
+  // ── Counts & derived ─────────────────────────────────────────
+  const todayDate = new Date(); todayDate.setHours(0,0,0,0)
+
   const reqCounts = {
     all:          repairs.length,
     repair:       repairs.filter(r => (r.request_type ?? 'repair') === 'repair').length,
@@ -709,24 +1065,24 @@ export default function RepairsPage() {
     on_order: purchases.filter(p => p.status === 'on_order').length,
     arrived:  purchases.filter(p => p.status === 'arrived').length,
   }
-  const orderCounts = {
-    active: orders.filter(o => ['confirmed', 'processing'].includes(o.status)).length,
-    ready:  orders.filter(o => o.status === 'ready').length,
-    unpaid: orders.filter(o => o.payment_status === 'unpaid').length,
-  }
+
+  const overdueCount = repairs.filter(r => {
+    if (!r.desired_completion_date) return false
+    const d = new Date(r.desired_completion_date); d.setHours(0,0,0,0)
+    return d < todayDate
+  }).length
 
   function priorityScore(r: RepairRow, today: Date): number {
     if (!r.desired_completion_date) return 500
     const deadline = new Date(r.desired_completion_date)
     deadline.setHours(0, 0, 0, 0)
     const d = Math.floor((deadline.getTime() - today.getTime()) / 86400000)
-    if (d < 0) return d - 1000   // overdue: highest priority (most negative)
+    if (d < 0) return d - 1000
     if (d === 0) return -100
     if (d === 1) return -50
     return d
   }
 
-  const todayDate = new Date(); todayDate.setHours(0,0,0,0)
   const sortFn = (a: RepairRow, b: RepairRow): number => {
     switch (sortOrder) {
       case 'priority':     return priorityScore(a, todayDate) - priorityScore(b, todayDate)
@@ -736,7 +1092,7 @@ export default function RepairsPage() {
         const db = b.desired_completion_date ?? '9999-12-31'
         return da.localeCompare(db)
       }
-      case 'school':       return (a.child?.school_name ?? '').localeCompare(b.child?.school_name ?? '', 'ja')
+      case 'school': return (a.child?.school_name ?? '').localeCompare(b.child?.school_name ?? '', 'ja')
       case 'name': {
         const na = a.child?.name ?? a.customer?.name ?? ''
         const nb = b.child?.name ?? b.customer?.name ?? ''
@@ -748,11 +1104,12 @@ export default function RepairsPage() {
         if (pa !== pb) return pa - pb
         return priorityScore(a, todayDate) - priorityScore(b, todayDate)
       }
-      case 'item':         return a.item_name.localeCompare(b.item_name, 'ja')
-      case 'category':     return (a.request_type ?? '').localeCompare(b.request_type ?? '')
-      default:             return 0
+      case 'item':     return a.item_name.localeCompare(b.item_name, 'ja')
+      case 'category': return (a.request_type ?? '').localeCompare(b.request_type ?? '')
+      default:         return 0
     }
   }
+
   const filteredRepairs = (requestFilter === 'all' ? repairs : repairs.filter(r => (r.request_type ?? 'repair') === requestFilter)).slice().sort(sortFn)
 
   const filteredPurchases = purchaseFilter === 'pending'
@@ -763,44 +1120,52 @@ export default function RepairsPage() {
     ? purchases.filter(p => p.status === 'arrived')
     : purchases
 
-  const filteredOrders = orderFilter === 'active'
-    ? orders.filter(o => ['confirmed', 'processing'].includes(o.status))
-    : orderFilter === 'ready'
-    ? orders.filter(o => o.status === 'ready')
-    : orderFilter === 'unpaid'
-    ? orders.filter(o => o.payment_status === 'unpaid')
-    : orders
-
-  const totalBadge = repairs.length
-    + (purchaseCounts.pending + purchaseCounts.on_order + purchaseCounts.arrived)
-    + orders.length
+  const waitingUnpaid = waiting.filter(i => i.payment_status !== 'paid')
+  const waitingPaid   = waiting.filter(i => i.payment_status === 'paid')
 
   return (
     <div className="min-h-screen bg-slate-100 text-gray-900">
       {/* Header */}
       <div className="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-gray-200">
-        <div className="max-w-2xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-3">
+        <div className="max-w-2xl mx-auto px-4 pt-4 pb-0">
+          <div className="flex items-center gap-3 mb-3">
             <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
               <ClipboardList size={17} className="text-indigo-600" />
             </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-base font-bold text-gray-900">依頼管理</h1>
-            </div>
-            {totalBadge > 0 && (
-              <span className="bg-red-100 text-red-700 border border-red-300 text-xs font-black px-2 py-0.5 rounded-full">
-                計{totalBadge}件
-              </span>
-            )}
-            {/* 新規依頼受付ショートカット */}
+            <h1 className="text-base font-bold text-gray-900 flex-1">案件</h1>
             <a href={`/${storeId}/admin/crm`}
               className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold rounded-xl transition-all">
               <Plus size={14} />依頼受付
             </a>
           </div>
 
+          {/* 今日やること */}
+          <div className="bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-3 mb-3 grid grid-cols-3 divide-x divide-indigo-200">
+            <button onClick={() => { setTab('request'); setRequestFilter('all') }}
+              className="text-center px-2 active:scale-95 transition-all">
+              <div className={`text-2xl font-black leading-tight ${overdueCount > 0 ? 'text-red-600' : 'text-slate-300'}`}>
+                {overdueCount}
+              </div>
+              <div className="text-[10px] text-slate-500 mt-0.5">🚨 期限超過</div>
+            </button>
+            <button onClick={() => { setTab('purchase'); setPurchaseFilter('pending') }}
+              className="text-center px-2 active:scale-95 transition-all">
+              <div className={`text-2xl font-black leading-tight ${purchaseCounts.pending > 0 ? 'text-orange-600' : 'text-slate-300'}`}>
+                {purchaseCounts.pending}
+              </div>
+              <div className="text-[10px] text-slate-500 mt-0.5">📦 未発注</div>
+            </button>
+            <button onClick={() => { setTab('delivery'); setDeliverySubTab('waiting') }}
+              className="text-center px-2 active:scale-95 transition-all">
+              <div className={`text-2xl font-black leading-tight ${waiting.length > 0 ? 'text-indigo-600' : 'text-slate-300'}`}>
+                {waiting.length}
+              </div>
+              <div className="text-[10px] text-slate-500 mt-0.5">🎁 お渡し待ち</div>
+            </button>
+          </div>
+
           {/* Main tabs */}
-          <div className="flex gap-1 mt-3 bg-slate-200 rounded-xl p-1">
+          <div className="flex gap-1 bg-slate-200 rounded-xl p-1">
             <button onClick={() => setTab('request')}
               className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-sm font-bold transition-all ${tab === 'request' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-600 font-medium hover:text-slate-800'}`}>
               <ClipboardList size={15} />依頼一覧
@@ -812,19 +1177,19 @@ export default function RepairsPage() {
             </button>
             <button onClick={() => setTab('purchase')}
               className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-sm font-bold transition-all ${tab === 'purchase' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-600 font-medium hover:text-slate-800'}`}>
-              <ShoppingBag size={15} />追加購入
+              <ShoppingBag size={15} />発注管理
               {(purchaseCounts.pending + purchaseCounts.on_order + purchaseCounts.arrived) > 0 && (
                 <span className={`text-xs px-1.5 py-0.5 rounded-full font-black ${tab === 'purchase' ? 'bg-blue-600 text-white' : 'bg-slate-300 text-slate-600'}`}>
                   {purchaseCounts.pending + purchaseCounts.on_order + purchaseCounts.arrived}
                 </span>
               )}
             </button>
-            <button onClick={() => setTab('order')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-sm font-bold transition-all ${tab === 'order' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-600 font-medium hover:text-slate-800'}`}>
-              <ShoppingCart size={15} />注文管理
-              {orders.length > 0 && (
-                <span className={`text-xs px-1.5 py-0.5 rounded-full font-black ${tab === 'order' ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-600'}`}>
-                  {orders.length}
+            <button onClick={() => setTab('delivery')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg text-sm font-bold transition-all ${tab === 'delivery' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-600 font-medium hover:text-slate-800'}`}>
+              <Package size={15} />お渡し
+              {waiting.length > 0 && (
+                <span className={`text-xs px-1.5 py-0.5 rounded-full font-black ${tab === 'delivery' ? 'bg-indigo-600 text-white' : 'bg-slate-300 text-slate-600'}`}>
+                  {waiting.length}
                 </span>
               )}
             </button>
@@ -839,10 +1204,9 @@ export default function RepairsPage() {
           </div>
         )}
 
-        {/* 依頼受けタブ — タイプ絞り込み */}
+        {/* 依頼一覧 — sort & filter */}
         {tab === 'request' && (
           <div className="space-y-2">
-            {/* ソート */}
             <div className="flex items-center gap-2">
               <label className="text-xs font-bold text-slate-600 shrink-0">並び替え:</label>
               <select
@@ -859,7 +1223,6 @@ export default function RepairsPage() {
                 <option value="category">⑧ 購入区分別</option>
               </select>
             </div>
-            {/* フィルター（既存） */}
             <div className="flex gap-1.5 flex-wrap">
               {([
                 { key: 'all'          as const, label: 'すべて',    count: reqCounts.all,          color: 'text-gray-700' },
@@ -882,7 +1245,7 @@ export default function RepairsPage() {
           </div>
         )}
 
-        {/* 追加購入タブ — ステータス絞り込み */}
+        {/* 発注管理 — filter */}
         {tab === 'purchase' && (
           <>
             {purchaseCounts.pending > 0 && (
@@ -918,30 +1281,32 @@ export default function RepairsPage() {
           </>
         )}
 
-        {/* 注文管理タブ — ステータス絞り込み */}
-        {tab === 'order' && (
-          <div className="grid grid-cols-3 gap-2">
+        {/* お渡し — sub-tabs */}
+        {tab === 'delivery' && (
+          <div className="flex bg-gray-100 rounded-2xl p-1 gap-1">
             {([
-              { key: 'active' as const, label: '手配中',   value: orderCounts.active, color: 'text-amber-600' },
-              { key: 'ready'  as const, label: '準備完了', value: orderCounts.ready,  color: 'text-emerald-600' },
-              { key: 'unpaid' as const, label: '未入金',   value: orderCounts.unpaid, color: 'text-red-600' },
-            ]).map(s => (
-              <button key={s.key}
-                onClick={() => setOrderFilter(f => f === s.key ? null : s.key)}
-                className={`rounded-xl p-3 text-center transition-all border ${
-                  orderFilter === s.key
-                    ? 'bg-gray-200 border-gray-400 ring-1 ring-inset ring-gray-400'
-                    : 'bg-white border-gray-200'
+              { id: 'waiting' as const, label: 'お渡し待ち', count: waiting.length },
+              { id: 'history' as const, label: '完了履歴',   count: null },
+            ]).map(t => (
+              <button key={t.id} onClick={() => setDeliverySubTab(t.id)}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm transition-all ${
+                  deliverySubTab === t.id
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
                 }`}>
-                <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
-                <div className="text-xs text-gray-500 mt-0.5">{s.label}</div>
-                {orderFilter === s.key && <div className="text-[10px] text-gray-400 mt-0.5">絞込中 ✕</div>}
+                {t.id === 'waiting' ? <Package size={14} /> : <History size={14} />}
+                {t.label}
+                {t.count !== null && t.count > 0 && (
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-black ${
+                    deliverySubTab === t.id ? 'bg-indigo-500 text-white' : 'bg-gray-200 text-gray-500'
+                  }`}>{t.count}</span>
+                )}
               </button>
             ))}
           </div>
         )}
 
-        {/* List */}
+        {/* Lists */}
         {loading ? (
           <div className="flex items-center justify-center py-16 text-gray-400">
             <Loader2 size={24} className="animate-spin" />
@@ -989,30 +1354,49 @@ export default function RepairsPage() {
             </div>
           )
         ) : (
-          orders.length === 0 ? (
-            <div className="text-center py-16 text-gray-400">
-              <ShoppingCart size={32} className="mx-auto mb-3 opacity-30" />
-              <p className="text-sm">対応中の注文はありません</p>
-              <a href={`/${storeId}/admin/orders`}
-                className="inline-flex items-center gap-1 mt-3 text-xs text-indigo-600 hover:text-indigo-700">
-                注文一覧・新規注文を開く <ChevronRight size={12} />
-              </a>
-            </div>
-          ) : filteredOrders.length === 0 ? (
-            <div className="text-center py-10 text-gray-400">
-              <p className="text-sm">該当する注文はありません</p>
-              <button onClick={() => setOrderFilter(null)} className="mt-2 text-xs text-indigo-600">絞り込みを解除</button>
-            </div>
+          // お渡しタブ
+          deliverySubTab === 'waiting' ? (
+            waiting.length === 0 ? (
+              <div className="text-center py-16 text-gray-500">
+                <Package size={44} className="mx-auto mb-3 opacity-15" />
+                <p className="text-sm font-bold">お渡し待ちのアイテムはありません</p>
+                <p className="text-xs mt-1 text-gray-400">お直し完了・入荷済みの商品がここに表示されます</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {[...waitingUnpaid, ...waitingPaid].map(item => (
+                  <WaitingCard
+                    key={item.id}
+                    item={item}
+                    alertDays={alertDays}
+                    onDeliver={handleDeliver}
+                    onPaymentToggle={handlePaymentToggle}
+                  />
+                ))}
+              </div>
+            )
           ) : (
-            <div className="space-y-3">
-              {filteredOrders.map(o => (
-                <OrderCard key={o.id} item={o} storeId={storeId} onRefresh={fetchAll} onToast={showToast} />
-              ))}
-              <a href={`/${storeId}/admin/orders`}
-                className="flex items-center justify-center gap-1 py-3 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-xl">
-                注文一覧・新規注文を開く <ChevronRight size={12} />
-              </a>
-            </div>
+            histLoading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 size={28} className="animate-spin text-indigo-400" />
+              </div>
+            ) : history.length === 0 ? (
+              <div className="text-center py-16 text-gray-500">
+                <History size={44} className="mx-auto mb-3 opacity-15" />
+                <p className="text-sm font-bold">お渡し完了履歴はありません</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {history.map(item => (
+                  <CompletedCard
+                    key={item.id}
+                    item={item}
+                    onRevert={handleRevert}
+                    onPaymentToggle={handlePaymentToggle}
+                  />
+                ))}
+              </div>
+            )
           )
         )}
       </div>
