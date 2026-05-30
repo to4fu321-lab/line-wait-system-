@@ -23,12 +23,16 @@ const FEATURES: { key: string; label: string; icon: string }[] = [
 
 interface StoreStats {
   store: Store & { group_id?: string | null; features?: Record<string, boolean> }
-  waiting:         number
-  calling:         number
-  completed:       number
-  total:           number
-  repairPending:   number
-  deliveryWaiting: number
+  waiting:               number
+  calling:               number
+  completed:             number
+  total:                 number
+  repairPending:         number
+  deliveryWaiting:       number
+  takeoutPending:        number
+  takeoutPreparing:      number
+  takeoutReady:          number
+  takeoutCompletedToday: number
 }
 interface GroupInfo { id: string; name: string; code?: string | null; pin?: string | null }
 
@@ -102,7 +106,8 @@ function StoreCard({
   onOpenColorPicker: () => void
   onColorSaved: (c: string) => void
 }) {
-  const { store, waiting, calling, completed, total, repairPending, deliveryWaiting } = stat
+  const { store, waiting, calling, completed, total, repairPending, deliveryWaiting,
+          takeoutPending, takeoutPreparing, takeoutReady, takeoutCompletedToday } = stat
 
   const [name,     setName]     = useState(store.name)
   const [pin,      setPin]      = useState(store.pin ?? '')
@@ -242,22 +247,39 @@ function StoreCard({
       {/* 統計・リンク */}
       <div className="px-3 pb-3 space-y-2">
         {isTakeout ? (
-          <div className="grid grid-cols-2 gap-1.5">
-            <button onClick={() => {
-              sessionStorage.setItem('admin_auth', '1')
-              sessionStorage.setItem('admin_store_id', store.id)
-              window.open(`/${store.id}/kitchen`, '_blank')
-            }} className="flex items-center justify-center gap-1 py-2 rounded-xl bg-orange-600/20 border border-orange-500/30 text-orange-300 text-xs font-bold">
-              🍳 キッチン
-            </button>
-            <button onClick={() => {
-              sessionStorage.setItem('admin_auth', '1')
-              sessionStorage.setItem('admin_store_id', store.id)
-              window.open(`/${store.id}/takeout-admin`, '_blank')
-            }} className="flex items-center justify-center gap-1 py-2 rounded-xl bg-amber-600/20 border border-amber-500/30 text-amber-300 text-xs font-bold">
-              <ShieldCheck size={11} />管理
-            </button>
-          </div>
+          <>
+            {/* テイクアウト統計 */}
+            <div className="grid grid-cols-4 gap-1.5 text-center">
+              {([
+                ['受付中',   takeoutPending,        'text-blue-400'],
+                ['調理中',   takeoutPreparing,      'text-amber-400'],
+                ['渡し待ち', takeoutReady,          'text-emerald-400'],
+                ['本日完了', takeoutCompletedToday, 'text-white'],
+              ] as [string, number, string][]).map(([label, val, color]) => (
+                <div key={label} className="bg-gray-700/80 rounded-xl py-1.5">
+                  <div className={`text-xl font-black tabular-nums ${color}`}>{val}</div>
+                  <div className="text-gray-400 text-[10px]">{label}</div>
+                </div>
+              ))}
+            </div>
+            {/* ボタン */}
+            <div className="grid grid-cols-2 gap-1.5">
+              <button onClick={() => {
+                sessionStorage.setItem('admin_auth', '1')
+                sessionStorage.setItem('admin_store_id', store.id)
+                window.open(`/${store.id}/kitchen`, '_blank')
+              }} className="flex items-center justify-center gap-1 py-2 rounded-xl bg-orange-600/20 border border-orange-500/30 text-orange-300 text-xs font-bold">
+                🍳 キッチン
+              </button>
+              <button onClick={() => {
+                sessionStorage.setItem('admin_auth', '1')
+                sessionStorage.setItem('admin_store_id', store.id)
+                window.open(`/${store.id}/takeout-admin`, '_blank')
+              }} className="flex items-center justify-center gap-1 py-2 rounded-xl bg-amber-600/20 border border-amber-500/30 text-amber-300 text-xs font-bold">
+                <ShieldCheck size={11} />管理
+              </button>
+            </div>
+          </>
         ) : (
           <>
             <div className="grid grid-cols-4 gap-1.5 text-center">

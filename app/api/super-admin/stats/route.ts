@@ -41,23 +41,38 @@ export async function GET() {
 
     const stats = await Promise.all(
       stores.map(async (store) => {
-        const [{ data: queues }, { data: repairs }, { data: purchases }] = await Promise.all([
+        const isTakeout = (store as { business_type?: string }).business_type === 'takeout'
+
+        const [{ data: queues }, { data: repairs }, { data: purchases }, { data: takeoutActive }, { data: takeoutDone }] = await Promise.all([
           supabase.from('queues').select('status').eq('store_id', store.id).gte('created_at', todayStart),
           supabase.from('repair_histories').select('status').eq('store_id', store.id).in('status', ['received', 'completed']),
           supabase.from('purchase_orders').select('status').eq('store_id', store.id).eq('status', 'arrived'),
+          isTakeout
+            ? supabase.from('takeout_orders').select('status').eq('store_id', store.id).in('status', ['pending', 'preparing', 'ready'])
+            : Promise.resolve({ data: [] }),
+          isTakeout
+            ? supabase.from('takeout_orders').select('id').eq('store_id', store.id).eq('status', 'completed').gte('created_at', todayStart)
+            : Promise.resolve({ data: [] }),
         ])
 
         const rows = queues ?? []
         const r    = repairs ?? []
         const p    = purchases ?? []
+        const ta   = (takeoutActive ?? []) as { status: string }[]
+        const td   = (takeoutDone   ?? []) as { id: string }[]
+
         return {
           store,
-          waiting:        rows.filter(q => q.status === 'waiting').length,
-          calling:        rows.filter(q => q.status === 'calling').length,
-          completed:      rows.filter(q => q.status === 'completed').length,
-          total:          rows.length,
-          repairPending:  r.filter(x => x.status === 'received').length,
-          deliveryWaiting:r.filter(x => x.status === 'completed').length + p.length,
+          waiting:               rows.filter(q => q.status === 'waiting').length,
+          calling:               rows.filter(q => q.status === 'calling').length,
+          completed:             rows.filter(q => q.status === 'completed').length,
+          total:                 rows.length,
+          repairPending:         r.filter(x => x.status === 'received').length,
+          deliveryWaiting:       r.filter(x => x.status === 'completed').length + p.length,
+          takeoutPending:        ta.filter(o => o.status === 'pending').length,
+          takeoutPreparing:      ta.filter(o => o.status === 'preparing').length,
+          takeoutReady:          ta.filter(o => o.status === 'ready').length,
+          takeoutCompletedToday: td.length,
         }
       })
     )
