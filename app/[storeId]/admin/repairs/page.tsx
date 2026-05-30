@@ -6,7 +6,7 @@ import {
   Scissors, ShoppingBag, Loader2, ChevronDown, ChevronUp,
   Phone, User, Check, RotateCcw, Package, ClipboardList,
   Banknote, Plus, AlertCircle, CreditCard, CheckCheck,
-  History, CalendarDays, Copy, X, Pencil, Truck, LayoutDashboard,
+  History, CalendarDays, Copy, X, Pencil, Truck,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
@@ -1086,7 +1086,7 @@ function EditModal({ kind, item, onClose, onSave, onToast }: {
 }
 
 // ── Main Page ─────────────────────────────────────────────────
-type ActiveTab = 'repair' | 'purchase' | 'delivery' | 'summary'
+type ActiveTab = 'repair' | 'purchase' | 'delivery'
 type DeliverySubTab = 'waiting' | 'history'
 type SortOrder = 'priority' | 'received_asc' | 'deadline_asc' | 'school' | 'name' | 'unpaid_first'
 
@@ -1309,41 +1309,6 @@ export default function RepairsPage() {
   const waitingUnpaid = waiting.filter(i => i.payment_status !== 'paid')
   const waitingPaid   = waiting.filter(i => i.payment_status === 'paid')
 
-  // ── Tab definitions ────────────────────────────────────────
-  const tabs = [
-    {
-      id: 'repair'   as const,
-      label: 'お直し',
-      icon: Scissors,
-      count: repairs.length,
-      urgentCount: overdueRepairs.length,
-      accent: 'bg-amber-600',
-    },
-    {
-      id: 'purchase' as const,
-      label: '発注',
-      icon: ShoppingBag,
-      count: purchases.length,
-      urgentCount: purchaseUnordered.length,
-      accent: 'bg-blue-600',
-    },
-    {
-      id: 'delivery' as const,
-      label: 'お渡し',
-      icon: Package,
-      count: waiting.length,
-      urgentCount: 0,
-      accent: 'bg-violet-600',
-    },
-    {
-      id: 'summary'  as const,
-      label: 'サマリー',
-      icon: LayoutDashboard,
-      count: 0,
-      urgentCount: 0,
-      accent: 'bg-slate-600',
-    },
-  ]
 
   return (
     <div className="min-h-screen bg-slate-100 text-gray-900">
@@ -1360,9 +1325,9 @@ export default function RepairsPage() {
             </a>
           </div>
 
-          {/* Dashboard summary card */}
-          <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl px-4 py-3 mb-3 text-white">
-            <div className="flex items-end gap-3">
+          {/* Dashboard card — タブ切り替えも兼ねる */}
+          <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl px-4 py-3 text-white">
+            <div className="flex items-center gap-3 mb-3">
               <div>
                 <p className="text-[10px] font-bold opacity-70 uppercase tracking-wider mb-0.5">今すぐ対応できる件数</p>
                 <div className="flex items-baseline gap-2">
@@ -1371,7 +1336,6 @@ export default function RepairsPage() {
                   </span>
                   <span className="text-base font-bold opacity-70">件</span>
                 </div>
-                <p className="text-xs opacity-60 mt-1">全案件合計: {totalActive} 件</p>
               </div>
               {overdueRepairs.length > 0 && (
                 <div className="ml-auto bg-red-500/30 border border-red-400/50 rounded-xl px-3 py-2 text-center">
@@ -1380,33 +1344,27 @@ export default function RepairsPage() {
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-2 mt-3 border-t border-white/20 pt-3">
-              <button onClick={() => setTab('repair')} className="text-center active:scale-95 transition-all">
-                <p className={`text-2xl font-black ${repairs.length > 0 ? 'text-white' : 'text-white/30'}`}>{repairs.length}</p>
-                <p className="text-[9px] font-bold text-white/60">✂️ お直し</p>
-              </button>
-              <button onClick={() => setTab('purchase')} className="text-center active:scale-95 transition-all">
-                <p className={`text-2xl font-black ${purchases.length > 0 ? 'text-white' : 'text-white/30'}`}>{purchases.length}</p>
-                <p className="text-[9px] font-bold text-white/60">📦 発注</p>
-              </button>
-              <button onClick={() => setTab('delivery')} className="text-center active:scale-95 transition-all">
-                <p className={`text-2xl font-black ${waiting.length > 0 ? 'text-white' : 'text-white/30'}`}>{waiting.length}</p>
-                <p className="text-[9px] font-bold text-white/60">🎁 お渡し待ち</p>
-              </button>
+            <div className="grid grid-cols-3 gap-2 border-t border-white/20 pt-3">
+              {([
+                { id: 'repair'   as const, emoji: '✂️', label: 'お直し',    count: repairs.length },
+                { id: 'purchase' as const, emoji: '📦', label: '発注',      count: purchases.length },
+                { id: 'delivery' as const, emoji: '🎁', label: 'お渡し待ち', count: waiting.length },
+              ]).map(t => (
+                <button key={t.id} onClick={() => setTab(t.id)}
+                  className={`rounded-xl py-2.5 text-center active:scale-95 transition-all ${
+                    tab === t.id
+                      ? 'bg-white/25 ring-2 ring-white/60'
+                      : 'hover:bg-white/10'
+                  }`}>
+                  <p className={`text-3xl font-black leading-none ${t.count > 0 ? 'text-white' : 'text-white/30'}`}>
+                    {t.count}
+                  </p>
+                  <p className={`text-[10px] font-bold mt-1 ${tab === t.id ? 'text-white' : 'text-white/60'}`}>
+                    {t.emoji} {t.label}
+                  </p>
+                </button>
+              ))}
             </div>
-          </div>
-
-          {/* Tab bar — バッジなし（上のカードで件数確認済み） */}
-          <div className="flex gap-0.5 bg-slate-200 rounded-xl p-1">
-            {tabs.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 rounded-lg transition-all ${
-                  tab === t.id ? 'bg-white text-slate-900 shadow-md' : 'text-slate-500 hover:text-slate-700'
-                }`}>
-                <t.icon size={14} />
-                <span className="text-[10px] font-bold leading-none">{t.label}</span>
-              </button>
-            ))}
           </div>
         </div>
       </div>
@@ -1577,72 +1535,8 @@ export default function RepairsPage() {
               </div>
             )
           )
+        ) : null}
 
-        ) : (
-          /* ── ④サマリータブ ───────────────────────────────── */
-          <div className="space-y-4">
-            {/* Stage overview */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-4">
-              <p className="text-xs font-black text-slate-500 mb-3 uppercase tracking-wider">📊 案件ステータス一覧</p>
-              <div className="space-y-2.5">
-                {[
-                  { label: '✂️ お直し 未着手',   value: repairNotStarted.length,  color: 'bg-amber-100 text-amber-800',   onClick: () => setTab('repair') },
-                  { label: '✂️ お直し 作業中',    value: repairInProgress.length,  color: 'bg-amber-200 text-amber-900',   onClick: () => setTab('repair') },
-                  { label: '📋 来店・取置き対応', value: repairOther.length,       color: 'bg-indigo-100 text-indigo-800', onClick: () => setTab('repair') },
-                  { label: '📦 発注 未発注',       value: purchaseUnordered.length, color: 'bg-orange-100 text-orange-800', onClick: () => setTab('purchase') },
-                  { label: '📦 発注 発注済み',     value: purchaseOnOrder.length,   color: 'bg-blue-100 text-blue-800',     onClick: () => setTab('purchase') },
-                  { label: '📦 発注 在庫確保済み', value: purchaseStocked.length,   color: 'bg-teal-100 text-teal-800',     onClick: () => setTab('purchase') },
-                  { label: '🎁 お渡し待ち',        value: waiting.length,           color: 'bg-violet-100 text-violet-800', onClick: () => setTab('delivery') },
-                ].map(s => (
-                  <button key={s.label} onClick={s.onClick}
-                    className="w-full flex items-center gap-3 active:scale-[0.98] transition-all">
-                    <span className="flex-1 text-sm font-semibold text-slate-700 text-left">{s.label}</span>
-                    <span className={`px-3 py-1 rounded-xl text-sm font-black ${s.color}`}>{s.value} 件</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Overdue alert */}
-            {overdueRepairs.length > 0 && (
-              <div className="bg-red-50 border-2 border-red-400 rounded-2xl p-4">
-                <p className="text-sm font-black text-red-700 mb-3 flex items-center gap-2">
-                  <AlertCircle size={16} />🚨 期限超過 — 今すぐ対応が必要です（{overdueRepairs.length}件）
-                </p>
-                <div className="space-y-2">
-                  {overdueRepairs.map(r => {
-                    const d = new Date(r.desired_completion_date!); d.setHours(0,0,0,0)
-                    const days = Math.abs(Math.floor((d.getTime() - todayDate.getTime()) / 86400000))
-                    const name = r.child?.name ?? r.customer?.name ?? '不明'
-                    return (
-                      <button key={r.id} onClick={() => setTab('repair')}
-                        className="w-full text-left bg-white border border-red-200 rounded-xl px-3 py-2.5 active:scale-[0.98] transition-all">
-                        <p className="text-sm font-black text-slate-900">{r.content || r.item_name}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-xs font-bold text-red-600">{days}日超過</span>
-                          <span className="text-xs text-slate-500">{name}</span>
-                          {r.child?.school_name && <span className="text-xs font-bold text-amber-600">{r.child.school_name}</span>}
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* History link */}
-            <button
-              onClick={() => { setTab('delivery'); setDeliverySubTab('history'); if (!histFetched) fetchHistory() }}
-              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3.5 flex items-center gap-3 active:scale-[0.98] transition-all">
-              <History size={18} className="text-slate-500" />
-              <div className="flex-1 text-left">
-                <p className="text-sm font-bold text-slate-700">お渡し完了履歴を見る</p>
-                <p className="text-xs text-slate-400 mt-0.5">完了済みのお直し・発注の履歴</p>
-              </div>
-              <ChevronDown size={14} className="text-slate-400 -rotate-90" />
-            </button>
-          </div>
-        )}
       </div>
 
       {toast && <Toast msg={toast.msg} type={toast.type} onUndo={toast.onUndo} onClose={() => setToast(null)} />}
