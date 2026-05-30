@@ -1404,16 +1404,11 @@ export default function RepairsPage() {
           <div className="flex gap-0.5 bg-slate-200 rounded-xl p-1">
             {tabs.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
-                className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-lg transition-all ${
+                className={`flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-lg transition-all ${
                   tab === t.id ? 'bg-white text-slate-900 shadow-md' : 'text-slate-500 hover:text-slate-700'
                 }`}>
-                <t.icon size={14} />
-                <span className="text-[10px] font-bold leading-none">{t.label}</span>
-                {t.count > 0 && (
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black ${
-                    tab === t.id ? `${t.accent} text-white` : 'bg-slate-300 text-slate-600'
-                  }`}>{t.count}</span>
-                )}
+                <t.icon size={15} />
+                <span className="text-[11px] font-bold leading-none">{t.label}</span>
               </button>
             ))}
           </div>
