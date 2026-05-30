@@ -238,7 +238,7 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
   const cookOrders   = orders.filter(o => o.status === 'pending' || o.status === 'preparing')
   const readyCount   = readyOrders.length
 
-  const { batchInstructions, addVirtualBuffer } = useKitchenScheduler(
+  const { batchInstructions, virtualBuffer, addVirtualBuffer } = useKitchenScheduler(
     storeId, cookOrders, menus, settings
   )
 
@@ -342,6 +342,8 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
         <BatchView
           orders={orders.filter(o => o.status !== 'ready')}
           instructions={batchInstructions}
+          virtualBuffer={virtualBuffer}
+          onAddBuffer={addVirtualBuffer}
           onClose={() => setShowBatch(false)}
         />
       )}

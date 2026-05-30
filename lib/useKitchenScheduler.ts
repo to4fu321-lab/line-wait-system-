@@ -8,7 +8,7 @@
 // 自動再計算して ScheduleResult を返す。
 // ============================================================
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { TakeoutOrder, TakeoutSettings, Menu } from '@/types/takeout'
 import type { KitchenStation, ScheduleResult, VirtualBuffer } from '@/types/kitchen-scheduler'
@@ -80,6 +80,36 @@ export function useKitchenScheduler(
     }
     return buildSchedule(orders, menuMap, stations, virtualBuffer, settings)
   }, [orders, menuMap, stations, virtualBuffer, settings, stationsLoading])
+
+  // ── estimated_ready_at の書き戻し（3秒デバウンス）
+  const writebackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (schedule.tasks.length === 0) return
+
+    // orderId ごとに最大の slotEnd を計算
+    const readyAtMap = new Map<string, Date>()
+    for (const task of schedule.tasks) {
+      const current = readyAtMap.get(task.orderId)
+      if (!current || task.slotEnd > current) {
+        readyAtMap.set(task.orderId, task.slotEnd)
+      }
+    }
+
+    if (writebackTimerRef.current) clearTimeout(writebackTimerRef.current)
+    writebackTimerRef.current = setTimeout(async () => {
+      const entries = Array.from(readyAtMap.entries())
+      for (const [orderId, readyAt] of entries) {
+        await supabase
+          .from('takeout_orders')
+          .update({ estimated_ready_at: readyAt.toISOString() } as never)
+          .eq('id', orderId)
+      }
+    }, 3000)
+
+    return () => {
+      if (writebackTimerRef.current) clearTimeout(writebackTimerRef.current)
+    }
+  }, [schedule])
 
   // ──────────────────────────────────────────
   // 仮想バッファ操作関数

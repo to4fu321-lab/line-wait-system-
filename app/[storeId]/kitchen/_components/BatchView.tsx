@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { TakeoutOrder } from '@/types/takeout'
-import type { BatchInstruction, TimeBucket, StationType } from '@/types/kitchen-scheduler'
+import type { BatchInstruction, TimeBucket, StationType, VirtualBuffer } from '@/types/kitchen-scheduler'
 import { TIME_BUCKET_LABEL } from '@/types/kitchen-scheduler'
 
 // ── ステーション表示設定 ─────────────────────────────────────
@@ -44,24 +44,38 @@ function aggregateLegacy(orders: TakeoutOrder[]): LegacyItem[] {
 
 // ── Props ────────────────────────────────────────────────────
 interface Props {
-  orders:       TakeoutOrder[]
-  instructions?: BatchInstruction[]
-  onClose:      () => void
+  orders:          TakeoutOrder[]
+  instructions?:   BatchInstruction[]
+  virtualBuffer?:  VirtualBuffer
+  onAddBuffer?:    (menuName: string, amount: number) => void
+  onClose:         () => void
 }
 
 // ── メインコンポーネント ─────────────────────────────────────
-export default function BatchView({ orders, instructions, onClose }: Props) {
+export default function BatchView({ orders, instructions, virtualBuffer, onAddBuffer, onClose }: Props) {
   const hasSchedule = !!instructions && instructions.length > 0
 
   // ステーションタブ（動的生成）
   const stationTypes: StationType[] = hasSchedule
     ? ['all' as StationType, ...Array.from(new Set(instructions!.map(i => i.stationType)))]
     : []
-  const [activeStation, setActiveStation] = useState<StationType>('all')
+  const [activeStation,  setActiveStation]  = useState<StationType>('all')
+  // バッファ入力UI状態
+  const [expandedBuffer, setExpandedBuffer] = useState<string | null>(null)  // key = menuName
+  const [bufferInput,    setBufferInput]    = useState('')
 
   const filtered = hasSchedule
     ? (activeStation === 'all' ? instructions! : instructions!.filter(i => i.stationType === activeStation))
     : []
+
+  const handleAddBuffer = (menuName: string) => {
+    const n = parseInt(bufferInput, 10)
+    if (!isNaN(n) && n > 0 && onAddBuffer) {
+      onAddBuffer(menuName, n)
+      setBufferInput('')
+      setExpandedBuffer(null)
+    }
+  }
 
   // timeBucket × 指示リスト
   const buckets: TimeBucket[] = ['now', 'soon', 'later']
@@ -186,6 +200,56 @@ export default function BatchView({ orders, instructions, onClose }: Props) {
                               </span>
                             ))}
                           </div>
+
+                          {/* 仕込み追加UI */}
+                          {onAddBuffer && (
+                            <div className="border-t border-zinc-700/40 pt-2.5 mt-0.5">
+                              {expandedBuffer === inst.menuName ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-zinc-500 shrink-0">仕込み追加</span>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={bufferInput}
+                                    onChange={e => setBufferInput(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && handleAddBuffer(inst.menuName)}
+                                    className="w-16 bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-sm text-white text-center"
+                                    placeholder="個数"
+                                    autoFocus
+                                  />
+                                  <span className="text-xs text-zinc-500">個</span>
+                                  <button
+                                    onClick={() => handleAddBuffer(inst.menuName)}
+                                    className="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg active:scale-95"
+                                  >
+                                    追加
+                                  </button>
+                                  <button
+                                    onClick={() => { setExpandedBuffer(null); setBufferInput('') }}
+                                    className="text-zinc-600 text-xs px-2 py-1.5 rounded-lg active:scale-95"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    {(virtualBuffer?.get(inst.menuName) ?? 0) > 0 && (
+                                      <span className="text-xs bg-emerald-900/60 text-emerald-300 px-2 py-0.5 rounded-full font-bold">
+                                        仕込み在庫 {virtualBuffer!.get(inst.menuName)}個
+                                      </span>
+                                    )}
+                                  </div>
+                                  <button
+                                    onClick={() => { setExpandedBuffer(inst.menuName); setBufferInput('') }}
+                                    className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1 active:scale-95"
+                                  >
+                                    ＋ 仕込み追加
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
 
                         </div>
                       )
