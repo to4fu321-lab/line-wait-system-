@@ -613,10 +613,16 @@ export default function TakeoutAdminPage({ params }: { params: { storeId: string
           <p className="text-xs text-gray-400">テイクアウト管理</p>
           <h1 className="font-bold text-gray-800">{storeName}</h1>
         </div>
-        <a href={`/${storeId}/kitchen`} target="_blank"
-          className="text-sm text-blue-500 bg-blue-50 px-3 py-1.5 rounded-lg font-medium">
-          🍳 キッチン画面
-        </a>
+        <div className="flex items-center gap-2">
+          <a href={`/${storeId}/admin`}
+            className="text-sm text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg font-medium">
+            🏪 管理画面
+          </a>
+          <a href={`/${storeId}/kitchen`} target="_blank"
+            className="text-sm text-blue-500 bg-blue-50 px-3 py-1.5 rounded-lg font-medium">
+            🍳 キッチン画面
+          </a>
+        </div>
       </header>
       <nav className="bg-white border-b border-gray-100 flex">
         {TABS.map(({ key, label, icon }) => (

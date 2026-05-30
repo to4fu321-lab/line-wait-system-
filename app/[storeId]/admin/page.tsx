@@ -716,6 +716,11 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
               className="p-2 rounded-xl bg-gray-100 border border-gray-200 hover:bg-gray-200 active:opacity-60 transition-all text-gray-500">
               <QrCode size={16} />
             </button>
+            <a href={`/${store.id}/takeout-admin`}
+              title="テイクアウト管理"
+              className="p-2 rounded-xl bg-gray-100 border border-gray-200 hover:bg-gray-200 active:opacity-60 transition-all text-gray-500 text-base leading-none flex items-center justify-center">
+              🥡
+            </a>
             <a href={groupCode ? `/company/${groupCode}` : '/super-admin'}
               title={groupCode ? '会社管理ダッシュボード' : '総管理ダッシュボード'}
               className="p-2 rounded-xl bg-gray-100 border border-gray-200 hover:bg-gray-200 active:opacity-60 transition-all text-gray-500">
