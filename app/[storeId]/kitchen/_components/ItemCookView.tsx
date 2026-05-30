@@ -166,7 +166,6 @@ export default function ItemCookView({ orders, settings, onRefresh, onOrderReady
           .from('takeout_orders')
           .update({ status: 'preparing' } as never)
           .eq('id', row.orderId)
-        triggerSound('preparing')
       }
 
       const { data: remaining } = await supabase
@@ -182,7 +181,6 @@ export default function ItemCookView({ orders, settings, onRefresh, onOrderReady
           .update({ status: 'ready' } as never)
           .eq('id', row.orderId)
 
-        triggerSound('ready')
         onOrderReady?.()
 
         fetch('/api/notify-takeout', {
@@ -331,17 +329,20 @@ export default function ItemCookView({ orders, settings, onRefresh, onOrderReady
                     {/* サブラベル */}
                     {!allDone && (
                       <span className={`text-[11px] font-bold leading-none ${
-                        group.isActive            ? 'text-orange-400'
+                        hasSelection              ? 'text-emerald-400'
+                        : group.isActive          ? 'text-orange-400'
                         : group.blockingCount > 0 ? 'text-sky-400'
                         : 'text-zinc-600'
                       }`}>
-                        {group.isActive && group.blockingCount > 0
+                        {hasSelection
+                          ? `🍳 調理中 · ${selectedQty}個選択中`
+                          : group.isActive && group.blockingCount > 0
                           ? `調理中 · あと${group.blockingCount}件完成`
                           : group.isActive
                           ? '調理中を先に完成させて'
                           : group.blockingCount > 0
                           ? `作ると${group.blockingCount}件がすぐ完成`
-                          : `${group.pendingRows}注文待ち`
+                          : `タップ → 調理開始`
                         }
                       </span>
                     )}
@@ -351,11 +352,15 @@ export default function ItemCookView({ orders, settings, onRefresh, onOrderReady
                     <span className="text-base font-black text-emerald-500 shrink-0">✓ 完了</span>
                   ) : hasSelection ? (
                     <button
-                      onClick={() => markBatchDone(selectedRows, group.name)}
+                      onClick={() => {
+                        unlockAudio()
+                        triggerSound('ready')
+                        markBatchDone(selectedRows, group.name)
+                      }}
                       className="flex items-center gap-2 bg-emerald-500 text-white px-4 py-2 rounded-xl font-black text-sm active:scale-95 transition-all shrink-0 shadow-lg shadow-emerald-900/50"
                     >
                       <span className="text-xl tabular-nums leading-none">{selectedQty}</span>
-                      <span>個 作った！</span>
+                      <span>個 完成！</span>
                     </button>
                   ) : (
                     <span className={`text-5xl font-black tabular-nums leading-none shrink-0 ${
@@ -379,7 +384,14 @@ export default function ItemCookView({ orders, settings, onRefresh, onOrderReady
                     return (
                       <div key={row.itemId}>
                         <div
-                          onClick={() => { if (!row.isDone) toggleCutoff(group.name, row.itemId) }}
+                          onClick={() => {
+                            if (!row.isDone) {
+                              unlockAudio()
+                              // 初回タップ（選択開始）= 調理開始サイン → preparing音
+                              if (!groupCutoffs.has(group.name)) triggerSound('preparing')
+                              toggleCutoff(group.name, row.itemId)
+                            }
+                          }}
                           className={`flex items-center gap-3 px-4 py-3.5 transition-all duration-150 ${
                             row.isDone   ? 'opacity-30 cursor-default'
                             : isSelected ? 'bg-emerald-950/50 active:bg-emerald-900/50 cursor-pointer'
