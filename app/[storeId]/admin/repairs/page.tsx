@@ -1,12 +1,12 @@
 'use client'
 
 import { useParams } from 'next/navigation'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
   Scissors, ShoppingBag, Loader2, ChevronDown, ChevronUp,
   Phone, User, Check, RotateCcw, Package, ClipboardList,
   Banknote, Plus, AlertCircle, CreditCard, CheckCheck,
-  History, CalendarDays,
+  History, CalendarDays, Copy,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
@@ -545,6 +545,216 @@ function MakerOrderPanel({ purchases, storeId, onRefresh, onToast }: {
   )
 }
 
+// ── Aggregated Order UI ───────────────────────────────────────
+interface OrderGroup {
+  groupKey:   string
+  item_name:  string
+  maker:      string | null
+  totalCount: number
+  orders:     PurchaseRow[]
+}
+
+function AggregatedOrderCard({ group, checked, onCheck, onToast }: {
+  group: OrderGroup; checked: boolean; onCheck: () => void
+  onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
+}) {
+  const [open,   setOpen]   = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  function copyToClipboard() {
+    const breakdown = group.orders
+      .map(o => `・${o.child?.name ?? o.customer?.name ?? '不明'}${o.notes ? `（${o.notes}）` : ''}`)
+      .join('\n')
+    const lines = [
+      `【品名】${group.item_name}`,
+      group.maker ? `【メーカー】${group.maker}` : null,
+      `【数量】${group.totalCount}件`,
+      `─内訳─`,
+      breakdown,
+    ].filter(Boolean).join('\n')
+    navigator.clipboard.writeText(lines)
+      .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
+      .catch(() => onToast('err', 'コピーに失敗しました'))
+  }
+
+  return (
+    <div className={`rounded-2xl border-2 overflow-hidden transition-colors ${
+      checked ? 'border-orange-400 bg-orange-50' : 'border-slate-200 bg-white'
+    }`}>
+      <div className="flex items-center gap-2 p-3">
+        {/* Checkbox */}
+        <button
+          onClick={e => { e.stopPropagation(); onCheck() }}
+          className={`w-7 h-7 rounded-lg border-2 flex items-center justify-center shrink-0 transition-all ${
+            checked ? 'border-orange-500 bg-orange-500' : 'border-gray-300 hover:border-gray-400'
+          }`}>
+          {checked && <Check size={13} className="text-white" />}
+        </button>
+
+        {/* Info */}
+        <button className="flex-1 text-left min-w-0" onClick={() => setOpen(v => !v)}>
+          {group.maker && <p className="text-[10px] font-bold text-gray-400 leading-tight">{group.maker}</p>}
+          <p className="font-black text-gray-900 text-sm leading-snug">{group.item_name}</p>
+          <div className="flex items-baseline gap-1 mt-0.5">
+            <span className="text-2xl font-black text-orange-600">{group.totalCount}</span>
+            <span className="text-xs font-bold text-gray-500">件</span>
+            <span className="text-[10px] text-gray-400">/ {group.orders.length}人</span>
+          </div>
+        </button>
+
+        {/* Copy */}
+        <button onClick={copyToClipboard}
+          className={`shrink-0 p-2 rounded-xl transition-all ${
+            copied ? 'bg-emerald-100 text-emerald-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+          }`} title="クリップボードにコピー">
+          {copied ? <CheckCheck size={15} /> : <Copy size={15} />}
+        </button>
+
+        <button onClick={() => setOpen(v => !v)} className="shrink-0 text-gray-400 p-1">
+          {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </button>
+      </div>
+
+      {open && (
+        <div className="border-t border-gray-100">
+          {group.orders.map((order, idx) => (
+            <div key={order.id} className={`px-4 py-2.5 flex items-start gap-3 ${idx > 0 ? 'border-t border-gray-50' : ''}`}>
+              <div className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center shrink-0 mt-0.5">
+                <span className="text-[10px] font-bold text-gray-500">{idx + 1}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-gray-800">
+                  {order.child?.name ?? order.customer?.name ?? '（不明）'}
+                </p>
+                {order.child && <p className="text-[10px] text-gray-400">保護者: {order.customer?.name}</p>}
+                {order.notes && <p className="text-xs text-gray-500 mt-0.5">{order.notes}</p>}
+                <p className="text-[10px] text-gray-400 mt-0.5">依頼日: {fmtDate(order.ordered_date)}</p>
+              </div>
+              {order.price != null && (
+                <p className="text-xs font-bold text-gray-600 shrink-0">¥{order.price.toLocaleString()}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AggregatedOrderList({ orders, storeId, onRefresh, onToast }: {
+  orders: PurchaseRow[]; storeId: string; onRefresh: () => void
+  onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
+}) {
+  const [checked,  setChecked]  = useState<Set<string>>(new Set())
+  const [updating, setUpdating] = useState(false)
+
+  const groups = useMemo<OrderGroup[]>(() => {
+    const map = new Map<string, OrderGroup>()
+    for (const order of orders) {
+      const key = order.item_name.trim()
+      if (!map.has(key)) map.set(key, { groupKey: key, item_name: order.item_name, maker: order.maker, totalCount: 0, orders: [] })
+      const g = map.get(key)!
+      g.totalCount++
+      g.orders.push(order)
+    }
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.maker && b.maker) return a.maker.localeCompare(b.maker, 'ja')
+      if (a.maker) return -1; if (b.maker) return 1
+      return a.item_name.localeCompare(b.item_name, 'ja')
+    })
+  }, [orders])
+
+  // Reset when orders change (e.g. after bulk action)
+  useEffect(() => { setChecked(new Set()) }, [orders])
+
+  function toggleCheck(key: string) {
+    setChecked(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
+  }
+  function toggleAll() {
+    setChecked(checked.size === groups.length ? new Set() : new Set(groups.map(g => g.groupKey)))
+  }
+
+  async function bulkMarkOrdered() {
+    const selectedGroups = groups.filter(g => checked.has(g.groupKey))
+    const selectedIds    = selectedGroups.flatMap(g => g.orders.map(o => o.id))
+    if (selectedIds.length === 0) return
+    const prevStatuses = Object.fromEntries(selectedGroups.flatMap(g => g.orders.map(o => [o.id, o.status])))
+
+    setUpdating(true)
+    const { error } = await (supabase as any)
+      .from('purchase_orders')
+      .update({ status: 'on_order', updated_at: new Date().toISOString() })
+      .in('id', selectedIds)
+    setUpdating(false)
+    if (error) { onToast('err', '更新に失敗しました'); return }
+    onRefresh()
+    onToast('ok', `${selectedIds.length}件を発注済みにしました`, async () => {
+      await Promise.all(
+        Object.entries(prevStatuses).map(([id, status]) =>
+          (supabase as any).from('purchase_orders')
+            .update({ status, updated_at: new Date().toISOString() }).eq('id', id)
+        )
+      )
+      onRefresh()
+    })
+  }
+
+  if (orders.length === 0) {
+    return (
+      <div className="text-center py-8 text-gray-400">
+        <ShoppingBag size={28} className="mx-auto mb-2 opacity-30" />
+        <p className="text-sm">未発注の追加購入はありません</p>
+      </div>
+    )
+  }
+
+  const allChecked   = checked.size === groups.length && groups.length > 0
+  const checkedTotal = groups.filter(g => checked.has(g.groupKey)).reduce((s, g) => s + g.totalCount, 0)
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3 px-1">
+        <button onClick={toggleAll} className="flex items-center gap-2 text-xs font-bold text-gray-600 hover:text-gray-800 transition-colors">
+          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${allChecked ? 'border-orange-500 bg-orange-500' : 'border-gray-300'}`}>
+            {allChecked && <Check size={11} className="text-white" />}
+          </div>
+          {allChecked ? 'すべて解除' : 'すべて選択'}
+        </button>
+        <span className="text-xs text-gray-400">{groups.length}品目 / 計{orders.length}件</span>
+      </div>
+
+      <div className="space-y-2 pb-4">
+        {groups.map(group => (
+          <AggregatedOrderCard
+            key={group.groupKey}
+            group={group}
+            checked={checked.has(group.groupKey)}
+            onCheck={() => toggleCheck(group.groupKey)}
+            onToast={onToast}
+          />
+        ))}
+      </div>
+
+      {/* Sticky action bar */}
+      {checked.size > 0 && (
+        <div className="fixed bottom-20 left-0 right-0 z-30 flex justify-center px-4 pointer-events-none">
+          <div className="max-w-lg w-full bg-orange-700 text-white rounded-2xl shadow-2xl p-3 flex items-center gap-3 pointer-events-auto">
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-bold opacity-70">選択中</p>
+              <p className="text-sm font-black">{checked.size}品目 / {checkedTotal}件</p>
+            </div>
+            <button onClick={bulkMarkOrdered} disabled={updating}
+              className="shrink-0 px-5 py-2.5 bg-white text-orange-700 font-black text-sm rounded-xl flex items-center gap-2 active:scale-95 transition-all disabled:opacity-60 shadow">
+              {updating ? <Loader2 size={14} className="animate-spin" /> : <Package size={14} />}
+              発注済みにする
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Payment Badge (for delivery items) ───────────────────────
 function PaymentBadge({ status, onToggle, loading }: {
   status: string | null; onToggle: () => void; loading: boolean
@@ -993,7 +1203,6 @@ export default function RepairsPage() {
   const [sortOrder,        setSortOrder]        = useState<SortOrder>('priority')
   const [purchaseFilter,   setPurchaseFilter]   = useState<PurchaseStageFilter>(null)
   const [repairWorkFilter, setRepairWorkFilter] = useState<RepairWorkStageFilter>(null)
-  const [purchaseViewMode, setPurchaseViewMode] = useState<'list' | 'order_mgmt'>('list')
 
   const showToast = useCallback((type: 'ok' | 'err', msg: string, onUndo?: () => Promise<void>) => {
     setToast({ type, msg, onUndo })
@@ -1426,47 +1635,24 @@ export default function RepairsPage() {
                 ))}
               </div>
 
-              {/* まとめ発注パネル */}
-              {(purchaseFilter === null || purchaseFilter === 'not_ordered') && purchaseCounts.not_ordered > 0 && (
-                <div className="mb-3">
-                  <button onClick={() => setPurchaseViewMode(m => m === 'order_mgmt' ? 'list' : 'order_mgmt')}
-                    className={`w-full py-2.5 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors ${
-                      purchaseViewMode === 'order_mgmt'
-                        ? 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                        : 'bg-orange-700 hover:bg-orange-600 text-white'
-                    }`}>
-                    <Package size={14} />
-                    {purchaseViewMode === 'order_mgmt' ? '発注管理を閉じる' : `📋 まとめ発注（未発注 ${purchaseCounts.not_ordered}件）`}
-                  </button>
-                  {purchaseViewMode === 'order_mgmt' && (
-                    <div className="mt-3">
-                      <MakerOrderPanel
-                        purchases={purchases.filter(p => ['received', 'ordered'].includes(p.status))}
-                        storeId={storeId} onRefresh={fetchAll} onToast={showToast}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Purchase cards */}
-              {purchases.length === 0 ? (
-                <div className="text-center py-8 text-gray-400">
-                  <ShoppingBag size={28} className="mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">対応中の追加購入はありません</p>
-                </div>
+              {/* 未発注: 集約リスト / それ以外: 個別カード */}
+              {(purchaseFilter === null || purchaseFilter === 'not_ordered') ? (
+                <AggregatedOrderList
+                  orders={purchases.filter(p => ['received', 'ordered'].includes(p.status))}
+                  storeId={storeId} onRefresh={fetchAll} onToast={showToast}
+                />
               ) : filteredPurchases.length === 0 ? (
                 <div className="text-center py-6 text-gray-400">
                   <p className="text-sm">該当する追加購入はありません</p>
                   <button onClick={() => setPurchaseFilter(null)} className="mt-1.5 text-xs text-indigo-600">絞り込みを解除</button>
                 </div>
-              ) : !(purchaseViewMode === 'order_mgmt' && (purchaseFilter === null || purchaseFilter === 'not_ordered')) ? (
+              ) : (
                 <div className="space-y-3">
                   {filteredPurchases.map(p => (
                     <PurchaseCard key={p.id} item={p} storeId={storeId} onRefresh={fetchAll} onToast={showToast} />
                   ))}
                 </div>
-              ) : null}
+              )}
             </section>
 
             {/* ─── 【お直し】 ─── */}
