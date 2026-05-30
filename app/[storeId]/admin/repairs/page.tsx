@@ -1352,20 +1352,51 @@ export default function RepairsPage() {
         <div className="max-w-2xl mx-auto px-4 pt-4 pb-0">
 
           {/* Title row */}
-          <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-base font-bold text-gray-900 flex-1">案件管理</h1>
-            {overdueRepairs.length > 0 && (
-              <span className="flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-full bg-red-100 text-red-700 border border-red-300 animate-pulse">
-                🚨 期限超過 {overdueRepairs.length}件
-              </span>
-            )}
+          <div className="flex items-center gap-3 mb-3">
+            <h1 className="text-base font-bold text-gray-900 flex-1">業務ダッシュボード</h1>
             <a href={`/${storeId}/admin/crm`}
               className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold rounded-xl transition-all">
               <Plus size={14} />依頼受付
             </a>
           </div>
 
-          {/* Tab bar with counts */}
+          {/* Dashboard summary card */}
+          <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl px-4 py-3 mb-3 text-white">
+            <div className="flex items-end gap-3">
+              <div>
+                <p className="text-[10px] font-bold opacity-70 uppercase tracking-wider mb-0.5">今すぐ対応できる件数</p>
+                <div className="flex items-baseline gap-2">
+                  <span className={`font-black leading-none ${actionableNow >= 10 ? 'text-5xl' : 'text-6xl'}`}>
+                    {actionableNow}
+                  </span>
+                  <span className="text-base font-bold opacity-70">件</span>
+                </div>
+                <p className="text-xs opacity-60 mt-1">全案件合計: {totalActive} 件</p>
+              </div>
+              {overdueRepairs.length > 0 && (
+                <div className="ml-auto bg-red-500/30 border border-red-400/50 rounded-xl px-3 py-2 text-center">
+                  <p className="text-2xl font-black text-red-200">{overdueRepairs.length}</p>
+                  <p className="text-[9px] font-bold text-red-200 opacity-90">🚨 期限超過</p>
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-2 mt-3 border-t border-white/20 pt-3">
+              <button onClick={() => setTab('repair')} className="text-center active:scale-95 transition-all">
+                <p className={`text-2xl font-black ${repairs.length > 0 ? 'text-white' : 'text-white/30'}`}>{repairs.length}</p>
+                <p className="text-[9px] font-bold text-white/60">✂️ お直し</p>
+              </button>
+              <button onClick={() => setTab('purchase')} className="text-center active:scale-95 transition-all">
+                <p className={`text-2xl font-black ${purchases.length > 0 ? 'text-white' : 'text-white/30'}`}>{purchases.length}</p>
+                <p className="text-[9px] font-bold text-white/60">📦 発注</p>
+              </button>
+              <button onClick={() => setTab('delivery')} className="text-center active:scale-95 transition-all">
+                <p className={`text-2xl font-black ${waiting.length > 0 ? 'text-white' : 'text-white/30'}`}>{waiting.length}</p>
+                <p className="text-[9px] font-bold text-white/60">🎁 お渡し待ち</p>
+              </button>
+            </div>
+          </div>
+
+          {/* Tab bar — バッジなし（上のカードで件数確認済み） */}
           <div className="flex gap-0.5 bg-slate-200 rounded-xl p-1">
             {tabs.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
@@ -1374,11 +1405,6 @@ export default function RepairsPage() {
                 }`}>
                 <t.icon size={14} />
                 <span className="text-[10px] font-bold leading-none">{t.label}</span>
-                {t.count > 0 && (
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black ${
-                    tab === t.id ? `${t.accent} text-white` : 'bg-slate-300 text-slate-600'
-                  }`}>{t.count}</span>
-                )}
               </button>
             ))}
           </div>
