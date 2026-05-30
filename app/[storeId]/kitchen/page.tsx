@@ -257,7 +257,13 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
       <div className="bg-zinc-900 border-b border-zinc-800 shrink-0">
         <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800/60">
           <span className="text-base font-bold">{storeName}</span>
-          <DateDisplay />
+          <div className="flex items-center gap-3">
+            <DateDisplay />
+            <a href={`/${storeId}/takeout-admin`}
+              className="text-xs text-zinc-400 bg-zinc-800 px-2.5 py-1 rounded-lg border border-zinc-700/60">
+              ⚙️ 管理
+            </a>
+          </div>
         </div>
         <div className="flex items-center justify-between px-4 py-2.5">
           <ComboDisplay combo={combo} maxCombo={maxCombo} />
