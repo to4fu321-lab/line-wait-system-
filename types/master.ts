@@ -70,3 +70,37 @@ export const PRODUCT_CATEGORY_OPTIONS = [
 ] as const
 
 export const PRODUCT_GENDER_OPTIONS = ['男子用', '女子用', '男女共通'] as const
+
+// ──────────────────────────────────────────────────────────────
+// スタッフマスタ
+// ──────────────────────────────────────────────────────────────
+export interface Staff {
+  id:          string
+  store_id:    string
+  name:        string
+  kana:        string | null  // ふりがな
+  role:        string | null  // 役職
+  color:       string | null  // 表示カラー (#hex)
+  pin:         string | null  // 4桁PIN（個人識別用）
+  active:      boolean
+  sort_order:  number
+  created_at:  string
+  updated_at:  string
+}
+
+export const STAFF_ROLE_OPTIONS = [
+  '店長', 'リーダー', 'スタッフ', 'パート', 'アルバイト',
+] as const
+
+export const STAFF_COLOR_OPTIONS = [
+  '#6366f1', // indigo
+  '#ec4899', // pink
+  '#f59e0b', // amber
+  '#10b981', // emerald
+  '#3b82f6', // blue
+  '#8b5cf6', // violet
+  '#ef4444', // red
+  '#14b8a6', // teal
+  '#f97316', // orange
+  '#64748b', // slate
+] as const

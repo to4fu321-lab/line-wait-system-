@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation'
 import { useEffect, useState, useCallback } from 'react'
 import {
   Settings, Loader2, Plus, Trash2, GraduationCap, AlertCircle, Save,
-  CalendarDays, Clock, CheckCheck, LayoutDashboard, Store, Key, ChevronRight,
+  CalendarDays, Clock, CheckCheck, LayoutDashboard, Store, Key, ChevronRight, Users,
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -602,18 +602,44 @@ export default function SettingsPage() {
           )}
         </div>
 
+        {/* マスタ管理 */}
+        <div className="space-y-2">
+          <SectionLabel title="マスタ管理" />
+          <p className="text-xs text-gray-400">学校・商品・スタッフなどの基本データを管理します</p>
+          <div className="grid grid-cols-2 gap-2">
+            <Link href={`/${storeId}/admin/master`}
+              className="flex flex-col gap-2 px-3 py-3.5 rounded-xl bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 active:opacity-70 transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-8 h-8 rounded-lg bg-indigo-100 border border-indigo-200 flex items-center justify-center">
+                  <GraduationCap size={15} className="text-indigo-600" />
+                </div>
+                <ChevronRight size={13} className="text-indigo-400" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-indigo-700">学校・商品マスタ</p>
+                <p className="text-[10px] text-indigo-500 mt-0.5 leading-relaxed">学校ごとの商品・サイズ・価格を管理</p>
+              </div>
+            </Link>
+            <Link href={`/${storeId}/admin/master?tab=staff`}
+              className="flex flex-col gap-2 px-3 py-3.5 rounded-xl bg-violet-50 border border-violet-200 hover:bg-violet-100 active:opacity-70 transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-8 h-8 rounded-lg bg-violet-100 border border-violet-200 flex items-center justify-center">
+                  <Users size={15} className="text-violet-600" />
+                </div>
+                <ChevronRight size={13} className="text-violet-400" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-violet-700">スタッフマスタ</p>
+                <p className="text-[10px] text-violet-500 mt-0.5 leading-relaxed">スタッフ情報・役職・カラーを管理</p>
+              </div>
+            </Link>
+          </div>
+        </div>
+
         {/* 学校名マスタ */}
         <div className="space-y-2">
-          <SectionLabel title="学校名マスタ" />
-          <p className="text-xs text-gray-400">CRM・受付フォームの学校選択に表示されます</p>
-          <Link href={`/${storeId}/admin/master`}
-            className="flex items-center justify-between w-full px-3 py-2.5 rounded-xl bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 transition-all">
-            <div className="flex items-center gap-2">
-              <GraduationCap size={14} className="text-indigo-600" />
-              <span className="text-xs font-bold text-indigo-700">商品マスタ（学校 → 商品 → サイズ/価格）を管理</span>
-            </div>
-            <ChevronRight size={14} className="text-indigo-400" />
-          </Link>
+          <SectionLabel title="学校名マスタ（簡易）" />
+          <p className="text-xs text-gray-400">CRM・受付フォームの学校選択に表示されます。詳細な商品管理は上の「学校・商品マスタ」から。</p>
           <div className="space-y-1.5">
             {schoolNames.map((s, i) => (
               <div key={i} className="flex items-center gap-2">
