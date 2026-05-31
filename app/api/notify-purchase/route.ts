@@ -2,10 +2,12 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { getLiffBaseUrl, getLineToken } from '@/lib/line-config'
 
-const LIFF_URL = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || ''}`
+// 発注通知は制服販売店専用 → uniform アカウントで通知
+const TOKEN    = getLineToken('uniform')
+const LIFF_URL = getLiffBaseUrl('uniform')
 
-// POST { purchaseOrderId }
 export async function POST(req: NextRequest) {
   let purchaseOrderId: string | undefined
 
@@ -42,8 +44,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, skipped: true, reason: 'no line_user_id' })
   }
 
-  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN || ''
-
   const storeName  = store?.name ?? ''
   const storeLabel = storeName ? `【${storeName}】` : ''
   const priceText  = order.price != null ? `\n金額：¥${order.price.toLocaleString()}` : ''
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization:  `Bearer ${token}`,
+        Authorization:  `Bearer ${TOKEN}`,
       },
       body: JSON.stringify({
         to:       customer.line_user_id,

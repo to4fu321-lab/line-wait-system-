@@ -30,7 +30,7 @@ export default function LineHomePage() {
     const run = async () => {
       try {
         const liff = (await import('@line/liff')).default
-        const liffId = process.env.NEXT_PUBLIC_LIFF_ID ?? ''
+        const liffId = process.env.NEXT_PUBLIC_LIFF_ID_UNIFORM || process.env.NEXT_PUBLIC_LIFF_ID || ''
         await liff.init({ liffId })
 
         if (!liff.isInClient()) {

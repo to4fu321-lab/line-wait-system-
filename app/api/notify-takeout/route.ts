@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { getLineToken } from '@/lib/line-config'
 
-const LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN ?? ''
+// テイクアウト通知は takeout アカウントのトークンを使用
+const LINE_TOKEN = getLineToken('takeout')
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,9 +22,12 @@ export async function POST(req: NextRequest) {
     if (!order.line_user_id) return NextResponse.json({ ok: false, reason: 'no_line_user' })
     if (!LINE_TOKEN)         return NextResponse.json({ ok: false, reason: 'no_token' }, { status: 500 })
 
-    const settings  = (order.store?.takeout_settings ?? {}) as { notify_on_preparing?: boolean; notify_on_ready?: boolean }
+    const settings  = (order.store?.takeout_settings ?? {}) as { notify_on_confirmed?: boolean; notify_on_preparing?: boolean; notify_on_ready?: boolean }
     const storeName = order.store?.name ?? '店舗'
 
+    if (status === 'confirmed' && settings.notify_on_confirmed === false) {
+      return NextResponse.json({ ok: false, reason: 'disabled' })
+    }
     if (status === 'preparing' && settings.notify_on_preparing === false) {
       return NextResponse.json({ ok: false, reason: 'disabled' })
     }
@@ -30,7 +35,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, reason: 'disabled' })
     }
 
-    const message = status === 'preparing'
+    const message = status === 'confirmed'
+      ? `【${storeName}】\nご注文 ${order.order_number} を受け付けました！\nお支払いは受け取り時にお願いします。`
+      : status === 'preparing'
       ? `【${storeName}】\n${order.order_number} の調理を開始しました。\nしばらくお待ちください。`
       : `【${storeName}】\n${order.order_number} のご注文が完成しました！\nお受け取りをお願いします。`
 
@@ -45,7 +52,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, reason: 'line_error' }, { status: 500 })
     }
 
-    const field = status === 'preparing' ? 'notified_preparing' : 'notified_ready'
+    const field = status === 'confirmed' ? 'notified_confirmed' : status === 'preparing' ? 'notified_preparing' : 'notified_ready'
     await supabase.from('takeout_orders').update({ [field]: true }).eq('id', orderId)
 
     return NextResponse.json({ ok: true })
