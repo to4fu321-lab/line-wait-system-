@@ -575,6 +575,17 @@ export default function OrderPage() {
             </div>
           )}
 
+          {/* ─ リピート誘導バナー ─ */}
+          {currentOrder.line_user_id && (
+            <div className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 flex items-start gap-3">
+              <span className="text-xl shrink-0 mt-0.5">💡</span>
+              <p className="text-xs text-zinc-600 leading-relaxed">
+                <span className="font-bold text-zinc-800">次回からはLINEのメニューで再注文できます。</span><br />
+                このLINEアカウントを友達追加したままにしておくと、家からでもかんたんに注文できます。
+              </p>
+            </div>
+          )}
+
           {/* ─ Actions ─ */}
           {isDone ? (
             <button

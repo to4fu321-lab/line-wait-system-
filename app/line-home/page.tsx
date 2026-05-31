@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, QrCode, Store, ChevronRight } from 'lucide-react'
+import { Loader2, QrCode, Store, ChevronRight, ShoppingBag } from 'lucide-react'
 
-interface StoreInfo { id: string; name: string; is_open: boolean }
+type StoreType = 'uniform' | 'takeout'
+interface StoreInfo { id: string; name: string; is_open: boolean; type: StoreType }
 
-// アクション追加時はここに1行足すだけ
 const ACTION_LABELS: Record<string, string> = {
   queue:    '採寸の順番待ち',
   reserve:  '来店予約',
@@ -13,11 +13,11 @@ const ACTION_LABELS: Record<string, string> = {
   purchase: 'ネット注文',
 }
 
-// アクション追加時はここに1行足すだけ（path-based なら追記、それ以外はフォールバックで自動対応）
-function buildStoreUrl(storeId: string, action: string | null): string {
+function buildStoreUrl(storeId: string, type: StoreType, action: string | null): string {
+  if (type === 'takeout') return `/${storeId}/order`
   if (!action) return `/${storeId}`
   if (action === 'reserve') return `/${storeId}/reserve`
-  if (action === 'repair') return `/${storeId}/repair`
+  if (action === 'repair')  return `/${storeId}/repair`
   return `/${storeId}?action=${encodeURIComponent(action)}`
 }
 
@@ -50,10 +50,8 @@ export default function LineHomePage() {
         if (!found || found.length === 0) {
           setStatus('not_registered')
         } else if (found.length === 1) {
-          // 1店舗のみ → そのまま自動リダイレクト
-          window.location.href = buildStoreUrl(found[0].id, urlAction)
+          window.location.href = buildStoreUrl(found[0].id, found[0].type, urlAction)
         } else {
-          // 複数店舗 → 選択画面
           setStores(found)
           setStatus('select')
         }
@@ -73,6 +71,9 @@ export default function LineHomePage() {
   }
 
   if (status === 'select') {
+    const uniformStores = stores.filter(s => s.type === 'uniform')
+    const takeoutStores = stores.filter(s => s.type === 'takeout')
+
     return (
       <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-6">
         <div className="w-full max-w-sm">
@@ -85,28 +86,58 @@ export default function LineHomePage() {
                 {ACTION_LABELS[action]}
               </div>
             )}
-            <h1 className="text-xl font-black text-white">どちらの店舗ですか？</h1>
-            <p className="text-zinc-500 text-sm mt-1">本日ご利用の店舗を選んでください</p>
+            <h1 className="text-xl font-black text-white">ご利用の店舗を選択</h1>
+            <p className="text-zinc-500 text-sm mt-1">どちらをご利用ですか？</p>
           </div>
-          <div className="space-y-3">
-            {stores.map(s => (
-              <button
-                key={s.id}
-                onClick={() => { window.location.href = buildStoreUrl(s.id, action) }}
-                className="w-full flex items-center gap-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-indigo-500/40 active:scale-95 transition-all duration-150 rounded-2xl px-5 py-4 text-left"
-              >
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
-                  <Store size={18} className="text-indigo-400" />
+
+          <div className="space-y-6">
+            {/* 制服店 */}
+            {uniformStores.length > 0 && (
+              <div>
+                <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mb-2 px-1">🏫 制服・採寸</p>
+                <div className="space-y-2">
+                  {uniformStores.map(s => (
+                    <button key={s.id}
+                      onClick={() => { window.location.href = buildStoreUrl(s.id, 'uniform', action) }}
+                      className="w-full flex items-center gap-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-indigo-500/40 active:scale-95 transition-all duration-150 rounded-2xl px-5 py-4 text-left">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
+                        <Store size={18} className="text-indigo-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-base font-bold truncate">{s.name}</p>
+                        <p className={`text-xs font-bold mt-0.5 ${s.is_open ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                          {s.is_open ? '受付中' : '受付停止中'}
+                        </p>
+                      </div>
+                      <ChevronRight size={16} className="text-zinc-600 shrink-0" />
+                    </button>
+                  ))}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-base font-bold truncate">{s.name}</p>
-                  <p className={`text-xs font-bold mt-0.5 ${s.is_open ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                    {s.is_open ? '受付中' : '受付停止中'}
-                  </p>
+              </div>
+            )}
+
+            {/* テイクアウト店 */}
+            {takeoutStores.length > 0 && (
+              <div>
+                <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mb-2 px-1">🥡 テイクアウト・再注文</p>
+                <div className="space-y-2">
+                  {takeoutStores.map(s => (
+                    <button key={s.id}
+                      onClick={() => { window.location.href = buildStoreUrl(s.id, 'takeout', action) }}
+                      className="w-full flex items-center gap-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-orange-500/40 active:scale-95 transition-all duration-150 rounded-2xl px-5 py-4 text-left">
+                      <div className="w-10 h-10 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center shrink-0">
+                        <ShoppingBag size={18} className="text-orange-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-base font-bold truncate">{s.name}</p>
+                        <p className="text-xs font-bold mt-0.5 text-orange-400">再注文する</p>
+                      </div>
+                      <ChevronRight size={16} className="text-zinc-600 shrink-0" />
+                    </button>
+                  ))}
                 </div>
-                <ChevronRight size={16} className="text-zinc-600 shrink-0" />
-              </button>
-            ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -125,7 +156,7 @@ export default function LineHomePage() {
         <p className="text-zinc-400 text-sm leading-relaxed">
           お店に設置されているQRコードを<br />
           LINEカメラで読み取ると<br />
-          受付ページが開きます
+          受付・注文ページが開きます
         </p>
       </div>
     )
