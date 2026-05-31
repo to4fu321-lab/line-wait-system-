@@ -5,14 +5,14 @@ import { supabase } from '@/lib/supabase'
 import { triggerSound, unlockAudio, setSoundMuted, isSoundMuted } from '@/lib/kitchen-sounds'
 import type { TakeoutOrder, TakeoutSettings, Menu } from '@/types/takeout'
 import { getNextStatus, getUrgencyLevel, shouldNotify } from '@/types/takeout'
-import { guessMenuIcon } from '@/lib/menu-icons'
 import { useKitchenScheduler } from '@/lib/useKitchenScheduler'
-import ComboDisplay     from './_components/ComboDisplay'
-import OrderCard        from './_components/OrderCard'
-import ManualOrderModal from './_components/ManualOrderModal'
-import BatchView        from './_components/BatchView'
-import ItemCookView     from './_components/ItemCookView'
-import StarBurst        from './_components/StarBurst'
+import ComboDisplay        from './_components/ComboDisplay'
+import OrderCard           from './_components/OrderCard'
+import ManualOrderModal    from './_components/ManualOrderModal'
+import BatchView           from './_components/BatchView'
+import ItemCookView        from './_components/ItemCookView'
+import StarBurst           from './_components/StarBurst'
+import CustomerSearchModal from './_components/CustomerSearchModal'
 
 const WEEKDAYS       = ['日', '月', '火', '水', '木', '金', '土']
 const WEEKDAY_COLORS = ['text-red-400', 'text-zinc-300', 'text-zinc-300', 'text-zinc-300', 'text-zinc-300', 'text-zinc-300', 'text-blue-400']
@@ -82,12 +82,10 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
   const [maxCombo,   setMaxCombo]   = useState(0)
   const [todayCount, setTodayCount] = useState(0)
   const [loading,    setLoading]    = useState(true)
-  const [showManual,    setShowManual]    = useState(false)
-  const [showBatch,     setShowBatch]     = useState(false)
-  const [showSearch,    setShowSearch]    = useState(false)
-  const [searchQuery,   setSearchQuery]   = useState('')
-  const [cancelConfirm, setCancelConfirm] = useState<TakeoutOrder | null>(null)
-  const [burstTrigger,  setBurstTrigger]  = useState(0)
+  const [showManual,   setShowManual]   = useState(false)
+  const [showBatch,    setShowBatch]    = useState(false)
+  const [showSearch,   setShowSearch]   = useState(false)
+  const [burstTrigger, setBurstTrigger] = useState(0)
   const [soundEnabled,  setSoundEnabled]  = useState(() => {
     if (typeof window === 'undefined') return true
     return localStorage.getItem('kitchen_sound') !== 'off'
@@ -340,7 +338,7 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
           className="flex items-center gap-1 bg-zinc-800 text-zinc-300 text-sm px-3 py-2 rounded-lg active:scale-95 transition-transform">
           📋 バッチ
         </button>
-        <button onClick={() => { setShowSearch(true); setSearchQuery('') }}
+        <button onClick={() => setShowSearch(true)}
           className="flex items-center gap-1 bg-zinc-800 text-zinc-300 text-sm px-3 py-2 rounded-lg active:scale-95 transition-transform">
           🔍 検索
         </button>
@@ -418,109 +416,13 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
       )}
 
       {/* ─── 顧客検索モーダル ─── */}
-      {showSearch && (() => {
-        const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
-          pending:   { text: '受付中',   cls: 'bg-blue-900/60 text-blue-300'    },
-          preparing: { text: '調理中',   cls: 'bg-amber-900/60 text-amber-300'  },
-          ready:     { text: '完成待ち', cls: 'bg-emerald-900/60 text-emerald-300' },
-        }
-        const q = searchQuery.trim().toLowerCase()
-        const results = q
-          ? orders.filter(o => (o.customer_name ?? '').toLowerCase().includes(q))
-          : []
-
-        return (
-          <div className="fixed inset-0 z-50 flex flex-col bg-zinc-950">
-            {/* ─ 検索バー ─ */}
-            <div className="flex items-center gap-3 px-4 py-3 bg-zinc-900 border-b border-zinc-800 shrink-0">
-              <span className="text-lg shrink-0">🔍</span>
-              <input
-                autoFocus
-                value={searchQuery}
-                onChange={e => { setSearchQuery(e.target.value); setCancelConfirm(null) }}
-                placeholder="お客様名で検索..."
-                className="flex-1 bg-zinc-800 text-white text-base px-4 py-2.5 rounded-xl border border-zinc-700 outline-none placeholder:text-zinc-500"
-              />
-              <button
-                onClick={() => { setShowSearch(false); setSearchQuery(''); setCancelConfirm(null) }}
-                className="text-zinc-400 text-xl px-2"
-              >✕</button>
-            </div>
-
-            {/* ─ 検索結果 ─ */}
-            <div className="flex-1 overflow-y-auto p-4">
-              {q === '' ? (
-                <div className="text-center text-zinc-600 py-16 text-sm">お客様名を入力してください</div>
-              ) : results.length === 0 ? (
-                <div className="text-center text-zinc-600 py-16 text-sm">
-                  「{searchQuery}」に一致する注文はありません
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3 max-w-lg mx-auto">
-                  {results.map(order => {
-                    const sl = STATUS_LABEL[order.status]
-                    const isConfirming = cancelConfirm?.id === order.id
-                    return (
-                      <div key={order.id} className="bg-zinc-900 border border-zinc-700 rounded-2xl p-4">
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="text-3xl font-black font-mono text-white leading-none">
-                            {order.order_number}
-                          </span>
-                          {order.customer_name && (
-                            <span className="text-sm text-zinc-400">{order.customer_name}様</span>
-                          )}
-                          {sl && (
-                            <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-bold ${sl.cls}`}>
-                              {sl.text}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex flex-col gap-1 mb-3">
-                          {(order.items ?? []).map((item, i) => (
-                            <div key={i} className="flex items-center gap-2 text-sm text-zinc-400">
-                              <span className="text-base">{guessMenuIcon(item.name)}</span>
-                              <span className="flex-1">{item.name}</span>
-                              <span className="font-bold text-zinc-300">×{item.quantity}</span>
-                            </div>
-                          ))}
-                        </div>
-
-                        {isConfirming ? (
-                          <div className="flex gap-2">
-                            <button
-                              onClick={async () => {
-                                setCancelConfirm(null)
-                                await cancelOrder(order)
-                              }}
-                              className="flex-1 py-3 bg-red-600 text-white font-black text-sm rounded-xl active:bg-red-700"
-                            >
-                              キャンセルする
-                            </button>
-                            <button
-                              onClick={() => setCancelConfirm(null)}
-                              className="px-5 py-3 bg-zinc-800 text-zinc-300 font-bold text-sm rounded-xl active:bg-zinc-700"
-                            >
-                              戻る
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setCancelConfirm(order)}
-                            className="w-full py-2.5 border border-red-800/70 text-red-400 font-bold text-sm rounded-xl active:bg-red-950/40"
-                          >
-                            🗑 この注文をキャンセル
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        )
-      })()}
+      {showSearch && (
+        <CustomerSearchModal
+          storeId={storeId}
+          onClose={() => setShowSearch(false)}
+          onRefresh={loadOrders}
+        />
+      )}
     </div>
   )
 }
