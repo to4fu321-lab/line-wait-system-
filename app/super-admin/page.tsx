@@ -109,9 +109,10 @@ function StoreCard({
   const { store, waiting, calling, completed, total, repairPending, deliveryWaiting,
           takeoutPending, takeoutPreparing, takeoutReady, takeoutCompletedToday } = stat
 
-  const [name,     setName]     = useState(store.name)
-  const [pin,      setPin]      = useState(store.pin ?? '')
-  const [groupId,  setGroupId]  = useState(store.group_id ?? '')
+  const [name,    setName]    = useState(store.name)
+  const [pin,     setPin]     = useState(store.pin ?? '')
+  const [groupId, setGroupId] = useState(store.group_id ?? '')
+  const [bizType, setBizType] = useState<'uniform' | 'takeout'>((store.business_type as 'uniform' | 'takeout') ?? 'uniform')
   const [features, setFeatures] = useState<Record<string, boolean>>(store.features ?? {})
   const [saving,   setSaving]   = useState(false)
   const [msg,      setMsg]      = useState<{ ok: boolean; text: string } | null>(null)
@@ -120,7 +121,9 @@ function StoreCard({
   useEffect(() => {
     if (isEditing) {
       setName(store.name); setPin(store.pin ?? '')
-      setGroupId(store.group_id ?? ''); setFeatures(store.features ?? {})
+      setGroupId(store.group_id ?? '')
+      setBizType((store.business_type as 'uniform' | 'takeout') ?? 'uniform')
+      setFeatures(store.features ?? {})
       setMsg(null); setConfirmDelete(false)
     }
   }, [isEditing, store])
@@ -129,7 +132,7 @@ function StoreCard({
     setSaving(true); setMsg(null)
     const res = await fetch(`/api/super-admin/stores/${store.id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, pin, group_id: groupId || null, features }),
+      body: JSON.stringify({ name, pin, group_id: groupId || null, features, business_type: bizType }),
     })
     const j = await res.json()
     setSaving(false)
@@ -200,6 +203,19 @@ function StoreCard({
                 <option value="">— 独立 —</option>
                 {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>
+            </div>
+          </div>
+
+          {/* 業種 */}
+          <div>
+            <p className="text-[10px] text-gray-400 mb-1.5 uppercase tracking-wider">業種</p>
+            <div className="flex gap-2">
+              {([{ key: 'uniform', label: '🏫 制服販売' }, { key: 'takeout', label: '🥡 テイクアウト' }] as const).map(t => (
+                <button key={t.key} onClick={() => setBizType(t.key)}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${bizType === t.key ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400'}`}>
+                  {t.label}
+                </button>
+              ))}
             </div>
           </div>
 
