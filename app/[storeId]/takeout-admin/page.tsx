@@ -623,7 +623,10 @@ function SettingsTab({ storeId }: { storeId: string }) {
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-col gap-3">
         <div>
           <p className="text-sm font-bold text-gray-800">📲 LINEリッチメニュー</p>
-          <p className="text-xs text-gray-400 mt-0.5">「注文する」「注文状況を確認」の2パネルを自動生成してLINEに登録します</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            全店共通の4パネルメニュー（テイクアウト注文・採寸受付・来店予約・お直し依頼）を登録します。
+            LINEアカウントを複数業種で共有している場合でも1つのメニューで全対応できます。
+          </p>
         </div>
         <button onClick={applyRichmenu} disabled={richmenuApplying}
           className="w-full py-3 rounded-xl font-bold text-sm bg-green-500 text-white disabled:opacity-50 active:scale-98 transition-all flex items-center justify-center gap-2">

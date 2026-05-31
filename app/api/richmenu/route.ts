@@ -13,11 +13,11 @@ function getConfig() {
   return { liffId, token, liffBase, authHeader: { Authorization: `Bearer ${token}` } }
 }
 
-// ── リッチメニュー画像生成（next/og + Google Fonts）──────────
+// ── ユニバーサルリッチメニュー画像（4パネル・全業種共通）────────
 async function makeMenuPng(): Promise<Buffer> {
   let fontData: ArrayBuffer | null = null
   try {
-    const chars = encodeURIComponent('採寸の順番待ちをする来店予約依頼ネット注文')
+    const chars = encodeURIComponent('テイクアウト注文採寸受付来店予約お直し依頼')
     const css = await fetch(
       `https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@700&text=${chars}`,
       { headers: { 'User-Agent': 'Mozilla/5.0 (compatible)' } }
@@ -27,10 +27,10 @@ async function makeMenuPng(): Promise<Buffer> {
   } catch { /* フォント取得失敗時は続行 */ }
 
   const sections = [
-    { lines: ['採寸に', '今すぐ並ぶ'],      emoji: '📋', bg: '#4f46e5' },
-    { lines: ['来店予約'],                emoji: '📅', bg: '#0d9488' },
-    { lines: ['依頼'],                    emoji: '✂️', bg: '#7c3aed' },
-    { lines: ['ネット注文'],              emoji: '🛍️', bg: '#2563eb' },
+    { lines: ['テイクアウト', '注文'],  emoji: '🥡', bg: '#ea580c' },
+    { lines: ['採寸・受付'],           emoji: '📋', bg: '#4f46e5' },
+    { lines: ['来店予約'],             emoji: '📅', bg: '#0d9488' },
+    { lines: ['お直し依頼'],           emoji: '✂️', bg: '#7c3aed' },
   ]
 
   const fontFamily = fontData ? '"Noto Sans JP", sans-serif' : 'sans-serif'
@@ -47,12 +47,12 @@ async function makeMenuPng(): Promise<Buffer> {
             borderRight: i < 3 ? '4px solid rgba(255,255,255,0.3)' : 'none',
           },
         },
-          h('div', { style: { fontSize: 130, lineHeight: 1 } }, s.emoji),
+          h('div', { style: { fontSize: 120, lineHeight: 1 } }, s.emoji),
           h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 } },
             ...s.lines.map((line, j) =>
               h('div', {
                 key: j,
-                style: { fontSize: 90, fontWeight: 700, color: '#fff', letterSpacing: '-1px', lineHeight: 1.1 },
+                style: { fontSize: 85, fontWeight: 700, color: '#fff', letterSpacing: '-1px', lineHeight: 1.15 },
               }, line)
             )
           )
@@ -151,29 +151,15 @@ export async function POST(req: NextRequest) {
       ))
     }
 
-    // 2. 業種別レイアウト
-    let areas: object[]
-    let png: Buffer
-
-    if (storeType === 'takeout') {
-      // テイクアウト: 2パネル（注文する / 注文状況を確認）
-      const orderUrl = `${liffBase}/${storeId}/order`
-      areas = [
-        { bounds: { x:    0, y: 0, width: 1250, height: 843 }, action: { type: 'uri', uri: orderUrl, label: '注文する' } },
-        { bounds: { x: 1250, y: 0, width: 1250, height: 843 }, action: { type: 'uri', uri: orderUrl, label: '注文状況を確認' } },
-      ]
-      png = await makeMenuPngTakeout(name)
-    } else {
-      // 制服店: 4パネル（採寸 / 来店予約 / 依頼 / ネット注文）
-      const base = `${liffBase}/line-home`
-      areas = [
-        { bounds: { x:    0, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=queue`,    label: '採寸に今すぐ並ぶ' } },
-        { bounds: { x:  625, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=reserve`,  label: '来店予約' } },
-        { bounds: { x: 1250, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=repair`,   label: '依頼' } },
-        { bounds: { x: 1875, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=purchase`, label: 'ネット注文' } },
-      ]
-      png = await makeMenuPng()
-    }
+    // 2. 全業種共通 4パネル（すべて line-home 経由でルーティング）
+    const base = `${liffBase}/line-home`
+    const areas = [
+      { bounds: { x:    0, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=order`,   label: 'テイクアウト注文' } },
+      { bounds: { x:  625, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=queue`,   label: '採寸・受付' } },
+      { bounds: { x: 1250, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=reserve`, label: '来店予約' } },
+      { bounds: { x: 1875, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=repair`,  label: 'お直し依頼' } },
+    ]
+    const png = await makeMenuPng()
 
     // 3. 新規メニュー作成
     const createRes = await fetch(`${LINE_API}/richmenu`, {

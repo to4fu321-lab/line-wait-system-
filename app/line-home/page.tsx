@@ -15,7 +15,7 @@ const ACTION_LABELS: Record<string, string> = {
 
 function buildStoreUrl(storeId: string, type: StoreType, action: string | null): string {
   if (type === 'takeout') return `/${storeId}/order`
-  if (!action) return `/${storeId}`
+  if (!action || action === 'order') return `/${storeId}`
   if (action === 'reserve') return `/${storeId}/reserve`
   if (action === 'repair')  return `/${storeId}/repair`
   return `/${storeId}?action=${encodeURIComponent(action)}`
@@ -52,6 +52,14 @@ export default function LineHomePage() {
         } else if (found.length === 1) {
           window.location.href = buildStoreUrl(found[0].id, found[0].type, urlAction)
         } else {
+          // action=order の場合はテイクアウト店が1件だけなら直行
+          if (urlAction === 'order') {
+            const takeoutStores = found.filter((s: StoreInfo) => s.type === 'takeout')
+            if (takeoutStores.length === 1) {
+              window.location.href = `/${takeoutStores[0].id}/order`
+              return
+            }
+          }
           setStores(found)
           setStatus('select')
         }
