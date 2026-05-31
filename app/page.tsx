@@ -100,9 +100,19 @@ export default function RootPage() {
           </div>
         )}
 
-        <p className="text-center text-[11px] text-zinc-400 mt-8">
-          Powered by LINE × Next.js
-        </p>
+        <div className="mt-8 flex flex-col items-center gap-3">
+          <Link
+            href="/super-admin"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100/60 transition-colors"
+          >
+            <span>🏢</span>
+            <span>総管理ダッシュボード</span>
+            <span className="text-zinc-300">→</span>
+          </Link>
+          <p className="text-[11px] text-zinc-400">
+            Powered by LINE × Next.js
+          </p>
+        </div>
       </div>
     </main>
   )
