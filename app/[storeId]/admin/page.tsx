@@ -54,9 +54,15 @@ function StoreSelectScreen({ stores, groupCode, onSelect }: { stores: StoreInfo[
             <ChevronRight size={16} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
           </button>
         ))}
-        <div className="pt-4 border-t border-gray-200">
-          <a href={groupCode ? `/company/${groupCode}` : '/super-admin'} className="flex items-center gap-3 text-gray-500 hover:text-gray-700 transition-colors py-2 px-1 text-sm">
-            <LayoutDashboard size={15} /><span>{groupCode ? '会社管理ダッシュボード' : '総管理ダッシュボード'}</span>
+        <div className="pt-4 border-t border-gray-200 space-y-1">
+          {groupCode && (
+            <a href={`/company/${groupCode}`} className="flex items-center gap-3 text-indigo-600 hover:text-indigo-700 transition-colors py-2 px-1 text-sm font-bold">
+              <LayoutDashboard size={15} /><span>会社管理ダッシュボード</span>
+              <ChevronRight size={13} className="ml-auto" />
+            </a>
+          )}
+          <a href="/super-admin" className="flex items-center gap-3 text-gray-400 hover:text-gray-600 transition-colors py-2 px-1 text-sm">
+            <LayoutDashboard size={15} /><span>総管理ダッシュボード</span>
             <ChevronRight size={13} className="ml-auto" />
           </a>
         </div>
@@ -906,7 +912,7 @@ export default function StoreAdminPage() {
   const [view,          setView]          = useState<AdminView>('loading')
   const [stores,        setStores]        = useState<StoreInfo[]>([])
   const [groupStores,   setGroupStores]   = useState<StoreInfo[]>([])
-  const [groupCode,     setGroupCode]     = useState<string | null>(null)
+  const [groupCode,     setGroupCode]     = useState<string | null>(() => sessionStorage.getItem('admin_group_code'))
   const [selectedStore, setSelectedStore] = useState<StoreInfo | null>(null)
   const [fetchError,    setFetchError]    = useState<string | null>(null)
 

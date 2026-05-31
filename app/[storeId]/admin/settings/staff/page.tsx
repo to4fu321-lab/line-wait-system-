@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { Bell, BellOff, Store, Clock, Loader2, Check, GraduationCap, Users, ChevronRight } from 'lucide-react'
+import { Bell, BellOff, Store, Clock, Loader2, Check, GraduationCap, Users, ChevronRight, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../../_components/BottomNav'
@@ -251,6 +251,19 @@ export default function StaffSettingsPage() {
             <div className="shrink-0 w-4 h-4 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/50" />
           )}
         </button>
+
+        {/* 管理者用詳細設定リンク */}
+        <Link href={`/${storeId}/admin/settings`}
+          className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-gray-200 bg-white hover:bg-gray-50 active:scale-[0.98] transition-all">
+          <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center shrink-0">
+            <Settings size={26} className="text-indigo-600" />
+          </div>
+          <div className="text-left flex-1">
+            <p className="font-black text-lg text-gray-700">管理者用詳細設定</p>
+            <p className="text-gray-500 text-sm mt-0.5">通知・予約・LINEなど全設定</p>
+          </div>
+          <ChevronRight size={18} className="text-gray-400 shrink-0" />
+        </Link>
 
         {/* ② 店舗を切り替える */}
         <button
