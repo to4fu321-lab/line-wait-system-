@@ -985,9 +985,11 @@ export default function CRMPage() {
   const [customers,        setCustomers]        = useState<Customer[]>([])
   const [searchQuery,      setSearchQuery]      = useState('')
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
-  const [editingCustomer,  setEditingCustomer]  = useState(false)
-  const [customerChildren, setCustomerChildren] = useState<Child[]>([])
-  const [editingChild,     setEditingChild]     = useState<Child | null>(null)
+  const [editingCustomer,    setEditingCustomer]    = useState(false)
+  const [editingStaffNotes,  setEditingStaffNotes]  = useState(false)
+  const [staffNotesInput,    setStaffNotesInput]    = useState('')
+  const [customerChildren,   setCustomerChildren]   = useState<Child[]>([])
+  const [editingChild,       setEditingChild]       = useState<Child | null>(null)
   const [showAddChild,     setShowAddChild]     = useState(false)
   const [customerLoading,  setCustomerLoading]  = useState(false)
   const [childMatchMap,    setChildMatchMap]    = useState<Record<string, string>>({}) // customerId -> matched child name
@@ -1683,7 +1685,7 @@ export default function CRMPage() {
                   const isOpen = selectedCustomer?.id === c.id
                   return (
                   <Fragment key={c.id}>
-                    <button onClick={() => { setSelectedCustomer(prev => prev?.id === c.id ? null : c); setEditingCustomer(false); setShowAddChild(false) }}
+                    <button onClick={() => { setSelectedCustomer(prev => prev?.id === c.id ? null : c); setEditingCustomer(false); setEditingStaffNotes(false); setShowAddChild(false) }}
                       className={`w-full text-left px-4 py-3 rounded-xl border transition-all active:scale-[0.98] ${
                         isOpen
                           ? 'bg-indigo-50 border-indigo-400 text-gray-900 rounded-b-none border-b-0'
@@ -1725,6 +1727,9 @@ export default function CRMPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
+                          {(c as any).staff_notes && (
+                            <span className="text-[11px]" title="引き継ぎノートあり">📝</span>
+                          )}
                           {c.line_user_id
                             ? <MessageCircle size={13} className="text-emerald-600" />
                             : <span className="text-[10px] text-gray-500">LINE未</span>
@@ -1795,6 +1800,53 @@ export default function CRMPage() {
                                 )}
                               </div>
                             </div>
+                          </div>
+                        )}
+
+                        {/* 引き継ぎノート */}
+                        {!editingCustomer && selectedCustomer && (
+                          <div className="bg-white border border-gray-200 rounded-2xl p-3">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <p className="text-xs font-bold text-gray-600 flex items-center gap-1">📝 引き継ぎノート</p>
+                              {!editingStaffNotes && (
+                                <button
+                                  onClick={() => { setEditingStaffNotes(true); setStaffNotesInput((selectedCustomer as any).staff_notes ?? '') }}
+                                  className="text-[10px] text-gray-400 hover:text-gray-700 px-2 py-0.5 rounded-lg border border-gray-200 hover:border-gray-400 transition-all">
+                                  編集
+                                </button>
+                              )}
+                            </div>
+                            {editingStaffNotes ? (
+                              <div className="space-y-2">
+                                <textarea
+                                  rows={3}
+                                  value={staffNotesInput}
+                                  onChange={e => setStaffNotesInput(e.target.value)}
+                                  placeholder="スタッフ間の引き継ぎ事項・クレーム履歴・対応メモ等"
+                                  className="w-full text-xs border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-400 resize-none bg-gray-50"
+                                />
+                                <div className="flex gap-2">
+                                  <button onClick={() => setEditingStaffNotes(false)}
+                                    className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-gray-100 text-gray-600">キャンセル</button>
+                                  <button onClick={async () => {
+                                    const { data, error: err } = await supabase.from('customers')
+                                      .update({ staff_notes: staffNotesInput.trim() || null } as any)
+                                      .eq('id', selectedCustomer.id).select().single()
+                                    if (err) { showToast('err', '保存失敗'); return }
+                                    const updated = { ...selectedCustomer, staff_notes: staffNotesInput.trim() || null } as any
+                                    setSelectedCustomer(updated)
+                                    setCustomers(prev => prev.map(cu => cu.id === updated.id ? updated : cu))
+                                    setEditingStaffNotes(false)
+                                    showToast('ok', '引き継ぎノートを保存しました')
+                                  }}
+                                    className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 text-white">保存</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">
+                                {(selectedCustomer as any).staff_notes || <span className="text-gray-400">まだノートはありません</span>}
+                              </p>
+                            )}
                           </div>
                         )}
 

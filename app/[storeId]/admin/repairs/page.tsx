@@ -67,6 +67,7 @@ interface DeliveryItem {
   slip_number:    string | null
   notified:       boolean
   payment_status: string | null
+  delivered_by:   string | null
   customer:       { name: string; tel: string | null } | null
   child:          { name: string; school_name: string | null } | null
 }
@@ -90,6 +91,7 @@ function rawToItem(row: Record<string, unknown>, kind: 'repair' | 'purchase'): D
     slip_number:    kind === 'repair' ? (row.slip_number as string | null) : null,
     notified:       (row.notified as boolean) ?? false,
     payment_status: row.payment_status as string | null ?? null,
+    delivered_by:   row.delivered_by as string | null ?? null,
     customer:       row.customer as { name: string; tel: string | null } | null,
     child:          row.child as { name: string; school_name: string | null } | null,
   }
@@ -814,7 +816,7 @@ function PaymentBadge({ status, onToggle, loading }: {
 function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRevertWaiting, onDelete }: {
   item: DeliveryItem
   alertDays: number
-  onDeliver: (item: DeliveryItem, paid: boolean) => Promise<void>
+  onDeliver: (item: DeliveryItem, paid: boolean, deliveredBy: string) => Promise<void>
   onPaymentToggle: (item: DeliveryItem) => Promise<void>
   onRevertWaiting: (item: DeliveryItem) => Promise<void>
   onDelete: (item: DeliveryItem) => Promise<void>
@@ -825,12 +827,12 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRevertWait
   const [confirmRevert, setConfirmRevert] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [loading,       setLoading]       = useState<string | null>(null)
+  const [staffName,     setStaffName]     = useState('')
 
-  const isOverdue = item.ready_date &&
-    (Date.now() - new Date(item.ready_date).getTime()) / 86400000 > alertDays
-  const overdueDays = isOverdue
-    ? Math.floor((Date.now() - new Date(item.ready_date!).getTime()) / 86400000)
+  const waitDays = item.ready_date
+    ? Math.floor((Date.now() - new Date(item.ready_date).getTime()) / 86400000)
     : 0
+  const alertLevel = waitDays >= 14 ? 3 : waitDays >= 7 ? 2 : waitDays >= 3 ? 1 : 0
 
   const studentName = item.child?.name ?? item.customer?.name ?? '（名前なし）'
   const parentName  = item.child ? item.customer?.name : null
@@ -838,7 +840,9 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRevertWait
 
   return (
     <div className={`border rounded-xl shadow-sm overflow-hidden ${
-      isOverdue ? 'bg-red-50 border-red-300' : 'bg-white border-slate-200'
+      alertLevel >= 2 ? 'bg-red-50 border-red-300'
+      : alertLevel === 1 ? 'bg-amber-50 border-amber-200'
+      : 'bg-white border-slate-200'
     }`}>
       {/* Compact content area */}
       <div className="px-3 pt-3 pb-2">
@@ -852,9 +856,19 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRevertWait
               }`}>
                 {item.kind === 'repair' ? '✂️ お直し完了' : '📦 入荷済み'}
               </span>
-              {isOverdue && (
+              {alertLevel === 1 && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300 flex items-center gap-0.5">
+                  ⚠️ {waitDays}日経過
+                </span>
+              )}
+              {alertLevel === 2 && (
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-300 flex items-center gap-0.5">
-                  <AlertCircle size={8} />{overdueDays}日超過
+                  🚨 1週間放置
+                </span>
+              )}
+              {alertLevel >= 3 && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-600 text-white border border-red-600 flex items-center gap-0.5 animate-pulse">
+                  📢 要連絡
                 </span>
               )}
               {item.notified && (
@@ -950,6 +964,13 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRevertWait
       ) : (
         <div className="px-3 pb-3 space-y-2 border-t border-slate-100 pt-2">
           <p className="text-xs font-black text-gray-900 text-center">お渡し確認</p>
+          <input
+            type="text"
+            value={staffName}
+            onChange={e => setStaffName(e.target.value)}
+            placeholder="担当スタッフ名（任意）"
+            className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-indigo-400"
+          />
           <button onClick={() => setPayAtDeliver(v => !v)}
             className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border-2 transition-all ${
               payAtDeliver ? 'border-emerald-500 bg-emerald-500/10' : 'border-gray-300 bg-gray-200/50'
@@ -976,7 +997,7 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRevertWait
                   className="flex-1 py-1.5 rounded-xl font-bold text-xs bg-gray-200 text-gray-700">戻る</button>
                 <button onClick={async () => {
                   setUnpaidConfirm(false); setLoading('deliver')
-                  await onDeliver(item, false); setLoading(null); setConfirmOpen(false)
+                  await onDeliver(item, false, staffName); setLoading(null); setConfirmOpen(false)
                 }} disabled={!!loading}
                   className="flex-1 py-1.5 rounded-xl font-bold text-xs bg-red-600 text-white disabled:opacity-50 flex items-center justify-center gap-1">
                   {loading === 'deliver' ? <Loader2 size={11} className="animate-spin" /> : '未払いのままお渡し'}
@@ -990,7 +1011,7 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRevertWait
             <button onClick={async () => {
               if (!payAtDeliver && item.payment_status !== 'paid') { setUnpaidConfirm(true); return }
               setLoading('deliver')
-              await onDeliver(item, payAtDeliver)
+              await onDeliver(item, payAtDeliver, staffName)
               setLoading(null); setConfirmOpen(false)
             }} disabled={!!loading || unpaidConfirm}
               className="py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white disabled:opacity-50 flex items-center justify-center gap-1.5">
@@ -1049,6 +1070,9 @@ function CompletedCard({ item, onRevert, onPaymentToggle }: {
             <span className="flex items-center gap-1"><CalendarDays size={9} />受付 {fmtDate(item.received_date)}</span>
             {item.delivered_date && (
               <span className="flex items-center gap-1"><Package size={9} />お渡し {fmtDate(item.delivered_date)}</span>
+            )}
+            {item.delivered_by && (
+              <span className="flex items-center gap-1 text-indigo-400">👤 {item.delivered_by}</span>
             )}
           </div>
         </div>
@@ -1300,10 +1324,11 @@ export default function RepairsPage() {
   }, [tab, deliverySubTab, histFetched, fetchHistory])
 
   // ── Delivery actions ───────────────────────────────────────
-  const handleDeliver = useCallback(async (item: DeliveryItem, paid: boolean) => {
+  const handleDeliver = useCallback(async (item: DeliveryItem, paid: boolean, deliveredBy: string) => {
     const table = item.kind === 'repair' ? 'repair_histories' : 'purchase_orders'
     const update: Record<string, unknown> = { status: 'delivered', delivered_date: todayJst() }
     if (paid) update.payment_status = 'paid'
+    if (deliveredBy.trim()) update.delivered_by = deliveredBy.trim()
     const { error } = await (supabase as any).from(table).update(update).eq('id', item.id)
     if (error) { showToast('err', `受渡処理失敗: ${error.message}`); return }
     setWaiting(prev => prev.filter(i => i.id !== item.id))
