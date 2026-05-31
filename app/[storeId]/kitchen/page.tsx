@@ -14,6 +14,53 @@ import ItemCookView        from './_components/ItemCookView'
 import StarBurst           from './_components/StarBurst'
 import CustomerSearchModal from './_components/CustomerSearchModal'
 
+// ── QRコードモーダル ──────────────────────────────────────────
+function QRModal({ storeId, storeName, onClose }: { storeId: string; storeName: string; onClose: () => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [copied, setCopied] = useState(false)
+  const liffId  = process.env.NEXT_PUBLIC_LIFF_ID || ''
+  const orderUrl = liffId
+    ? `https://liff.line.me/${liffId}/${storeId}/order`
+    : `${typeof window !== 'undefined' ? window.location.origin : ''}/${storeId}/order`
+
+  useEffect(() => {
+    import('qrcode').then(QRCode => {
+      if (canvasRef.current) {
+        QRCode.toCanvas(canvasRef.current, orderUrl, {
+          width: 240, margin: 2,
+          color: { dark: '#000000', light: '#ffffff' },
+        })
+      }
+    })
+  }, [orderUrl])
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(orderUrl).catch(() => {})
+    setCopied(true); setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl p-6 w-full max-w-xs flex flex-col items-center gap-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between w-full">
+          <p className="font-bold text-gray-900 text-base">お客様用 注文QR</p>
+          <button onClick={onClose} className="text-gray-400 text-xl w-7 h-7 flex items-center justify-center">×</button>
+        </div>
+        <p className="text-xs text-gray-500 text-center -mt-2">{storeName}</p>
+        <canvas ref={canvasRef} className="rounded-xl" />
+        <div className="w-full bg-gray-50 rounded-xl px-3 py-2 flex items-center gap-2">
+          <p className="flex-1 text-[10px] text-gray-500 break-all leading-relaxed">{orderUrl}</p>
+          <button onClick={copy}
+            className={`shrink-0 text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors ${copied ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}>
+            {copied ? '✓' : 'コピー'}
+          </button>
+        </div>
+        <p className="text-[10px] text-gray-400 text-center">LINEアプリで読み取るとそのまま注文できます</p>
+      </div>
+    </div>
+  )
+}
+
 const WEEKDAYS       = ['日', '月', '火', '水', '木', '金', '土']
 const WEEKDAY_COLORS = ['text-red-400', 'text-zinc-300', 'text-zinc-300', 'text-zinc-300', 'text-zinc-300', 'text-zinc-300', 'text-blue-400']
 
@@ -85,6 +132,7 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
   const [showManual,   setShowManual]   = useState(false)
   const [showBatch,    setShowBatch]    = useState(false)
   const [showSearch,   setShowSearch]   = useState(false)
+  const [showQR,       setShowQR]       = useState(false)
   const [burstTrigger, setBurstTrigger] = useState(0)
   const [soundEnabled,  setSoundEnabled]  = useState(() => {
     if (typeof window === 'undefined') return true
@@ -310,6 +358,10 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
             >
               {soundEnabled ? '🔊' : '🔇'}
             </button>
+            <button onClick={() => setShowQR(true)}
+              className="text-xs text-zinc-400 bg-zinc-800 px-2.5 py-1 rounded-lg border border-zinc-700/60 active:scale-90 transition-transform">
+              📲 QR
+            </button>
             <a href={`/${storeId}/takeout-admin`}
               className="text-xs text-zinc-400 bg-zinc-800 px-2.5 py-1 rounded-lg border border-zinc-700/60">
               ⚙️ 管理
@@ -422,6 +474,9 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
           onClose={() => setShowSearch(false)}
           onRefresh={loadOrders}
         />
+      )}
+      {showQR && (
+        <QRModal storeId={storeId} storeName={storeName} onClose={() => setShowQR(false)} />
       )}
     </div>
   )
