@@ -6,8 +6,8 @@
 
 DO $$
 DECLARE
-  v_store_ids text[];
-  v_sid       text;
+  v_store_ids uuid[];
+  v_sid       uuid;
   v_school1   uuid;
   v_school2   uuid;
   v_school3   uuid;
