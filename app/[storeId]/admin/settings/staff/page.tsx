@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { Bell, BellOff, Store, Clock, Loader2, Check } from 'lucide-react'
+import { Bell, BellOff, Store, Clock, Loader2, Check, GraduationCap, Users, ChevronRight } from 'lucide-react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../../_components/BottomNav'
 
@@ -176,6 +177,39 @@ export default function StaffSettingsPage() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-5 space-y-4 pb-32">
+
+        {/* マスタ管理 */}
+        <div className="space-y-3">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">マスタ管理</p>
+          <div className="grid grid-cols-2 gap-3">
+            <Link href={`/${storeId}/admin/master`}
+              className="flex flex-col gap-3 px-4 py-4 rounded-2xl bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 active:scale-[0.98] transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center">
+                  <GraduationCap size={20} className="text-indigo-600" />
+                </div>
+                <ChevronRight size={14} className="text-indigo-400" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-indigo-700">学校・商品</p>
+                <p className="text-xs text-indigo-500 mt-0.5 leading-relaxed">学校ごとの商品・サイズ・価格</p>
+              </div>
+            </Link>
+            <Link href={`/${storeId}/admin/master?tab=staff`}
+              className="flex flex-col gap-3 px-4 py-4 rounded-2xl bg-violet-50 border border-violet-200 hover:bg-violet-100 active:scale-[0.98] transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-violet-100 border border-violet-200 flex items-center justify-center">
+                  <Users size={20} className="text-violet-600" />
+                </div>
+                <ChevronRight size={14} className="text-violet-400" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-violet-700">スタッフ</p>
+                <p className="text-xs text-violet-500 mt-0.5 leading-relaxed">スタッフ情報・役職・カラー</p>
+              </div>
+            </Link>
+          </div>
+        </div>
 
         {/* ① 受付通知 */}
         <button
