@@ -308,8 +308,8 @@ export default function CustomerPage() {
     if (!storeId) return
     ;(async () => { try {
       const { data: sd } = await (supabase.from('stores') as any)
-        .select('is_open, wait_thresholds, notification_plan, active_fittings, store_type').eq('id', storeId).single()
-      if (sd?.store_type === 'takeout') { router.replace(`/${storeId}/order`); return }
+        .select('is_open, wait_thresholds, notification_plan, active_fittings, business_type').eq('id', storeId).single()
+      if (sd?.business_type === 'takeout') { router.replace(`/${storeId}/order`); return }
       if (sd && Array.isArray(sd.wait_thresholds) && sd.wait_thresholds.length > 0)
         setWaitThresholds(sd.wait_thresholds as WaitThreshold[])
       if (sd?.notification_plan) notificationPlanRef.current = sd.notification_plan
