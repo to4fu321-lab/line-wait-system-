@@ -4,8 +4,9 @@ import { useParams } from 'next/navigation'
 import { useEffect, useState, useCallback } from 'react'
 import {
   Settings, Loader2, Plus, Trash2, GraduationCap, AlertCircle, Save,
-  CalendarDays, Clock, CheckCheck, LayoutDashboard, Store, Key,
+  CalendarDays, Clock, CheckCheck, LayoutDashboard, Store, Key, ChevronRight,
 } from 'lucide-react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { WaitThreshold } from '@/types/database'
 import { DEFAULT_THRESHOLDS } from '@/types/database'
@@ -605,6 +606,14 @@ export default function SettingsPage() {
         <div className="space-y-2">
           <SectionLabel title="学校名マスタ" />
           <p className="text-xs text-gray-400">CRM・受付フォームの学校選択に表示されます</p>
+          <Link href={`/${storeId}/admin/master`}
+            className="flex items-center justify-between w-full px-3 py-2.5 rounded-xl bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 transition-all">
+            <div className="flex items-center gap-2">
+              <GraduationCap size={14} className="text-indigo-600" />
+              <span className="text-xs font-bold text-indigo-700">商品マスタ（学校 → 商品 → サイズ/価格）を管理</span>
+            </div>
+            <ChevronRight size={14} className="text-indigo-400" />
+          </Link>
           <div className="space-y-1.5">
             {schoolNames.map((s, i) => (
               <div key={i} className="flex items-center gap-2">
