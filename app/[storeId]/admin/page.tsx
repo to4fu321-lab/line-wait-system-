@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import {
   BellRing, CheckCheck, UserX, RefreshCw, Clock, Users,
   Loader2, Store, Phone, User, GraduationCap,
@@ -28,7 +28,7 @@ function urlBase64ToUint8Array(base64: string) {
 type AdminView  = 'loading' | 'select_store' | 'pin' | 'dashboard'
 type HistoryTab = 'completed' | 'cancelled'
 
-interface StoreInfo { id: string; name: string; pin: string; group_id?: string | null }
+interface StoreInfo { id: string; name: string; pin: string; group_id?: string | null; business_type?: string }
 
 // ============================================================
 // 店舗選択画面
@@ -909,6 +909,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
 // ============================================================
 export default function StoreAdminPage() {
   const { storeId } = useParams<{ storeId: string }>()
+  const router = useRouter()
   const [view,          setView]          = useState<AdminView>('loading')
   const [stores,        setStores]        = useState<StoreInfo[]>([])
   const [groupStores,   setGroupStores]   = useState<StoreInfo[]>([])
@@ -923,7 +924,7 @@ export default function StoreAdminPage() {
   }, [])
 
   useEffect(() => {
-    supabase.from('stores').select('id, name, pin, group_id').order('name', { ascending: true })
+    supabase.from('stores').select('id, name, pin, group_id, business_type').order('name', { ascending: true })
       .then(({ data, error }) => {
         if (error || !data || data.length === 0) {
           setFetchError(error?.message ?? '店舗データが見つかりません'); setView('select_store'); return
@@ -937,6 +938,7 @@ export default function StoreAdminPage() {
             setGroupStores((data as StoreInfo[]).filter(s => s.group_id === match.group_id))
             const gc = sessionStorage.getItem('admin_group_code')
             if (gc) setGroupCode(gc); else loadGroupCode(match)
+            if (match.business_type === 'takeout') { router.replace(`/${match.id}/kitchen`); return }
             setView('dashboard'); return
           }
         }
@@ -958,6 +960,10 @@ export default function StoreAdminPage() {
       sessionStorage.setItem('admin_store_id', selectedStore.id)
       sessionStorage.setItem('admin_auth', '1')
       loadGroupCode(selectedStore)
+      if (selectedStore.business_type === 'takeout') {
+        router.replace(`/${selectedStore.id}/kitchen`)
+        return
+      }
     }
     setView('dashboard')
   }

@@ -209,6 +209,15 @@ export default function OrderPage() {
       subscribeOrder(orderId)
       setCart([])
       setView('ordered')
+
+      // 受付通知（fire-and-forget）
+      if (lineProfile?.userId) {
+        fetch('/api/notify-takeout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId, status: 'confirmed' }),
+        }).catch(() => {/* 通知失敗は無視 */})
+      }
     } catch (e) {
       console.error('[handleSubmit]', e)
       alert('注文の送信に失敗しました。もう一度お試しください。')
