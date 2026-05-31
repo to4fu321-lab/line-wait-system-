@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import {
   CheckCircle2, MessageCircle, Loader2, Clock,
   ChevronRight, ChevronDown, ChevronUp, Users, AlertCircle, Plus, GraduationCap, Pencil,
@@ -258,6 +258,7 @@ function WaitingCustomerEditForm({
 // ── メインコンポーネント ────────────────────────────────────
 export default function CustomerPage() {
   const { storeId } = useParams<{ storeId: string }>()
+  const router = useRouter()
   const theme = useStoreTheme()
 
   const [view,           setView]           = useState<View>('loading')
@@ -307,7 +308,8 @@ export default function CustomerPage() {
     if (!storeId) return
     ;(async () => { try {
       const { data: sd } = await (supabase.from('stores') as any)
-        .select('is_open, wait_thresholds, notification_plan, active_fittings').eq('id', storeId).single()
+        .select('is_open, wait_thresholds, notification_plan, active_fittings, store_type').eq('id', storeId).single()
+      if (sd?.store_type === 'takeout') { router.replace(`/${storeId}/order`); return }
       if (sd && Array.isArray(sd.wait_thresholds) && sd.wait_thresholds.length > 0)
         setWaitThresholds(sd.wait_thresholds as WaitThreshold[])
       if (sd?.notification_plan) notificationPlanRef.current = sd.notification_plan
