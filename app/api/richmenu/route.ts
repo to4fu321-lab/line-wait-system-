@@ -70,7 +70,53 @@ async function makeMenuPng(): Promise<Buffer> {
   return Buffer.from(await img.arrayBuffer())
 }
 
-// GET ?storeId=&storeName= → ブラウザから直接設定可能
+// ── テイクアウト用リッチメニュー画像（2パネル）──────────────
+async function makeMenuPngTakeout(storeName: string): Promise<Buffer> {
+  let fontData: ArrayBuffer | null = null
+  try {
+    const chars = encodeURIComponent('注文する状況を確認' + storeName)
+    const css = await fetch(
+      `https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@700&text=${chars}`,
+      { headers: { 'User-Agent': 'Mozilla/5.0 (compatible)' } }
+    ).then(r => r.text())
+    const m = css.match(/src: url\((.+?)\) format/)
+    if (m) fontData = await fetch(m[1]).then(r => r.arrayBuffer())
+  } catch { /* フォント取得失敗時は続行 */ }
+
+  const fontFamily = fontData ? '"Noto Sans JP", sans-serif' : 'sans-serif'
+  const sections = [
+    { lines: ['注文する'],      emoji: '🛍️', bg: '#ea580c' },
+    { lines: ['注文状況を確認'], emoji: '📋', bg: '#0d9488' },
+  ]
+
+  const img = new ImageResponse(
+    h('div', { style: { display: 'flex', width: 2500, height: 843, fontFamily } },
+      ...sections.map((s, i) =>
+        h('div', {
+          key: i,
+          style: {
+            width: 1250, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: 16,
+            background: `linear-gradient(160deg, ${s.bg} 0%, ${s.bg}cc 100%)`,
+            borderRight: i < 1 ? '4px solid rgba(255,255,255,0.3)' : 'none',
+          },
+        },
+          h('div', { style: { fontSize: 150, lineHeight: 1 } }, s.emoji),
+          h('div', { style: { fontSize: 96, fontWeight: 700, color: '#fff', letterSpacing: '-1px' } }, s.lines[0])
+        )
+      )
+    ),
+    {
+      width: 2500, height: 843,
+      fonts: fontData
+        ? [{ name: 'Noto Sans JP', data: fontData, weight: 700, style: 'normal' as const }]
+        : [],
+    }
+  )
+  return Buffer.from(await img.arrayBuffer())
+}
+
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const storeId   = searchParams.get('storeId')   ?? ''
@@ -79,10 +125,10 @@ export async function GET(req: NextRequest) {
   return POST(fakeReq)
 }
 
-// POST { storeId, storeName } → リッチメニュー作成・全ユーザー適用
+// POST { storeId, storeName, storeType? } → リッチメニュー作成・全ユーザー適用
 export async function POST(req: NextRequest) {
   try {
-    const { storeId, storeName } = await req.json()
+    const { storeId, storeName, storeType } = await req.json()
     if (!storeId) return NextResponse.json({ ok: false, error: 'storeId required' }, { status: 400 })
 
     const { liffId, token, liffBase, authHeader } = getConfig()
@@ -94,8 +140,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'LINE_CHANNEL_ACCESS_TOKEN が未設定です。Vercel の環境変数を確認してください。' }, { status: 500 })
     }
 
-    // storeId は名前表示にのみ使用。URLはすべて /line-home 経由でユーザーの登録店舗へ自動ルーティング
-    const base = `${liffBase}/line-home`
     const name = (storeName || '').trim() || 'メニュー'
 
     // 1. 既存メニューを全削除
@@ -107,36 +151,43 @@ export async function POST(req: NextRequest) {
       ))
     }
 
-    // 2. 新規メニュー作成（4列: 採寸の順番待ち / 来店予約 / 依頼 / ネット注文）
-    const areas = [
-      { bounds: { x: 0,    y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=queue`,    label: '採寸に今すぐ並ぶ' } },
-      { bounds: { x: 625,  y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=reserve`,  label: '来店予約' } },
-      { bounds: { x: 1250, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=repair`,   label: '依頼' } },
-      { bounds: { x: 1875, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=purchase`, label: 'ネット注文' } },
-    ]
+    // 2. 業種別レイアウト
+    let areas: object[]
+    let png: Buffer
+
+    if (storeType === 'takeout') {
+      // テイクアウト: 2パネル（注文する / 注文状況を確認）
+      const orderUrl = `${liffBase}/${storeId}/order`
+      areas = [
+        { bounds: { x:    0, y: 0, width: 1250, height: 843 }, action: { type: 'uri', uri: orderUrl, label: '注文する' } },
+        { bounds: { x: 1250, y: 0, width: 1250, height: 843 }, action: { type: 'uri', uri: orderUrl, label: '注文状況を確認' } },
+      ]
+      png = await makeMenuPngTakeout(name)
+    } else {
+      // 制服店: 4パネル（採寸 / 来店予約 / 依頼 / ネット注文）
+      const base = `${liffBase}/line-home`
+      areas = [
+        { bounds: { x:    0, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=queue`,    label: '採寸に今すぐ並ぶ' } },
+        { bounds: { x:  625, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=reserve`,  label: '来店予約' } },
+        { bounds: { x: 1250, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=repair`,   label: '依頼' } },
+        { bounds: { x: 1875, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=purchase`, label: 'ネット注文' } },
+      ]
+      png = await makeMenuPng()
+    }
+
+    // 3. 新規メニュー作成
     const createRes = await fetch(`${LINE_API}/richmenu`, {
       method: 'POST',
       headers: { ...authHeader, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        size: { width: 2500, height: 843 },
-        selected: true,
-        name,
-        chatBarText: 'メニュー',
-        areas,
-      }),
+      body: JSON.stringify({ size: { width: 2500, height: 843 }, selected: true, name, chatBarText: 'メニュー', areas }),
     })
     if (!createRes.ok) {
       const err = await createRes.text()
-      return NextResponse.json({
-        ok: false,
-        error: `create: ${err}`,
-        debug: { liffId, base, uris: areas.map(a => a.action.uri) },
-      }, { status: 500 })
+      return NextResponse.json({ ok: false, error: `create: ${err}`, debug: { liffId } }, { status: 500 })
     }
     const { richMenuId } = await createRes.json()
 
-    // 3. 画像アップロード
-    const png = await makeMenuPng()
+    // 4. 画像アップロード
     const imgRes = await fetch(`https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`, {
       method: 'POST',
       headers: { ...authHeader, 'Content-Type': 'image/png' },
@@ -144,7 +195,7 @@ export async function POST(req: NextRequest) {
     })
     if (!imgRes.ok) console.warn('[richmenu] image upload:', await imgRes.text())
 
-    // 4. 全ユーザーに適用
+    // 5. 全ユーザーに適用
     await fetch(`${LINE_API}/user/all/richmenu/${richMenuId}`, {
       method: 'POST', headers: authHeader,
     })

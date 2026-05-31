@@ -505,18 +505,40 @@ function StationManager({ storeId }: { storeId: string }) {
 
 // ─── 設定管理 ─────────────────────────────────────────────
 function SettingsTab({ storeId }: { storeId: string }) {
-  const [settings, setSettings] = useState<TakeoutSettings>({})
-  const [loading,  setLoading]  = useState(true)
-  const [saving,   setSaving]   = useState(false)
-  const [saved,    setSaved]    = useState(false)
+  const [settings,         setSettings]         = useState<TakeoutSettings>({})
+  const [storeName,        setStoreName]        = useState('')
+  const [loading,          setLoading]          = useState(true)
+  const [saving,           setSaving]           = useState(false)
+  const [saved,            setSaved]            = useState(false)
+  const [richmenuApplying, setRichmenuApplying] = useState(false)
+  const [richmenuMsg,      setRichmenuMsg]      = useState<{ ok: boolean; text: string } | null>(null)
 
   useEffect(() => {
-    supabase.from('stores').select('takeout_settings').eq('id', storeId).single()
-      .then(({ data }) => {
+    ;(supabase as any).from('stores').select('name, takeout_settings').eq('id', storeId).single()
+      .then(({ data }: { data: any }) => {
         if (data?.takeout_settings) setSettings(data.takeout_settings as TakeoutSettings)
+        if (data?.name) setStoreName(data.name)
         setLoading(false)
       })
   }, [storeId])
+
+  const applyRichmenu = async () => {
+    setRichmenuApplying(true); setRichmenuMsg(null)
+    try {
+      const res = await fetch('/api/richmenu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId, storeName, storeType: 'takeout' }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setRichmenuMsg({ ok: true, text: `登録完了 (ID: ${data.richMenuId?.slice(0, 12)}...)` })
+    } catch (e) {
+      setRichmenuMsg({ ok: false, text: e instanceof Error ? e.message : String(e) })
+    } finally {
+      setRichmenuApplying(false)
+    }
+  }
 
   const save = async () => {
     setSaving(true)
@@ -596,6 +618,23 @@ function SettingsTab({ storeId }: { storeId: string }) {
         }`}>
         {saving ? '保存中...' : saved ? '✓ 保存しました' : '保存する'}
       </button>
+
+      {/* LINEリッチメニュー */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-col gap-3">
+        <div>
+          <p className="text-sm font-bold text-gray-800">📲 LINEリッチメニュー</p>
+          <p className="text-xs text-gray-400 mt-0.5">「注文する」「注文状況を確認」の2パネルを自動生成してLINEに登録します</p>
+        </div>
+        <button onClick={applyRichmenu} disabled={richmenuApplying}
+          className="w-full py-3 rounded-xl font-bold text-sm bg-green-500 text-white disabled:opacity-50 active:scale-98 transition-all flex items-center justify-center gap-2">
+          {richmenuApplying ? '登録中...' : 'リッチメニューを登録・更新する'}
+        </button>
+        {richmenuMsg && (
+          <p className={`text-xs text-center font-medium ${richmenuMsg.ok ? 'text-green-600' : 'text-red-600'}`}>
+            {richmenuMsg.ok ? '✅ ' : '❌ '}{richmenuMsg.text}
+          </p>
+        )}
+      </div>
 
       {/* 調理機材管理 */}
       <StationManager storeId={storeId} />
