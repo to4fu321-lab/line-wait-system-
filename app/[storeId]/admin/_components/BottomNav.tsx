@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useParams, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Timer, Search, Settings, Plus, X, ClipboardList } from 'lucide-react'
+import { Timer, Search, Settings, ClipboardList } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
 const TABS = [
@@ -13,18 +13,11 @@ const TABS = [
   { id: 'settings', label: '設定',  icon: Settings,      exact: false, path: (sid: string) => `/${sid}/admin/settings/staff` },
 ] as const
 
-const FAB_ITEMS = [
-  { label: '依頼受付（お直し・来店・取置き）', emoji: '📝', path: (sid: string) => `/${sid}/admin/crm` },
-  { label: '制服注文を追加',                   emoji: '📋', path: (sid: string) => `/${sid}/admin/orders` },
-  { label: '商品マスタ管理',                   emoji: '📦', path: (sid: string) => `/${sid}/admin/products` },
-]
-
 export function BottomNav() {
   const params   = useParams<{ storeId: string }>()
   const pathname = usePathname()
   const storeId  = params?.storeId ?? ''
   const [repairBadge, setRepairBadge] = useState(0)
-  const [fabOpen, setFabOpen] = useState(false)
 
   useEffect(() => {
     if (!storeId) return
@@ -55,37 +48,6 @@ export function BottomNav() {
   return (
     <>
       <div className="h-16 shrink-0" />
-
-      {fabOpen && (
-        <div className="fixed inset-0 z-40" onClick={() => setFabOpen(false)} />
-      )}
-
-      <div className="fixed bottom-20 right-3 z-50 flex flex-col items-end gap-2">
-        {fabOpen && FAB_ITEMS.map(item => (
-          <Link
-            key={item.label}
-            href={item.path(storeId)}
-            onClick={() => setFabOpen(false)}
-            style={{ touchAction: 'manipulation' }}
-            className="flex items-center gap-2 bg-white border border-gray-200 rounded-full px-4 py-2.5 text-sm font-medium text-gray-900 shadow-xl whitespace-nowrap"
-          >
-            <span>{item.emoji}</span>
-            {item.label}
-          </Link>
-        ))}
-        <button
-          onClick={() => setFabOpen(v => !v)}
-          style={{ touchAction: 'manipulation' }}
-          className={`w-13 h-13 w-[52px] h-[52px] rounded-full shadow-xl flex items-center justify-center transition-all ${
-            fabOpen ? 'bg-zinc-700' : 'bg-indigo-600 hover:bg-indigo-500'
-          }`}
-        >
-          {fabOpen
-            ? <X size={22} className="text-white" />
-            : <Plus size={22} className="text-white" />
-          }
-        </button>
-      </div>
 
       <nav className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-gray-200 shadow-sm">
         <div className="flex max-w-lg mx-auto">
