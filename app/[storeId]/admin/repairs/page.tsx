@@ -155,6 +155,23 @@ const REPAIR_TYPES_DEF: Array<{ type: RepairType; label: string; icon: string; c
   { type: 'other',        label: 'その他',    icon: '📝', color: 'border-slate-300 bg-slate-50 text-slate-600 hover:bg-slate-100' },
 ]
 
+// アイテムカテゴリ デフォルト定義（DBなしでも常時表示）
+const DEFAULT_REPAIR_CATS = [
+  { name: '上着・ジャケット', icon: '🧥' },
+  { name: 'スラックス',       icon: '👖' },
+  { name: 'スカート',         icon: '👗' },
+  { name: 'ワイシャツ',       icon: '👔' },
+] as const
+
+const CAT_PALETTES = [
+  'bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200',
+  'bg-blue-100 border-blue-300 text-blue-800 hover:bg-blue-200',
+  'bg-purple-100 border-purple-300 text-purple-800 hover:bg-purple-200',
+  'bg-emerald-100 border-emerald-300 text-emerald-800 hover:bg-emerald-200',
+  'bg-rose-100 border-rose-300 text-rose-800 hover:bg-rose-200',
+  'bg-indigo-100 border-indigo-300 text-indigo-800 hover:bg-indigo-200',
+]
+
 // ── インライン新規顧客登録 ────────────────────────────────────────
 interface NewCustResult {
   id: string; name: string; tel: string | null; school_name: string | null
@@ -259,7 +276,8 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   const [showRegister,   setShowRegister] = useState(false)
   const [saving,         setSaving] = useState(false)
   const [presets,        setPresets] = useState<{ id: string; item_name: string; default_price: number | null; category_id: string | null; repair_type: string | null }[]>([])
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
+  const [selectedCategoryId,   setSelectedCategoryId]   = useState<string | null>(null)
+  const [selectedCategoryName, setSelectedCategoryName] = useState<string>('')
   const [categories,     setCategories] = useState<{ id: string; name: string }[]>([])
   const [ocrLoading,     setOcrLoading] = useState(false)
   const [ocrWarnings,    setOcrWarnings] = useState<string[]>([])
@@ -418,8 +436,22 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
     </div>
   )
 
-  const stepLabels: Record<Step, string> = { type: 'カテゴリ選択', cat_repair: 'お直し選択', details: '内容入力', customer: '顧客選択' }
-  const steps: Step[] = categories.length > 0 ? ['type', 'cat_repair', 'details', 'customer'] : ['type', 'details', 'customer']
+  // デフォルト + DBカテゴリをマージ（常時表示）
+  const displayCats = useMemo(() => {
+    const dbByName = new Map(categories.map(c => [c.name, c.id]))
+    const defaults = DEFAULT_REPAIR_CATS.map(dc => ({
+      id: dbByName.get(dc.name) ?? null,
+      name: dc.name as string,
+      icon: dc.icon,
+    }))
+    const extras = categories
+      .filter(c => !DEFAULT_REPAIR_CATS.some(dc => dc.name === c.name))
+      .map(c => ({ id: c.id, name: c.name, icon: '📦' }))
+    return [...defaults, ...extras]
+  }, [categories])
+
+  const stepLabels: Record<Step, string> = { type: 'アイテム選択', cat_repair: 'お直し選択', details: '内容入力', customer: '顧客選択' }
+  const steps: Step[] = ['type', 'cat_repair', 'details', 'customer']
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
@@ -432,8 +464,8 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
           <div className="flex items-center gap-3 mb-3">
             <button onClick={() => {
                 if (step === 'type') onClose()
-                else if (step === 'cat_repair') { setStep('type'); setPresets([]); setSelectedCategoryId(null) }
-                else if (step === 'details') setStep(selectedCategoryId ? 'cat_repair' : 'type')
+                else if (step === 'cat_repair') { setStep('type'); setPresets([]); setSelectedCategoryId(null); setSelectedCategoryName('') }
+                else if (step === 'details') setStep(selectedCategoryName ? 'cat_repair' : 'type')
                 else if (step === 'customer') setStep('details')
               }}
               className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 active:scale-95 transition-all">
@@ -441,7 +473,7 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
             </button>
             <h2 className="flex-1 text-base font-black text-gray-900">
               {step === 'type' ? '✂️ お直し受付'
-               : step === 'cat_repair' ? `📦 ${categories.find(c => c.id === selectedCategoryId)?.name ?? 'お直し選択'}`
+               : step === 'cat_repair' ? `${displayCats.find(c => c.name === selectedCategoryName)?.icon ?? '📦'} ${selectedCategoryName}`
                : step === 'details' && repairType ? `${REPAIR_TYPE_ICONS[repairType]} ${REPAIR_TYPE_LABELS[repairType]}`
                : '👤 顧客選択'}
             </h2>
@@ -473,61 +505,36 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
             </div>
           )}
 
-          {/* ── Step 1: カテゴリ / 種別選択 ── */}
+          {/* ── Step 1: アイテムカテゴリ選択（デフォルト+DB常時表示） ── */}
           {step === 'type' && (
-            categories.length > 0 ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  {(() => {
-                    const palettes = [
-                      { bg: 'bg-amber-100', border: 'border-amber-300', text: 'text-amber-800', hover: 'hover:bg-amber-200', icon: 'text-amber-600' },
-                      { bg: 'bg-blue-100', border: 'border-blue-300', text: 'text-blue-800', hover: 'hover:bg-blue-200', icon: 'text-blue-600' },
-                      { bg: 'bg-purple-100', border: 'border-purple-300', text: 'text-purple-800', hover: 'hover:bg-purple-200', icon: 'text-purple-600' },
-                      { bg: 'bg-emerald-100', border: 'border-emerald-300', text: 'text-emerald-800', hover: 'hover:bg-emerald-200', icon: 'text-emerald-600' },
-                      { bg: 'bg-rose-100', border: 'border-rose-300', text: 'text-rose-800', hover: 'hover:bg-rose-200', icon: 'text-rose-600' },
-                      { bg: 'bg-indigo-100', border: 'border-indigo-300', text: 'text-indigo-800', hover: 'hover:bg-indigo-200', icon: 'text-indigo-600' },
-                    ]
-                    return categories.map((cat, i) => {
-                      const c = palettes[i % palettes.length]
-                      return (
-                        <button key={cat.id}
-                          onClick={() => { setSelectedCategoryId(cat.id); setStep('cat_repair') }}
-                          className={`flex flex-col items-center justify-center gap-2.5 py-8 rounded-2xl border-2 font-bold transition-all active:scale-95 ${c.bg} ${c.border} ${c.text} ${c.hover}`}>
-                          <Tag size={30} className={c.icon} />
-                          <span className="text-sm leading-tight text-center">{cat.name}</span>
-                        </button>
-                      )
-                    })
-                  })()}
-                </div>
-                <div className="border-t border-gray-100 pt-3">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">カテゴリなし / その他</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {REPAIR_TYPES_DEF.map(t => (
-                      <button key={t.type} onClick={() => { setRepairType(t.type); setSelectedCategoryId(null); setStep('details') }}
-                        className={`flex flex-col items-center gap-1.5 py-3 rounded-2xl border-2 font-bold transition-all active:scale-95 ${t.color}`}>
-                        <span className="text-2xl">{t.icon}</span>
-                        <span className="text-[11px] leading-tight text-center">{t.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-2.5">
-                {REPAIR_TYPES_DEF.map(t => (
-                  <button key={t.type} onClick={() => { setRepairType(t.type); setStep('details') }}
-                    className={`flex flex-col items-center gap-2 py-5 rounded-2xl border-2 font-bold transition-all active:scale-95 ${t.color}`}>
-                    <span className="text-3xl">{t.icon}</span>
-                    <span className="text-xs leading-tight text-center">{t.label}</span>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                {displayCats.map((cat, i) => (
+                  <button key={cat.name}
+                    onClick={() => { setSelectedCategoryId(cat.id); setSelectedCategoryName(cat.name); setStep('cat_repair') }}
+                    className={`flex flex-col items-center justify-center gap-2.5 py-8 rounded-2xl border-2 font-bold transition-all active:scale-95 ${CAT_PALETTES[i % CAT_PALETTES.length]}`}>
+                    <span className="text-4xl">{cat.icon}</span>
+                    <span className="text-sm leading-tight text-center">{cat.name}</span>
                   </button>
                 ))}
               </div>
-            )
+              <div className="border-t border-gray-100 pt-3">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">カテゴリなし / その他</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {REPAIR_TYPES_DEF.map(t => (
+                    <button key={t.type} onClick={() => { setRepairType(t.type); setSelectedCategoryId(null); setSelectedCategoryName(''); setStep('details') }}
+                      className={`flex flex-col items-center gap-1.5 py-3 rounded-2xl border-2 font-bold transition-all active:scale-95 ${t.color}`}>
+                      <span className="text-2xl">{t.icon}</span>
+                      <span className="text-[11px] leading-tight text-center">{t.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
 
           {/* ── Step 1b: カテゴリ内お直し選択 ── */}
-          {step === 'cat_repair' && selectedCategoryId && (() => {
+          {step === 'cat_repair' && selectedCategoryName && (() => {
             const typeGroups = new Map<string, typeof presets>()
             for (const p of presets) {
               const rt = p.repair_type ?? 'other'

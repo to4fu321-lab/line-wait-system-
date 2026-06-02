@@ -1988,7 +1988,7 @@ export default function CRMPage() {
         </div>
       )}
 
-      {/* 新規登録QRモーダル */}
+      {/* 新規登録QRモーダル（メインページ右上QRと同じURL） */}
       {showQrModal && (() => {
         const liffId = process.env.NEXT_PUBLIC_LIFF_ID || ''
         const url    = `https://liff.line.me/${liffId}/${storeId}`
@@ -2000,10 +2000,10 @@ export default function CRMPage() {
                 className="absolute top-4 right-4 p-1.5 rounded-xl bg-gray-100 text-gray-500 hover:text-gray-900">
                 <X size={16} />
               </button>
-              <p className="font-black text-gray-900 text-base mb-1">新規会員登録</p>
-              <p className="text-gray-500 text-xs mb-4">お客様のLINEでこのQRコードを読み取ってもらってください</p>
+              <p className="font-black text-gray-900 text-base mb-1">お客様受付 QR</p>
+              <p className="text-gray-500 text-xs mb-4">このQRをお客様のLINEで読み取ってもらってください</p>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={qrSrc} alt="登録QRコード" width={240} height={240}
+              <img src={qrSrc} alt="受付QRコード" width={240} height={240}
                 className="mx-auto rounded-2xl bg-white p-2" />
               <p className="text-gray-400 text-[10px] mt-4 break-all">{url}</p>
             </div>
