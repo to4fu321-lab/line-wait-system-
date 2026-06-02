@@ -2,11 +2,12 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { getLiffBaseUrl, getLineToken } from '@/lib/line-config'
 
-const LIFF_URL = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || ''}`
+// お直しは制服販売店専用 → uniform アカウントで通知
+const TOKEN    = getLineToken('uniform')
+const LIFF_URL = getLiffBaseUrl('uniform')
 
-// POST { repairId, type }
-// type: 'completed' = お直し完了通知 / 'ready' = お受け取り準備完了（将来拡張用）
 export async function POST(req: NextRequest) {
   let repairId: string | undefined
   let type: string = 'completed'
@@ -23,7 +24,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'repairId is required' }, { status: 400 })
   }
 
-  // お直し情報 + 顧客 + 店舗を一括取得
   const { data: repair, error: repairErr } = await supabase
     .from('repair_histories')
     .select(`
@@ -46,12 +46,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, skipped: true, reason: 'no line_user_id' })
   }
 
-  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN || ''
-
-  const storeName   = store?.name  ?? ''
-  const storeLabel  = storeName ? `【${storeName}】` : ''
-  const slipText    = repair.slip_number ? `\n伝票番号：${repair.slip_number}` : ''
-  const storeUrl    = store?.id ? `\n\n▼ 待ち状況\n${LIFF_URL}/${store.id}` : ''
+  const storeName  = store?.name  ?? ''
+  const storeLabel = storeName ? `【${storeName}】` : ''
+  const slipText   = repair.slip_number ? `\n伝票番号：${repair.slip_number}` : ''
+  const storeUrl   = store?.id ? `\n\n▼ 待ち状況\n${LIFF_URL}/${store.id}` : ''
 
   const messageText =
     `✂️ お直しが完了しました！\n\n${storeLabel}\n${customer.name} 様\n\n` +
@@ -64,7 +62,7 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type':  'application/json',
-        Authorization:   `Bearer ${token}`,
+        Authorization:   `Bearer ${TOKEN}`,
       },
       body: JSON.stringify({
         to:       customer.line_user_id,
@@ -78,7 +76,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: `LINE API ${res.status}: ${err}` }, { status: 500 })
     }
 
-    // 通知済みフラグを更新
     await supabase
       .from('repair_histories')
       .update({ notified: true })

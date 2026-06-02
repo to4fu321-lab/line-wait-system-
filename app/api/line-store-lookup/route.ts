@@ -12,6 +12,7 @@ function getSupabase() {
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const userId = searchParams.get('userId')
+  const biz    = searchParams.get('biz') // 'uniform' | 'takeout' | null (null = uniform)
   if (!userId) return NextResponse.json({ stores: [] })
 
   const supabase = getSupabase()

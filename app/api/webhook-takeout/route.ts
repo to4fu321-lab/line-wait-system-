@@ -4,10 +4,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { getLiffBaseUrl, getLineToken, getLineSecret } from '@/lib/line-config'
 
-// 制服販売店向け LINE チャンネルの webhook
-const TOKEN    = getLineToken('uniform')
-const SECRET   = getLineSecret('uniform')
-const LIFF_BASE = getLiffBaseUrl('uniform')
+// テイクアウト専門店向け LINE チャンネルの webhook
+const TOKEN    = getLineToken('takeout')
+const SECRET   = getLineSecret('takeout')
+const LIFF_BASE = getLiffBaseUrl('takeout')
 
 function verifySignature(body: string, sig: string) {
   if (!SECRET) return true
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
           to: event.source.userId,
           messages: [{
             type: 'text',
-            text: `友だち追加ありがとうございます😊\n採寸・受付はこちらからどうぞ。\n${LIFF_BASE}/line-home`,
+            text: `友だち追加ありがとうございます😊\nテイクアウト注文はこちらからどうぞ。\n${LIFF_BASE}/line-home-takeout`,
           }],
         }),
       }).catch(console.error)

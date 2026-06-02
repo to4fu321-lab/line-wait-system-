@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { getLineToken } from '@/lib/line-config'
 
-const LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN ?? ''
+// テイクアウト通知は takeout アカウントのトークンを使用
+const LINE_TOKEN = getLineToken('takeout')
 
 export async function POST(req: NextRequest) {
   try {
