@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   ChevronLeft, ChevronRight, Plus, Pencil, Trash2,
-  GraduationCap, Package, Tag, Loader2, X, AlertCircle, Users, UserCircle,
+  GraduationCap, Package, Tag, Loader2, X, AlertCircle, Users, UserCircle, Scissors,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { School, SchoolProduct, SchoolProductVariant, Staff } from '@/types/master'
@@ -12,10 +12,19 @@ import {
   PRODUCT_CATEGORY_OPTIONS, PRODUCT_GENDER_OPTIONS,
   STAFF_ROLE_OPTIONS, STAFF_COLOR_OPTIONS,
 } from '@/types/master'
+import { REPAIR_TYPE_LABELS, REPAIR_TYPE_ICONS } from '@/types/crm'
+import type { RepairType } from '@/types/crm'
 
 // ── 型 ────────────────────────────────────────────────────────
-type MasterTab  = 'schools' | 'staff'
+type MasterTab  = 'schools' | 'staff' | 'presets'
 type SchoolView = 'schools' | 'products' | 'variants'
+
+interface RepairPreset {
+  id: string; store_id: string; school_name: string | null
+  item_name: string; repair_type: string
+  default_price: number | null; notes: string | null
+  sort_order: number; is_active: boolean
+}
 
 // ── Toast ─────────────────────────────────────────────────────
 function Toast({ msg, type, onClose }: { msg: string; type: 'ok' | 'err'; onClose: () => void }) {
@@ -79,6 +88,18 @@ function MasterPageInner() {
   const [sfSaving,             setSfSaving]             = useState(false)
   const [deleteStaffTarget,    setDeleteStaffTarget]    = useState<Staff | null>(null)
   const [deleteStaffLoading,   setDeleteStaffLoading]   = useState(false)
+
+  // ── Repair presets state ─────────────────────────────────
+  const [presets,         setPresets]         = useState<RepairPreset[]>([])
+  const [presetsLoading,  setPresetsLoading]  = useState(false)
+  const [presetModal,     setPresetModal]     = useState(false)
+  const [editingPreset,   setEditingPreset]   = useState<RepairPreset | null>(null)
+  const [ppItemName,      setPpItemName]      = useState('')
+  const [ppRepairType,    setPpRepairType]    = useState<RepairType>('hem')
+  const [ppSchoolName,    setPpSchoolName]    = useState('')
+  const [ppPrice,         setPpPrice]        = useState('')
+  const [ppNotes,         setPpNotes]        = useState('')
+  const [ppSaving,        setPpSaving]       = useState(false)
 
   // ── Shared loading / toast ────────────────────────────────
   const [loading,    setLoading]    = useState(true)
@@ -174,10 +195,55 @@ function MasterPageInner() {
     await (supabase as any).from('stores').update({ school_names: names }).eq('id', storeId)
   }, [storeId])
 
+  // ── Repair presets ───────────────────────────────────────
+  const fetchPresets = useCallback(async () => {
+    setPresetsLoading(true)
+    const { data } = await (supabase as any).from('repair_price_presets')
+      .select('*').eq('store_id', storeId).order('repair_type').order('sort_order')
+    setPresets(data ?? [])
+    setPresetsLoading(false)
+  }, [storeId])
+
+  const openPresetModal = (preset?: RepairPreset) => {
+    setEditingPreset(preset ?? null)
+    setPpItemName(preset?.item_name ?? '')
+    setPpRepairType((preset?.repair_type ?? 'hem') as RepairType)
+    setPpSchoolName(preset?.school_name ?? '')
+    setPpPrice(preset?.default_price != null ? String(preset.default_price) : '')
+    setPpNotes(preset?.notes ?? '')
+    setPresetModal(true)
+  }
+
+  const handlePresetSave = async () => {
+    if (!ppItemName.trim()) return
+    setPpSaving(true)
+    const payload = {
+      store_id: storeId, item_name: ppItemName.trim(),
+      repair_type: ppRepairType, school_name: ppSchoolName.trim() || null,
+      default_price: ppPrice ? parseInt(ppPrice) : null,
+      notes: ppNotes.trim() || null,
+    }
+    if (editingPreset) {
+      await (supabase as any).from('repair_price_presets').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editingPreset.id)
+    } else {
+      await (supabase as any).from('repair_price_presets').insert(payload)
+    }
+    setPpSaving(false); setPresetModal(false)
+    fetchPresets()
+    setToast({ msg: editingPreset ? 'プリセットを更新しました' : 'プリセットを追加しました', type: 'ok' })
+  }
+
+  const handlePresetDelete = async (id: string) => {
+    await (supabase as any).from('repair_price_presets').delete().eq('id', id)
+    fetchPresets()
+    setToast({ msg: 'プリセットを削除しました', type: 'ok' })
+  }
+
   // ── Tab 切替 ──────────────────────────────────────────────
   const switchTab = (tab: MasterTab) => {
     setMasterTab(tab)
     if (tab === 'schools') { setSchoolView('schools'); setSelectedSchool(null); setSelectedProduct(null) }
+    if (tab === 'presets') fetchPresets()
   }
 
   // ── Navigation (school drill-down) ───────────────────────
@@ -352,6 +418,7 @@ function MasterPageInner() {
 
   // ── Header gradient ───────────────────────────────────────
   const headerGrad = masterTab === 'staff' ? 'from-emerald-700 to-teal-700'
+    : masterTab === 'presets' ? 'from-amber-600 to-orange-600'
     : schoolView === 'products' ? 'from-teal-700 to-emerald-700'
     : schoolView === 'variants' ? 'from-amber-600 to-orange-600'
     : 'from-indigo-700 to-violet-700'
@@ -371,6 +438,7 @@ function MasterPageInner() {
           </button>
           <div className="flex-1 min-w-0">
             {masterTab === 'staff' && <h1 className="text-white font-black text-base">スタッフマスタ</h1>}
+            {masterTab === 'presets' && <h1 className="text-white font-black text-base">✂️ お直し料金マスタ</h1>}
             {masterTab === 'schools' && schoolView === 'schools' && <h1 className="text-white font-black text-base">学校・商品マスタ</h1>}
             {masterTab === 'schools' && schoolView === 'products' && (
               <>
@@ -405,6 +473,12 @@ function MasterPageInner() {
             }`}>
             <GraduationCap size={13} />学校・商品
           </button>
+          <button onClick={() => switchTab('presets')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
+              masterTab === 'presets' ? 'bg-white text-amber-700 shadow-sm' : 'text-white/70 hover:text-white'
+            }`}>
+            <Scissors size={13} />お直し料金
+          </button>
           <button onClick={() => switchTab('staff')}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
               masterTab === 'staff' ? 'bg-white text-emerald-700 shadow-sm' : 'text-white/70 hover:text-white'
@@ -415,6 +489,106 @@ function MasterPageInner() {
       </div>
 
       <div className="px-4 py-4 max-w-lg mx-auto space-y-3">
+
+        {/* ================================================================
+            お直し料金プリセット
+        ================================================================ */}
+        {masterTab === 'presets' && (
+          <>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-500">お直し受付時にワンタップで品名・金額を入力できます</p>
+            </div>
+            {presetsLoading ? (
+              <div className="flex items-center justify-center py-10"><Loader2 size={24} className="animate-spin text-amber-400" /></div>
+            ) : (
+              <>
+                {/* 種別ごとにグルーピング */}
+                {(Object.keys(REPAIR_TYPE_LABELS) as RepairType[]).map(rtype => {
+                  const group = presets.filter(p => p.repair_type === rtype)
+                  return (
+                    <div key={rtype}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-base">{REPAIR_TYPE_ICONS[rtype]}</span>
+                        <p className="text-xs font-black text-gray-700">{REPAIR_TYPE_LABELS[rtype]}</p>
+                        <button onClick={() => { setPpRepairType(rtype); openPresetModal() }}
+                          className="ml-auto flex items-center gap-1 text-[10px] font-bold text-amber-600 hover:text-amber-800 px-2 py-1 rounded-lg hover:bg-amber-50 transition-all">
+                          <Plus size={11} />追加
+                        </button>
+                      </div>
+                      {group.length === 0 ? (
+                        <p className="text-xs text-gray-300 pl-7 mb-3">未登録</p>
+                      ) : (
+                        <div className="space-y-1.5 mb-3">
+                          {group.map(p => (
+                            <div key={p.id} className="flex items-center gap-3 bg-white border border-gray-200 rounded-2xl px-4 py-3">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-gray-900">{p.item_name}</p>
+                                <div className="flex gap-2 mt-0.5">
+                                  {p.school_name && <span className="text-[10px] text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">{p.school_name}</span>}
+                                  {p.default_price != null && <span className="text-[10px] font-bold text-amber-700">¥{p.default_price.toLocaleString()}</span>}
+                                  {p.notes && <span className="text-[10px] text-gray-400 truncate">{p.notes}</span>}
+                                </div>
+                              </div>
+                              <button onClick={() => openPresetModal(p)} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"><Pencil size={13} /></button>
+                              <button onClick={() => handlePresetDelete(p.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={13} /></button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </>
+            )}
+
+            {/* プリセット追加/編集モーダル */}
+            {presetModal && (
+              <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center sm:p-4">
+                <div className="bg-white w-full sm:max-w-sm sm:rounded-3xl rounded-t-3xl p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-black text-gray-900 flex items-center gap-2">
+                      <Scissors size={15} className="text-amber-500" />
+                      {editingPreset ? 'プリセットを編集' : 'プリセットを追加'}
+                    </h2>
+                    <button onClick={() => setPresetModal(false)} className="p-2 text-gray-400 hover:text-gray-700"><X size={18} /></button>
+                  </div>
+                  <div className="space-y-3">
+                    <Field label="お直し種別" required>
+                      <select value={ppRepairType} onChange={e => setPpRepairType(e.target.value as RepairType)} className={INPUT}>
+                        {(Object.keys(REPAIR_TYPE_LABELS) as RepairType[]).map(t => (
+                          <option key={t} value={t}>{REPAIR_TYPE_ICONS[t]} {REPAIR_TYPE_LABELS[t]}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="品名" required>
+                      <input type="text" value={ppItemName} onChange={e => setPpItemName(e.target.value)}
+                        placeholder="例：詰め襟上着 / スラックス" autoFocus className={INPUT} />
+                    </Field>
+                    <Field label="対象学校（空欄=全学校共通）">
+                      <input type="text" value={ppSchoolName} onChange={e => setPpSchoolName(e.target.value)}
+                        placeholder="例：○○中学校" className={INPUT} />
+                    </Field>
+                    <Field label="標準価格（円）">
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">¥</span>
+                        <input type="number" inputMode="numeric" value={ppPrice} onChange={e => setPpPrice(e.target.value)}
+                          placeholder="800" className="w-full border border-gray-300 rounded-xl pl-6 pr-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:border-amber-500 bg-white" />
+                      </div>
+                    </Field>
+                    <Field label="備考">
+                      <input type="text" value={ppNotes} onChange={e => setPpNotes(e.target.value)}
+                        placeholder="スタッフへの補足" className={INPUT} />
+                    </Field>
+                  </div>
+                  <button onClick={handlePresetSave} disabled={!ppItemName.trim() || ppSaving}
+                    className="w-full py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-amber-500 to-orange-500 text-white disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.98]">
+                    {ppSaving ? <><Loader2 size={14} className="animate-spin" />保存中...</> : '保存する'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
 
         {/* ================================================================
             スタッフ一覧
