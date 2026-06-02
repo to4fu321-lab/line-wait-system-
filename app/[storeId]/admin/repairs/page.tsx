@@ -258,7 +258,14 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   const [selectedChild,  setSelectedChild] = useState<{ id: string; name: string; school_name: string | null } | null>(null)
   const [showRegister,   setShowRegister] = useState(false)
   const [saving,         setSaving] = useState(false)
-  const [presets,        setPresets] = useState<{ id: string; item_name: string; default_price: number | null }[]>([])
+  const [presets,        setPresets] = useState<{ id: string; item_name: string; default_price: number | null; category_id: string | null }[]>([])
+  const [categories,     setCategories] = useState<{ id: string; name: string }[]>([])
+
+  useEffect(() => {
+    ;(supabase as any).from('repair_item_categories')
+      .select('id, name').eq('store_id', storeId).eq('is_active', true).order('sort_order')
+      .then(({ data }: { data: { id: string; name: string }[] | null }) => setCategories(data ?? []))
+  }, [storeId])
 
   useEffect(() => {
     if (custSearch.length < 1) { setCustResults([]); return }
@@ -277,9 +284,9 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   useEffect(() => {
     if (!repairType) { setPresets([]); return }
     ;(supabase as any).from('repair_price_presets')
-      .select('id, item_name, default_price')
+      .select('id, item_name, default_price, category_id')
       .eq('store_id', storeId).eq('repair_type', repairType).eq('is_active', true)
-      .order('sort_order').limit(8)
+      .order('sort_order').limit(20)
       .then(({ data }: { data: typeof presets }) => setPresets(data ?? []))
   }, [repairType, storeId])
 
@@ -401,24 +408,40 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
           {/* ── Step 2: 内容入力 ── */}
           {step === 'details' && repairType && (
             <>
-              {/* プリセット選択 */}
-              {presets.length > 0 && (
-                <div>
-                  <label className="text-[10px] font-bold text-gray-500 block mb-1.5 uppercase tracking-wider">よく使うお直し（タップで自動入力）</label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {presets.map(p => (
-                      <button key={p.id} type="button"
-                        onClick={() => {
-                          setItemName(p.item_name)
-                          if (p.default_price) setPrice(String(p.default_price))
-                        }}
-                        className="px-3 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold rounded-full hover:bg-indigo-100 active:scale-95 transition-all">
-                        {p.item_name}{p.default_price ? ` ¥${p.default_price.toLocaleString()}` : ''}
-                      </button>
-                    ))}
+              {/* プリセット選択（カテゴリ別） */}
+              {presets.length > 0 && (() => {
+                const catGroups = new Map<string | null, typeof presets>()
+                for (const p of presets) {
+                  const key = p.category_id ?? null
+                  if (!catGroups.has(key)) catGroups.set(key, [])
+                  catGroups.get(key)!.push(p)
+                }
+                return (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-gray-500 block uppercase tracking-wider">よく使うお直し（タップで自動入力）</label>
+                    {Array.from(catGroups.entries()).map(([catId, ps]) => {
+                      const catName = catId ? (categories.find(c => c.id === catId)?.name ?? '') : null
+                      return (
+                        <div key={catId ?? '_none'}>
+                          {catName && <p className="text-[10px] font-bold text-gray-400 mb-1">{catName}</p>}
+                          <div className="flex flex-wrap gap-1.5">
+                            {ps.map(p => (
+                              <button key={p.id} type="button"
+                                onClick={() => {
+                                  setItemName(p.item_name)
+                                  if (p.default_price) setPrice(String(p.default_price))
+                                }}
+                                className="px-3 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold rounded-full hover:bg-indigo-100 active:scale-95 transition-all">
+                                {p.item_name}{p.default_price ? ` ¥${p.default_price.toLocaleString()}` : ''}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
-                </div>
-              )}
+                )
+              })()}
               <div>
                 <label className="text-xs font-bold text-gray-600 block mb-1.5">品名・商品名</label>
                 <input type="text" value={itemName} onChange={e => setItemName(e.target.value)}
@@ -556,15 +579,12 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                       </button>
                     ))}
                   </div>
-                  {/* 未登録顧客 → 新規登録 */}
-                  {!searching && custSearch.length >= 1 && custResults.length === 0 && !showRegister && (
-                    <div className="text-center py-3 space-y-2">
-                      <p className="text-sm text-gray-400">「{custSearch}」が見つかりませんでした</p>
-                      <button onClick={() => setShowRegister(true)}
-                        className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-white text-xs font-black rounded-xl active:scale-95 transition-all">
-                        <Plus size={13} />新規顧客として登録する
-                      </button>
-                    </div>
+                  {/* 新規顧客登録（常時表示） */}
+                  {!showRegister && (
+                    <button onClick={() => setShowRegister(true)}
+                      className="w-full flex items-center justify-center gap-1.5 py-2.5 border-2 border-dashed border-amber-300 text-amber-600 text-xs font-bold rounded-xl hover:bg-amber-50 active:scale-[0.98] transition-all">
+                      <Plus size={13} />新規顧客を登録する
+                    </button>
                   )}
                   {showRegister && (
                     <InlineNewCustomer
@@ -574,7 +594,7 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                     />
                   )}
                   {custSearch.length === 0 && !showRegister && (
-                    <p className="text-sm text-center text-gray-400 py-6">名前を入力して顧客を検索してください</p>
+                    <p className="text-sm text-center text-gray-400 py-4">名前を入力して顧客を検索してください</p>
                   )}
                 </>
               ) : (
@@ -908,14 +928,12 @@ function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                       </button>
                     ))}
                   </div>
-                  {!searching && custSearch.length >= 1 && custResults.length === 0 && !showReg && (
-                    <div className="text-center py-3 space-y-2">
-                      <p className="text-sm text-gray-400">「{custSearch}」が見つかりませんでした</p>
-                      <button onClick={() => setShowReg(true)}
-                        className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-white text-xs font-black rounded-xl active:scale-95">
-                        <Plus size={13} />新規顧客として登録する
-                      </button>
-                    </div>
+                  {/* 新規顧客登録（常時表示） */}
+                  {!showReg && (
+                    <button onClick={() => setShowReg(true)}
+                      className="w-full flex items-center justify-center gap-1.5 py-2.5 border-2 border-dashed border-amber-300 text-amber-600 text-xs font-bold rounded-xl hover:bg-amber-50 active:scale-[0.98] transition-all">
+                      <Plus size={13} />新規顧客を登録する
+                    </button>
                   )}
                   {showReg && (
                     <InlineNewCustomer
@@ -925,7 +943,7 @@ function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                     />
                   )}
                   {custSearch.length === 0 && !showReg && (
-                    <p className="text-sm text-center text-gray-400 py-6">名前を入力して顧客を検索してください</p>
+                    <p className="text-sm text-center text-gray-400 py-4">名前を入力して顧客を検索してください</p>
                   )}
                 </>
               ) : (

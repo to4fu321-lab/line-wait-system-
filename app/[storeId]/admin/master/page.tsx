@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   ChevronLeft, ChevronRight, Plus, Pencil, Trash2,
-  GraduationCap, Package, Tag, Loader2, X, AlertCircle, Users, UserCircle, Scissors,
+  GraduationCap, Package, Tag, Loader2, X, AlertCircle, Users, UserCircle, Scissors, QrCode,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { School, SchoolProduct, SchoolProductVariant, Staff } from '@/types/master'
@@ -19,9 +19,13 @@ import type { RepairType } from '@/types/crm'
 type MasterTab  = 'schools' | 'staff' | 'presets'
 type SchoolView = 'schools' | 'products' | 'variants'
 
+interface RepairItemCategory {
+  id: string; store_id: string; name: string; sort_order: number; is_active: boolean
+}
+
 interface RepairPreset {
   id: string; store_id: string; school_name: string | null
-  item_name: string; repair_type: string
+  item_name: string; repair_type: string; category_id: string | null
   default_price: number | null; notes: string | null
   sort_order: number; is_active: boolean
 }
@@ -89,6 +93,13 @@ function MasterPageInner() {
   const [deleteStaffTarget,    setDeleteStaffTarget]    = useState<Staff | null>(null)
   const [deleteStaffLoading,   setDeleteStaffLoading]   = useState(false)
 
+  // ── Repair item categories state ─────────────────────────
+  const [categories,      setCategories]      = useState<RepairItemCategory[]>([])
+  const [catModal,        setCatModal]        = useState(false)
+  const [editingCat,      setEditingCat]      = useState<RepairItemCategory | null>(null)
+  const [catName,         setCatName]         = useState('')
+  const [catSaving,       setCatSaving]       = useState(false)
+
   // ── Repair presets state ─────────────────────────────────
   const [presets,         setPresets]         = useState<RepairPreset[]>([])
   const [presetsLoading,  setPresetsLoading]  = useState(false)
@@ -99,7 +110,12 @@ function MasterPageInner() {
   const [ppSchoolName,    setPpSchoolName]    = useState('')
   const [ppPrice,         setPpPrice]        = useState('')
   const [ppNotes,         setPpNotes]        = useState('')
+  const [ppCategoryId,    setPpCategoryId]   = useState<string | null>(null)
   const [ppSaving,        setPpSaving]       = useState(false)
+
+  // ── LINE公式アカウント ────────────────────────────────────
+  const [lineOfficialId,  setLineOfficialId]  = useState('')
+  const [lineIdSaving,    setLineIdSaving]    = useState(false)
 
   // ── Shared loading / toast ────────────────────────────────
   const [loading,    setLoading]    = useState(true)
@@ -195,6 +211,44 @@ function MasterPageInner() {
     await (supabase as any).from('stores').update({ school_names: names }).eq('id', storeId)
   }, [storeId])
 
+  // ── Repair item categories ────────────────────────────────
+  const fetchCategories = useCallback(async () => {
+    const { data } = await (supabase as any).from('repair_item_categories')
+      .select('*').eq('store_id', storeId).order('sort_order').order('name')
+    setCategories(data ?? [])
+  }, [storeId])
+
+  const openCatModal = (cat?: RepairItemCategory) => {
+    setEditingCat(cat ?? null); setCatName(cat?.name ?? ''); setCatModal(true)
+  }
+  const handleCatSave = async () => {
+    if (!catName.trim()) return
+    setCatSaving(true)
+    if (editingCat) {
+      await (supabase as any).from('repair_item_categories').update({ name: catName.trim(), updated_at: new Date().toISOString() }).eq('id', editingCat.id)
+    } else {
+      await (supabase as any).from('repair_item_categories').insert({ store_id: storeId, name: catName.trim(), sort_order: categories.length })
+    }
+    setCatSaving(false); setCatModal(false); fetchCategories()
+  }
+  const handleCatDelete = async (id: string) => {
+    await (supabase as any).from('repair_item_categories').delete().eq('id', id)
+    fetchCategories()
+  }
+
+  // ── LINE公式アカウントID ──────────────────────────────────
+  const fetchLineOfficialId = useCallback(async () => {
+    const { data } = await (supabase as any).from('stores').select('line_official_id').eq('id', storeId).single()
+    setLineOfficialId(data?.line_official_id ?? '')
+  }, [storeId])
+
+  const saveLineOfficialId = async () => {
+    setLineIdSaving(true)
+    await (supabase as any).from('stores').update({ line_official_id: lineOfficialId.trim() || null }).eq('id', storeId)
+    setLineIdSaving(false)
+    setToast({ msg: 'LINE公式アカウントIDを保存しました', type: 'ok' })
+  }
+
   // ── Repair presets ───────────────────────────────────────
   const fetchPresets = useCallback(async () => {
     setPresetsLoading(true)
@@ -211,6 +265,7 @@ function MasterPageInner() {
     setPpSchoolName(preset?.school_name ?? '')
     setPpPrice(preset?.default_price != null ? String(preset.default_price) : '')
     setPpNotes(preset?.notes ?? '')
+    setPpCategoryId(preset?.category_id ?? null)
     setPresetModal(true)
   }
 
@@ -222,6 +277,7 @@ function MasterPageInner() {
       repair_type: ppRepairType, school_name: ppSchoolName.trim() || null,
       default_price: ppPrice ? parseInt(ppPrice) : null,
       notes: ppNotes.trim() || null,
+      category_id: ppCategoryId || null,
     }
     if (editingPreset) {
       await (supabase as any).from('repair_price_presets').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editingPreset.id)
@@ -243,7 +299,7 @@ function MasterPageInner() {
   const switchTab = (tab: MasterTab) => {
     setMasterTab(tab)
     if (tab === 'schools') { setSchoolView('schools'); setSelectedSchool(null); setSelectedProduct(null) }
-    if (tab === 'presets') fetchPresets()
+    if (tab === 'presets') { fetchPresets(); fetchCategories(); fetchLineOfficialId() }
   }
 
   // ── Navigation (school drill-down) ───────────────────────
@@ -498,6 +554,91 @@ function MasterPageInner() {
             <div className="flex items-center justify-between">
               <p className="text-xs text-gray-500">お直し受付時にワンタップで品名・金額を入力できます</p>
             </div>
+
+            {/* ── LINE友達登録QRコード ─────────────────────────── */}
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                <QrCode size={15} className="text-green-600" />
+                <p className="text-sm font-black text-gray-800">LINE友達登録QR</p>
+              </div>
+              <div className="px-4 py-4 space-y-3">
+                {lineOfficialId ? (
+                  <div className="flex items-start gap-4">
+                    <img
+                      src={`https://qr-official.line.me/gs/M_${lineOfficialId.replace('@', '')}_BW.png`}
+                      alt="LINE友達登録QR"
+                      className="w-28 h-28 rounded-xl border border-gray-200 shadow-sm shrink-0"
+                      onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-gray-700 mb-1">公式アカウントID</p>
+                      <p className="text-sm font-mono text-green-700 font-bold">{lineOfficialId}</p>
+                      <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">このQRをお客様に見せると<br />LINEで友達登録できます</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400">LINE公式アカウントIDを設定するとQRが表示されます</p>
+                )}
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <label className="text-[10px] font-bold text-gray-500 block mb-1">LINE公式アカウントID（例: @abc1234d）</label>
+                    <input type="text" value={lineOfficialId} onChange={e => setLineOfficialId(e.target.value)}
+                      placeholder="@xxxxxxxxx"
+                      className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-green-500 bg-white" />
+                  </div>
+                  <button onClick={saveLineOfficialId} disabled={lineIdSaving}
+                    className="px-4 py-2 rounded-xl bg-green-600 text-white text-xs font-bold flex items-center gap-1 disabled:opacity-50 active:scale-95 transition-all shrink-0">
+                    {lineIdSaving ? <Loader2 size={12} className="animate-spin" /> : '保存'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* ── アイテムカテゴリ管理 ──────────────────────────── */}
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                <p className="text-sm font-black text-gray-800 flex items-center gap-2"><Scissors size={14} className="text-amber-500" />品名カテゴリ</p>
+                <button onClick={() => openCatModal()}
+                  className="flex items-center gap-1 text-[10px] font-bold text-amber-600 hover:text-amber-800 px-2 py-1 rounded-lg hover:bg-amber-50 transition-all">
+                  <Plus size={11} />追加
+                </button>
+              </div>
+              {categories.length === 0 ? (
+                <p className="text-xs text-gray-400 px-4 py-3">カテゴリ未登録（例：詰め襟・ブレザー・スラックス）</p>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {categories.map(cat => (
+                    <div key={cat.id} className="flex items-center gap-3 px-4 py-2.5">
+                      <p className="flex-1 text-sm font-bold text-gray-800">{cat.name}</p>
+                      <button onClick={() => openCatModal(cat)} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><Pencil size={12} /></button>
+                      <button onClick={() => handleCatDelete(cat.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={12} /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ── カテゴリ追加/編集モーダル ─────────────────────── */}
+            {catModal && (
+              <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center sm:p-4">
+                <div className="bg-white w-full sm:max-w-sm sm:rounded-3xl rounded-t-3xl p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-black text-gray-900">{editingCat ? 'カテゴリを編集' : 'カテゴリを追加'}</h2>
+                    <button onClick={() => setCatModal(false)} className="p-2 text-gray-400 hover:text-gray-700"><X size={18} /></button>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-600 block mb-1">カテゴリ名 <span className="text-red-500">*</span></label>
+                    <input type="text" value={catName} onChange={e => setCatName(e.target.value)} autoFocus
+                      placeholder="例：詰め襟上着" className={INPUT} />
+                  </div>
+                  <button onClick={handleCatSave} disabled={!catName.trim() || catSaving}
+                    className="w-full py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-amber-500 to-orange-500 text-white disabled:opacity-50 flex items-center justify-center gap-2">
+                    {catSaving ? <><Loader2 size={14} className="animate-spin" />保存中...</> : '保存する'}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {presetsLoading ? (
               <div className="flex items-center justify-center py-10"><Loader2 size={24} className="animate-spin text-amber-400" /></div>
             ) : (
@@ -523,7 +664,8 @@ function MasterPageInner() {
                             <div key={p.id} className="flex items-center gap-3 bg-white border border-gray-200 rounded-2xl px-4 py-3">
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-bold text-gray-900">{p.item_name}</p>
-                                <div className="flex gap-2 mt-0.5">
+                                <div className="flex gap-2 mt-0.5 flex-wrap">
+                                  {p.category_id && (() => { const c = categories.find(c => c.id === p.category_id); return c ? <span className="text-[10px] text-indigo-600 bg-indigo-50 border border-indigo-200 rounded px-1.5 py-0.5 font-bold">{c.name}</span> : null })()}
                                   {p.school_name && <span className="text-[10px] text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">{p.school_name}</span>}
                                   {p.default_price != null && <span className="text-[10px] font-bold text-amber-700">¥{p.default_price.toLocaleString()}</span>}
                                   {p.notes && <span className="text-[10px] text-gray-400 truncate">{p.notes}</span>}
@@ -560,6 +702,14 @@ function MasterPageInner() {
                         ))}
                       </select>
                     </Field>
+                    {categories.length > 0 && (
+                      <Field label="品名カテゴリ">
+                        <select value={ppCategoryId ?? ''} onChange={e => setPpCategoryId(e.target.value || null)} className={INPUT}>
+                          <option value="">カテゴリなし</option>
+                          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      </Field>
+                    )}
                     <Field label="品名" required>
                       <input type="text" value={ppItemName} onChange={e => setPpItemName(e.target.value)}
                         placeholder="例：詰め襟上着 / スラックス" autoFocus className={INPUT} />
