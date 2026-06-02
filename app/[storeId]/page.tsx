@@ -758,7 +758,7 @@ export default function CustomerPage() {
   // ══════════════════════════════════════════════════════════
 
   if (view === 'loading') return (
-    <div className="min-h-screen flex items-center justify-center">
+    <div className="min-h-[100dvh] flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
         <div className="w-10 h-10 rounded-full border-4 border-t-transparent animate-spin"
           style={{ borderTopColor: theme.colors.primary }} />
@@ -769,7 +769,7 @@ export default function CustomerPage() {
 
   // ── ステップ1：友だち追加 ─────────────────────────────
   if (view === 'add_friend') return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-5 py-10 gap-6">
+    <main className="min-h-[100dvh] flex flex-col items-center justify-center px-5 py-10 gap-6">
       <div className="text-center">
         <div className="w-16 h-16 mx-auto mb-4 rounded-3xl flex items-center justify-center"
           style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 16px 40px -12px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
@@ -804,7 +804,7 @@ export default function CustomerPage() {
 
   // ── ウェルカム：既存顧客・子供選択 ───────────────────
   if (view === 'welcome') return (
-    <main className="min-h-screen px-5 py-10 max-w-md mx-auto">
+    <main className="min-h-[100dvh] px-5 py-10 max-w-md mx-auto">
       <div className="text-center mb-6">
         <div className="w-14 h-14 mx-auto mb-3 rounded-2xl flex items-center justify-center text-2xl"
           style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
@@ -871,7 +871,7 @@ export default function CustomerPage() {
 
   // ── 初回登録 ─────────────────────────────────────────
   if (view === 'register') return (
-    <main className="min-h-screen px-5 py-10 max-w-md mx-auto">
+    <main className="min-h-[100dvh] px-5 py-10 max-w-md mx-auto">
       <div className="text-center mb-6">
         <div className="w-14 h-14 mx-auto mb-3 rounded-2xl flex items-center justify-center text-2xl"
           style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
@@ -902,7 +902,7 @@ export default function CustomerPage() {
 
   // ── 目的選択 ─────────────────────────────────────────
   if (view === 'purpose') return (
-    <main className="min-h-screen px-5 py-10 max-w-md mx-auto">
+    <main className="min-h-[100dvh] px-5 py-10 max-w-md mx-auto">
       <div className="text-center mb-8">
         <div className="w-14 h-14 mx-auto mb-3 rounded-2xl flex items-center justify-center text-2xl"
           style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
@@ -1009,7 +1009,7 @@ export default function CustomerPage() {
 
   // ── 整理券発行確認（リッチメニュー左ボタン経由）──────
   if (view === 'confirm_queue') return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-5 py-10 max-w-md mx-auto gap-6">
+    <main className="min-h-[100dvh] flex flex-col items-center justify-center px-5 py-10 max-w-md mx-auto gap-6">
       <div className="text-center">
         <div className="w-16 h-16 mx-auto mb-3 rounded-2xl flex items-center justify-center text-3xl"
           style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`,
@@ -1064,7 +1064,7 @@ export default function CustomerPage() {
           lineNotif: 'bg-emerald-400/20 border-emerald-400/30 text-emerald-300',
           noLine: 'bg-white/15 border-white/20 text-white/70', bottom: 'text-white/40' }
     return (
-      <div className="min-h-screen">
+      <div className="min-h-[100dvh]">
         <div style={{ background: `linear-gradient(135deg, ${theme.colors.primary} 0%, ${theme.colors.primaryDark} 100%)` }}
           className="px-5 pt-8 pb-6">
           <div className="max-w-md mx-auto">
@@ -1290,7 +1290,7 @@ export default function CustomerPage() {
 
   // ── 呼出中 ────────────────────────────────────────────
   if (view === 'queue_calling' && ticket) return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-400 via-orange-400 to-yellow-300 flex flex-col">
+    <div className="min-h-[100dvh] bg-gradient-to-br from-amber-400 via-orange-400 to-yellow-300 flex flex-col">
       <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
         <div className="text-8xl mb-3">🔔</div>
         <h2 className="text-4xl font-black text-orange-900 leading-tight mb-2">お呼びしています！</h2>
@@ -1318,7 +1318,7 @@ export default function CustomerPage() {
   )
 
   if (view === 'queue_completed') return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center gap-6">
+    <div className="min-h-[100dvh] flex flex-col items-center justify-center px-6 text-center gap-6">
       <div className="w-28 h-28 rounded-full flex items-center justify-center"
         style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 20px 50px -12px rgb(${theme.colors.primaryRgb} / 0.55)` }}>
         <CheckCircle2 size={60} className="text-white" />
@@ -1336,7 +1336,7 @@ export default function CustomerPage() {
   )
 
   if (view === 'queue_self_cancelled') return (
-    <div className="min-h-screen bg-zinc-900 flex flex-col items-center justify-center px-6 text-center gap-5">
+    <div className="min-h-[100dvh] bg-zinc-900 flex flex-col items-center justify-center px-6 text-center gap-5">
       <div className="text-7xl">👋</div>
       <div>
         <h2 className="text-3xl font-black text-white mb-2">キャンセルしました</h2>
@@ -1351,7 +1351,7 @@ export default function CustomerPage() {
   )
 
   if (view === 'queue_cancelled') return (
-    <div className="min-h-screen bg-zinc-900 flex flex-col items-center justify-center px-6 text-center gap-5">
+    <div className="min-h-[100dvh] bg-zinc-900 flex flex-col items-center justify-center px-6 text-center gap-5">
       <div className="text-7xl">😔</div>
       <div>
         <h2 className="text-3xl font-black text-white mb-2">お呼びしましたが</h2>
@@ -1367,7 +1367,7 @@ export default function CustomerPage() {
   )
 
   if (view === 'purchase_speak') return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-6 text-center gap-6">
+    <main className="min-h-[100dvh] flex flex-col items-center justify-center px-6 text-center gap-6">
       <div className="w-24 h-24 rounded-full flex items-center justify-center"
         style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 20px 50px -12px rgb(${theme.colors.primaryRgb} / 0.55)` }}>
         <CheckCircle2 size={56} className="text-white" />
@@ -1388,7 +1388,7 @@ export default function CustomerPage() {
   )
 
   if (view === 'repair_speak') return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-6 text-center gap-6">
+    <main className="min-h-[100dvh] flex flex-col items-center justify-center px-6 text-center gap-6">
       <div className="w-24 h-24 rounded-full flex items-center justify-center"
         style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 20px 50px -12px rgb(${theme.colors.primaryRgb} / 0.55)` }}>
         <CheckCircle2 size={56} className="text-white" />
@@ -1409,7 +1409,7 @@ export default function CustomerPage() {
   )
 
   if (view === 'closed') return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-6 text-center">
+    <div className="min-h-[100dvh] bg-zinc-950 flex flex-col items-center justify-center px-6 text-center">
       <div className="text-7xl mb-5">🚪</div>
       <h1 className="text-3xl font-black text-white mb-2">現在受付を停止しています</h1>
       <p className="text-zinc-400 text-lg">店頭スタッフにお声がけください</p>

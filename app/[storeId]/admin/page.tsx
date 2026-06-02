@@ -36,7 +36,7 @@ interface StoreInfo { id: string; name: string; pin: string; group_id?: string |
 // ============================================================
 function StoreSelectScreen({ stores, groupCode, onSelect }: { stores: StoreInfo[]; groupCode: string | null; onSelect: (s: StoreInfo) => void }) {
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-6 relative overflow-hidden">
+    <div className="min-h-[100dvh] bg-gray-50 flex flex-col items-center justify-center px-6 relative overflow-hidden">
       <div className="relative text-center mb-10 animate-fade-in">
         <div className="w-20 h-20 rounded-3xl bg-indigo-100 border border-indigo-200 flex items-center justify-center mx-auto mb-5 backdrop-blur-sm">
           <span className="text-4xl">🏪</span>
@@ -92,7 +92,7 @@ function PinScreen({ storeName, storePin, onAuth, onBack }: {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-6 relative overflow-hidden">
+    <div className="min-h-[100dvh] bg-gray-50 flex flex-col items-center justify-center px-6 relative overflow-hidden">
       <div className="relative text-center mb-8 animate-fade-in">
         <div className="w-20 h-20 rounded-3xl bg-indigo-100 border border-indigo-200 flex items-center justify-center mx-auto mb-5 backdrop-blur-sm">
           <span className="text-4xl">🔒</span>
@@ -678,7 +678,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col">
+    <div className="min-h-[100dvh] bg-gray-50 text-gray-900 flex flex-col">
 
       {/* ヘッダー */}
       <div className="bg-white border-b border-gray-200 shadow-sm px-4 pt-safe-top pt-4 pb-3">
@@ -959,7 +959,7 @@ export default function StoreAdminPage() {
   }
 
   if (view === 'loading') return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div className="min-h-[100dvh] bg-gray-50 flex items-center justify-center">
       <Loader2 size={36} className="animate-spin text-indigo-600" />
     </div>
   )

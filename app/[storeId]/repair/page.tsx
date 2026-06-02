@@ -39,7 +39,7 @@ export default function RepairPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-[100dvh] flex items-center justify-center bg-white">
         <div className="w-8 h-8 border-4 border-violet-200 border-t-violet-600 rounded-full animate-spin" />
       </div>
     )
@@ -48,7 +48,7 @@ export default function RepairPage() {
   const displayNotes = notes?.trim() || DEFAULT_NOTES
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-violet-50 to-white px-5 py-10 max-w-md mx-auto">
+    <main className="min-h-[100dvh] bg-gradient-to-br from-violet-50 to-white px-5 py-10 max-w-md mx-auto">
       {/* ヘッダー */}
       <div className="text-center mb-8">
         <div className="w-16 h-16 mx-auto mb-4 rounded-3xl bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center shadow-lg shadow-violet-200">

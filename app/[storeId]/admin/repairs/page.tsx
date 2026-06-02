@@ -455,7 +455,7 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-lg bg-white rounded-t-3xl shadow-2xl flex flex-col" style={{ maxHeight: '92vh' }} onClick={e => e.stopPropagation()}>
+      <div className="w-full max-w-lg bg-white rounded-t-3xl shadow-2xl flex flex-col" style={{ maxHeight: '92dvh' }} onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div className="px-5 pt-5 pb-4 border-b border-gray-100 shrink-0">
@@ -876,8 +876,8 @@ function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   storeId: string; onClose: () => void; onSave: () => void
   onToast: (t: 'ok' | 'err', m: string) => void
 }) {
-  type OStep = 'products' | 'customer' | 'confirm'
-  const [step,       setStep]       = useState<OStep>('products')
+  type OStep = 'customer' | 'products' | 'confirm'
+  const [step,       setStep]       = useState<OStep>('customer')
   const [schools,    setSchools]    = useState<{ id: string; name: string }[]>([])
   const [schoolId,   setSchoolId]   = useState<string | null>(null)
   const [products,   setProducts]   = useState<{ id: string; item_name: string; category: string | null; gender: string | null; maker_code: string | null }[]>([])
@@ -938,12 +938,14 @@ function NewOrderModal({ storeId, onClose, onSave, onToast }: {
 
   useEffect(() => {
     ;(supabase as any).from('schools').select('id, name').eq('store_id', storeId).eq('active', true).order('sort_order')
-      .then(({ data }: { data: typeof schools }) => {
-        const rows = data ?? []
-        setSchools(rows)
-        if (rows.length > 0) setSchoolId(rows[0].id)
-      })
+      .then(({ data }: { data: typeof schools }) => setSchools(data ?? []))
   }, [storeId])
+
+  useEffect(() => {
+    if (!selectedChild?.school_name || schools.length === 0) return
+    const matched = schools.find(s => s.name === selectedChild.school_name)
+    setSchoolId(matched?.id ?? schools[0]?.id ?? null)
+  }, [selectedChild, schools])
 
   useEffect(() => {
     if (!schoolId) return
@@ -1015,20 +1017,20 @@ function NewOrderModal({ storeId, onClose, onSave, onToast }: {
     onSave()
   }
 
-  const stepLabels: Record<OStep, string> = { products: '商品選択', customer: '顧客選択', confirm: '確認・登録' }
-  const steps: OStep[] = ['products', 'customer', 'confirm']
+  const stepLabels: Record<OStep, string> = { customer: '顧客選択', products: '商品選択', confirm: '確認・登録' }
+  const steps: OStep[] = ['customer', 'products', 'confirm']
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex flex-col justify-end sm:justify-center sm:items-center sm:p-4">
-      <div className="bg-white sm:rounded-3xl sm:max-w-lg w-full sm:max-h-[90vh] max-h-[92vh] flex flex-col rounded-t-3xl overflow-hidden">
+      <div className="bg-white sm:rounded-3xl sm:max-w-lg w-full flex flex-col rounded-t-3xl overflow-hidden" style={{ maxHeight: '92dvh' }}>
         {/* Header */}
         <div className="px-4 pt-4 pb-3 border-b border-gray-100 shrink-0">
           <input ref={orderFileRef} type="file" accept="image/*" capture="environment" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleOcrOrder(f); e.target.value = '' }} />
           <div className="flex items-center gap-3 mb-3">
-            <button onClick={step === 'products' ? onClose : () => setStep(step === 'confirm' ? 'customer' : 'products')}
+            <button onClick={step === 'customer' ? onClose : () => setStep(step === 'confirm' ? 'products' : 'customer')}
               className="p-2 -ml-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-all">
-              {step === 'products' ? <X size={18} /> : <ChevronLeft size={18} />}
+              {step === 'customer' ? <X size={18} /> : <ChevronLeft size={18} />}
             </button>
             <div className="flex-1">
               <p className="font-black text-gray-900 text-sm">📋 制服・用品注文</p>
@@ -1040,7 +1042,7 @@ function NewOrderModal({ storeId, onClose, onSave, onToast }: {
               {ocrLoading ? '解析中...' : '伝票読取'}
             </button>
             {cart.length > 0 && step === 'products' && (
-              <button onClick={() => setStep('customer')}
+              <button onClick={() => setStep('confirm')}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-xl">
                 <ShoppingCart size={13} />{cart.length}点 次へ
               </button>
@@ -1139,7 +1141,7 @@ function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                       <p className="text-xs text-gray-500">{cart.length}点 合計</p>
                       <p className="font-black text-lg text-gray-900">¥{cartTotal.toLocaleString()}</p>
                     </div>
-                    <button onClick={() => setStep('customer')}
+                    <button onClick={() => setStep('confirm')}
                       className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-sm rounded-2xl active:scale-95 transition-all">
                       次へ →
                     </button>
@@ -1224,9 +1226,9 @@ function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                       </div>
                     </div>
                   )}
-                  <button onClick={() => setStep('confirm')}
+                  <button onClick={() => setStep('products')}
                     className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98]">
-                    <Check size={18} />次へ：注文内容を確認する
+                    <Check size={18} />次へ：商品を選択する
                   </button>
                 </>
               )}
@@ -2969,7 +2971,7 @@ export default function RepairsPage() {
 
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
+    <div className="min-h-[100dvh] bg-gray-50 text-gray-900">
       {/* ── Header / Dashboard ────────────────────────────── */}
       <div className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-100">
         <div className="max-w-2xl mx-auto px-4 pt-3 pb-3">

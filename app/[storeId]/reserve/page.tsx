@@ -86,7 +86,7 @@ function FallbackForm({ storeId, storeName }: { storeId: string; storeName: stri
 
   if (step === 'done') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center bg-zinc-950">
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center px-6 text-center bg-zinc-950">
         <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center mb-5">
           <Check size={28} className="text-emerald-400" />
         </div>
@@ -97,7 +97,7 @@ function FallbackForm({ storeId, storeName }: { storeId: string; storeName: stri
   }
 
   return (
-    <div className="min-h-screen pb-10 bg-zinc-950">
+    <div className="min-h-[100dvh] pb-10 bg-zinc-950">
       <div className="px-5 pt-8 pb-6">
         <p className="text-indigo-400 text-xs font-bold mb-1">{storeName}</p>
         <h1 className="text-2xl font-black text-white">来店予約</h1>
@@ -385,7 +385,7 @@ export default function ReservePage() {
   // ============================================================
   if (pageState === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-950">
+      <div className="min-h-[100dvh] flex items-center justify-center bg-zinc-950">
         <Loader2 size={32} className="animate-spin text-indigo-400" />
       </div>
     )
@@ -397,7 +397,7 @@ export default function ReservePage() {
 
   if (pageState === 'error') {
     return (
-      <div className="min-h-screen flex items-center justify-center px-6 bg-zinc-950">
+      <div className="min-h-[100dvh] flex items-center justify-center px-6 bg-zinc-950">
         <p className="text-red-400 text-sm text-center">エラーが発生しました。ページを再読み込みしてください。</p>
       </div>
     )
@@ -410,7 +410,7 @@ export default function ReservePage() {
         })
       : ''
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center bg-zinc-950">
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center px-6 text-center bg-zinc-950">
         <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center mb-5">
           <Check size={28} className="text-emerald-400" />
         </div>
@@ -433,7 +433,7 @@ export default function ReservePage() {
   // スロット制フォーム
   // ============================================================
   return (
-    <div className="min-h-screen pb-12 bg-zinc-950">
+    <div className="min-h-[100dvh] pb-12 bg-zinc-950">
       {/* ヘッダー */}
       <div className="px-5 pt-8 pb-5">
         <p className="text-indigo-400 text-xs font-bold mb-1">{storeName}</p>

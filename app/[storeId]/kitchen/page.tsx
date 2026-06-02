@@ -332,14 +332,14 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+      <div className="min-h-[100dvh] bg-zinc-950 flex items-center justify-center">
         <div className="text-zinc-600 text-lg">読み込み中...</div>
       </div>
     )
   }
 
   return (
-    <div className="h-screen bg-zinc-950 text-white flex flex-col overflow-hidden">
+    <div className="h-[100dvh] bg-zinc-950 text-white flex flex-col overflow-hidden">
 
       {/* ─── ヘッダー ─── */}
       <div className="bg-zinc-900 border-b border-zinc-800 shrink-0">

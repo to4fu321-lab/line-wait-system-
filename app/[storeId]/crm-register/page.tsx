@@ -192,14 +192,14 @@ export default function CrmRegisterPage() {
 
   // ── ローディング ──────────────────────────────
   if (view === 'loading') return (
-    <div className="min-h-screen bg-[#06C755] flex items-center justify-center">
+    <div className="min-h-[100dvh] bg-[#06C755] flex items-center justify-center">
       <Loader2 size={44} className="animate-spin text-white" />
     </div>
   )
 
   // ── 友達追加が必要 ────────────────────────────
   if (view === 'add_friend') return (
-    <div className="min-h-screen bg-[#06C755] flex flex-col items-center justify-center px-6 gap-6">
+    <div className="min-h-[100dvh] bg-[#06C755] flex flex-col items-center justify-center px-6 gap-6">
       <div className="text-center text-white">
         <MessageCircle size={64} className="mx-auto mb-3 opacity-90" />
         {storeName && <p className="text-green-200 text-xs font-bold mb-1">{storeName}</p>}
@@ -232,7 +232,7 @@ export default function CrmRegisterPage() {
 
   // ── LINE未使用 ────────────────────────────────
   if (view === 'not_line') return (
-    <div className="min-h-screen bg-[#06C755] flex flex-col items-center justify-center px-6 text-white text-center gap-4">
+    <div className="min-h-[100dvh] bg-[#06C755] flex flex-col items-center justify-center px-6 text-white text-center gap-4">
       <MessageCircle size={64} className="opacity-80" />
       <div>
         <h1 className="text-2xl font-black mb-2">LINEで開いてください</h1>
@@ -243,7 +243,7 @@ export default function CrmRegisterPage() {
 
   // ── 確認 ──────────────────────────────────────
   if (view === 'confirm' && confirmCustomer) return (
-    <div className="min-h-screen bg-[#06C755] flex flex-col items-center justify-center px-6 gap-6">
+    <div className="min-h-[100dvh] bg-[#06C755] flex flex-col items-center justify-center px-6 gap-6">
       <div className="text-center text-white">
         <MessageCircle size={48} className="mx-auto mb-2" />
         {storeName && <p className="text-green-200 text-xs font-bold mb-1">{storeName}</p>}
@@ -275,7 +275,7 @@ export default function CrmRegisterPage() {
 
   // ── 完了 ──────────────────────────────────────
   if (view === 'done') return (
-    <div className="min-h-screen bg-[#06C755] flex flex-col items-center justify-center px-6 text-white text-center gap-5">
+    <div className="min-h-[100dvh] bg-[#06C755] flex flex-col items-center justify-center px-6 text-white text-center gap-5">
       <CheckCircle2 size={88} />
       <div>
         <h1 className="text-4xl font-black mb-2">確認しました！</h1>
@@ -290,7 +290,7 @@ export default function CrmRegisterPage() {
 
   // ── 登録済みお子様一覧 ─────────────────────────
   if (view === 'existing') return (
-    <div className="min-h-screen bg-[#06C755] flex flex-col px-5 pt-12 pb-8">
+    <div className="min-h-[100dvh] bg-[#06C755] flex flex-col px-5 pt-12 pb-8">
       <div className="text-white text-center mb-6">
         <MessageCircle size={44} className="mx-auto mb-2" />
         {storeName && <p className="text-green-200 text-xs font-bold mb-1">{storeName}</p>}
@@ -322,7 +322,7 @@ export default function CrmRegisterPage() {
 
   // ── 新規登録フォーム ───────────────────────────
   return (
-    <div className="min-h-screen bg-[#06C755] flex flex-col px-5 pt-10 pb-8">
+    <div className="min-h-[100dvh] bg-[#06C755] flex flex-col px-5 pt-10 pb-8">
       <div className="text-center text-white mb-6">
         <MessageCircle size={40} className="mx-auto mb-2" />
         {storeName && <p className="text-green-200 text-xs font-bold mb-1">{storeName}</p>}

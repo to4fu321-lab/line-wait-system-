@@ -1537,7 +1537,7 @@ export default function CRMPage() {
   const pendingTotal = stats.repairReceived + stats.repairCompleted + stats.purchaseReceived + stats.purchaseInProgress + stats.purchaseArrived
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
+    <div className="min-h-[100dvh] bg-gray-50 text-gray-900">
       {toast && <Toast msg={toast.msg} type={toast.type} onUndo={toast.onUndo} onClose={() => setToast(null)} />}
 
       {/* ヘッダー */}
@@ -2019,7 +2019,7 @@ export default function CRMPage() {
       {showQuickIntake && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm"
           onClick={e => { if (e.target === e.currentTarget) { setShowQuickIntake(false); resetQi() } }}>
-          <div className="w-full max-w-lg bg-white rounded-t-3xl shadow-2xl max-h-[90vh] flex flex-col">
+          <div className="w-full max-w-lg bg-white rounded-t-3xl shadow-2xl flex flex-col" style={{ maxHeight: '90dvh' }}>
             {/* Modal header */}
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100 shrink-0">
               <div className="flex items-center gap-2">

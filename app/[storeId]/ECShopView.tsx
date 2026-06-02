@@ -225,7 +225,7 @@ export default function ECShopView({
 
   // ── 注文完了 ───────────────────────────────────────────────
   if (ordered) return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-6 text-center gap-6 pb-10">
+    <main className="min-h-[100dvh] flex flex-col items-center justify-center px-6 text-center gap-6 pb-10">
       <div className="w-28 h-28 rounded-full flex items-center justify-center"
         style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`,
           boxShadow: `0 20px 50px -12px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
@@ -259,7 +259,7 @@ export default function ECShopView({
   )
 
   return (
-    <main className="min-h-screen" style={{ paddingBottom: totalQty > 0 ? 148 : 32 }}>
+    <main className="min-h-[100dvh]" style={{ paddingBottom: totalQty > 0 ? 148 : 32 }}>
       {/* ヘッダー */}
       <div className="px-5 pt-8 pb-4 text-center">
         <div className="w-14 h-14 mx-auto mb-3 rounded-2xl flex items-center justify-center text-2xl"
@@ -483,7 +483,7 @@ export default function ECShopView({
       {/* 注文確認モーダル */}
       {showConfirm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end justify-center z-50">
-          <div className="bg-white rounded-t-3xl w-full max-w-md max-h-[85vh] overflow-y-auto">
+          <div className="bg-white rounded-t-3xl w-full max-w-md overflow-y-auto" style={{ maxHeight: '85dvh' }}>
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-zinc-100">
               <div>
                 <p className="font-black text-zinc-900 text-base">注文内容の確認</p>

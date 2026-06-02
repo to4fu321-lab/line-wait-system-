@@ -1033,7 +1033,7 @@ function MasterPageInner() {
       ================================================================ */}
       {staffModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={() => setStaffModal(false)}>
-          <div className="w-full max-w-lg bg-white rounded-t-3xl px-5 pt-5 pb-8 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]" onClick={e => e.stopPropagation()}>
+          <div className="w-full max-w-lg bg-white rounded-t-3xl px-5 pt-5 pb-8 space-y-4 shadow-2xl overflow-y-auto" style={{ maxHeight: '90dvh' }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="text-base font-black text-gray-900 flex items-center gap-2">
                 <Users size={16} className="text-emerald-500" />
