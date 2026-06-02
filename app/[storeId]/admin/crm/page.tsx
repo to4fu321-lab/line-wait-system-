@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { BottomNav } from '../_components/BottomNav'
+import { QrRegistrationModal } from '../_components/QrRegistrationModal'
 import {
   ArrowLeft, Search, Plus, User, Phone,
   CheckCheck, Package, Loader2, X, MessageCircle,
@@ -1988,28 +1989,13 @@ export default function CRMPage() {
         </div>
       )}
 
-      {/* 新規登録QRモーダル（メインページ右上QRと同じURL） */}
-      {showQrModal && (() => {
-        const liffId = process.env.NEXT_PUBLIC_LIFF_ID || ''
-        const url    = `https://liff.line.me/${liffId}/${storeId}`
-        const qrSrc  = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(url)}`
-        return (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
-            <div className="bg-white border border-gray-200 rounded-3xl p-6 w-full max-w-xs text-center relative">
-              <button onClick={() => setShowQrModal(false)}
-                className="absolute top-4 right-4 p-1.5 rounded-xl bg-gray-100 text-gray-500 hover:text-gray-900">
-                <X size={16} />
-              </button>
-              <p className="font-black text-gray-900 text-base mb-1">お客様受付 QR</p>
-              <p className="text-gray-500 text-xs mb-4">このQRをお客様のLINEで読み取ってもらってください</p>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={qrSrc} alt="受付QRコード" width={240} height={240}
-                className="mx-auto rounded-2xl bg-white p-2" />
-              <p className="text-gray-400 text-[10px] mt-4 break-all">{url}</p>
-            </div>
-          </div>
-        )
-      })()}
+      {/* 新規登録QRモーダル */}
+      {showQrModal && (
+        <QrRegistrationModal
+          storeId={storeId}
+          onClose={() => setShowQrModal(false)}
+        />
+      )}
 
       {/* お子様削除確認モーダル */}
       {deleteChildTarget && (

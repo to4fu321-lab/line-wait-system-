@@ -10,6 +10,7 @@ export interface Product {
   price: number | null
   notes: string | null
   is_active: boolean
+  school_names: string[]
   created_at: string
   updated_at: string
 }

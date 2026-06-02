@@ -1423,6 +1423,9 @@ export default function CustomerPage() {
       storeName={theme.storeName}
       customerId={customer?.id ?? null}
       childId={selectedChild?.id ?? null}
+      childName={selectedChild?.name ?? null}
+      childSchoolName={selectedChild?.school_name ?? null}
+      childGrade={selectedChild?.grade ?? null}
       onBack={() => setView('purpose')}
     />
   )

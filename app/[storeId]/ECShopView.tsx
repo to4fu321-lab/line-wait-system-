@@ -1,52 +1,26 @@
 'use client'
 
-import { useState } from 'react'
-import { CheckCircle2, Minus, Plus, ShoppingCart, ChevronDown, ChevronUp, Loader2, AlertCircle, X } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import {
+  CheckCircle2, Minus, Plus, ShoppingCart,
+  ChevronDown, ChevronUp, Loader2, X, GraduationCap, Pencil,
+} from 'lucide-react'
 import { useStoreTheme } from '@/lib/theme-context'
 import { supabase } from '@/lib/supabase'
-import { SCHOOL_OPTIONS, GRADE_OPTIONS } from '@/types/crm'
-import { useKanaAutoFill } from '@/lib/useKanaAutoFill'
-import { getLineProfile, type LiffProfile } from '@/lib/liff'
+import type { Product } from '@/types/products'
+import type { LiffProfile } from '@/lib/liff'
+import { GRADE_OPTIONS } from '@/types/crm'
 
-function toKatakana(s: string) {
-  return s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60))
+// カテゴリに対応する絵文字
+const CATEGORY_EMOJI: Record<string, string> = {
+  '制服': '👔',
+  '体操着': '🩳',
+  '上靴': '👟',
+  'カバン': '🎒',
+  'その他': '📦',
 }
 
-// ── モック商品データ ──────────────────────────────────────
-const ITEMS = [
-  {
-    id: 1, name: 'ワイシャツ（長袖）', price: 3200, emoji: '👔',
-    sizes: ['150', '155', '160', '165', '170'],
-    desc: 'スクールシャツ 形態安定加工',
-  },
-  {
-    id: 2, name: 'ワイシャツ（半袖）', price: 2800, emoji: '👕',
-    sizes: ['150', '155', '160', '165', '170'],
-    desc: 'スクールシャツ 形態安定加工',
-  },
-  {
-    id: 3, name: 'スクールポロシャツ', price: 2400, emoji: '🎽',
-    sizes: ['S', 'M', 'L', 'XL'],
-    desc: 'UVカット・吸水速乾素材',
-  },
-  {
-    id: 4, name: '通学用ソックス（3足組）', price: 780, emoji: '🧦',
-    sizes: ['23–25cm', '25–27cm', '27–29cm'],
-    desc: '白 リブソックス',
-  },
-  {
-    id: 5, name: 'スクールベルト', price: 1200, emoji: '🪢',
-    sizes: ['S / M', 'L / XL'],
-    desc: '通学用 黒 合皮',
-  },
-  {
-    id: 6, name: '体操着（上下セット）', price: 4800, emoji: '🩳',
-    sizes: ['150', '160', '170', 'XL'],
-    desc: '吸汗速乾・ストレッチ',
-  },
-]
-
-interface CartItem { itemId: number; size: string; qty: number }
+interface CartItem { productId: string; size: string; qty: number }
 
 interface Props {
   lineProfile: LiffProfile | null
@@ -54,66 +28,131 @@ interface Props {
   storeName?: string
   customerId?: string | null
   childId?: string | null
+  childName?: string | null
+  childSchoolName?: string | null
+  childGrade?: string | null
   onBack: () => void
 }
 
-export default function ECShopView({ lineProfile, storeId, storeName, customerId, childId, onBack }: Props) {
+export default function ECShopView({
+  lineProfile, storeId, storeName,
+  customerId, childId,
+  childName, childSchoolName: initialSchoolName, childGrade: initialGrade,
+  onBack,
+}: Props) {
   const theme = useStoreTheme()
-  const [cart, setCart]     = useState<CartItem[]>([])
-  const [selSize, setSelSize] = useState<Record<number, string>>({})
-  const [ordered, setOrdered] = useState(false)
-  const [ordering, setOrdering] = useState(false)
-  const [orderError, setOrderError] = useState('')
-  const [openCart, setOpenCart] = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
-  const [confirmIds, setConfirmIds] = useState<{ cId: string; chId: string | null } | null>(null)
 
-  // 登録モーダル用 state
-  const [showRegModal, setShowRegModal] = useState(false)
-  const regParent = useKanaAutoFill(lineProfile?.displayName ?? '')
-  const regChild  = useKanaAutoFill('')
-  const [regTel,      setRegTel]      = useState('')
-  const [regSchool,   setRegSchool]   = useState('')
-  const [regGrade,    setRegGrade]    = useState('')
-  const [regError,    setRegError]    = useState('')
-  const [registering, setRegistering] = useState(false)
+  const [products,       setProducts]       = useState<Product[]>([])
+  const [loading,        setLoading]        = useState(true)
+  const [cart,           setCart]           = useState<CartItem[]>([])
+  const [selSize,        setSelSize]        = useState<Record<string, string>>({})
+  const [ordered,        setOrdered]        = useState(false)
+  const [ordering,       setOrdering]       = useState(false)
+  const [orderError,     setOrderError]     = useState('')
+
+  // 学校・学年（ローカルで変更可能）
+  const [childSchoolName, setChildSchoolName] = useState(initialSchoolName ?? null)
+  const [childGrade,      setChildGrade]      = useState(initialGrade ?? null)
+
+  // 学校変更モーダル
+  const [showSchoolEdit,  setShowSchoolEdit]  = useState(false)
+  const [editSchool,      setEditSchool]      = useState(initialSchoolName ?? '')
+  const [editGrade,       setEditGrade]       = useState(initialGrade ?? '')
+  const [schoolOptions,   setSchoolOptions]   = useState<string[]>([])
+  const [savingSchool,    setSavingSchool]    = useState(false)
+  const [openCart,    setOpenCart]    = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+
+  // 商品取得
+  const fetchProducts = useCallback(async () => {
+    setLoading(true)
+    const { data } = await (supabase as any)
+      .from('products')
+      .select('*')
+      .eq('store_id', storeId)
+      .eq('is_active', true)
+      .order('category', { ascending: true })
+      .order('name',     { ascending: true })
+    const rows: Product[] = data ?? []
+    setProducts(rows)
+    // 商品に紐付いた学校名一覧を抽出してドロップダウン用に保存
+    const allSchools = Array.from(
+      new Set(rows.flatMap(p => p.school_names ?? []))
+    ).sort()
+    setSchoolOptions(allSchools)
+    setLoading(false)
+  }, [storeId])
+
+  useEffect(() => { fetchProducts() }, [fetchProducts])
+
+  // 学校・学年を更新（お子様 DB レコード更新）
+  const handleSaveSchool = async () => {
+    if (!childId) {
+      // childId がない場合はローカル state だけ更新
+      setChildSchoolName(editSchool || null)
+      setChildGrade(editGrade || null)
+      setShowSchoolEdit(false)
+      return
+    }
+    setSavingSchool(true)
+    await (supabase as any).from('children').update({
+      school_name: editSchool.trim() || null,
+      grade: editGrade || null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', childId)
+    setChildSchoolName(editSchool.trim() || null)
+    setChildGrade(editGrade || null)
+    setSavingSchool(false)
+    setShowSchoolEdit(false)
+  }
+
+  // 学校に応じた商品フィルタリング
+  // 定番商品: school_names が空配列 or null
+  // 学校別商品: school_names に childSchoolName が含まれる
+  const standardProducts = products.filter(
+    p => !p.school_names || p.school_names.length === 0
+  )
+  const schoolProducts = childSchoolName
+    ? products.filter(p => p.school_names && p.school_names.includes(childSchoolName))
+    : []
 
   const totalQty   = cart.reduce((s, c) => s + c.qty, 0)
   const totalPrice = cart.reduce((s, c) => {
-    const item = ITEMS.find(i => i.id === c.itemId)
-    return s + (item?.price ?? 0) * c.qty
+    const p = products.find(p => p.id === c.productId)
+    return s + (p?.price ?? 0) * c.qty
   }, 0)
 
-  const getQty = (itemId: number, size: string) =>
-    cart.find(c => c.itemId === itemId && c.size === size)?.qty ?? 0
+  const getQty = (productId: string, size: string) =>
+    cart.find(c => c.productId === productId && c.size === size)?.qty ?? 0
 
-  const changeQty = (itemId: number, size: string, delta: number) => {
+  const changeQty = (productId: string, size: string, delta: number) => {
     setCart(prev => {
-      const idx = prev.findIndex(c => c.itemId === itemId && c.size === size)
-      if (idx < 0) return delta > 0 ? [...prev, { itemId, size, qty: delta }] : prev
+      const idx = prev.findIndex(c => c.productId === productId && c.size === size)
+      if (idx < 0) return delta > 0 ? [...prev, { productId, size, qty: delta }] : prev
       const next = prev[idx].qty + delta
       if (next <= 0) return prev.filter((_, i) => i !== idx)
       return prev.map((c, i) => i === idx ? { ...c, qty: next } : c)
     })
   }
 
-  // 注文DB登録（customerId確定後に呼ぶ）
-  const submitOrder = async (cId: string, chId: string | null) => {
+  const submitOrder = async () => {
+    if (!customerId) return
     setOrdering(true); setOrderError('')
     try {
       const today = new Date().toISOString().slice(0, 10)
       const records = cart.map(c => {
-        const item = ITEMS.find(i => i.id === c.itemId)!
+        const p = products.find(p => p.id === c.productId)!
         return {
-          store_id: storeId, customer_id: cId, child_id: chId ?? null,
-          item_name: `${item.name}（${c.size}）`, notes: `数量：${c.qty}点`,
-          price: item.price * c.qty, status: 'ordered', ordered_date: today,
+          store_id: storeId, customer_id: customerId, child_id: childId ?? null,
+          item_name: `${p.name}（${c.size}）`,
+          notes: `数量：${c.qty}点`,
+          price: (p.price ?? 0) * c.qty,
+          status: 'ordered',
+          ordered_date: today,
         }
       })
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase.from('purchase_orders') as any).insert(records)
       if (error) throw new Error(error.message)
-      // 管理者へ取置き依頼通知
       const itemNames = records.map(r => r.item_name).join('・')
       fetch('/api/push-admin', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -133,56 +172,38 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
     }
   }
 
-  const handleOrder = async () => {
+  const handleOrder = () => {
     if (totalQty === 0 || ordering) return
-    if (!customerId) { setShowRegModal(true); return }
-    setConfirmIds({ cId: customerId, chId: childId ?? null })
     setShowConfirm(true)
   }
 
-  const handleConfirmOrder = async () => {
-    if (!confirmIds) return
-    // モーダルを閉じずに送信 → 成功時は ordered=true で画面ごと遷移、失敗時はモーダル内にエラー表示
-    await submitOrder(confirmIds.cId, confirmIds.chId)
-  }
+  // ── 未登録の場合 ──────────────────────────────────────────
+  if (!customerId) return (
+    <main className="min-h-screen flex flex-col items-center justify-center px-6 text-center gap-6 pb-10">
+      <div className="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl bg-gray-100">🛍️</div>
+      <div>
+        <h2 className="text-2xl font-black text-zinc-900 mb-2">会員登録が必要です</h2>
+        <p className="text-zinc-500 text-sm leading-relaxed">
+          ご注文には会員登録が必要です。<br />
+          スタッフにお声がけいただくか、<br />
+          受付QRから登録をお願いします。
+        </p>
+      </div>
+      <button onClick={onBack}
+        className="text-zinc-400 text-sm underline active:opacity-60">
+        ← 戻る
+      </button>
+    </main>
+  )
 
-  // 登録して注文
-  const handleRegisterAndOrder = async () => {
-    if (!regParent.name.trim()) { setRegError('保護者のお名前を入力してください'); return }
-    if (!regChild.name.trim())  { setRegError('お子様のお名前を入力してください'); return }
-    // LIFFプロフィールを確保（初期化時に取れなかった場合は再取得）
-    let userId = lineProfile?.userId
-    if (!userId) {
-      const freshProfile = await getLineProfile()
-      userId = freshProfile?.userId ?? null
-    }
-    if (!userId) { setRegError('LINE認証に失敗しました。LINEアプリから開き直してください。'); return }
-    setRegistering(true); setRegError('')
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: newCust, error: custErr } = await (supabase.from('customers') as any).insert({
-        store_id: storeId, line_user_id: userId,
-        name: regParent.name.trim(), kana: regParent.kana.trim() || null, tel: regTel.trim() || null,
-      }).select().single()
-      if (custErr) throw new Error(custErr.message)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: newChild, error: childErr } = await (supabase.from('children') as any).insert({
-        customer_id: newCust.id, store_id: storeId,
-        name: regChild.name.trim(), kana: regChild.kana.trim() || null,
-        school_name: regSchool || null, grade: regGrade || null,
-      }).select().single()
-      if (childErr) throw new Error(childErr.message)
-      setShowRegModal(false)
-      setConfirmIds({ cId: newCust.id, chId: newChild?.id ?? null })
-      setShowConfirm(true)
-    } catch (e) {
-      setRegError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setRegistering(false)
-    }
-  }
+  // ── ローディング ──────────────────────────────────────────
+  if (loading) return (
+    <main className="min-h-screen flex items-center justify-center">
+      <Loader2 size={36} className="animate-spin" style={{ color: theme.colors.primary }} />
+    </main>
+  )
 
-  // ── 注文完了画面 ──────────────────────────────────────
+  // ── 注文完了 ──────────────────────────────────────────────
   if (ordered) return (
     <main className="min-h-screen flex flex-col items-center justify-center px-6 text-center gap-6 pb-10">
       <div className="w-28 h-28 rounded-full flex items-center justify-center"
@@ -200,22 +221,19 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
           届きましたら店頭にてお受け取りください。
         </p>
       </div>
-
-      {/* 注文内容サマリー */}
       <div className="bg-zinc-50 rounded-2xl p-5 w-full max-w-sm text-left">
         <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3">ご注文内容</p>
         <div className="space-y-2">
           {cart.map(c => {
-            const item = ITEMS.find(i => i.id === c.itemId)!
+            const p = products.find(p => p.id === c.productId)!
             return (
-              <div key={`${c.itemId}-${c.size}`}
-                className="flex items-center justify-between text-sm">
+              <div key={`${c.productId}-${c.size}`} className="flex items-center justify-between text-sm">
                 <span className="text-zinc-700">
-                  {item.emoji} {item.name}
+                  {CATEGORY_EMOJI[p.category ?? ''] ?? '📦'} {p.name}
                   <span className="text-zinc-400 ml-1">({c.size})</span>
                 </span>
                 <span className="font-bold text-zinc-900">
-                  ×{c.qty}　¥{(item.price * c.qty).toLocaleString()}
+                  ×{c.qty}　¥{((p.price ?? 0) * c.qty).toLocaleString()}
                 </span>
               </div>
             )
@@ -228,15 +246,121 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
           </span>
         </div>
       </div>
-
-      <button onClick={onBack}
-        className="text-zinc-400 text-sm underline active:opacity-60">
+      <button onClick={onBack} className="text-zinc-400 text-sm underline active:opacity-60">
         ← トップへ戻る
       </button>
     </main>
   )
 
-  // ── ショッピング画面 ──────────────────────────────────
+  // ── 商品セクション ──────────────────────────────────────
+  const ProductSection = ({ title, items, accent }: { title: string; items: Product[]; accent: string }) => {
+    if (items.length === 0) return null
+    return (
+      <div>
+        <div className="flex items-center gap-2.5 mb-3 px-1">
+          <div className={`w-2 h-6 rounded-full shrink-0 ${accent}`} />
+          <p className="text-sm font-black text-zinc-900 flex-1">{title}</p>
+          <span className="text-xs font-black text-zinc-400">{items.length}点</span>
+        </div>
+        <div className="space-y-4">
+          {items.map(item => {
+            const emoji = CATEGORY_EMOJI[item.category ?? ''] ?? '📦'
+            const currentSize = selSize[item.id]
+            const currentQty  = currentSize ? getQty(item.id, currentSize) : 0
+            const totalItemQty = (item.sizes ?? []).reduce((s, sz) => s + getQty(item.id, sz), 0)
+            return (
+              <div key={item.id} className="bg-white rounded-3xl border border-zinc-100 p-5"
+                style={{ boxShadow: totalItemQty > 0
+                  ? `0 0 0 2px rgb(${theme.colors.primaryRgb} / 0.3), 0 8px 24px -8px rgb(${theme.colors.primaryRgb} / 0.15)`
+                  : '0 2px 12px rgba(0,0,0,0.06)' }}>
+                <div className="flex items-start gap-4">
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl bg-zinc-50 shrink-0">
+                    {emoji}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-black text-zinc-900 leading-tight">{item.name}</p>
+                        {item.maker && <p className="text-zinc-400 text-xs mt-0.5">{item.maker}</p>}
+                        {item.notes && <p className="text-zinc-400 text-xs mt-0.5">{item.notes}</p>}
+                      </div>
+                      {totalItemQty > 0 && (
+                        <div className="shrink-0 text-xs font-bold px-2 py-1 rounded-full"
+                          style={{ background: `rgb(${theme.colors.primaryRgb} / 0.1)`, color: theme.colors.primary }}>
+                          {totalItemQty}点
+                        </div>
+                      )}
+                    </div>
+                    {item.price != null && (
+                      <p className="text-base font-black mt-1.5" style={{ color: theme.colors.primary }}>
+                        ¥{item.price.toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* サイズ選択 */}
+                {item.sizes && item.sizes.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-xs text-zinc-400 font-bold mb-2">サイズを選択</p>
+                    <div className="flex flex-wrap gap-2">
+                      {item.sizes.map(sz => {
+                        const qtyForSz = getQty(item.id, sz)
+                        const isSelected = selSize[item.id] === sz
+                        return (
+                          <button key={sz}
+                            onClick={() => setSelSize(prev => ({ ...prev, [item.id]: sz }))}
+                            className="relative px-3.5 py-2 rounded-xl text-sm font-bold border-2 transition-all active:scale-95"
+                            style={isSelected ? {
+                              borderColor: theme.colors.primary,
+                              background: `rgb(${theme.colors.primaryRgb} / 0.08)`,
+                              color: theme.colors.primary,
+                            } : {
+                              borderColor: qtyForSz > 0 ? `rgb(${theme.colors.primaryRgb} / 0.4)` : '#e5e7eb',
+                              color: qtyForSz > 0 ? theme.colors.primary : '#71717a',
+                            }}>
+                            {sz}
+                            {qtyForSz > 0 && (
+                              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full text-[10px] font-black flex items-center justify-center text-white"
+                                style={{ background: theme.colors.primary }}>
+                                {qtyForSz}
+                              </span>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 数量コントロール */}
+                {currentSize && (
+                  <div className="mt-4 flex items-center justify-between bg-zinc-50 rounded-xl px-4 py-3">
+                    <span className="text-sm text-zinc-600 font-bold">{currentSize} × 数量</span>
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => changeQty(item.id, currentSize, -1)}
+                        disabled={currentQty === 0}
+                        className="w-10 h-10 rounded-xl border-2 border-zinc-200 flex items-center justify-center active:scale-95 transition-all disabled:opacity-30">
+                        <Minus size={14} className="text-zinc-500" />
+                      </button>
+                      <span className="text-2xl font-black text-zinc-900 w-8 text-center">{currentQty}</span>
+                      <button onClick={() => changeQty(item.id, currentSize, 1)}
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-white active:scale-95 transition-all"
+                        style={{ background: theme.colors.primary }}>
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // ── ショッピング画面 ──────────────────────────────────────
   return (
     <main className="min-h-screen" style={{ paddingBottom: totalQty > 0 ? 140 : 32 }}>
       {/* ヘッダー */}
@@ -247,107 +371,52 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
           🛍️
         </div>
         <p className="text-xs font-bold mb-1" style={{ color: theme.colors.primary }}>{storeName}</p>
-        <h1 className="text-2xl font-black text-zinc-900">かんたんネット注文</h1>
-        <p className="text-zinc-500 text-sm mt-1">アイテムを選んでお家から注文できます</p>
+        <h1 className="text-2xl font-black text-zinc-900">制服・用品のご注文</h1>
+        <p className="text-zinc-500 text-sm mt-1">在庫確認のリクエストを送れます</p>
+      </div>
+
+      {/* お子様情報バナー */}
+      <div className="px-4 mb-4 max-w-md mx-auto">
+        <button
+          onClick={() => { setEditSchool(childSchoolName ?? ''); setEditGrade(childGrade ?? ''); setShowSchoolEdit(true) }}
+          className="w-full bg-white border border-zinc-100 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-sm active:scale-[0.99] transition-transform text-left"
+        >
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: `rgb(${theme.colors.primaryRgb} / 0.1)` }}>
+            <GraduationCap size={18} style={{ color: theme.colors.primary }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            {childName && <p className="font-black text-zinc-900 text-sm truncate">{childName} さん</p>}
+            {childSchoolName ? (
+              <p className="text-zinc-500 text-xs truncate">
+                {childSchoolName}{childGrade ? ` · ${childGrade}` : ''}
+              </p>
+            ) : (
+              <p className="text-amber-600 text-xs font-bold">学校を登録 → 関連商品を表示</p>
+            )}
+          </div>
+          <Pencil size={14} className="text-zinc-400 shrink-0" />
+        </button>
       </div>
 
       {/* 商品リスト */}
-      <div className="px-4 space-y-4 max-w-md mx-auto">
-        {ITEMS.map(item => {
-          const currentSize = selSize[item.id]
-          const currentQty  = currentSize ? getQty(item.id, currentSize) : 0
-          const totalItemQty = item.sizes.reduce((s, sz) => s + getQty(item.id, sz), 0)
+      <div className="px-4 space-y-8 max-w-md mx-auto">
+        {standardProducts.length === 0 && schoolProducts.length === 0 && (
+          <p className="text-center text-zinc-400 text-sm py-12">
+            現在登録されている商品はありません
+          </p>
+        )}
 
-          return (
-            <div key={item.id}
-              className="bg-white rounded-3xl border border-zinc-100 p-5"
-              style={{ boxShadow: totalItemQty > 0
-                ? `0 0 0 2px rgb(${theme.colors.primaryRgb} / 0.3), 0 8px 24px -8px rgb(${theme.colors.primaryRgb} / 0.15)`
-                : '0 2px 12px rgba(0,0,0,0.06)' }}>
-              {/* 商品ヘッダー */}
-              <div className="flex items-start gap-4">
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl bg-zinc-50 shrink-0">
-                  {item.emoji}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-black text-zinc-900 leading-tight">{item.name}</p>
-                      <p className="text-zinc-400 text-xs mt-0.5">{item.desc}</p>
-                    </div>
-                    {totalItemQty > 0 && (
-                      <div className="shrink-0 text-xs font-bold px-2 py-1 rounded-full"
-                        style={{ background: `rgb(${theme.colors.primaryRgb} / 0.1)`, color: theme.colors.primary }}>
-                        {totalItemQty}点
-                      </div>
-                    )}
-                  </div>
-                  <p className="text-base font-black mt-1.5" style={{ color: theme.colors.primary }}>
-                    ¥{item.price.toLocaleString()}
-                  </p>
-                </div>
-              </div>
-
-              {/* サイズ選択 */}
-              <div className="mt-4">
-                <p className="text-xs text-zinc-400 font-bold mb-2">サイズを選択</p>
-                <div className="flex flex-wrap gap-2">
-                  {item.sizes.map(sz => {
-                    const qtyForSz = getQty(item.id, sz)
-                    const isSelected = selSize[item.id] === sz
-                    return (
-                      <button key={sz}
-                        onClick={() => setSelSize(prev => ({ ...prev, [item.id]: sz }))}
-                        className="relative px-3.5 py-2 rounded-xl text-sm font-bold border-2 transition-all active:scale-95"
-                        style={isSelected ? {
-                          borderColor: theme.colors.primary,
-                          background: `rgb(${theme.colors.primaryRgb} / 0.08)`,
-                          color: theme.colors.primary,
-                        } : {
-                          borderColor: qtyForSz > 0 ? `rgb(${theme.colors.primaryRgb} / 0.4)` : '#e5e7eb',
-                          color: qtyForSz > 0 ? theme.colors.primary : '#71717a',
-                        }}>
-                        {sz}
-                        {qtyForSz > 0 && (
-                          <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full text-[10px] font-black flex items-center justify-center text-white"
-                            style={{ background: theme.colors.primary }}>
-                            {qtyForSz}
-                          </span>
-                        )}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {/* 数量コントロール */}
-              {currentSize && (
-                <div className="mt-4 flex items-center justify-between bg-zinc-50 rounded-xl px-4 py-3">
-                  <span className="text-sm text-zinc-600 font-bold">
-                    {currentSize} × 数量
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => changeQty(item.id, currentSize, -1)}
-                      disabled={currentQty === 0}
-                      className="w-10 h-10 rounded-xl border-2 border-zinc-200 flex items-center justify-center active:scale-95 transition-all disabled:opacity-30">
-                      <Minus size={14} className="text-zinc-500" />
-                    </button>
-                    <span className="text-2xl font-black text-zinc-900 w-8 text-center">
-                      {currentQty}
-                    </span>
-                    <button
-                      onClick={() => changeQty(item.id, currentSize, 1)}
-                      className="w-10 h-10 rounded-xl flex items-center justify-center text-white active:scale-95 transition-all"
-                      style={{ background: theme.colors.primary }}>
-                      <Plus size={14} />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })}
+        <ProductSection
+          title={childSchoolName ? `${childSchoolName}の商品` : '学校別商品'}
+          items={schoolProducts}
+          accent="bg-indigo-500"
+        />
+        <ProductSection
+          title="定番商品（全校共通）"
+          items={standardProducts}
+          accent="bg-amber-400"
+        />
 
         <button onClick={onBack} className="w-full py-3 text-center text-zinc-400 text-sm underline active:opacity-60">
           ← 戻る
@@ -357,25 +426,23 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
       {/* カートバー（固定フッター）*/}
       {totalQty > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-50">
-          {/* カート詳細（展開時）*/}
           {openCart && (
             <div className="bg-white border-t border-zinc-100 px-4 py-3 max-h-48 overflow-y-auto">
               <div className="max-w-md mx-auto space-y-2">
                 {cart.map(c => {
-                  const item = ITEMS.find(i => i.id === c.itemId)!
+                  const p = products.find(p => p.id === c.productId)!
                   return (
-                    <div key={`${c.itemId}-${c.size}`}
-                      className="flex items-center justify-between text-sm">
+                    <div key={`${c.productId}-${c.size}`} className="flex items-center justify-between text-sm">
                       <span className="text-zinc-700 truncate">
-                        {item.emoji} {item.name} <span className="text-zinc-400">({c.size})</span>
+                        {CATEGORY_EMOJI[p?.category ?? ''] ?? '📦'} {p?.name} <span className="text-zinc-400">({c.size})</span>
                       </span>
                       <div className="flex items-center gap-2 shrink-0 ml-2">
-                        <button onClick={() => changeQty(c.itemId, c.size, -1)}
+                        <button onClick={() => changeQty(c.productId, c.size, -1)}
                           className="w-6 h-6 rounded-full border border-zinc-200 flex items-center justify-center">
                           <Minus size={10} />
                         </button>
                         <span className="font-bold w-4 text-center">{c.qty}</span>
-                        <button onClick={() => changeQty(c.itemId, c.size, 1)}
+                        <button onClick={() => changeQty(c.productId, c.size, 1)}
                           className="w-6 h-6 rounded-full flex items-center justify-center text-white"
                           style={{ background: theme.colors.primary }}>
                           <Plus size={10} />
@@ -387,7 +454,6 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
               </div>
             </div>
           )}
-
           <div className="bg-white/95 backdrop-blur-xl border-t border-zinc-100 px-4 pt-3 pb-6"
             style={{ boxShadow: '0 -8px 30px rgba(0,0,0,0.1)' }}>
             <div className="max-w-md mx-auto">
@@ -410,14 +476,11 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
                   {openCart ? <ChevronDown size={16} className="text-zinc-400" /> : <ChevronUp size={16} className="text-zinc-400" />}
                 </div>
               </button>
-              {orderError && (
-                <p className="text-red-500 text-xs text-center mb-2">送信失敗: {orderError}</p>
-              )}
               <button onClick={handleOrder} disabled={ordering}
                 className="w-full py-4 rounded-2xl text-white font-black text-base flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
                 style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`,
                   boxShadow: `0 8px 24px -6px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
-                {ordering ? '送信中...' : `在庫確認を依頼する  →`}
+                {ordering ? '送信中...' : '在庫確認を依頼する  →'}
               </button>
             </div>
           </div>
@@ -440,16 +503,16 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
             <div className="px-5 py-4 space-y-3">
               <div className="space-y-2">
                 {cart.map(c => {
-                  const item = ITEMS.find(i => i.id === c.itemId)!
+                  const p = products.find(p => p.id === c.productId)!
                   return (
-                    <div key={`${c.itemId}-${c.size}`}
+                    <div key={`${c.productId}-${c.size}`}
                       className="flex items-center justify-between text-sm bg-zinc-50 rounded-xl px-3 py-2.5">
                       <span className="text-zinc-700">
-                        {item.emoji} {item.name}
+                        {CATEGORY_EMOJI[p?.category ?? ''] ?? '📦'} {p?.name}
                         <span className="text-zinc-400 ml-1">({c.size})</span>
                       </span>
                       <span className="font-bold text-zinc-900 shrink-0 ml-2">
-                        ×{c.qty}　¥{(item.price * c.qty).toLocaleString()}
+                        ×{c.qty}　¥{((p?.price ?? 0) * c.qty).toLocaleString()}
                       </span>
                     </div>
                   )
@@ -468,14 +531,11 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
                 <p className="text-red-500 text-xs text-center">送信失敗: {orderError}</p>
               )}
               <div className="grid grid-cols-2 gap-3 pt-1">
-                <button
-                  onClick={() => setShowConfirm(false)}
+                <button onClick={() => setShowConfirm(false)}
                   className="py-3.5 rounded-2xl border-2 border-zinc-200 text-zinc-600 font-bold text-sm active:scale-95 transition-transform">
                   修正する
                 </button>
-                <button
-                  onClick={handleConfirmOrder}
-                  disabled={ordering}
+                <button onClick={submitOrder} disabled={ordering}
                   className="py-3.5 rounded-2xl text-white font-black text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-transform disabled:opacity-60"
                   style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})` }}>
                   {ordering ? <><Loader2 size={14} className="animate-spin" />送信中...</> : 'この内容で依頼する →'}
@@ -485,74 +545,53 @@ export default function ECShopView({ lineProfile, storeId, storeName, customerId
           </div>
         </div>
       )}
-
-      {/* 会員登録モーダル */}
-      {showRegModal && (
+      {/* 学校・学年 変更モーダル */}
+      {showSchoolEdit && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end justify-center z-50">
-          <div className="bg-white rounded-t-3xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-t-3xl w-full max-w-md">
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-zinc-100">
               <div>
-                <p className="font-black text-zinc-900 text-base">会員登録して注文する</p>
-                <p className="text-zinc-500 text-xs mt-0.5">カートの内容はそのまま注文されます</p>
+                <p className="font-black text-zinc-900 text-base">学校・学年を変更</p>
+                <p className="text-zinc-500 text-xs mt-0.5">進学・転校の際に更新してください</p>
               </div>
-              <button onClick={() => setShowRegModal(false)} className="p-1.5 rounded-xl bg-zinc-100 text-zinc-500"><X size={16} /></button>
+              <button onClick={() => setShowSchoolEdit(false)} className="p-1.5 rounded-xl bg-zinc-100 text-zinc-500">
+                <X size={16} />
+              </button>
             </div>
-            <div className="px-5 py-4 space-y-4">
-              <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider">保護者情報</p>
+            <div className="px-5 py-4 space-y-4 pb-8">
               <div>
-                <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
-                <input type="text" {...regParent.nameProps} placeholder="例：山田 太郎"
-                  className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
-                <input type="text" {...regParent.kanaProps} placeholder="ヤマダ タロウ"
-                  className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-zinc-500 mb-1.5">電話番号</label>
-                <input type="tel" inputMode="tel" value={regTel} placeholder="例：090-1234-5678"
-                  className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all"
-                  onChange={e => setRegTel(e.target.value)} />
-              </div>
-              <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider pt-2 border-t border-zinc-100">お子様情報</p>
-              <div>
-                <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
-                <input type="text" {...regChild.nameProps} placeholder="例：山田 花子"
-                  className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
-                <input type="text" {...regChild.kanaProps} placeholder="ヤマダ ハナコ"
-                  className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名</label>
-                  <select value={regSchool} onChange={e => setRegSchool(e.target.value)}
+                <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名</label>
+                {schoolOptions.length > 0 ? (
+                  <select value={editSchool} onChange={e => setEditSchool(e.target.value)}
                     className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all">
-                    <option value="">選択</option>
-                    {SCHOOL_OPTIONS.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
+                    <option value="">選択してください</option>
+                    {schoolOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                    <option value="__custom">その他（直接入力）</option>
                   </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-zinc-500 mb-1.5">学年</label>
-                  <select value={regGrade} onChange={e => setRegGrade(e.target.value)}
-                    className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all">
-                    <option value="">選択</option>
-                    {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
-                  </select>
-                </div>
+                ) : (
+                  <input type="text" value={editSchool} onChange={e => setEditSchool(e.target.value)}
+                    placeholder="例：○○高等学校"
+                    className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all" />
+                )}
+                {editSchool === '__custom' && (
+                  <input type="text" onChange={e => setEditSchool(e.target.value)}
+                    placeholder="学校名を入力"
+                    className="mt-1.5 w-full text-base text-zinc-900 border-2 border-zinc-200 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all"
+                    autoFocus />
+                )}
               </div>
-              {regError && (
-                <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 rounded-xl px-3 py-2">
-                  <AlertCircle size={13} />{regError}
-                </div>
-              )}
-              <button onClick={handleRegisterAndOrder} disabled={registering || !regParent.name.trim() || !regChild.name.trim()}
-                className="w-full py-4 rounded-2xl text-white font-black text-base flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50"
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 mb-1.5">学年</label>
+                <select value={editGrade} onChange={e => setEditGrade(e.target.value)}
+                  className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all">
+                  <option value="">選択してください</option>
+                  {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
+              <button onClick={handleSaveSchool} disabled={savingSchool}
+                className="w-full py-4 rounded-2xl text-white font-black text-base flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
                 style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})` }}>
-                {registering ? <><Loader2 size={18} className="animate-spin" />登録・注文中...</> : '登録して注文する →'}
+                {savingSchool ? <><Loader2 size={18} className="animate-spin" />保存中...</> : '保存する'}
               </button>
             </div>
           </div>

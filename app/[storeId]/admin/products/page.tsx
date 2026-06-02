@@ -38,6 +38,7 @@ type FormState = {
   price: string
   notes: string
   is_active: boolean
+  school_names: string
 }
 
 const EMPTY_FORM: FormState = {
@@ -50,6 +51,7 @@ const EMPTY_FORM: FormState = {
   price: '',
   notes: '',
   is_active: true,
+  school_names: '',
 }
 
 function formToRow(f: FormState, storeId: string) {
@@ -66,20 +68,24 @@ function formToRow(f: FormState, storeId: string) {
     price:    f.price !== '' ? Number(f.price) : null,
     notes:    f.notes.trim() || null,
     is_active: f.is_active,
+    school_names: f.school_names.trim()
+                    ? f.school_names.split('\n').map(s => s.trim()).filter(Boolean)
+                    : [],
   }
 }
 
 function productToForm(p: Product): FormState {
   return {
-    code:      p.code     ?? '',
-    name:      p.name,
-    category:  p.category ?? '',
-    maker:     p.maker    ?? '',
-    gender:    p.gender   ?? '共通',
-    sizes:     p.sizes?.join(', ') ?? '',
-    price:     p.price != null ? String(p.price) : '',
-    notes:     p.notes    ?? '',
-    is_active: p.is_active,
+    code:         p.code     ?? '',
+    name:         p.name,
+    category:     p.category ?? '',
+    maker:        p.maker    ?? '',
+    gender:       p.gender   ?? '共通',
+    sizes:        p.sizes?.join(', ') ?? '',
+    price:        p.price != null ? String(p.price) : '',
+    notes:        p.notes    ?? '',
+    is_active:    p.is_active,
+    school_names: (p.school_names ?? []).join('\n'),
   }
 }
 
@@ -197,6 +203,21 @@ function ProductForm({
           placeholder="備考・特記事項"
           value={f.notes}
           onChange={set('notes')}
+        />
+      </div>
+
+      {/* school_names */}
+      <div className="col-span-2">
+        <label className="block text-xs text-gray-500 mb-1">
+          対象学校（1行1校名）
+          <span className="ml-1 text-gray-400">— 空欄=定番商品（全校共通）</span>
+        </label>
+        <textarea
+          rows={3}
+          className="w-full bg-gray-200 border border-gray-300 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 resize-none"
+          placeholder={"○○中学校\n△△高等学校"}
+          value={f.school_names}
+          onChange={set('school_names')}
         />
       </div>
 
@@ -495,21 +516,24 @@ export default function ProductsPage() {
               </p>
               <pre className="mt-2 text-xs text-amber-300/70 bg-amber-950/60 rounded-xl p-3 overflow-x-auto leading-relaxed whitespace-pre-wrap">
 {`create table products (
-  id         uuid primary key default gen_random_uuid(),
-  store_id   text not null,
-  code       text,
-  name       text not null,
-  category   text,
-  maker      text,
-  gender     text,
-  sizes      text[] default '{}',
-  price      integer,
-  notes      text,
-  is_active  boolean not null default true,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
+  id           uuid primary key default gen_random_uuid(),
+  store_id     text not null,
+  code         text,
+  name         text not null,
+  category     text,
+  maker        text,
+  gender       text,
+  sizes        text[] default '{}',
+  price        integer,
+  notes        text,
+  is_active    boolean not null default true,
+  school_names text[] not null default '{}',
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
   unique (store_id, code)
-);`}
+);
+-- 既存テーブルへの追加:
+-- alter table products add column if not exists school_names text[] not null default '{}';`}
               </pre>
             </div>
           </div>
@@ -609,6 +633,19 @@ export default function ProductsPage() {
                       )}
                       {p.notes && (
                         <p className="text-xs text-gray-500 mt-1 italic">{p.notes}</p>
+                      )}
+                      {p.school_names && p.school_names.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {p.school_names.map(s => (
+                            <span key={s} className="text-[10px] bg-teal-900/50 text-teal-300 px-1.5 py-0.5 rounded">
+                              🏫 {s}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] bg-amber-900/40 text-amber-300 px-1.5 py-0.5 rounded mt-1.5 inline-block">
+                          定番商品（全校共通）
+                        </span>
                       )}
                     </div>
 
