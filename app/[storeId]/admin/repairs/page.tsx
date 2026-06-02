@@ -1323,13 +1323,16 @@ function NewOrderModal({ storeId, onClose, onSave, onToast }: {
 }
 
 // ── Repair Card (お直し・依頼カード) ──────────────────────────
-function RepairCard({ item, storeId, onRefresh, onToast, onEdit }: {
+function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected, onToggle }: {
   item: RepairRow; storeId: string; onRefresh: () => void
   onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
   onEdit?: (item: RepairRow) => void
+  selected?: boolean
+  onToggle?: () => void
 }) {
   const [open,          setOpen]          = useState(false)
   const [loading,       setLoading]       = useState(false)
+  const [confirmPrimary, setConfirmPrimary] = useState(false)
   const [confirmPay,    setConfirmPay]    = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
 
@@ -1438,7 +1441,21 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit }: {
     'bg-white border-slate-200'
 
   return (
-    <div className={`border rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
+    <div className={`border rounded-2xl overflow-hidden shadow-sm ${cardBg}${selected ? ' ring-2 ring-indigo-500/60' : ''}`}>
+      <div className="flex items-stretch">
+        {onToggle && (
+          <button onClick={onToggle}
+            className={`shrink-0 w-10 flex items-center justify-center border-r transition-colors ${
+              selected ? 'bg-indigo-50 border-indigo-200' : 'border-gray-100 hover:bg-gray-50'
+            }`}>
+            <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${
+              selected ? 'border-indigo-600 bg-indigo-600' : 'border-gray-300'
+            }`}>
+              {selected && <Check size={10} className="text-white" />}
+            </div>
+          </button>
+        )}
+        <div className="flex-1 min-w-0 overflow-hidden">
       {/* Clickable summary area */}
       <button className="w-full text-left px-4 pt-4 pb-3 flex gap-3" onClick={() => setOpen(v => !v)}>
         <div className="flex-1 min-w-0">
@@ -1582,15 +1599,34 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit }: {
         </div>
       </button>
 
-      {/* Primary action button — always visible */}
+      {/* Primary action button — 2-tap confirmation */}
       {primaryBtn && (
         <div className="px-4 pb-4">
-          <button
-            onClick={primaryBtn.onClick}
-            disabled={loading}
-            className={`w-full py-3.5 rounded-xl font-black text-base text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 shadow-md ${primaryBtn.color}`}>
-            {loading ? <Loader2 size={18} className="animate-spin" /> : primaryBtn.label}
-          </button>
+          {confirmPrimary ? (
+            <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 p-3 space-y-2">
+              <p className="text-xs text-center text-emerald-800 font-bold">
+                {primaryBtn.label} — もう一度タップして確定
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmPrimary(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-600 text-xs font-bold active:scale-95 transition-all">
+                  キャンセル
+                </button>
+                <button onClick={() => { setConfirmPrimary(false); primaryBtn.onClick() }} disabled={loading}
+                  className={`flex-1 py-2.5 rounded-xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-all ${primaryBtn.color}`}>
+                  {loading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                  確定
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmPrimary(true)}
+              disabled={loading}
+              className={`w-full py-3.5 rounded-xl font-black text-base text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 shadow-md ${primaryBtn.color}`}>
+              {loading ? <Loader2 size={18} className="animate-spin" /> : primaryBtn.label}
+            </button>
+          )}
         </div>
       )}
 
@@ -1710,6 +1746,8 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit }: {
           )}
         </div>
       )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -1720,9 +1758,10 @@ function PurchaseCard({ item, storeId, onRefresh, onToast, onEdit }: {
   onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
   onEdit?: (item: PurchaseRow) => void
 }) {
-  const [open,          setOpen]          = useState(false)
-  const [loading,       setLoading]       = useState(false)
-  const [confirmCancel, setConfirmCancel] = useState(false)
+  const [open,           setOpen]           = useState(false)
+  const [loading,        setLoading]        = useState(false)
+  const [confirmPrimary, setConfirmPrimary] = useState(false)
+  const [confirmCancel,  setConfirmCancel]  = useState(false)
 
   async function update(patch: Record<string, unknown>, msg: string, undoPatch?: Record<string, unknown>) {
     setLoading(true)
@@ -1803,13 +1842,32 @@ function PurchaseCard({ item, storeId, onRefresh, onToast, onEdit }: {
         </div>
       </button>
 
-      {/* Primary action button — always visible */}
+      {/* Primary action button — 2-tap confirmation */}
       {primaryBtn && (
         <div className="px-4 pb-4">
-          <button onClick={primaryBtn.onClick} disabled={loading}
-            className={`w-full py-3.5 rounded-xl font-black text-base text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 shadow-md ${primaryBtn.color}`}>
-            {loading ? <Loader2 size={18} className="animate-spin" /> : primaryBtn.label}
-          </button>
+          {confirmPrimary ? (
+            <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 p-3 space-y-2">
+              <p className="text-xs text-center text-emerald-800 font-bold">
+                {primaryBtn.label} — もう一度タップして確定
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmPrimary(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-600 text-xs font-bold active:scale-95 transition-all">
+                  キャンセル
+                </button>
+                <button onClick={() => { setConfirmPrimary(false); primaryBtn.onClick() }} disabled={loading}
+                  className={`flex-1 py-2.5 rounded-xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-all ${primaryBtn.color}`}>
+                  {loading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                  確定
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmPrimary(true)} disabled={loading}
+              className={`w-full py-3.5 rounded-xl font-black text-base text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 shadow-md ${primaryBtn.color}`}>
+              {loading ? <Loader2 size={18} className="animate-spin" /> : primaryBtn.label}
+            </button>
+          )}
         </div>
       )}
 
@@ -2559,6 +2617,8 @@ export default function RepairsPage() {
   const [dummyLoading,   setDummyLoading]   = useState(false)
   const [showNewRepair,  setShowNewRepair]  = useState(false)
   const [showNewOrder,   setShowNewOrder]   = useState(false)
+  const [batchSelected,  setBatchSelected]  = useState<Set<string>>(new Set())
+  const [batchUpdating,  setBatchUpdating]  = useState(false)
 
   const showToast = useCallback((type: 'ok' | 'err', msg: string, onUndo?: () => Promise<void>) => {
     setToast({ type, msg, onUndo })
@@ -2833,6 +2893,34 @@ export default function RepairsPage() {
   const filteredPurchaseOnOrder   = filteredPurchases.filter(p => p.status === 'on_order')
   const filteredPurchaseStocked   = filteredPurchases.filter(p => p.status === 'stocked')
 
+  const batchAdvanceRepairs = useCallback(async () => {
+    const selected = filteredRepairs.filter(r => batchSelected.has(r.id))
+    if (selected.length === 0) return
+    const toStart    = selected.filter(r => r.request_type === 'repair' && !r.work_started)
+    const toComplete = selected.filter(r => r.request_type !== 'repair' || r.work_started)
+    setBatchUpdating(true)
+    const today = new Date().toISOString().slice(0, 10)
+    const now   = new Date().toISOString()
+    const ops: Promise<unknown>[] = []
+    if (toStart.length > 0) {
+      ops.push((supabase as any).from('repair_histories')
+        .update({ work_started: true, updated_at: now })
+        .in('id', toStart.map(r => r.id)))
+    }
+    if (toComplete.length > 0) {
+      ops.push((supabase as any).from('repair_histories')
+        .update({ status: 'completed', completed_date: today, notified: true, updated_at: now })
+        .in('id', toComplete.map(r => r.id)))
+    }
+    await Promise.all(ops)
+    setBatchUpdating(false)
+    setBatchSelected(new Set())
+    fetchAll()
+    const startMsg = toStart.length > 0 ? `作業開始${toStart.length}件` : ''
+    const compMsg  = toComplete.length > 0 ? `完了${toComplete.length}件` : ''
+    showToast('ok', [startMsg, compMsg].filter(Boolean).join(' / '))
+  }, [filteredRepairs, batchSelected, fetchAll, showToast])
+
   // ダッシュボード counts
   const repairNotStarted  = repairs.filter(r => r.request_type === 'repair' && !r.work_started)
   const repairInProgress  = repairs.filter(r => r.request_type === 'repair' && r.work_started)
@@ -3025,12 +3113,60 @@ export default function RepairsPage() {
                 <p className="text-sm font-bold">{searchText ? '該当するお直しがありません' : '対応中のお直し・依頼はありません'}</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {filteredRepairs.map(r => (
-                  <RepairCard key={r.id} item={r} storeId={storeId} onRefresh={fetchAll} onToast={showToast}
-                    onEdit={item => { setEditItem(item); setEditKind('repair') }} />
-                ))}
-              </div>
+              <>
+                {/* Select-all row */}
+                <div className="flex items-center justify-between px-1">
+                  <button
+                    onClick={() => setBatchSelected(
+                      batchSelected.size === filteredRepairs.length
+                        ? new Set()
+                        : new Set(filteredRepairs.map(r => r.id))
+                    )}
+                    className="flex items-center gap-2 text-xs font-bold text-gray-500 hover:text-gray-700">
+                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+                      batchSelected.size === filteredRepairs.length && filteredRepairs.length > 0
+                        ? 'border-indigo-600 bg-indigo-600' : 'border-gray-300'
+                    }`}>
+                      {batchSelected.size === filteredRepairs.length && filteredRepairs.length > 0 &&
+                        <Check size={9} className="text-white" />}
+                    </div>
+                    {batchSelected.size > 0 ? `${batchSelected.size}件選択中` : 'まとめて選択'}
+                  </button>
+                  {batchSelected.size > 0 && (
+                    <button onClick={() => setBatchSelected(new Set())}
+                      className="text-xs text-gray-400 hover:text-gray-600">選択解除</button>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  {filteredRepairs.map(r => (
+                    <RepairCard key={r.id} item={r} storeId={storeId} onRefresh={fetchAll} onToast={showToast}
+                      onEdit={item => { setEditItem(item); setEditKind('repair') }}
+                      selected={batchSelected.has(r.id)}
+                      onToggle={() => setBatchSelected(prev => {
+                        const n = new Set(prev); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n
+                      })}
+                    />
+                  ))}
+                </div>
+                {/* Floating batch action bar */}
+                {batchSelected.size > 0 && (
+                  <div className="fixed bottom-20 left-0 right-0 z-30 flex justify-center px-4 pointer-events-none">
+                    <div className="max-w-lg w-full bg-indigo-700 text-white rounded-2xl shadow-2xl p-3 flex items-center gap-3 pointer-events-auto">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-bold opacity-70">選択中</p>
+                        <p className="text-sm font-black">{batchSelected.size}件</p>
+                      </div>
+                      <button onClick={() => setBatchSelected(new Set())}
+                        className="text-xs text-white/70 hover:text-white px-2 py-1.5">解除</button>
+                      <button onClick={batchAdvanceRepairs} disabled={batchUpdating}
+                        className="shrink-0 px-5 py-2.5 bg-white text-indigo-700 font-black text-sm rounded-xl flex items-center gap-2 active:scale-95 transition-all disabled:opacity-60 shadow">
+                        {batchUpdating ? <Loader2 size={14} className="animate-spin" /> : <CheckCheck size={14} />}
+                        まとめて次へ
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
