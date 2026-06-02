@@ -135,3 +135,62 @@ export const SCHOOL_OPTIONS = [
   '○○高等学校',
   'その他',
 ]
+
+// ──────────────────────────────────────────────
+// お直し種別
+// ──────────────────────────────────────────────
+export type RepairType =
+  | 'hem'           // 裾上げ
+  | 'sleeve'        // 袖丈直し
+  | 'waist'         // ウエスト調整
+  | 'embroidery'    // 刺繍
+  | 'button'        // ボタン
+  | 'tear'          // 修理・補修
+  | 'badge'         // 校章付け
+  | 'size_exchange' // サイズ交換
+  | 'other'         // その他
+
+export const REPAIR_TYPE_LABELS: Record<RepairType, string> = {
+  hem:          '裾上げ',
+  sleeve:       '袖丈直し',
+  waist:        'ウエスト調整',
+  embroidery:   '刺繍',
+  button:       'ボタン',
+  tear:         '修理・補修',
+  badge:        '校章付け',
+  size_exchange:'サイズ交換',
+  other:        'その他',
+}
+
+export const REPAIR_TYPE_ICONS: Record<RepairType, string> = {
+  hem:          '✂️',
+  sleeve:       '👔',
+  waist:        '📏',
+  embroidery:   '🔤',
+  button:       '🔘',
+  tear:         '🩹',
+  badge:        '🏅',
+  size_exchange:'↕️',
+  other:        '📝',
+}
+
+export const REPAIR_TYPE_COLORS: Record<RepairType, string> = {
+  hem:          'bg-amber-100 text-amber-700 border-amber-300',
+  sleeve:       'bg-blue-100 text-blue-700 border-blue-300',
+  waist:        'bg-purple-100 text-purple-700 border-purple-300',
+  embroidery:   'bg-pink-100 text-pink-700 border-pink-300',
+  button:       'bg-gray-100 text-gray-600 border-gray-300',
+  tear:         'bg-red-100 text-red-700 border-red-300',
+  badge:        'bg-indigo-100 text-indigo-700 border-indigo-300',
+  size_exchange:'bg-teal-100 text-teal-700 border-teal-300',
+  other:        'bg-slate-100 text-slate-600 border-slate-300',
+}
+
+export const REWORK_REASON_LABELS: Record<string, string> = {
+  size_error:        'サイズ誤り',
+  embroidery_error:  '刺繍ミス',
+  measurement_error: '寸法書き違い',
+  quality:           '仕上がり品質',
+  customer_change:   'お客様希望変更',
+  other:             'その他',
+}

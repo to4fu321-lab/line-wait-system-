@@ -3,7 +3,7 @@
 import { useParams } from 'next/navigation'
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
-  Scissors, ShoppingBag, Loader2, ChevronDown, ChevronUp,
+  Scissors, ShoppingBag, Loader2, ChevronDown, ChevronUp, ChevronLeft,
   Phone, User, Check, RotateCcw, Package, ClipboardList,
   Banknote, Plus, AlertCircle, CreditCard, CheckCheck,
   History, CalendarDays, Copy, X, Pencil, Truck, Trash2,
@@ -14,8 +14,9 @@ import {
   REPAIR_STATUS_LABELS, REPAIR_STATUS_COLORS,
   PURCHASE_STATUS_LABELS, PURCHASE_STATUS_COLORS,
   REQUEST_TYPE_LABELS, REQUEST_TYPE_COLORS,
+  REPAIR_TYPE_LABELS, REPAIR_TYPE_ICONS, REPAIR_TYPE_COLORS,
 } from '@/types/crm'
-import type { RepairStatus, PurchaseStatus, RequestType } from '@/types/crm'
+import type { RepairStatus, PurchaseStatus, RequestType, RepairType } from '@/types/crm'
 import { BottomNav } from '../_components/BottomNav'
 
 function fmtDate(d: string | null) {
@@ -38,6 +39,20 @@ interface RepairRow {
   created_at: string; updated_at: string
   customer?: { id: string; name: string; tel: string | null }
   child?: { name: string; school_name: string | null } | null
+  // お直し詳細フィールド
+  repair_type: RepairType | null
+  hem_length_mm: number | null
+  sleeve_adjust_mm: number | null
+  waist_adjust_mm: number | null
+  embroidery_text: string | null
+  embroidery_color: string | null
+  embroidery_pos: string | null
+  vendor_name: string | null
+  sent_to_vendor_at: string | null
+  expected_return_date: string | null
+  is_rework: boolean
+  rework_reason: string | null
+  internal_memo: string | null
 }
 
 interface PurchaseRow {
@@ -123,6 +138,396 @@ function Toast({ msg, type, onUndo, onClose }: {
           {undoing ? '…' : '取消し'}
         </button>
       )}
+    </div>
+  )
+}
+
+// ── New Repair Modal ──────────────────────────────────────────
+const REPAIR_TYPES_DEF: Array<{ type: RepairType; label: string; icon: string; color: string }> = [
+  { type: 'hem',          label: '裾上げ',    icon: '✂️', color: 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100' },
+  { type: 'sleeve',       label: '袖丈直し',  icon: '👔', color: 'border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100' },
+  { type: 'waist',        label: 'ウエスト',  icon: '📏', color: 'border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100' },
+  { type: 'embroidery',   label: '刺繍',      icon: '🔤', color: 'border-pink-300 bg-pink-50 text-pink-700 hover:bg-pink-100' },
+  { type: 'button',       label: 'ボタン',    icon: '🔘', color: 'border-gray-300 bg-gray-50 text-gray-600 hover:bg-gray-100' },
+  { type: 'tear',         label: '修理・補修', icon: '🩹', color: 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100' },
+  { type: 'badge',        label: '校章付け',  icon: '🏅', color: 'border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100' },
+  { type: 'size_exchange',label: 'サイズ交換', icon: '↕️', color: 'border-teal-300 bg-teal-50 text-teal-700 hover:bg-teal-100' },
+  { type: 'other',        label: 'その他',    icon: '📝', color: 'border-slate-300 bg-slate-50 text-slate-600 hover:bg-slate-100' },
+]
+
+interface CustResult {
+  id: string; name: string; tel: string | null; school_name: string | null
+  children?: { id: string; name: string; school_name: string | null }[]
+}
+
+function NewRepairModal({ storeId, onClose, onSave, onToast }: {
+  storeId: string; onClose: () => void; onSave: () => void
+  onToast: (t: 'ok' | 'err', m: string) => void
+}) {
+  type Step = 'type' | 'details' | 'customer'
+  const [step,           setStep]     = useState<Step>('type')
+  const [repairType,     setRepairType] = useState<RepairType | null>(null)
+  const [itemName,       setItemName]  = useState('')
+  const [hemMm,          setHemMm]    = useState(0)
+  const [sleeveMm,       setSleeveMm] = useState(0)
+  const [waistMm,        setWaistMm]  = useState(0)
+  const [embText,        setEmbText]  = useState('')
+  const [embColor,       setEmbColor] = useState('黒')
+  const [embPos,         setEmbPos]   = useState('胸ポケット右')
+  const [content,        setContent]  = useState('')
+  const [vendorName,     setVendor]   = useState('')
+  const [expectedReturn, setExpReturn]= useState('')
+  const [deadline,       setDeadline] = useState('')
+  const [price,          setPrice]    = useState('')
+  const [internalMemo,   setMemo]     = useState('')
+  const [custSearch,     setCustSearch] = useState('')
+  const [custResults,    setCustResults] = useState<CustResult[]>([])
+  const [searching,      setSearching]  = useState(false)
+  const [selectedCust,   setSelectedCust] = useState<CustResult | null>(null)
+  const [selectedChild,  setSelectedChild] = useState<{ id: string; name: string; school_name: string | null } | null>(null)
+  const [saving,         setSaving] = useState(false)
+
+  useEffect(() => {
+    if (custSearch.length < 1) { setCustResults([]); return }
+    const t = setTimeout(async () => {
+      setSearching(true)
+      const { data } = await (supabase as any)
+        .from('customers')
+        .select('id, name, tel, school_name, children:children(id, name, school_name)')
+        .eq('store_id', storeId).ilike('name', `%${custSearch}%`).is('deleted_at', null).limit(6)
+      setCustResults(data ?? [])
+      setSearching(false)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [custSearch, storeId])
+
+  function buildContent(): string {
+    if (!repairType) return content
+    switch (repairType) {
+      case 'hem':        return hemMm !== 0 ? `裾上げ ${hemMm > 0 ? '+' : ''}${hemMm}mm` : content
+      case 'sleeve':     return sleeveMm !== 0 ? `袖丈調整 ${sleeveMm > 0 ? '+' : ''}${sleeveMm}mm` : content
+      case 'waist':      return waistMm !== 0 ? `ウエスト調整 ${waistMm > 0 ? '+' : ''}${waistMm}mm` : content
+      case 'embroidery': return embText ? `刺繍「${embText}」${embColor} ${embPos}` : content
+      default:           return content
+    }
+  }
+
+  async function handleSave() {
+    if (!selectedCust || !repairType) return
+    setSaving(true)
+    const payload: Record<string, unknown> = {
+      store_id: storeId, customer_id: selectedCust.id,
+      child_id: selectedChild?.id ?? null,
+      item_name: itemName.trim() || REPAIR_TYPE_LABELS[repairType],
+      content: buildContent(),
+      request_type: 'repair', repair_type: repairType,
+      status: 'received', received_date: new Date().toISOString().slice(0, 10),
+      desired_completion_date: deadline || null,
+      price: price ? Number(price) : null,
+      prepaid: false, notified: false,
+      internal_memo: internalMemo || null,
+      work_started: false,
+      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    }
+    if (repairType === 'hem')        { payload.hem_length_mm = hemMm }
+    if (repairType === 'sleeve')     { payload.sleeve_adjust_mm = sleeveMm }
+    if (repairType === 'waist')      { payload.waist_adjust_mm = waistMm }
+    if (repairType === 'embroidery') {
+      payload.embroidery_text  = embText
+      payload.embroidery_color = embColor
+      payload.embroidery_pos   = embPos
+    }
+    if (vendorName) {
+      payload.vendor_name = vendorName
+      if (expectedReturn) payload.expected_return_date = expectedReturn
+    }
+    const { error } = await (supabase as any).from('repair_histories').insert(payload)
+    setSaving(false)
+    if (error) { onToast('err', `保存失敗: ${error.message}`); return }
+    onToast('ok', '✂️ お直しを受付しました')
+    onSave(); onClose()
+  }
+
+  const MmInput = ({ label, value, setValue, color }: {
+    label: string; value: number; setValue: (v: number) => void; color: string
+  }) => (
+    <div>
+      <label className="text-xs font-bold text-gray-600 block mb-2">{label}</label>
+      <div className="flex items-center gap-3 bg-gray-50 rounded-2xl p-4">
+        <button onClick={() => setValue(value - 5)} className="w-11 h-11 rounded-xl bg-white border border-gray-200 font-black text-gray-700 text-xl flex items-center justify-center active:scale-95 transition-all shadow-sm">−</button>
+        <div className="flex-1 text-center">
+          <p className={`text-4xl font-black ${value > 0 ? color : value < 0 ? 'text-red-500' : 'text-gray-300'}`}>
+            {value > 0 ? '+' : ''}{value}<span className="text-lg font-bold ml-1">mm</span>
+          </p>
+          <p className="text-[10px] text-gray-400 mt-1">{value > 0 ? '長くする' : value < 0 ? '短くする' : '変更なし'}</p>
+        </div>
+        <button onClick={() => setValue(value + 5)} className="w-11 h-11 rounded-xl bg-white border border-gray-200 font-black text-gray-700 text-xl flex items-center justify-center active:scale-95 transition-all shadow-sm">＋</button>
+      </div>
+      <div className="flex gap-1.5 mt-2 flex-wrap">
+        {[-30, -20, -10, -5, 5, 10, 20, 30].map(v => (
+          <button key={v} onClick={() => setValue(v)}
+            className={`flex-1 min-w-[calc(12.5%-6px)] py-1.5 rounded-xl text-xs font-bold border-2 transition-all ${value === v ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-300'}`}>
+            {v > 0 ? '+' : ''}{v}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
+  const stepLabels: Record<Step, string> = { type: '種別選択', details: '内容入力', customer: '顧客選択' }
+  const steps: Step[] = ['type', 'details', 'customer']
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-lg bg-white rounded-t-3xl shadow-2xl flex flex-col" style={{ maxHeight: '92vh' }} onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="px-5 pt-5 pb-4 border-b border-gray-100 shrink-0">
+          <div className="flex items-center gap-3 mb-3">
+            <button onClick={step === 'type' ? onClose : () => setStep(step === 'customer' ? 'details' : 'type')}
+              className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 active:scale-95 transition-all">
+              {step === 'type' ? <X size={18} /> : <ChevronLeft size={18} />}
+            </button>
+            <h2 className="flex-1 text-base font-black text-gray-900">
+              {step === 'type' ? '✂️ お直し受付' : step === 'details' && repairType ? `${REPAIR_TYPE_ICONS[repairType]} ${REPAIR_TYPE_LABELS[repairType]}` : '👤 顧客選択'}
+            </h2>
+            <div className="flex items-center gap-1">
+              {steps.map((s, i) => (
+                <div key={s} className={`h-1.5 rounded-full transition-all ${step === s ? 'w-6 bg-indigo-600' : i < steps.indexOf(step) ? 'w-3 bg-indigo-300' : 'w-3 bg-gray-200'}`} />
+              ))}
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 font-medium">{stepLabels[step]}</p>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+
+          {/* ── Step 1: 種別選択 ── */}
+          {step === 'type' && (
+            <div className="grid grid-cols-3 gap-2.5">
+              {REPAIR_TYPES_DEF.map(t => (
+                <button key={t.type} onClick={() => { setRepairType(t.type); setStep('details') }}
+                  className={`flex flex-col items-center gap-2 py-5 rounded-2xl border-2 font-bold transition-all active:scale-95 ${t.color}`}>
+                  <span className="text-3xl">{t.icon}</span>
+                  <span className="text-xs leading-tight text-center">{t.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* ── Step 2: 内容入力 ── */}
+          {step === 'details' && repairType && (
+            <>
+              <div>
+                <label className="text-xs font-bold text-gray-600 block mb-1.5">品名・商品名</label>
+                <input type="text" value={itemName} onChange={e => setItemName(e.target.value)}
+                  placeholder="例: スラックス 165A / ブレザー"
+                  className="w-full border border-gray-300 rounded-xl px-3 py-3 text-sm focus:border-indigo-500 focus:outline-none" />
+              </div>
+
+              {repairType === 'hem'    && <MmInput label="裾上げ量" value={hemMm}    setValue={setHemMm}    color="text-amber-600" />}
+              {repairType === 'sleeve' && <MmInput label="袖丈調整量" value={sleeveMm} setValue={setSleeveMm} color="text-blue-600" />}
+              {repairType === 'waist'  && <MmInput label="ウエスト調整量" value={waistMm}  setValue={setWaistMm}  color="text-purple-600" />}
+
+              {repairType === 'embroidery' && (
+                <>
+                  <div>
+                    <label className="text-xs font-bold text-gray-600 block mb-1.5">刺繍文字</label>
+                    <input type="text" value={embText} onChange={e => setEmbText(e.target.value)}
+                      placeholder="例: 田中　花子（スペース区切り推奨）"
+                      className="w-full border border-gray-300 rounded-xl px-3 py-3 text-sm focus:border-indigo-500 focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-600 block mb-2">糸色</label>
+                    <div className="flex gap-2">
+                      {['黒', '白', '紺', '指定'].map(c => (
+                        <button key={c} onClick={() => setEmbColor(c)}
+                          className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${embColor === c ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-300'}`}>
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-600 block mb-2">刺繍位置</label>
+                    <div className="flex flex-wrap gap-2">
+                      {['胸ポケット右', '胸ポケット左', '袖右', '袖左', '背中', 'その他'].map(p => (
+                        <button key={p} onClick={() => setEmbPos(p)}
+                          className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all ${embPos === p ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-300'}`}>
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {!['hem', 'sleeve', 'waist', 'embroidery'].includes(repairType) && (
+                <div>
+                  <label className="text-xs font-bold text-gray-600 block mb-1.5">お直し内容</label>
+                  <input type="text" value={content} onChange={e => setContent(e.target.value)}
+                    placeholder="例: 右ひざほつれ修理 / ボタン付け直し"
+                    className="w-full border border-gray-300 rounded-xl px-3 py-3 text-sm focus:border-indigo-500 focus:outline-none" />
+                </div>
+              )}
+
+              {/* 加工先 */}
+              <div>
+                <label className="text-xs font-bold text-gray-600 block mb-2">加工先</label>
+                <div className="flex gap-2 mb-2">
+                  {(['内製', '外注'] as const).map(v => (
+                    <button key={v} onClick={() => setVendor(v === '内製' ? '' : '外注先')}
+                      className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all ${
+                        (v === '内製' && !vendorName) || (v === '外注' && !!vendorName)
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-300'
+                      }`}>
+                      {v === '内製' ? '🏪 内製' : '🏭 外注'}
+                    </button>
+                  ))}
+                </div>
+                {vendorName && (
+                  <div className="space-y-2">
+                    <input type="text" value={vendorName === '外注先' ? '' : vendorName} onChange={e => setVendor(e.target.value)}
+                      placeholder="外注先名（例: カネコ刺繍）"
+                      className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
+                    <div>
+                      <label className="text-xs font-bold text-gray-600 block mb-1">戻り予定日</label>
+                      <input type="date" value={expectedReturn} onChange={e => setExpReturn(e.target.value)}
+                        className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 希望完了日・金額 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-600 block mb-1.5">希望完了日</label>
+                  <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)}
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-600 block mb-1.5">金額（税込）</label>
+                  <input type="number" value={price} onChange={e => setPrice(e.target.value)}
+                    placeholder="800"
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
+                </div>
+              </div>
+
+              {/* スタッフメモ */}
+              <div>
+                <label className="text-xs font-bold text-gray-600 block mb-1.5">スタッフメモ（お客様非公開）</label>
+                <input type="text" value={internalMemo} onChange={e => setMemo(e.target.value)}
+                  placeholder="内部用メモ・注意事項"
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
+              </div>
+
+              <button onClick={() => setStep('customer')}
+                className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-lg shadow-indigo-500/25">
+                次へ：お客様を選択する
+              </button>
+            </>
+          )}
+
+          {/* ── Step 3: 顧客選択 ── */}
+          {step === 'customer' && (
+            <>
+              {!selectedCust ? (
+                <>
+                  <div className="relative">
+                    <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input type="text" value={custSearch} onChange={e => setCustSearch(e.target.value)}
+                      placeholder="顧客名で検索"
+                      autoFocus
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-sm focus:border-indigo-500 focus:outline-none" />
+                  </div>
+                  {searching && <div className="text-center py-4"><Loader2 size={20} className="animate-spin text-indigo-400 mx-auto" /></div>}
+                  <div className="space-y-2">
+                    {custResults.map(c => (
+                      <button key={c.id} onClick={() => setSelectedCust(c)}
+                        className="w-full text-left px-4 py-3.5 bg-gray-50 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-300 rounded-2xl transition-all active:scale-[0.98]">
+                        <p className="font-black text-gray-900">{c.name}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{[c.school_name, c.tel].filter(Boolean).join(' · ')}</p>
+                        {c.children && c.children.length > 0 && (
+                          <p className="text-[10px] text-gray-400 mt-0.5">お子様: {c.children.map(ch => ch.name).join('、')}</p>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  {custSearch.length === 0 && (
+                    <p className="text-sm text-center text-gray-400 py-6">名前を入力して顧客を検索してください</p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-3.5 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+                      <User size={18} className="text-indigo-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-gray-900">{selectedCust.name}</p>
+                      {selectedCust.tel && <p className="text-xs text-gray-500">{selectedCust.tel}</p>}
+                      {selectedCust.school_name && <p className="text-xs text-gray-400">{selectedCust.school_name}</p>}
+                    </div>
+                    <button onClick={() => { setSelectedCust(null); setSelectedChild(null); setCustSearch('') }}
+                      className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-white rounded-xl transition-all">
+                      <X size={15} />
+                    </button>
+                  </div>
+
+                  {selectedCust.children && selectedCust.children.length > 0 && (
+                    <div>
+                      <label className="text-xs font-bold text-gray-600 block mb-2">お子様（任意）</label>
+                      <div className="flex flex-wrap gap-2">
+                        <button onClick={() => setSelectedChild(null)}
+                          className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all ${!selectedChild ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-600'}`}>
+                          選択しない
+                        </button>
+                        {selectedCust.children.map(ch => (
+                          <button key={ch.id} onClick={() => setSelectedChild(ch)}
+                            className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all ${selectedChild?.id === ch.id ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-600'}`}>
+                            {ch.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 確認サマリー */}
+                  {repairType && (
+                    <div className="bg-gray-50 rounded-2xl p-4 space-y-1.5">
+                      <p className="text-xs font-black text-gray-700 mb-2">受付内容の確認</p>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${REPAIR_TYPE_COLORS[repairType]}`}>
+                          {REPAIR_TYPE_ICONS[repairType]} {REPAIR_TYPE_LABELS[repairType]}
+                        </span>
+                      </div>
+                      {itemName && <p className="text-xs text-gray-600">品名: {itemName}</p>}
+                      {repairType === 'hem' && hemMm !== 0 && <p className="text-xs font-bold text-amber-700">裾上げ {hemMm > 0 ? '+' : ''}{hemMm}mm</p>}
+                      {repairType === 'sleeve' && sleeveMm !== 0 && <p className="text-xs font-bold text-blue-700">袖丈 {sleeveMm > 0 ? '+' : ''}{sleeveMm}mm</p>}
+                      {repairType === 'waist' && waistMm !== 0 && <p className="text-xs font-bold text-purple-700">ウエスト {waistMm > 0 ? '+' : ''}{waistMm}mm</p>}
+                      {repairType === 'embroidery' && embText && <p className="text-xs font-bold text-pink-700">「{embText}」{embColor} {embPos}</p>}
+                      {content && <p className="text-xs text-gray-600">{content}</p>}
+                      {vendorName && <p className="text-xs text-gray-600">加工先: {vendorName}</p>}
+                      {deadline && <p className="text-xs text-gray-600">希望完了: {deadline}</p>}
+                      {price && <p className="text-xs font-bold text-gray-700">¥{Number(price).toLocaleString()}</p>}
+                    </div>
+                  )}
+
+                  <button onClick={handleSave} disabled={saving}
+                    className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50 shadow-lg shadow-indigo-500/25">
+                    {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+                    お直しを受付する
+                  </button>
+                </>
+              )}
+            </>
+          )}
+        </div>
+        <div className="h-6 shrink-0" />
+      </div>
     </div>
   )
 }
@@ -232,6 +637,26 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit }: {
             <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${REQUEST_TYPE_COLORS[reqType]}`}>
               {REQUEST_TYPE_LABELS[reqType]}
             </span>
+            {item.repair_type && (
+              <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${REPAIR_TYPE_COLORS[item.repair_type]}`}>
+                {REPAIR_TYPE_ICONS[item.repair_type]} {REPAIR_TYPE_LABELS[item.repair_type]}
+              </span>
+            )}
+            {item.vendor_name && !item.sent_to_vendor_at && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-300 font-bold">
+                📤 {item.vendor_name}
+              </span>
+            )}
+            {item.sent_to_vendor_at && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-300 font-bold">
+                🏭 外注中
+              </span>
+            )}
+            {item.is_rework && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-300 font-bold">
+                🔄 再加工
+              </span>
+            )}
             {item.work_started && (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500 text-white font-bold">✂️ 作業中</span>
             )}
@@ -255,6 +680,38 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit }: {
             <p className="text-base font-black text-slate-400 leading-snug mb-1 italic">（内容未記入）</p>
           )}
 
+          {/* 構造化加工データ */}
+          {item.repair_type === 'hem' && item.hem_length_mm !== null && item.hem_length_mm !== 0 && (
+            <div className="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 mb-1.5">
+              <span className="text-base font-black text-amber-700">
+                {item.hem_length_mm > 0 ? '+' : ''}{item.hem_length_mm}mm
+              </span>
+              <span className="text-[10px] text-amber-500">{item.hem_length_mm > 0 ? '長くする' : '短くする'}</span>
+            </div>
+          )}
+          {item.repair_type === 'sleeve' && item.sleeve_adjust_mm !== null && item.sleeve_adjust_mm !== 0 && (
+            <div className="inline-flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-xl px-3 py-1.5 mb-1.5">
+              <span className="text-base font-black text-blue-700">
+                袖丈 {item.sleeve_adjust_mm > 0 ? '+' : ''}{item.sleeve_adjust_mm}mm
+              </span>
+            </div>
+          )}
+          {item.repair_type === 'waist' && item.waist_adjust_mm !== null && item.waist_adjust_mm !== 0 && (
+            <div className="inline-flex items-center gap-1.5 bg-purple-50 border border-purple-200 rounded-xl px-3 py-1.5 mb-1.5">
+              <span className="text-base font-black text-purple-700">
+                ウエスト {item.waist_adjust_mm > 0 ? '+' : ''}{item.waist_adjust_mm}mm
+              </span>
+            </div>
+          )}
+          {item.repair_type === 'embroidery' && item.embroidery_text && (
+            <div className="bg-pink-50 border border-pink-200 rounded-xl px-3 py-1.5 mb-1.5">
+              <p className="text-base font-black text-pink-800">「{item.embroidery_text}」</p>
+              <p className="text-[10px] text-pink-500">
+                {[item.embroidery_color, item.embroidery_pos].filter(Boolean).join(' · ')}
+              </p>
+            </div>
+          )}
+
           {/* Item name */}
           <p className="text-sm font-semibold text-slate-500 leading-tight mb-2">{item.item_name}</p>
 
@@ -268,6 +725,25 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit }: {
               <span className="text-xs text-slate-400">（保護者: {item.customer?.name}）</span>
             )}
           </div>
+
+          {/* 外注情報 */}
+          {item.vendor_name && (
+            <div className="flex items-center gap-2 mt-1 mb-1">
+              <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 rounded-full text-slate-600 border border-slate-200">
+                📤 {item.vendor_name}
+              </span>
+              {item.sent_to_vendor_at && (
+                <span className="text-[10px] text-slate-400">送付: {fmtDate(item.sent_to_vendor_at)}</span>
+              )}
+              {item.expected_return_date && (
+                <span className={`text-[10px] font-bold ${
+                  new Date(item.expected_return_date) < new Date() ? 'text-red-500' : 'text-slate-400'
+                }`}>
+                  戻り: {fmtDate(item.expected_return_date)}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Price + dates */}
           <div className="flex items-end justify-between mt-2">
@@ -311,6 +787,12 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit }: {
       {/* Expanded details */}
       {open && (
         <div className="px-4 pb-4 space-y-2.5 border-t border-gray-100 pt-3">
+          {item.internal_memo && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-3 py-2">
+              <p className="text-[10px] font-bold text-yellow-600 mb-0.5">スタッフメモ</p>
+              <p className="text-xs text-gray-700">{item.internal_memo}</p>
+            </div>
+          )}
           {item.notes && <p className="text-xs text-gray-600">{item.notes}</p>}
           {item.customer?.tel && (
             <a href={`tel:${item.customer.tel}`} className="flex items-center gap-1.5 text-xs text-indigo-600">
@@ -321,6 +803,28 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit }: {
             className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
             <User size={11} />顧客詳細
           </a>
+
+          {/* 外注送付ボタン */}
+          {item.vendor_name && !item.sent_to_vendor_at && (
+            <button onClick={() => update(
+              { sent_to_vendor_at: new Date().toISOString().slice(0, 10) },
+              `${item.vendor_name}へ送付済みにしました`,
+              { sent_to_vendor_at: null }
+            )} disabled={loading}
+              className="w-full py-2.5 rounded-xl font-bold text-xs border-2 border-orange-300 bg-orange-50 text-orange-700 flex items-center justify-center gap-2 hover:bg-orange-100 active:scale-95 transition-all">
+              <Truck size={12} />📤 {item.vendor_name}へ送付済みにする
+            </button>
+          )}
+          {item.vendor_name && item.sent_to_vendor_at && !item.work_started && (
+            <button onClick={() => update(
+              { work_started: true, sent_to_vendor_at: item.sent_to_vendor_at },
+              '外注品が戻りました',
+              { work_started: false }
+            )} disabled={loading}
+              className="w-full py-2.5 rounded-xl font-bold text-xs border-2 border-teal-300 bg-teal-50 text-teal-700 flex items-center justify-center gap-2 hover:bg-teal-100 active:scale-95 transition-all">
+              <Check size={12} />📥 外注品が戻ってきた（検品へ）
+            </button>
+          )}
 
           {/* Payment toggle */}
           {item.prepaid ? (
@@ -1243,6 +1747,7 @@ export default function RepairsPage() {
   const [editKind,       setEditKind]       = useState<'repair' | 'purchase' | null>(null)
   const [searchText,     setSearchText]     = useState('')
   const [dummyLoading,   setDummyLoading]   = useState(false)
+  const [showNewRepair,  setShowNewRepair]  = useState(false)
 
   const showToast = useCallback((type: 'ok' | 'err', msg: string, onUndo?: () => Promise<void>) => {
     setToast({ type, msg, onUndo })
@@ -1565,10 +2070,10 @@ export default function RepairsPage() {
               {dummyLoading ? <Loader2 size={11} className="animate-spin" /> : <Database size={11} />}
               テスト追加
             </button>
-            <a href={`/${storeId}/admin/crm`}
+            <button onClick={() => setShowNewRepair(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold rounded-xl transition-all">
-              <Plus size={13} />依頼受付
-            </a>
+              <Plus size={13} />✂️ お直し受付
+            </button>
           </div>
 
           {/* Dashboard card — タブ切り替えも兼ねる */}
@@ -1838,6 +2343,14 @@ export default function RepairsPage() {
           onClose={() => setEditItem(null)}
           onSave={() => { setEditItem(null); fetchAll() }}
           onToast={(t, m) => showToast(t, m)} />
+      )}
+      {showNewRepair && (
+        <NewRepairModal
+          storeId={storeId}
+          onClose={() => setShowNewRepair(false)}
+          onSave={fetchAll}
+          onToast={showToast}
+        />
       )}
       <BottomNav />
     </div>
