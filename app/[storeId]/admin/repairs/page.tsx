@@ -743,7 +743,7 @@ function NewOrderModal({ storeId, onClose, onSave, onToast }: {
     setSaving(true)
     const today = new Date().toISOString().slice(0, 10)
     const orderId = crypto.randomUUID()
-    const { error: oErr } = await (supabase as any).from('orders').insert({
+    const { error: oErr } = await (supabase as any).from('uniform_orders').insert({
       id: orderId, store_id: storeId,
       customer_id: selectedCust.id, child_id: selectedChild?.id ?? null,
       status: 'confirmed', payment_status: prepaid ? 'paid' : 'unpaid',
@@ -758,7 +758,7 @@ function NewOrderModal({ storeId, onClose, onSave, onToast }: {
       size_label: item.sizeLabel, quantity: item.qty,
       unit_price: item.unitPrice, status: 'ordered',
     }))
-    const { error: iErr } = await (supabase as any).from('order_items').insert(items)
+    const { error: iErr } = await (supabase as any).from('uniform_order_items').insert(items)
     setSaving(false)
     if (iErr) { onToast('err', '明細登録に失敗しました'); return }
     onToast('ok', `${cart.length}点の注文を登録しました`)
