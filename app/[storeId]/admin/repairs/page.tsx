@@ -1,13 +1,13 @@
 'use client'
 
 import { useParams } from 'next/navigation'
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   Scissors, ShoppingBag, Loader2, ChevronDown, ChevronUp, ChevronLeft,
   Phone, User, Check, RotateCcw, Package, ClipboardList,
   Banknote, Plus, AlertCircle, CreditCard, CheckCheck,
   History, CalendarDays, Copy, X, Pencil, Truck, Trash2,
-  Search, Database, ShoppingCart, Tag,
+  Search, Database, ShoppingCart, Tag, Camera, ScanLine,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
@@ -260,6 +260,51 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   const [saving,         setSaving] = useState(false)
   const [presets,        setPresets] = useState<{ id: string; item_name: string; default_price: number | null; category_id: string | null }[]>([])
   const [categories,     setCategories] = useState<{ id: string; name: string }[]>([])
+  const [ocrLoading,     setOcrLoading] = useState(false)
+  const [ocrWarnings,    setOcrWarnings] = useState<string[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleOcrRepair = async (file: File) => {
+    setOcrLoading(true); setOcrWarnings([])
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve((reader.result as string).split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      const res = await fetch('/api/slip-ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mimeType: file.type, slipType: 'repair' }),
+      })
+      const { ok, data, error } = await res.json()
+      if (!ok || !data) { onToast('err', `OCR失敗: ${error ?? '不明なエラー'}`); return }
+
+      if (data.repair_type) setRepairType(data.repair_type as RepairType)
+      if (data.item_name)   setItemName(data.item_name)
+      if (data.price != null) setPrice(String(data.price))
+      if (data.content)     setContent(data.content)
+      if (data.hem_length_mm != null)  setHemMm(data.hem_length_mm)
+      if (data.sleeve_adjust_mm != null) setSleeveMm(data.sleeve_adjust_mm)
+      if (data.waist_adjust_mm != null)  setWaistMm(data.waist_adjust_mm)
+      if (data.embroidery_text)  setEmbText(data.embroidery_text)
+      if (data.embroidery_color) setEmbColor(data.embroidery_color)
+      if (data.embroidery_pos)   setEmbPos(data.embroidery_pos)
+      if (data.vendor_name)      setVendor(data.vendor_name)
+      if (data.desired_completion_date) setDeadline(data.desired_completion_date)
+      if (data.internal_memo)    setMemo(data.internal_memo)
+      if (data.customer_name)    setCustSearch(data.customer_name)
+      if (data.warnings?.length) setOcrWarnings(data.warnings)
+
+      setStep('details')
+      onToast('ok', `📷 伝票を読み取りました（精度: ${data.confidence === 'high' ? '高' : data.confidence === 'medium' ? '中' : '低'}）`)
+    } catch (e) {
+      onToast('err', `OCRエラー: ${String(e)}`)
+    } finally {
+      setOcrLoading(false)
+    }
+  }
 
   useEffect(() => {
     ;(supabase as any).from('repair_item_categories')
@@ -372,6 +417,8 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
 
         {/* Header */}
         <div className="px-5 pt-5 pb-4 border-b border-gray-100 shrink-0">
+          <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleOcrRepair(f); e.target.value = '' }} />
           <div className="flex items-center gap-3 mb-3">
             <button onClick={step === 'type' ? onClose : () => setStep(step === 'customer' ? 'details' : 'type')}
               className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 active:scale-95 transition-all">
@@ -380,6 +427,12 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
             <h2 className="flex-1 text-base font-black text-gray-900">
               {step === 'type' ? '✂️ お直し受付' : step === 'details' && repairType ? `${REPAIR_TYPE_ICONS[repairType]} ${REPAIR_TYPE_LABELS[repairType]}` : '👤 顧客選択'}
             </h2>
+            {/* OCR ボタン */}
+            <button onClick={() => fileInputRef.current?.click()} disabled={ocrLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-60 shrink-0">
+              {ocrLoading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
+              {ocrLoading ? '解析中...' : '伝票読取'}
+            </button>
             <div className="flex items-center gap-1">
               {steps.map((s, i) => (
                 <div key={s} className={`h-1.5 rounded-full transition-all ${step === s ? 'w-6 bg-indigo-600' : i < steps.indexOf(step) ? 'w-3 bg-indigo-300' : 'w-3 bg-gray-200'}`} />
@@ -391,6 +444,16 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+
+          {/* OCR 警告バナー */}
+          {ocrWarnings.length > 0 && (
+            <div className="bg-amber-50 border border-amber-300 rounded-2xl px-4 py-3 space-y-1">
+              <p className="text-xs font-black text-amber-700 flex items-center gap-1.5"><ScanLine size={13} />読み取り確認が必要な箇所</p>
+              {ocrWarnings.map((w, i) => (
+                <p key={i} className="text-xs text-amber-600 pl-4">・{w}</p>
+              ))}
+            </div>
+          )}
 
           {/* ── Step 1: 種別選択 ── */}
           {step === 'type' && (
@@ -705,6 +768,44 @@ function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   const [expectedDate, setExpectedDate] = useState('')
   const [prepaid,      setPrepaid]      = useState(false)
   const [saving,       setSaving]       = useState(false)
+  const [ocrLoading,   setOcrLoading]   = useState(false)
+  const [ocrWarnings,  setOcrWarnings]  = useState<string[]>([])
+  const orderFileRef = useRef<HTMLInputElement>(null)
+
+  const handleOcrOrder = async (file: File) => {
+    setOcrLoading(true); setOcrWarnings([])
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve((reader.result as string).split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      const res = await fetch('/api/slip-ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mimeType: file.type, slipType: 'order' }),
+      })
+      const { ok, data, error } = await res.json()
+      if (!ok || !data) { onToast('err', `OCR失敗: ${error ?? '不明なエラー'}`); return }
+
+      if (data.customer_name) setCustSearch(data.customer_name)
+      if (data.notes) setNotes(data.notes)
+      if (data.warnings?.length) setOcrWarnings(data.warnings)
+      if (data.items?.length) {
+        const itemText = (data.items as { item_name: string; size_label?: string; quantity?: number }[])
+          .map(i => `${i.item_name}${i.size_label ? ` ${i.size_label}` : ''}${(i.quantity ?? 1) > 1 ? ` ×${i.quantity}` : ''}`)
+          .join('、')
+        setNotes(prev => [prev, itemText].filter(Boolean).join(' / '))
+      }
+      setStep('customer')
+      onToast('ok', `📷 注文伝票を読み取りました（精度: ${data.confidence === 'high' ? '高' : data.confidence === 'medium' ? '中' : '低'}）`)
+    } catch (e) {
+      onToast('err', `OCRエラー: ${String(e)}`)
+    } finally {
+      setOcrLoading(false)
+    }
+  }
 
   useEffect(() => {
     ;(supabase as any).from('schools').select('id, name').eq('store_id', storeId).eq('active', true).order('sort_order')
@@ -793,6 +894,8 @@ function NewOrderModal({ storeId, onClose, onSave, onToast }: {
       <div className="bg-white sm:rounded-3xl sm:max-w-lg w-full sm:max-h-[90vh] max-h-[92vh] flex flex-col rounded-t-3xl overflow-hidden">
         {/* Header */}
         <div className="px-4 pt-4 pb-3 border-b border-gray-100 shrink-0">
+          <input ref={orderFileRef} type="file" accept="image/*" capture="environment" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleOcrOrder(f); e.target.value = '' }} />
           <div className="flex items-center gap-3 mb-3">
             <button onClick={step === 'products' ? onClose : () => setStep(step === 'confirm' ? 'customer' : 'products')}
               className="p-2 -ml-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-all">
@@ -802,6 +905,11 @@ function NewOrderModal({ storeId, onClose, onSave, onToast }: {
               <p className="font-black text-gray-900 text-sm">📋 制服・用品注文</p>
               <p className="text-xs text-gray-400 font-medium">{stepLabels[step]}</p>
             </div>
+            <button onClick={() => orderFileRef.current?.click()} disabled={ocrLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-60 shrink-0">
+              {ocrLoading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
+              {ocrLoading ? '解析中...' : '伝票読取'}
+            </button>
             {cart.length > 0 && step === 'products' && (
               <button onClick={() => setStep('customer')}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-xl">
@@ -817,6 +925,14 @@ function NewOrderModal({ storeId, onClose, onSave, onToast }: {
         </div>
 
         <div className="flex-1 overflow-y-auto">
+
+          {/* OCR 警告バナー（注文モーダル） */}
+          {ocrWarnings.length > 0 && (
+            <div className="mx-4 mt-3 bg-amber-50 border border-amber-300 rounded-2xl px-4 py-3 space-y-1">
+              <p className="text-xs font-black text-amber-700 flex items-center gap-1.5"><ScanLine size={13} />確認が必要な箇所</p>
+              {ocrWarnings.map((w, i) => <p key={i} className="text-xs text-amber-600 pl-4">・{w}</p>)}
+            </div>
+          )}
 
           {/* ── Step 1: 商品選択 ── */}
           {step === 'products' && (

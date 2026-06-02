@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.100.1",
     "@line/liff": "^2.25.1",
     "@supabase/supabase-js": "^2.47.0",
     "@vercel/analytics": "^2.0.1",
