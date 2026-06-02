@@ -235,7 +235,7 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   storeId: string; onClose: () => void; onSave: () => void
   onToast: (t: 'ok' | 'err', m: string) => void
 }) {
-  type Step = 'type' | 'details' | 'customer'
+  type Step = 'type' | 'cat_repair' | 'details' | 'customer'
   const [step,           setStep]     = useState<Step>('type')
   const [repairType,     setRepairType] = useState<RepairType | null>(null)
   const [itemName,       setItemName]  = useState('')
@@ -258,7 +258,8 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   const [selectedChild,  setSelectedChild] = useState<{ id: string; name: string; school_name: string | null } | null>(null)
   const [showRegister,   setShowRegister] = useState(false)
   const [saving,         setSaving] = useState(false)
-  const [presets,        setPresets] = useState<{ id: string; item_name: string; default_price: number | null; category_id: string | null }[]>([])
+  const [presets,        setPresets] = useState<{ id: string; item_name: string; default_price: number | null; category_id: string | null; repair_type: string | null }[]>([])
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [categories,     setCategories] = useState<{ id: string; name: string }[]>([])
   const [ocrLoading,     setOcrLoading] = useState(false)
   const [ocrWarnings,    setOcrWarnings] = useState<string[]>([])
@@ -327,13 +328,22 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   }, [custSearch, storeId])
 
   useEffect(() => {
-    if (!repairType) { setPresets([]); return }
-    ;(supabase as any).from('repair_price_presets')
-      .select('id, item_name, default_price, category_id')
-      .eq('store_id', storeId).eq('repair_type', repairType).eq('is_active', true)
-      .order('sort_order').limit(20)
-      .then(({ data }: { data: typeof presets }) => setPresets(data ?? []))
-  }, [repairType, storeId])
+    if (selectedCategoryId) {
+      ;(supabase as any).from('repair_price_presets')
+        .select('id, item_name, default_price, category_id, repair_type')
+        .eq('store_id', storeId).eq('category_id', selectedCategoryId).eq('is_active', true)
+        .order('sort_order').limit(50)
+        .then(({ data }: { data: typeof presets }) => setPresets(data ?? []))
+    } else if (repairType) {
+      ;(supabase as any).from('repair_price_presets')
+        .select('id, item_name, default_price, category_id, repair_type')
+        .eq('store_id', storeId).eq('repair_type', repairType).eq('is_active', true)
+        .order('sort_order').limit(20)
+        .then(({ data }: { data: typeof presets }) => setPresets(data ?? []))
+    } else {
+      setPresets([])
+    }
+  }, [repairType, selectedCategoryId, storeId])
 
   function buildContent(): string {
     if (!repairType) return content
@@ -408,8 +418,8 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
     </div>
   )
 
-  const stepLabels: Record<Step, string> = { type: '種別選択', details: '内容入力', customer: '顧客選択' }
-  const steps: Step[] = ['type', 'details', 'customer']
+  const stepLabels: Record<Step, string> = { type: 'カテゴリ選択', cat_repair: 'お直し選択', details: '内容入力', customer: '顧客選択' }
+  const steps: Step[] = categories.length > 0 ? ['type', 'cat_repair', 'details', 'customer'] : ['type', 'details', 'customer']
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
@@ -420,12 +430,20 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
           <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleOcrRepair(f); e.target.value = '' }} />
           <div className="flex items-center gap-3 mb-3">
-            <button onClick={step === 'type' ? onClose : () => setStep(step === 'customer' ? 'details' : 'type')}
+            <button onClick={() => {
+                if (step === 'type') onClose()
+                else if (step === 'cat_repair') { setStep('type'); setPresets([]); setSelectedCategoryId(null) }
+                else if (step === 'details') setStep(selectedCategoryId ? 'cat_repair' : 'type')
+                else if (step === 'customer') setStep('details')
+              }}
               className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 active:scale-95 transition-all">
               {step === 'type' ? <X size={18} /> : <ChevronLeft size={18} />}
             </button>
             <h2 className="flex-1 text-base font-black text-gray-900">
-              {step === 'type' ? '✂️ お直し受付' : step === 'details' && repairType ? `${REPAIR_TYPE_ICONS[repairType]} ${REPAIR_TYPE_LABELS[repairType]}` : '👤 顧客選択'}
+              {step === 'type' ? '✂️ お直し受付'
+               : step === 'cat_repair' ? `📦 ${categories.find(c => c.id === selectedCategoryId)?.name ?? 'お直し選択'}`
+               : step === 'details' && repairType ? `${REPAIR_TYPE_ICONS[repairType]} ${REPAIR_TYPE_LABELS[repairType]}`
+               : '👤 顧客選択'}
             </h2>
             {/* OCR ボタン */}
             <button onClick={() => fileInputRef.current?.click()} disabled={ocrLoading}
@@ -455,24 +473,128 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
             </div>
           )}
 
-          {/* ── Step 1: 種別選択 ── */}
+          {/* ── Step 1: カテゴリ / 種別選択 ── */}
           {step === 'type' && (
-            <div className="grid grid-cols-3 gap-2.5">
-              {REPAIR_TYPES_DEF.map(t => (
-                <button key={t.type} onClick={() => { setRepairType(t.type); setStep('details') }}
-                  className={`flex flex-col items-center gap-2 py-5 rounded-2xl border-2 font-bold transition-all active:scale-95 ${t.color}`}>
-                  <span className="text-3xl">{t.icon}</span>
-                  <span className="text-xs leading-tight text-center">{t.label}</span>
-                </button>
-              ))}
-            </div>
+            categories.length > 0 ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  {(() => {
+                    const palettes = [
+                      { bg: 'bg-amber-100', border: 'border-amber-300', text: 'text-amber-800', hover: 'hover:bg-amber-200', icon: 'text-amber-600' },
+                      { bg: 'bg-blue-100', border: 'border-blue-300', text: 'text-blue-800', hover: 'hover:bg-blue-200', icon: 'text-blue-600' },
+                      { bg: 'bg-purple-100', border: 'border-purple-300', text: 'text-purple-800', hover: 'hover:bg-purple-200', icon: 'text-purple-600' },
+                      { bg: 'bg-emerald-100', border: 'border-emerald-300', text: 'text-emerald-800', hover: 'hover:bg-emerald-200', icon: 'text-emerald-600' },
+                      { bg: 'bg-rose-100', border: 'border-rose-300', text: 'text-rose-800', hover: 'hover:bg-rose-200', icon: 'text-rose-600' },
+                      { bg: 'bg-indigo-100', border: 'border-indigo-300', text: 'text-indigo-800', hover: 'hover:bg-indigo-200', icon: 'text-indigo-600' },
+                    ]
+                    return categories.map((cat, i) => {
+                      const c = palettes[i % palettes.length]
+                      return (
+                        <button key={cat.id}
+                          onClick={() => { setSelectedCategoryId(cat.id); setStep('cat_repair') }}
+                          className={`flex flex-col items-center justify-center gap-2.5 py-8 rounded-2xl border-2 font-bold transition-all active:scale-95 ${c.bg} ${c.border} ${c.text} ${c.hover}`}>
+                          <Tag size={30} className={c.icon} />
+                          <span className="text-sm leading-tight text-center">{cat.name}</span>
+                        </button>
+                      )
+                    })
+                  })()}
+                </div>
+                <div className="border-t border-gray-100 pt-3">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">カテゴリなし / その他</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {REPAIR_TYPES_DEF.map(t => (
+                      <button key={t.type} onClick={() => { setRepairType(t.type); setSelectedCategoryId(null); setStep('details') }}
+                        className={`flex flex-col items-center gap-1.5 py-3 rounded-2xl border-2 font-bold transition-all active:scale-95 ${t.color}`}>
+                        <span className="text-2xl">{t.icon}</span>
+                        <span className="text-[11px] leading-tight text-center">{t.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2.5">
+                {REPAIR_TYPES_DEF.map(t => (
+                  <button key={t.type} onClick={() => { setRepairType(t.type); setStep('details') }}
+                    className={`flex flex-col items-center gap-2 py-5 rounded-2xl border-2 font-bold transition-all active:scale-95 ${t.color}`}>
+                    <span className="text-3xl">{t.icon}</span>
+                    <span className="text-xs leading-tight text-center">{t.label}</span>
+                  </button>
+                ))}
+              </div>
+            )
           )}
+
+          {/* ── Step 1b: カテゴリ内お直し選択 ── */}
+          {step === 'cat_repair' && selectedCategoryId && (() => {
+            const typeGroups = new Map<string, typeof presets>()
+            for (const p of presets) {
+              const rt = p.repair_type ?? 'other'
+              if (!typeGroups.has(rt)) typeGroups.set(rt, [])
+              typeGroups.get(rt)!.push(p)
+            }
+            const usedTypes = new Set(typeGroups.keys())
+            const otherTypes = REPAIR_TYPES_DEF.filter(t => !usedTypes.has(t.type))
+            return (
+              <div className="space-y-3">
+                {presets.length === 0 && (
+                  <div className="text-center py-6">
+                    <p className="text-sm text-gray-400">このカテゴリのプリセットが未登録です</p>
+                    <p className="text-xs text-gray-300 mt-1">マスタページで料金プリセットを登録してください</p>
+                  </div>
+                )}
+                {REPAIR_TYPES_DEF.filter(t => usedTypes.has(t.type)).map(typeDef => (
+                  <div key={typeDef.type} className="rounded-2xl border border-gray-200 overflow-hidden bg-white shadow-sm">
+                    <button
+                      onClick={() => { setRepairType(typeDef.type as RepairType); setStep('details') }}
+                      className="w-full flex items-center gap-2.5 px-4 py-3.5 bg-gray-50 hover:bg-gray-100 transition-all text-left font-black text-sm text-gray-800 border-b border-gray-100">
+                      <span className="text-lg">{typeDef.icon}</span>
+                      <span className="flex-1">{typeDef.label}</span>
+                      <span className="text-[10px] text-gray-400 font-normal">詳細入力</span>
+                      <ChevronDown size={14} className="text-gray-400" />
+                    </button>
+                    <div className="px-4 pb-3 pt-2.5 flex flex-wrap gap-2">
+                      {typeGroups.get(typeDef.type)!.map(p => (
+                        <button key={p.id}
+                          onClick={() => {
+                            setRepairType(typeDef.type as RepairType)
+                            setItemName(p.item_name)
+                            if (p.default_price != null) setPrice(String(p.default_price))
+                            setStep('details')
+                          }}
+                          className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white hover:bg-indigo-50 border-2 border-gray-200 hover:border-indigo-300 rounded-xl text-sm font-bold text-gray-700 active:scale-95 transition-all shadow-sm">
+                          <span>{p.item_name}</span>
+                          {p.default_price != null && <span className="text-indigo-600 font-black">¥{p.default_price.toLocaleString()}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {otherTypes.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">その他のお直し</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {otherTypes.map(t => (
+                        <button key={t.type}
+                          onClick={() => { setRepairType(t.type as RepairType); setStep('details') }}
+                          className={`flex flex-col items-center gap-1.5 py-3 rounded-2xl border-2 font-bold text-xs transition-all active:scale-95 ${t.color}`}>
+                          <span className="text-2xl">{t.icon}</span>
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {/* ── Step 2: 内容入力 ── */}
           {step === 'details' && repairType && (
             <>
-              {/* プリセット選択（カテゴリ別） */}
-              {presets.length > 0 && (() => {
+              {/* プリセット選択 - カテゴリ経由でない場合のみ表示 */}
+              {presets.length > 0 && !selectedCategoryId && (() => {
                 const catGroups = new Map<string | null, typeof presets>()
                 for (const p of presets) {
                   const key = p.category_id ?? null
