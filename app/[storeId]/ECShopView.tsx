@@ -201,6 +201,10 @@ export default function ECShopView({
           url: `/${storeId}/admin/repairs`,
         }),
       }).catch(console.error)
+      fetch('/api/notify-uniform', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uniformOrderId: orderId }),
+      }).catch(console.error)
       setOrdered(true)
     } catch (e) {
       setOrderError(e instanceof Error ? e.message : String(e))

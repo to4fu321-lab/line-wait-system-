@@ -1212,7 +1212,7 @@ export default function CRMPage() {
       .order('updated_at', { ascending: false }).limit(20)
 
     const { data: childHits } = await supabase.from('children').select('customer_id, name').in('store_id', sIds)
-      .or(`name.ilike.%${q}%,kana.ilike.%${q}%`)
+      .or(`name.ilike.%${q}%,kana.ilike.%${q}%,school_name.ilike.%${q}%`)
 
     // お子様マッチマップ（customerId → 最初にマッチしたお子様名）
     const matchMap: Record<string, string> = {}

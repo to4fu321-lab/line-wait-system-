@@ -64,6 +64,16 @@ interface PurchaseRow {
   child?: { name: string; school_name: string | null } | null
 }
 
+interface UniformOrderRow {
+  id: string; store_id: string; customer_id: string; child_id: string | null
+  status: string; payment_status: string; total_amount: number | null
+  notes: string | null; expected_delivery_date: string | null
+  created_at: string; updated_at: string
+  customer?: { id: string; name: string; tel: string | null }
+  child?: { name: string; school_name: string | null } | null
+  items?: { item_name: string; size_label: string | null; quantity: number; unit_price: number | null }[]
+}
+
 interface DeliveryItem {
   id:             string
   kind:           'repair' | 'purchase'
@@ -961,6 +971,10 @@ function NewOrderModal({ storeId, onClose, onSave, onToast }: {
     const { error: iErr } = await (supabase as any).from('uniform_order_items').insert(items)
     setSaving(false)
     if (iErr) { onToast('err', '明細登録に失敗しました'); return }
+    fetch('/api/notify-uniform', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uniformOrderId: orderId }),
+    }).catch(console.error)
     onToast('ok', `${cart.length}点の注文を登録しました`)
     onSave()
   }
@@ -1905,6 +1919,129 @@ function PurchaseCard({ item, storeId, onRefresh, onToast, onEdit }: {
   )
 }
 
+// ── Uniform Order Card ────────────────────────────────────────
+function UniformOrderCard({ item, storeId, onRefresh, onToast }: {
+  item: UniformOrderRow; storeId: string; onRefresh: () => void
+  onToast: (t: 'ok' | 'err', m: string) => void
+}) {
+  const [open,    setOpen]    = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  async function update(patch: Record<string, unknown>, msg: string) {
+    setLoading(true)
+    const { error } = await (supabase as any)
+      .from('uniform_orders')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('id', item.id)
+    setLoading(false)
+    if (error) { onToast('err', '更新に失敗しました'); return }
+    onRefresh()
+    onToast('ok', msg)
+  }
+
+  const name = item.child?.name ?? item.customer?.name ?? '（顧客不明）'
+
+  const statusLabel =
+    item.status === 'confirmed' ? '受注済み' :
+    item.status === 'ordered'   ? '発注済み' :
+    item.status === 'arrived'   ? '入荷済み' : item.status
+
+  const accent =
+    item.status === 'confirmed' ? 'bg-orange-400' :
+    item.status === 'ordered'   ? 'bg-blue-400' :
+    item.status === 'arrived'   ? 'bg-emerald-400' : 'bg-gray-300'
+
+  const badgeColor =
+    item.status === 'confirmed' ? 'bg-orange-100 text-orange-700 border-orange-200' :
+    item.status === 'ordered'   ? 'bg-blue-100 text-blue-700 border-blue-200' :
+    item.status === 'arrived'   ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-gray-100 text-gray-500 border-gray-200'
+
+  return (
+    <div className="border border-indigo-100 rounded-2xl overflow-hidden shadow-sm bg-white">
+      <div className={`h-1 w-full ${accent}`} />
+      <button className="w-full text-left px-4 pt-3 pb-3 flex items-start gap-3" onClick={() => setOpen(v => !v)}>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap mb-2">
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold">制服注文</span>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${badgeColor}`}>{statusLabel}</span>
+          </div>
+          <p className="text-base font-black text-gray-900 leading-snug mb-1">
+            {(item.items ?? []).map(i => i.item_name).join('・') || '（商品なし）'}
+          </p>
+          {item.notes && <p className="text-xs text-gray-400 mb-1.5">{item.notes}</p>}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {item.child?.school_name && (
+              <span className="text-[11px] font-black text-amber-600">{item.child.school_name}</span>
+            )}
+            <span className="text-sm font-bold text-gray-800">{name}</span>
+            {item.child && <span className="text-[11px] text-gray-400">（保護者: {item.customer?.name}）</span>}
+          </div>
+          <div className="flex items-center gap-3 mt-1.5">
+            {item.total_amount != null && (
+              <span className="text-sm font-black text-gray-600">¥{item.total_amount.toLocaleString()}</span>
+            )}
+            <span className="text-[10px] text-gray-400">注文 {fmtDate(item.created_at)}</span>
+            {item.expected_delivery_date && (
+              <span className="text-[10px] text-gray-400">希望 {fmtDate(item.expected_delivery_date)}</span>
+            )}
+          </div>
+        </div>
+        <div className="shrink-0 self-center ml-1">
+          {open ? <ChevronUp size={15} className="text-gray-300" /> : <ChevronDown size={15} className="text-gray-300" />}
+        </div>
+      </button>
+
+      {/* Action buttons */}
+      <div className="px-4 pb-4 space-y-2">
+        {item.status === 'confirmed' && (
+          <button onClick={() => update({ status: 'ordered' }, '発注済みにしました')} disabled={loading}
+            className="w-full py-4 rounded-xl font-black text-sm text-white bg-orange-600 hover:bg-orange-500 flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-orange-200 active:scale-[0.98] transition-all">
+            {loading ? <Loader2 size={16} className="animate-spin" /> : '🚚 発注する'}
+          </button>
+        )}
+        {item.status === 'ordered' && (
+          <button onClick={() => update({ status: 'arrived' }, '入荷完了・連絡しました')} disabled={loading}
+            className="w-full py-4 rounded-xl font-black text-sm text-white bg-emerald-600 hover:bg-emerald-500 flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-emerald-200 active:scale-[0.98] transition-all">
+            {loading ? <Loader2 size={16} className="animate-spin" /> : '📦 入荷完了（お渡し待ちへ）'}
+          </button>
+        )}
+        {item.status === 'arrived' && (
+          <button onClick={() => update({ status: 'delivered' }, 'お渡し済みにしました')} disabled={loading}
+            className="w-full py-4 rounded-xl font-black text-sm text-white bg-gray-600 hover:bg-gray-500 flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-gray-200 active:scale-[0.98] transition-all">
+            {loading ? <Loader2 size={16} className="animate-spin" /> : '✅ お渡し済みにする'}
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-2">
+          {(item.items ?? []).length > 0 && (
+            <div className="space-y-1">
+              {(item.items ?? []).map((i, idx) => (
+                <div key={idx} className="flex items-center justify-between text-xs">
+                  <span className="text-gray-700 font-medium">{i.item_name}</span>
+                  <span className="text-gray-500">×{i.quantity}{i.unit_price != null ? ` ¥${i.unit_price.toLocaleString()}` : ''}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-3 flex-wrap mt-1">
+            {item.customer?.tel && (
+              <a href={`tel:${item.customer.tel}`} className="flex items-center gap-1.5 text-xs text-indigo-600 font-bold">
+                <Phone size={12} />{item.customer.tel}
+              </a>
+            )}
+            <a href={`/${storeId}/admin/crm?customerId=${item.customer_id}`}
+              className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 font-medium">
+              <User size={11} />顧客詳細
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Aggregated Order UI ───────────────────────────────────────
 interface OrderGroup {
   groupKey:   string
@@ -2573,6 +2710,7 @@ export default function RepairsPage() {
   const [deliverySubTab, setDeliverySubTab] = useState<DeliverySubTab>('waiting')
   const [repairs,        setRepairs]        = useState<RepairRow[]>([])
   const [purchases,      setPurchases]      = useState<PurchaseRow[]>([])
+  const [uniformOrders,  setUniformOrders]  = useState<UniformOrderRow[]>([])
   const [waiting,        setWaiting]        = useState<DeliveryItem[]>([])
   const [history,        setHistory]        = useState<DeliveryItem[]>([])
   const [loading,        setLoading]        = useState(true)
@@ -2613,6 +2751,7 @@ export default function RepairsPage() {
       { data: purchaseData, error: purchaseErr  },
       { data: waitRepairs  },
       { data: waitPurchases },
+      { data: uniformData  },
     ] = await Promise.all([
       (supabase as any).from('repair_histories')
         .select('*, desired_completion_date, work_started, customer:customers(id,name,tel), child:children(name,school_name)')
@@ -2630,11 +2769,16 @@ export default function RepairsPage() {
         .select('*, customer:customers(name,tel), child:children(name,school_name)')
         .eq('store_id', storeId).eq('status', 'arrived')
         .order('arrived_date', { ascending: true }),
+      (supabase as any).from('uniform_orders')
+        .select('*, customer:customers(id,name,tel), child:children(name,school_name), items:uniform_order_items(item_name,size_label,quantity,unit_price)')
+        .eq('store_id', storeId).not('status', 'in', '("delivered")')
+        .order('created_at', { ascending: true }),
     ])
     if (repairErr)    setFetchError(repairErr.message)
     else if (purchaseErr) setFetchError(purchaseErr.message)
     setRepairs(repairData ?? [])
     setPurchases(purchaseData ?? [])
+    setUniformOrders(uniformData ?? [])
     const waitingItems: DeliveryItem[] = [
       ...(waitRepairs   ?? []).map((r: Record<string, unknown>) => rawToItem(r, 'repair')),
       ...(waitPurchases ?? []).map((p: Record<string, unknown>) => rawToItem(p, 'purchase')),
@@ -2922,10 +3066,15 @@ export default function RepairsPage() {
   const totalActive =
     repairs.length +
     purchases.length +
+    uniformOrders.length +
     waiting.length
 
   const filteredWaiting = [...waitingUnpaid, ...waitingPaid].filter(i =>
     matchSearch([i.item_name, i.sub_label, i.child?.name, i.customer?.name, i.child?.school_name, i.slip_number])
+  )
+
+  const filteredUniformOrders = uniformOrders.filter(o =>
+    matchSearch([o.customer?.name, o.child?.name, o.child?.school_name, ...(o.items?.map(i => i.item_name) ?? [])])
   )
 
 
@@ -2995,7 +3144,7 @@ export default function RepairsPage() {
             <div className="grid grid-cols-3 gap-1 border-t border-white/15 pt-2 -mx-4 px-4">
               {([
                 { id: 'repair'   as const, emoji: '✂️', label: 'お直し',    count: repairs.length },
-                { id: 'purchase' as const, emoji: '📦', label: '発注',      count: purchases.length },
+                { id: 'purchase' as const, emoji: '📦', label: '発注',      count: purchases.length + uniformOrders.length },
                 { id: 'delivery' as const, emoji: '🎁', label: 'お渡し待ち', count: waiting.length },
               ]).map(t => (
                 <button key={t.id} onClick={() => { setTab(t.id); setSearchText('') }}
@@ -3160,7 +3309,7 @@ export default function RepairsPage() {
               />
             </div>
 
-            {filteredPurchases.length === 0 ? (
+            {filteredPurchases.length === 0 && filteredUniformOrders.length === 0 ? (
               <div className="text-center py-20 text-gray-400">
                 <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
                   <ShoppingBag size={28} className="opacity-40" />
@@ -3169,6 +3318,22 @@ export default function RepairsPage() {
               </div>
             ) : (
               <>
+                {/* 制服注文 */}
+                {filteredUniformOrders.length > 0 && (
+                  <section>
+                    <div className="flex items-center gap-2.5 mb-3 px-1">
+                      <div className="w-2 h-6 rounded-full bg-indigo-500 shrink-0" />
+                      <p className="text-sm font-black text-gray-800 flex-1">制服注文</p>
+                      <span className="text-xs font-black bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full">{filteredUniformOrders.length}件</span>
+                    </div>
+                    <div className="space-y-2.5">
+                      {filteredUniformOrders.map(o => (
+                        <UniformOrderCard key={o.id} item={o} storeId={storeId} onRefresh={fetchAll} onToast={showToast} />
+                      ))}
+                    </div>
+                  </section>
+                )}
+
                 {/* 未発注: 集約リスト */}
                 {filteredPurchaseUnordered.length > 0 && (
                   <section>
