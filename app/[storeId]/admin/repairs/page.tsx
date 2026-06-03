@@ -2702,12 +2702,14 @@ function EditModal({ kind, item, onClose, onSave, onToast }: {
 type ActiveTab = 'repair' | 'purchase' | 'delivery'
 type DeliverySubTab = 'waiting' | 'history'
 type SortOrder = 'priority' | 'received_asc' | 'deadline_asc' | 'school' | 'name' | 'unpaid_first'
+type RepairSubTab = 'unstarted' | 'inprogress' | 'outsourced' | 'other'
 
 export default function RepairsPage() {
   const { storeId } = useParams<{ storeId: string }>()
 
   const [tab,            setTab]            = useState<ActiveTab>('repair')
   const [deliverySubTab, setDeliverySubTab] = useState<DeliverySubTab>('waiting')
+  const [repairSubTab,   setRepairSubTab]   = useState<RepairSubTab>('unstarted')
   const [repairs,        setRepairs]        = useState<RepairRow[]>([])
   const [purchases,      setPurchases]      = useState<PurchaseRow[]>([])
   const [uniformOrders,  setUniformOrders]  = useState<UniformOrderRow[]>([])
@@ -2984,8 +2986,6 @@ export default function RepairsPage() {
     }
   }
 
-  const sortedRepairs = repairs.slice().sort(sortFn)
-
   // 発注タブ: arrived は お渡し待ちに移動済みなので除外済み
   const purchaseUnordered = purchases.filter(p => ['received', 'ordered'].includes(p.status))
   const purchaseOnOrder   = purchases.filter(p => p.status === 'on_order')
@@ -2998,7 +2998,21 @@ export default function RepairsPage() {
     return fields.some(f => f?.toLowerCase().includes(q))
   }
 
-  const filteredRepairs = sortedRepairs.filter(r =>
+  // サブタブ用グループ (request_type === 'repair' のみ分類)
+  const subUnstarted  = repairs.filter(r => r.request_type === 'repair' && !r.work_started && !r.sent_to_vendor_at)
+  const subInProgress = repairs.filter(r => r.request_type === 'repair' && r.work_started)
+  const subOutsourced = repairs.filter(r => r.request_type === 'repair' && !!r.sent_to_vendor_at && !r.work_started)
+  const subOther      = repairs.filter(r => r.request_type !== 'repair')
+
+  const subTabRepairs =
+    repairSubTab === 'unstarted'  ? subUnstarted  :
+    repairSubTab === 'inprogress' ? subInProgress :
+    repairSubTab === 'outsourced' ? subOutsourced :
+    subOther
+
+  const sortedSubTab: RepairRow[] = [...subTabRepairs].sort(sortFn)
+
+  const filteredRepairs = sortedSubTab.filter(r =>
     matchSearch([r.content, r.item_name, r.child?.name, r.customer?.name, r.child?.school_name, r.slip_number])
   )
   const filteredPurchases = purchases.filter(p =>
@@ -3225,6 +3239,31 @@ export default function RepairsPage() {
                 <option value="name">顧客名順</option>
                 <option value="unpaid_first">未払い優先</option>
               </select>
+            </div>
+
+            {/* サブタブ */}
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 no-scrollbar">
+              {([
+                { id: 'unstarted'  as const, label: '加工未',   count: subUnstarted.length,  color: 'bg-orange-500' },
+                { id: 'inprogress' as const, label: '加工中',   count: subInProgress.length, color: 'bg-amber-500'  },
+                { id: 'outsourced' as const, label: '外注待ち',  count: subOutsourced.length, color: 'bg-purple-500' },
+                { id: 'other'      as const, label: '問合せ等', count: subOther.length,      color: 'bg-gray-400'   },
+              ]).map(st => (
+                <button key={st.id}
+                  onClick={() => { setRepairSubTab(st.id); setBatchSelected(new Set()) }}
+                  className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap ${
+                    repairSubTab === st.id
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                      : 'bg-white text-gray-500 border border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
+                  }`}>
+                  {st.label}
+                  {st.count > 0 && (
+                    <span className={`text-[10px] font-black min-w-[16px] text-center ${repairSubTab === st.id ? 'text-indigo-200' : 'text-gray-400'}`}>
+                      {st.count}
+                    </span>
+                  )}
+                </button>
+              ))}
             </div>
 
             {filteredRepairs.length === 0 ? (
