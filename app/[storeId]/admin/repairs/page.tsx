@@ -335,10 +335,14 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
     if (custSearch.length < 1) { setCustResults([]); return }
     const t = setTimeout(async () => {
       setSearching(true)
+      const q = custSearch.trim()
+      const qTel = q.replace(/[-\s]/g, '')
       const { data } = await (supabase as any)
         .from('customers')
         .select('id, name, tel, school_name, children:children(id, name, school_name)')
-        .eq('store_id', storeId).ilike('name', `%${custSearch}%`).is('deleted_at', null).limit(6)
+        .eq('store_id', storeId)
+        .or(`name.ilike.%${q}%,kana.ilike.%${q}%,tel.ilike.%${q}%,tel.ilike.%${qTel}%,school_name.ilike.%${q}%`)
+        .is('deleted_at', null).limit(8)
       setCustResults(data ?? [])
       setSearching(false)
     }, 300)
@@ -982,9 +986,13 @@ function NewOrderModal({ storeId, onClose, onSave, onToast }: {
     if (custSearch.length < 1) { setCustResults([]); return }
     const t = setTimeout(async () => {
       setSearching(true)
+      const q = custSearch.trim()
+      const qTel = q.replace(/[-\s]/g, '')
       const { data } = await (supabase as any).from('customers')
         .select('id, name, tel, school_name, children:children(id, name, school_name)')
-        .eq('store_id', storeId).ilike('name', `%${custSearch}%`).is('deleted_at', null).limit(6)
+        .eq('store_id', storeId)
+        .or(`name.ilike.%${q}%,kana.ilike.%${q}%,tel.ilike.%${q}%,tel.ilike.%${qTel}%,school_name.ilike.%${q}%`)
+        .is('deleted_at', null).limit(8)
       setCustResults(data ?? []); setSearching(false)
     }, 300)
     return () => clearTimeout(t)
@@ -2973,7 +2981,7 @@ export default function RepairsPage() {
   return (
     <div className="min-h-[100dvh] bg-gray-50 text-gray-900">
       {/* ── Header / Dashboard ────────────────────────────── */}
-      <div className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-100">
+      <div className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-100" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="max-w-2xl mx-auto px-4 pt-3 pb-3">
 
           {/* Title row */}

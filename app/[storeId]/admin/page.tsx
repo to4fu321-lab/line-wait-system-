@@ -681,7 +681,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     <div className="min-h-[100dvh] bg-gray-50 text-gray-900 flex flex-col">
 
       {/* ヘッダー */}
-      <div className="bg-white border-b border-gray-200 shadow-sm px-4 pt-safe-top pt-4 pb-3">
+      <div className="bg-white border-b border-gray-200 shadow-sm px-4 pb-3" style={{ paddingTop: 'max(16px, env(safe-area-inset-top))' }}>
 
         {/* 行1: 店舗名 / ボタン群 */}
         <div className="flex items-center justify-between mb-2">

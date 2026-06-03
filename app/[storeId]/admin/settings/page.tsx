@@ -242,7 +242,7 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-gray-50/90 backdrop-blur border-b border-gray-100">
+      <div className="sticky top-0 z-40 bg-gray-50/90 backdrop-blur border-b border-gray-100" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-gray-200/60 border border-gray-300/50 flex items-center justify-center">
             <Settings size={17} className="text-gray-700" />

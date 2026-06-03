@@ -1541,7 +1541,7 @@ export default function CRMPage() {
       {toast && <Toast msg={toast.msg} type={toast.type} onUndo={toast.onUndo} onClose={() => setToast(null)} />}
 
       {/* ヘッダー */}
-      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-gray-200 px-4 py-3">
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-gray-200 px-4 pb-3" style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           <div className="flex-1">
             <h1 className="font-black text-gray-900 text-base flex items-center gap-2">

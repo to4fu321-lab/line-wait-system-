@@ -626,7 +626,7 @@ export default function DeliveryPage() {
       {toast && <Toast msg={toast.msg} type={toast.type} onUndo={toast.onUndo} />}
 
       {/* ヘッダー */}
-      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-gray-200 px-4 py-3">
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-gray-200 px-4 pb-3" style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           <button onClick={() => router.push(`/${storeId}/admin`)}
             className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 active:scale-90 transition-all">

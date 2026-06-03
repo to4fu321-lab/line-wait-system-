@@ -487,7 +487,7 @@ function MasterPageInner() {
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
       {/* ── Header ───────────────────────────────────────── */}
-      <div className={`sticky top-0 z-20 bg-gradient-to-r ${headerGrad} shadow-lg`}>
+      <div className={`sticky top-0 z-20 bg-gradient-to-r ${headerGrad} shadow-lg`} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="flex items-center gap-3 px-4 pt-3.5 pb-2 max-w-lg mx-auto">
           <button onClick={goBack} className="p-1 -ml-1 text-white/80 hover:text-white active:scale-90 transition-all">
             <ChevronLeft size={22} />
