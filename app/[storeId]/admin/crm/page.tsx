@@ -2017,7 +2017,7 @@ export default function CRMPage() {
       )}
       {/* ── Quick Intake Modal (order-first flow) ───────── */}
       {showQuickIntake && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm"
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 backdrop-blur-sm"
           onClick={e => { if (e.target === e.currentTarget) { setShowQuickIntake(false); resetQi() } }}>
           <div className="w-full max-w-lg bg-white rounded-t-3xl shadow-2xl flex flex-col" style={{ maxHeight: '90dvh' }}>
             {/* Modal header */}

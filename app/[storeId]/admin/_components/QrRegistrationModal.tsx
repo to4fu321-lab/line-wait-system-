@@ -14,7 +14,7 @@ export function QrRegistrationModal({ storeId, onClose, onSwitchStore }: Props) 
   const qrSrc  = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(url)}`
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] px-4">
       <div className="bg-white border border-gray-200 rounded-3xl p-6 w-full max-w-xs text-center relative shadow-2xl">
         <button
           onClick={onClose}

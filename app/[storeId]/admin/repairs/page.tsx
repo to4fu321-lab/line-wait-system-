@@ -454,8 +454,8 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   const steps: Step[] = ['type', 'cat_repair', 'details', 'customer']
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-lg bg-white rounded-t-3xl shadow-2xl flex flex-col" style={{ maxHeight: '92dvh' }} onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-lg bg-white rounded-t-3xl shadow-2xl flex flex-col" style={{ maxHeight: '92dvh', paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div className="px-5 pt-5 pb-4 border-b border-gray-100 shrink-0">
@@ -1021,8 +1021,8 @@ function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   const steps: OStep[] = ['customer', 'products', 'confirm']
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex flex-col justify-end sm:justify-center sm:items-center sm:p-4">
-      <div className="bg-white sm:rounded-3xl sm:max-w-lg w-full flex flex-col rounded-t-3xl overflow-hidden" style={{ maxHeight: '92dvh' }}>
+    <div className="fixed inset-0 z-[60] bg-black/50 flex flex-col justify-end sm:justify-center sm:items-center sm:p-4">
+      <div className="bg-white sm:rounded-3xl sm:max-w-lg w-full flex flex-col rounded-t-3xl overflow-hidden" style={{ maxHeight: '92dvh', paddingBottom: 'env(safe-area-inset-bottom)' }}>
         {/* Header */}
         <div className="px-4 pt-4 pb-3 border-b border-gray-100 shrink-0">
           <input ref={orderFileRef} type="file" accept="image/*" capture="environment" className="hidden"
@@ -2529,7 +2529,7 @@ function EditModal({ kind, item, onClose, onSave, onToast }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm"
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm"
       onClick={onClose}>
       <div className="w-full max-w-lg bg-white rounded-t-3xl shadow-2xl"
         onClick={e => e.stopPropagation()}>

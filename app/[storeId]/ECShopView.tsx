@@ -482,7 +482,7 @@ export default function ECShopView({
 
       {/* 注文確認モーダル */}
       {showConfirm && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end justify-center z-50">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end justify-center z-[60]">
           <div className="bg-white rounded-t-3xl w-full max-w-md overflow-y-auto" style={{ maxHeight: '85dvh' }}>
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-zinc-100">
               <div>
@@ -523,7 +523,7 @@ export default function ECShopView({
 
       {/* 学校・学年 変更モーダル */}
       {showSchoolEdit && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end justify-center z-50">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end justify-center z-[60]">
           <div className="bg-white rounded-t-3xl w-full max-w-md">
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-zinc-100">
               <div>

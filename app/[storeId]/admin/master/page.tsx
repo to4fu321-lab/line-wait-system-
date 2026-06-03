@@ -620,7 +620,7 @@ function MasterPageInner() {
 
             {/* ── カテゴリ追加/編集モーダル ─────────────────────── */}
             {catModal && (
-              <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center sm:p-4">
+              <div className="fixed inset-0 z-[60] bg-black/40 flex items-end sm:items-center justify-center sm:p-4">
                 <div className="bg-white w-full sm:max-w-sm sm:rounded-3xl rounded-t-3xl p-5 space-y-4">
                   <div className="flex items-center justify-between">
                     <h2 className="text-sm font-black text-gray-900">{editingCat ? 'カテゴリを編集' : 'カテゴリを追加'}</h2>
@@ -685,7 +685,7 @@ function MasterPageInner() {
 
             {/* プリセット追加/編集モーダル */}
             {presetModal && (
-              <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center sm:p-4">
+              <div className="fixed inset-0 z-[60] bg-black/40 flex items-end sm:items-center justify-center sm:p-4">
                 <div className="bg-white w-full sm:max-w-sm sm:rounded-3xl rounded-t-3xl p-5 space-y-4">
                   <div className="flex items-center justify-between">
                     <h2 className="text-sm font-black text-gray-900 flex items-center gap-2">
@@ -1032,7 +1032,7 @@ function MasterPageInner() {
           スタッフフォームモーダル
       ================================================================ */}
       {staffModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={() => setStaffModal(false)}>
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={() => setStaffModal(false)}>
           <div className="w-full max-w-lg bg-white rounded-t-3xl px-5 pt-5 pb-8 space-y-4 shadow-2xl overflow-y-auto" style={{ maxHeight: '90dvh' }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="text-base font-black text-gray-900 flex items-center gap-2">
@@ -1092,7 +1092,7 @@ function MasterPageInner() {
           学校フォームモーダル
       ================================================================ */}
       {schoolModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={() => setSchoolModal(false)}>
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={() => setSchoolModal(false)}>
           <div className="w-full max-w-lg bg-white rounded-t-3xl px-5 pt-5 pb-8 space-y-4 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="text-base font-black text-gray-900 flex items-center gap-2">
@@ -1120,7 +1120,7 @@ function MasterPageInner() {
           商品フォームモーダル
       ================================================================ */}
       {productModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={() => setProductModal(false)}>
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={() => setProductModal(false)}>
           <div className="w-full max-w-lg bg-white rounded-t-3xl px-5 pt-5 pb-8 space-y-4 shadow-2xl overflow-y-auto max-h-[88vh]" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="text-base font-black text-gray-900 flex items-center gap-2">
@@ -1173,7 +1173,7 @@ function MasterPageInner() {
           サイズ・価格フォームモーダル
       ================================================================ */}
       {variantModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={() => setVariantModal(false)}>
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={() => setVariantModal(false)}>
           <div className="w-full max-w-lg bg-white rounded-t-3xl px-5 pt-5 pb-8 space-y-4 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="text-base font-black text-gray-900 flex items-center gap-2">
