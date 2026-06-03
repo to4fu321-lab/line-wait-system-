@@ -172,77 +172,6 @@ const CAT_PALETTES = [
   'bg-indigo-100 border-indigo-300 text-indigo-800 hover:bg-indigo-200',
 ]
 
-// ── インライン新規顧客登録 ────────────────────────────────────────
-interface NewCustResult {
-  id: string; name: string; tel: string | null; school_name: string | null
-  children: { id: string; name: string; school_name: string | null }[]
-}
-
-function InlineNewCustomer({ storeId, onCreated, onCancel }: {
-  storeId: string
-  onCreated: (cust: NewCustResult) => void
-  onCancel: () => void
-}) {
-  const [name,    setName]   = useState('')
-  const [kana,    setKana]   = useState('')
-  const [tel,     setTel]    = useState('')
-  const [school,  setSchool] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [err,     setErr]    = useState<string | null>(null)
-
-  const save = async () => {
-    if (!name.trim()) { setErr('お名前を入力してください'); return }
-    setLoading(true)
-    const { data, error } = await (supabase as any).from('customers').insert({
-      store_id: storeId, name: name.trim(),
-      kana: kana.trim() || null, tel: tel.trim() || null,
-      school_name: school.trim() || null,
-    }).select('id, name, tel, school_name').single()
-    setLoading(false)
-    if (error) { setErr('登録に失敗しました'); return }
-    onCreated({ ...data, children: [] })
-  }
-
-  return (
-    <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 space-y-3">
-      <p className="text-xs font-black text-amber-800 flex items-center gap-1.5"><Plus size={13} />新規顧客登録</p>
-      <div className="grid grid-cols-2 gap-2">
-        <div className="col-span-2">
-          <label className="text-[10px] font-bold text-gray-600 block mb-1">お名前 <span className="text-red-500">*</span></label>
-          <input value={name} onChange={e => { setName(e.target.value); setErr(null) }} placeholder="例：山田 太郎" autoFocus
-            className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500 bg-white" />
-        </div>
-        <div>
-          <label className="text-[10px] font-bold text-gray-600 block mb-1">ふりがな</label>
-          <input value={kana} onChange={e => setKana(e.target.value)} placeholder="やまだ たろう"
-            className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500 bg-white" />
-        </div>
-        <div>
-          <label className="text-[10px] font-bold text-gray-600 block mb-1">電話番号</label>
-          <input value={tel} onChange={e => setTel(e.target.value)} placeholder="090-xxxx-xxxx" type="tel"
-            className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500 bg-white" />
-        </div>
-        <div className="col-span-2">
-          <label className="text-[10px] font-bold text-gray-600 block mb-1">学校名</label>
-          <input value={school} onChange={e => setSchool(e.target.value)} placeholder="例：○○中学校"
-            className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500 bg-white" />
-        </div>
-      </div>
-      {err && <p className="text-xs text-red-600 flex items-center gap-1"><AlertCircle size={12} />{err}</p>}
-      <div className="flex gap-2">
-        <button onClick={onCancel} className="flex-1 py-2.5 text-xs font-bold text-gray-600 border border-gray-300 rounded-xl hover:bg-gray-50 active:scale-[0.98]">
-          キャンセル
-        </button>
-        <button onClick={save} disabled={loading}
-          className="flex-1 py-2.5 text-xs font-bold text-white bg-amber-500 hover:bg-amber-400 rounded-xl disabled:opacity-50 flex items-center justify-center gap-1 active:scale-[0.98]">
-          {loading ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-          登録する
-        </button>
-      </div>
-    </div>
-  )
-}
-
 interface CustResult {
   id: string; name: string; tel: string | null; school_name: string | null
   children?: { id: string; name: string; school_name: string | null }[]
@@ -783,11 +712,22 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                     </button>
                   )}
                   {showRegister && (
-                    <InlineNewCustomer
-                      storeId={storeId}
-                      onCreated={cust => { setSelectedCust(cust as CustResult); setShowRegister(false) }}
-                      onCancel={() => setShowRegister(false)}
-                    />
+                    <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-4 text-center space-y-3">
+                      <p className="text-xs font-black text-indigo-800">お客様にQRを読み取ってもらってください</p>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=${encodeURIComponent(`https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || ''}/${storeId}`)}`}
+                        alt="受付QR" width={200} height={200}
+                        className="mx-auto rounded-xl bg-white p-1 shadow-sm"
+                      />
+                      <p className="text-[10px] text-indigo-500 leading-relaxed">
+                        LINEで登録後、上の検索欄でお名前を検索してください
+                      </p>
+                      <button onClick={() => setShowRegister(false)}
+                        className="w-full py-2 text-xs font-bold text-gray-600 border border-gray-200 rounded-xl hover:bg-white active:scale-[0.98]">
+                        閉じる
+                      </button>
+                    </div>
                   )}
                   {custSearch.length === 0 && !showRegister && (
                     <p className="text-sm text-center text-gray-400 py-4">名前を入力して顧客を検索してください</p>
@@ -1191,11 +1131,22 @@ function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                     </button>
                   )}
                   {showReg && (
-                    <InlineNewCustomer
-                      storeId={storeId}
-                      onCreated={cust => { setSelectedCust(cust as CustResult); setShowReg(false) }}
-                      onCancel={() => setShowReg(false)}
-                    />
+                    <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-4 text-center space-y-3">
+                      <p className="text-xs font-black text-indigo-800">お客様にQRを読み取ってもらってください</p>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=${encodeURIComponent(`https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || ''}/${storeId}`)}`}
+                        alt="受付QR" width={200} height={200}
+                        className="mx-auto rounded-xl bg-white p-1 shadow-sm"
+                      />
+                      <p className="text-[10px] text-indigo-500 leading-relaxed">
+                        LINEで登録後、上の検索欄でお名前を検索してください
+                      </p>
+                      <button onClick={() => setShowReg(false)}
+                        className="w-full py-2 text-xs font-bold text-gray-600 border border-gray-200 rounded-xl hover:bg-white active:scale-[0.98]">
+                        閉じる
+                      </button>
+                    </div>
                   )}
                   {custSearch.length === 0 && !showReg && (
                     <p className="text-sm text-center text-gray-400 py-4">名前を入力して顧客を検索してください</p>

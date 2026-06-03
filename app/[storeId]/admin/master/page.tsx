@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   ChevronLeft, ChevronRight, Plus, Pencil, Trash2,
-  GraduationCap, Package, Tag, Loader2, X, AlertCircle, Users, UserCircle, Scissors, QrCode,
+  GraduationCap, Package, Tag, Loader2, X, AlertCircle, Users, UserCircle, Scissors,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { School, SchoolProduct, SchoolProductVariant, Staff } from '@/types/master'
@@ -112,10 +112,6 @@ function MasterPageInner() {
   const [ppNotes,         setPpNotes]        = useState('')
   const [ppCategoryId,    setPpCategoryId]   = useState<string | null>(null)
   const [ppSaving,        setPpSaving]       = useState(false)
-
-  // ── LINE公式アカウント ────────────────────────────────────
-  const [lineOfficialId,  setLineOfficialId]  = useState('')
-  const [lineIdSaving,    setLineIdSaving]    = useState(false)
 
   // ── Shared loading / toast ────────────────────────────────
   const [loading,    setLoading]    = useState(true)
@@ -236,19 +232,6 @@ function MasterPageInner() {
     fetchCategories()
   }
 
-  // ── LINE公式アカウントID ──────────────────────────────────
-  const fetchLineOfficialId = useCallback(async () => {
-    const { data } = await (supabase as any).from('stores').select('line_official_id').eq('id', storeId).single()
-    setLineOfficialId(data?.line_official_id ?? '')
-  }, [storeId])
-
-  const saveLineOfficialId = async () => {
-    setLineIdSaving(true)
-    await (supabase as any).from('stores').update({ line_official_id: lineOfficialId.trim() || null }).eq('id', storeId)
-    setLineIdSaving(false)
-    setToast({ msg: 'LINE公式アカウントIDを保存しました', type: 'ok' })
-  }
-
   // ── Repair presets ───────────────────────────────────────
   const fetchPresets = useCallback(async () => {
     setPresetsLoading(true)
@@ -299,7 +282,7 @@ function MasterPageInner() {
   const switchTab = (tab: MasterTab) => {
     setMasterTab(tab)
     if (tab === 'schools') { setSchoolView('schools'); setSelectedSchool(null); setSelectedProduct(null) }
-    if (tab === 'presets') { fetchPresets(); fetchCategories(); fetchLineOfficialId() }
+    if (tab === 'presets') { fetchPresets(); fetchCategories() }
   }
 
   // ── Navigation (school drill-down) ───────────────────────
@@ -553,45 +536,6 @@ function MasterPageInner() {
           <>
             <div className="flex items-center justify-between">
               <p className="text-xs text-gray-500">お直し受付時にワンタップで品名・金額を入力できます</p>
-            </div>
-
-            {/* ── LINE友達登録QRコード ─────────────────────────── */}
-            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-                <QrCode size={15} className="text-green-600" />
-                <p className="text-sm font-black text-gray-800">LINE友達登録QR</p>
-              </div>
-              <div className="px-4 py-4 space-y-3">
-                {lineOfficialId ? (
-                  <div className="flex items-start gap-4">
-                    <img
-                      src={`https://qr-official.line.me/gs/M_${lineOfficialId.replace('@', '')}_BW.png`}
-                      alt="LINE友達登録QR"
-                      className="w-28 h-28 rounded-xl border border-gray-200 shadow-sm shrink-0"
-                      onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-gray-700 mb-1">公式アカウントID</p>
-                      <p className="text-sm font-mono text-green-700 font-bold">{lineOfficialId}</p>
-                      <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">このQRをお客様に見せると<br />LINEで友達登録できます</p>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-400">LINE公式アカウントIDを設定するとQRが表示されます</p>
-                )}
-                <div className="flex gap-2 items-end">
-                  <div className="flex-1">
-                    <label className="text-[10px] font-bold text-gray-500 block mb-1">LINE公式アカウントID（例: @abc1234d）</label>
-                    <input type="text" value={lineOfficialId} onChange={e => setLineOfficialId(e.target.value)}
-                      placeholder="@xxxxxxxxx"
-                      className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-green-500 bg-white" />
-                  </div>
-                  <button onClick={saveLineOfficialId} disabled={lineIdSaving}
-                    className="px-4 py-2 rounded-xl bg-green-600 text-white text-xs font-bold flex items-center gap-1 disabled:opacity-50 active:scale-95 transition-all shrink-0">
-                    {lineIdSaving ? <Loader2 size={12} className="animate-spin" /> : '保存'}
-                  </button>
-                </div>
-              </div>
             </div>
 
             {/* ── アイテムカテゴリ管理 ──────────────────────────── */}
