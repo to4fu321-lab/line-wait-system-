@@ -395,18 +395,17 @@ function PurchaseItem({ order, showCustomer = false, storeId, onStock, onBackOrd
 // ============================================================
 // 統合新規依頼受付フォーム
 // ============================================================
-type IntakeFormType = 'repair' | 'repair_consult' | 'purchase' | 'inquiry' | 'payment_pending'
+type IntakeFormType = 'repair' | 'repair_consult' | 'purchase' | 'inquiry'
 const INTAKE_OPTIONS: {
   value: IntakeFormType; label: string
   ph_item: string; ph_content: string
   showContent: boolean; showPrice: boolean; showSlip: boolean; showDate: boolean; showPrepaid: boolean
   isPurchase: boolean
 }[] = [
-  { value: 'repair',          label: '✂️ お直し',        ph_item: '例：○○高校スラックス',   ph_content: '例：裾上げ5cm',        showContent: true,  showPrice: true,  showSlip: true,  showDate: true,  showPrepaid: true,  isPurchase: false },
-  { value: 'repair_consult',  label: '🔍 お直し相談',    ph_item: '例：ブレザー',             ph_content: '例：採寸・見積り相談', showContent: true,  showPrice: true,  showSlip: false, showDate: false, showPrepaid: false, isPurchase: false },
-  { value: 'purchase',        label: '📦 追加購入・注文', ph_item: '例：○○高校学ラン 165A',  ph_content: '',                     showContent: false, showPrice: true,  showSlip: false, showDate: false, showPrepaid: false, isPurchase: true  },
-  { value: 'inquiry',         label: '❓ その他問合せ',   ph_item: '例：問合せ内容の概要',    ph_content: '例：詳細',             showContent: true,  showPrice: false, showSlip: false, showDate: false, showPrepaid: false, isPurchase: false },
-  { value: 'payment_pending', label: '💴 入金待ち',      ph_item: '例：未回収案件の概要',    ph_content: '',                     showContent: false, showPrice: true,  showSlip: false, showDate: false, showPrepaid: false, isPurchase: false },
+  { value: 'repair',         label: '✂️ お直し',        ph_item: '例：○○高校スラックス',   ph_content: '例：裾上げ5cm',        showContent: true,  showPrice: true,  showSlip: true,  showDate: true,  showPrepaid: true,  isPurchase: false },
+  { value: 'repair_consult', label: '🔍 お直し相談',    ph_item: '例：ブレザー',             ph_content: '例：採寸・見積り相談', showContent: true,  showPrice: true,  showSlip: false, showDate: false, showPrepaid: false, isPurchase: false },
+  { value: 'purchase',       label: '📦 追加購入・注文', ph_item: '例：○○高校学ラン 165A',  ph_content: '',                     showContent: false, showPrice: true,  showSlip: false, showDate: false, showPrepaid: false, isPurchase: true  },
+  { value: 'inquiry',        label: '❓ その他問合せ',   ph_item: '例：問合せ内容の概要',    ph_content: '例：詳細',             showContent: true,  showPrice: false, showSlip: false, showDate: false, showPrepaid: false, isPurchase: false },
 ]
 
 function NewIntakeForm({ customerId, childId, storeId, reservationUrl, onSaved, onCancel, defaultType }: {
@@ -797,7 +796,7 @@ function EditChildForm({ child, onSaved, onCancel, schoolOptions }: {
           <select value={schoolName} onChange={e => setSchoolName(e.target.value)}
             className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-amber-500 focus:outline-none">
             <option value="">選択</option>
-            {(schoolOptions ?? SCHOOL_OPTIONS).map(s => <option key={s} value={s}>{s}</option>)}
+            {(schoolOptions && schoolOptions.length > 0 ? schoolOptions : SCHOOL_OPTIONS).map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </Field>
         <Field label="学年">
@@ -934,7 +933,7 @@ function AddChildFormCRM({ customerId, storeId, onSaved, onCancel, schoolOptions
           <select value={schoolName} onChange={e => setSchoolName(e.target.value)}
             className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none">
             <option value="">選択</option>
-            {(schoolOptions ?? SCHOOL_OPTIONS).map(s => <option key={s} value={s}>{s}</option>)}
+            {(schoolOptions && schoolOptions.length > 0 ? schoolOptions : SCHOOL_OPTIONS).map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </Field>
         <Field label="学年">

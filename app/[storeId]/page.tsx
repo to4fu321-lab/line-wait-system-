@@ -51,10 +51,12 @@ function InitialRegistrationForm({
   lineDisplayName,
   onSubmit,
   submitting,
+  schoolOptions,
 }: {
   lineDisplayName: string
   onSubmit: (d: { parentName: string; parentKana: string; tel: string; childName: string; childKana: string; schoolName: string; grade: string }) => Promise<void>
   submitting: boolean
+  schoolOptions?: string[]
 }) {
   const theme  = useStoreTheme()
   const parent = useKanaAutoFill(lineDisplayName)
@@ -63,6 +65,8 @@ function InitialRegistrationForm({
   const [schoolName, setSchoolName] = useState('')
   const [grade,      setGrade]      = useState('')
   const [error,      setError]      = useState('')
+
+  const effectiveSchoolOptions = schoolOptions && schoolOptions.length > 0 ? schoolOptions : SCHOOL_OPTIONS
 
   const handleSubmit = async () => {
     if (!parent.name.trim()) { setError('保護者のお名前を入力してください'); return }
@@ -110,7 +114,7 @@ function InitialRegistrationForm({
           <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名</label>
           <select value={schoolName} onChange={e => setSchoolName(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
             <option value="">選択してください</option>
-            {SCHOOL_OPTIONS.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
+            {effectiveSchoolOptions.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
           </select>
         </div>
         <div>
@@ -145,16 +149,20 @@ function AddChildForm({
   onSubmit,
   onCancel,
   submitting,
+  schoolOptions,
 }: {
   onSubmit: (d: { childName: string; childKana: string; schoolName: string; grade: string }) => Promise<void>
   onCancel: () => void
   submitting: boolean
+  schoolOptions?: string[]
 }) {
   const theme = useStoreTheme()
   const child = useKanaAutoFill('')
   const [schoolName, setSchoolName] = useState('')
   const [grade,      setGrade]      = useState('')
   const [error,      setError]      = useState('')
+
+  const effectiveSchoolOptions = schoolOptions && schoolOptions.length > 0 ? schoolOptions : SCHOOL_OPTIONS
 
   const handleSubmit = async () => {
     if (!child.name.trim()) { setError('お名前を入力してください'); return }
@@ -182,7 +190,7 @@ function AddChildForm({
           <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名</label>
           <select value={schoolName} onChange={e => setSchoolName(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
             <option value="">選択してください</option>
-            {SCHOOL_OPTIONS.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
+            {effectiveSchoolOptions.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
           </select>
         </div>
         <div>
@@ -293,6 +301,7 @@ export default function CustomerPage() {
   const [detailSaving,  setDetailSaving]  = useState(false)
   const [detailSaved,   setDetailSaved]   = useState(false)
   const [activeFittings, setActiveFittings] = useState(1)
+  const [storeSchoolOptions, setStoreSchoolOptions] = useState<string[]>([])
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const ticketRef  = useRef<Queue | null>(null)
@@ -308,12 +317,13 @@ export default function CustomerPage() {
     if (!storeId) return
     ;(async () => { try {
       const { data: sd } = await (supabase.from('stores') as any)
-        .select('is_open, wait_thresholds, notification_plan, active_fittings, business_type').eq('id', storeId).single()
+        .select('is_open, wait_thresholds, notification_plan, active_fittings, business_type, school_names').eq('id', storeId).single()
       if (sd?.business_type === 'takeout') { router.replace(`/${storeId}/order`); return }
       if (sd && Array.isArray(sd.wait_thresholds) && sd.wait_thresholds.length > 0)
         setWaitThresholds(sd.wait_thresholds as WaitThreshold[])
       if (sd?.notification_plan) notificationPlanRef.current = sd.notification_plan
       if (sd?.active_fittings != null) setActiveFittings(sd.active_fittings)
+      if (Array.isArray(sd?.school_names) && sd.school_names.length > 0) setStoreSchoolOptions(sd.school_names)
 
       await initLiff()
       const profile = await getLineProfile()
@@ -856,6 +866,7 @@ export default function CustomerPage() {
               onSubmit={handleAddChild}
               onCancel={() => setShowAddChild(false)}
               submitting={submitting}
+              schoolOptions={storeSchoolOptions}
             />
           </div>
         ) : (
@@ -895,6 +906,7 @@ export default function CustomerPage() {
           lineDisplayName={lineProfile?.displayName ?? ''}
           onSubmit={handleInitialRegister}
           submitting={submitting}
+          schoolOptions={storeSchoolOptions}
         />
       </div>
     </main>
@@ -922,17 +934,7 @@ export default function CustomerPage() {
 
       <div className="space-y-4">
         <button
-          onClick={async () => {
-            if (waitingCount === null) {
-              try {
-                const { count } = await supabase.from('queues')
-                  .select('*', { count: 'exact', head: true })
-                  .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
-                setWaitingCount(count ?? 0)
-              } catch { /* 取得失敗は無視 */ }
-            }
-            setView('confirm_queue')
-          }}
+          onClick={handleIssueTicket}
           disabled={issuing}
           className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all disabled:opacity-80"
           style={cardStyle}>
@@ -957,7 +959,7 @@ export default function CustomerPage() {
           </div>
           <div className="mt-4 py-2 rounded-xl text-center text-xs font-bold"
             style={{ background: `rgb(${theme.colors.primaryRgb} / 0.08)`, color: theme.colors.primary }}>
-            タップした瞬間、整理券を発行します
+            {issuing ? '発行中...' : 'タップした瞬間、整理券を発行します'}
           </div>
         </button>
 
@@ -1143,6 +1145,7 @@ export default function CustomerPage() {
                           onSubmit={handleAddChild}
                           onCancel={() => setWaitingEditMode(null)}
                           submitting={submitting}
+                          schoolOptions={storeSchoolOptions}
                         />
                       )}
                       {waitingEditMode === 'info' && (
@@ -1192,6 +1195,7 @@ export default function CustomerPage() {
                               lineDisplayName={lineProfile?.displayName ?? ''}
                               onSubmit={handleInitialRegister}
                               submitting={submitting}
+                              schoolOptions={storeSchoolOptions}
                             />
                           </div>
                         </>

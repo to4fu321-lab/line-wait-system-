@@ -175,35 +175,28 @@ export default function ECShopView({
     if (!customerId) return
     setOrdering(true); setOrderError('')
     try {
-      const orderId = crypto.randomUUID()
-      const { error: oErr } = await (supabase as any).from('uniform_orders').insert({
-        id: orderId, store_id: storeId,
-        customer_id: customerId, child_id: childId ?? null,
-        status: 'confirmed', payment_status: 'unpaid',
-        total_amount: totalPrice,
-      })
-      if (oErr) throw new Error(oErr.message)
-      const items = cart.map(i => ({
-        order_id: orderId, store_id: storeId,
-        school_product_id: i.productId,
-        item_name: `${i.productName} ${i.sizeLabel}`,
-        size_label: i.sizeLabel, quantity: i.qty,
-        unit_price: i.unitPrice, status: 'ordered',
+      const today = new Date().toISOString().slice(0, 10)
+      // purchase_orders に各商品を1件ずつ登録（CRM案件に反映）
+      const purchaseRows = cart.map(i => ({
+        store_id:     storeId,
+        customer_id:  customerId,
+        child_id:     childId ?? null,
+        item_name:    `${i.productName}${i.sizeLabel ? ` ${i.sizeLabel}` : ''}`,
+        notes:        i.qty > 1 ? `${i.qty}点` : null,
+        price:        i.unitPrice * i.qty,
+        status:       'ordered',
+        ordered_date: today,
       }))
-      const { error: iErr } = await (supabase as any).from('uniform_order_items').insert(items)
-      if (iErr) throw new Error(iErr.message)
+      const { error: pErr } = await supabase.from('purchase_orders').insert(purchaseRows)
+      if (pErr) throw new Error(pErr.message)
       fetch('/api/push-admin', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           storeId, type: 'purchase_new',
-          title: '📦 制服注文が届きました',
-          body: cart.map(i => `${i.productName} ${i.sizeLabel}`).join('・'),
-          url: `/${storeId}/admin/repairs`,
+          title: '📦 ネット注文が届きました',
+          body: cart.map(i => `${i.productName}${i.sizeLabel ? ` ${i.sizeLabel}` : ''}`).join('・'),
+          url: `/${storeId}/admin/crm`,
         }),
-      }).catch(console.error)
-      fetch('/api/notify-uniform', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uniformOrderId: orderId }),
       }).catch(console.error)
       setOrdered(true)
     } catch (e) {

@@ -133,18 +133,18 @@ export async function POST(req: NextRequest) {
       created.push(`取置き[${p.status}]: ${p.item}`)
     }
 
-    // 4. お直し依頼 — 各ステータスを網羅（期限超過テスト含む）
+    // 4. お直し・問合せ依頼 — 各ステータス・各タイプを網羅（期限超過テスト含む）
     const repairs = [
-      // 預かり中
-      { idx: 0, item: 'スカート丈つめ',       content: '3cm短く',   price: 1500, status: 'received',  received: today,       completed: null,       delivered: null },
+      // お直し預かり中
+      { idx: 0, item: 'スカート丈つめ',       content: '3cm短く',         price: 1500, status: 'received',  requestType: 'repair',         received: today,       completed: null,       delivered: null },
       // お直し完了連絡済み・正常（3日前）
-      { idx: 1, item: 'ズボン丈つめ',          content: '2cm短く',   price: 1200, status: 'completed', received: daysAgo(7),  completed: daysAgo(3), delivered: null },
+      { idx: 1, item: 'ズボン丈つめ',          content: '2cm短く',         price: 1200, status: 'completed', requestType: 'repair',         received: daysAgo(7),  completed: daysAgo(3), delivered: null },
+      // お直し相談（受付中）
+      { idx: 2, item: 'ブレザー',             content: '採寸・見積り相談', price: null, status: 'received',  requestType: 'repair_consult', received: daysAgo(1),  completed: null,       delivered: null },
       // お直し完了連絡済み・期限超過（10日前 → アラートバッジ表示テスト）
-      { idx: 2, item: 'ブレザー袖丈つめ',     content: '1.5cm短く', price: 2000, status: 'completed', received: daysAgo(18), completed: daysAgo(10),delivered: null },
-      // 預かり中（別パターン）
-      { idx: 3, item: 'スカートウエスト調整', content: '2cm詰め',   price: 1800, status: 'received',  received: daysAgo(2),  completed: null,       delivered: null },
-      // お渡し済み（完了済み履歴テスト）
-      { idx: 4, item: 'ネクタイ交換',          content: 'ほつれ修理', price: 800, status: 'delivered', received: daysAgo(14), completed: daysAgo(7), delivered: today },
+      { idx: 3, item: 'スカートウエスト調整', content: '2cm詰め',         price: 1800, status: 'completed', requestType: 'repair',         received: daysAgo(18), completed: daysAgo(10),delivered: null },
+      // その他問合せ（受付中）
+      { idx: 4, item: 'サイズ確認の問合せ',   content: '165Aと170Aの違いを確認したい', price: null, status: 'received', requestType: 'inquiry', received: daysAgo(2), completed: null, delivered: null },
     ]
     for (const r of repairs) {
       const cId  = customerIds[r.idx]
@@ -154,12 +154,13 @@ export async function POST(req: NextRequest) {
         store_id: storeId, customer_id: cId, child_id: chId ?? null,
         item_name: r.item, content: r.content, price: r.price,
         status: r.status, received_date: r.received,
+        request_type: r.requestType,
       }
       if (r.completed)  row.completed_date  = r.completed
       if (r.delivered)  row.delivered_date  = r.delivered
       const { error: rErr } = await supabase.from('repair_histories').insert(row)
       if (rErr) { console.error('[seed] repair_histories insert error:', rErr.message, 'item:', r.item); continue }
-      created.push(`お直し[${r.status}]: ${r.item}`)
+      created.push(`${r.requestType}[${r.status}]: ${r.item}`)
     }
 
     return NextResponse.json({ ok: true, created })
