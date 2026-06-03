@@ -47,9 +47,9 @@ export function BottomNav() {
 
   return (
     <>
-      <div className="h-16 shrink-0" />
+      <div className="shrink-0" style={{ height: 'calc(4rem + env(safe-area-inset-bottom))' }} />
 
-      <nav className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-gray-200 shadow-sm">
+      <nav className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-gray-200 shadow-sm" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="flex max-w-lg mx-auto">
           {TABS.map(tab => {
             const active       = isActive(tab)
