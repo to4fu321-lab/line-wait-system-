@@ -1436,83 +1436,55 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected, onTog
         )}
         <div className="flex-1 min-w-0 overflow-hidden">
       {/* Clickable summary area */}
-      <button className="w-full text-left px-4 pt-2.5 pb-2 flex items-start gap-3" onClick={() => setOpen(v => !v)}>
+      <button className="w-full text-left px-3 pt-2 pb-2 flex items-start gap-2" onClick={() => setOpen(v => !v)}>
         <div className="flex-1 min-w-0">
-          {/* Badges */}
-          <div className="flex items-center gap-1 flex-wrap mb-1">
-            <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${REQUEST_TYPE_COLORS[reqType]}`}>
+          {/* Row 1: badges + deadline */}
+          <div className="flex items-center gap-1 mb-0.5">
+            <span className={`text-[9px] px-1.5 py-0 rounded-full border font-bold leading-5 ${REQUEST_TYPE_COLORS[reqType]}`}>
               {REQUEST_TYPE_LABELS[reqType]}
             </span>
             {item.repair_type && (
-              <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${REPAIR_TYPE_COLORS[item.repair_type]}`}>
+              <span className={`text-[9px] px-1.5 py-0 rounded-full border font-bold leading-5 ${REPAIR_TYPE_COLORS[item.repair_type]}`}>
                 {REPAIR_TYPE_ICONS[item.repair_type]} {REPAIR_TYPE_LABELS[item.repair_type]}
               </span>
             )}
-            {item.work_started && !isOverdue && !isDueSoon && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500 text-white font-bold">✂️ 作業中</span>
-            )}
             {item.sent_to_vendor_at ? (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200 font-bold">🏭 外注中</span>
+              <span className="text-[9px] px-1.5 py-0 rounded-full bg-orange-100 text-orange-700 border border-orange-200 font-bold leading-5">🏭外注中</span>
             ) : item.vendor_name ? (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 font-bold">📤 {item.vendor_name}</span>
+              <span className="text-[9px] px-1.5 py-0 rounded-full bg-slate-100 text-slate-600 border border-slate-200 font-bold leading-5 max-w-[6rem] truncate">📤{item.vendor_name}</span>
             ) : null}
-            {item.is_rework && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200 font-bold">🔄 再加工</span>
-            )}
-            {isOverdue && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-600 text-white font-black animate-pulse">
-                🚨 {Math.abs(daysLeft!)}日超過
+            {item.is_rework && <span className="text-[9px] px-1.5 py-0 rounded-full bg-red-100 text-red-700 border border-red-200 font-bold leading-5">再加工</span>}
+            {isOverdue && <span className="text-[9px] px-1.5 py-0 rounded-full bg-red-600 text-white font-black leading-5 animate-pulse">🚨{Math.abs(daysLeft!)}日超過</span>}
+            {isDueSoon && !isOverdue && <span className="text-[9px] px-1.5 py-0 rounded-full bg-amber-500 text-white font-black leading-5">⚠️期限間近</span>}
+            {!item.prepaid && <span className="text-[9px] px-1.5 py-0 rounded-full bg-red-600 text-white font-black leading-5 animate-pulse">未払い</span>}
+            <span className="flex-1" />
+            {item.desired_completion_date && (
+              <span className={`text-[9px] font-bold shrink-0 ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-gray-400'}`}>
+                希望{fmtDate(item.desired_completion_date)}
               </span>
             )}
-            {isDueSoon && !isOverdue && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500 text-white font-black">⚠️ 期限間近</span>
-            )}
-            {!item.prepaid && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-600 text-white font-black animate-pulse">未払い</span>
+          </div>
+
+          {/* Row 2: content + price */}
+          <div className="flex items-baseline gap-1.5">
+            <p className="text-sm font-black text-gray-900 leading-tight flex-1 truncate">
+              {item.content || item.item_name || '内容未記入'}
+            </p>
+            {item.price != null && (
+              <span className={`text-sm font-black shrink-0 ${item.prepaid ? 'text-gray-400' : 'text-red-600'}`}>
+                ¥{item.price.toLocaleString()}
+              </span>
             )}
           </div>
 
-          {/* Hero: お直し内容 */}
-          {item.content ? (
-            <p className="text-sm font-black text-gray-900 leading-snug mb-1 tracking-tight">{item.content}</p>
-          ) : (
-            <p className="text-xs font-bold text-gray-300 leading-snug mb-1 italic">内容未記入</p>
-          )}
-
-          {/* Item name */}
-          <p className="text-xs font-semibold text-gray-400 leading-tight mb-1">{item.item_name}</p>
-
-          {/* Customer */}
-          <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Row 3: school + name + received date */}
+          <div className="flex items-center gap-1.5 mt-0.5">
             {item.child?.school_name && (
-              <span className="text-[11px] font-black text-amber-600">{item.child.school_name}</span>
+              <span className="text-[10px] font-black text-amber-600 truncate max-w-[7rem]">{item.child.school_name}</span>
             )}
-            <span className="text-sm font-bold text-gray-800">{name}</span>
-            {item.child && (
-              <span className="text-[11px] text-gray-400">（保護者: {item.customer?.name}）</span>
-            )}
-          </div>
-
-          {/* Price + dates */}
-          <div className="flex items-center justify-between mt-1 gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              {item.price != null && (
-                <span className={`text-sm font-black ${item.prepaid ? 'text-gray-400' : 'text-red-600'}`}>
-                  ¥{item.price.toLocaleString()}
-                </span>
-              )}
-              {item.slip_number && (
-                <span className="text-[10px] font-mono text-gray-300">#{item.slip_number}</span>
-              )}
-            </div>
-            <div className="text-right shrink-0">
-              <p className="text-[10px] text-gray-400">受付 {fmtDate(item.received_date)}</p>
-              {item.desired_completion_date && (
-                <p className={`text-[10px] font-bold ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-gray-400'}`}>
-                  希望 {fmtDate(item.desired_completion_date)}
-                </p>
-              )}
-            </div>
+            <span className="text-xs font-bold text-gray-700 truncate flex-1">{name}</span>
+            <span className="text-[10px] text-gray-400 shrink-0">受付{fmtDate(item.received_date)}</span>
+            {item.slip_number && <span className="text-[10px] font-mono text-gray-300 shrink-0">#{item.slip_number}</span>}
           </div>
         </div>
         <div className="shrink-0 self-center ml-1">
@@ -3219,7 +3191,7 @@ export default function RepairsPage() {
 
         ) : tab === 'repair' ? (
           /* ── ①お直しタブ ─────────────────────────────────── */
-          <div className="space-y-3">
+          <div className="space-y-2">
             {/* Search + Sort row */}
             <div className="flex gap-2">
               <div className="relative flex-1">
@@ -3300,7 +3272,7 @@ export default function RepairsPage() {
                     </button>
                   )}
                 </div>
-                <div className="space-y-2.5">
+                <div className="space-y-1.5">
                   {filteredRepairs.map(r => (
                     <RepairCard key={r.id} item={r} storeId={storeId} onRefresh={fetchAll} onToast={showToast}
                       onEdit={item => { setEditItem(item); setEditKind('repair') }}
