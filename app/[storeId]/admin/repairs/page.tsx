@@ -1436,10 +1436,10 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected, onTog
         )}
         <div className="flex-1 min-w-0 overflow-hidden">
       {/* Clickable summary area */}
-      <button className="w-full text-left px-4 pt-3.5 pb-3 flex items-start gap-3" onClick={() => setOpen(v => !v)}>
+      <button className="w-full text-left px-4 pt-2.5 pb-2 flex items-start gap-3" onClick={() => setOpen(v => !v)}>
         <div className="flex-1 min-w-0">
           {/* Badges */}
-          <div className="flex items-center gap-1 flex-wrap mb-2">
+          <div className="flex items-center gap-1 flex-wrap mb-1">
             <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${REQUEST_TYPE_COLORS[reqType]}`}>
               {REQUEST_TYPE_LABELS[reqType]}
             </span>
@@ -1474,37 +1474,13 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected, onTog
 
           {/* Hero: お直し内容 */}
           {item.content ? (
-            <p className="text-lg font-black text-gray-900 leading-snug mb-1.5 tracking-tight">{item.content}</p>
+            <p className="text-sm font-black text-gray-900 leading-snug mb-1 tracking-tight">{item.content}</p>
           ) : (
-            <p className="text-base font-bold text-gray-300 leading-snug mb-1.5 italic">内容未記入</p>
-          )}
-
-          {/* 構造化加工データ */}
-          {item.repair_type === 'hem' && item.hem_length_mm !== null && item.hem_length_mm !== 0 && (
-            <div className="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-xl px-2.5 py-1 mb-1.5">
-              <span className="text-sm font-black text-amber-700">{item.hem_length_mm > 0 ? '+' : ''}{item.hem_length_mm}mm</span>
-              <span className="text-[9px] text-amber-500">{item.hem_length_mm > 0 ? '長くする' : '短くする'}</span>
-            </div>
-          )}
-          {item.repair_type === 'sleeve' && item.sleeve_adjust_mm !== null && item.sleeve_adjust_mm !== 0 && (
-            <div className="inline-flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-xl px-2.5 py-1 mb-1.5">
-              <span className="text-sm font-black text-blue-700">袖丈 {item.sleeve_adjust_mm > 0 ? '+' : ''}{item.sleeve_adjust_mm}mm</span>
-            </div>
-          )}
-          {item.repair_type === 'waist' && item.waist_adjust_mm !== null && item.waist_adjust_mm !== 0 && (
-            <div className="inline-flex items-center gap-1.5 bg-purple-50 border border-purple-200 rounded-xl px-2.5 py-1 mb-1.5">
-              <span className="text-sm font-black text-purple-700">ウエスト {item.waist_adjust_mm > 0 ? '+' : ''}{item.waist_adjust_mm}mm</span>
-            </div>
-          )}
-          {item.repair_type === 'embroidery' && item.embroidery_text && (
-            <div className="bg-pink-50 border border-pink-200 rounded-xl px-2.5 py-1.5 mb-1.5 inline-block">
-              <p className="text-sm font-black text-pink-800">「{item.embroidery_text}」</p>
-              <p className="text-[9px] text-pink-400">{[item.embroidery_color, item.embroidery_pos].filter(Boolean).join(' · ')}</p>
-            </div>
+            <p className="text-xs font-bold text-gray-300 leading-snug mb-1 italic">内容未記入</p>
           )}
 
           {/* Item name */}
-          <p className="text-xs font-semibold text-gray-400 leading-tight mb-1.5">{item.item_name}</p>
+          <p className="text-xs font-semibold text-gray-400 leading-tight mb-1">{item.item_name}</p>
 
           {/* Customer */}
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -1517,22 +1493,8 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected, onTog
             )}
           </div>
 
-          {/* 外注情報 */}
-          {item.vendor_name && (
-            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              {item.sent_to_vendor_at && (
-                <span className="text-[10px] text-gray-400">送付: {fmtDate(item.sent_to_vendor_at)}</span>
-              )}
-              {item.expected_return_date && (
-                <span className={`text-[10px] font-bold ${new Date(item.expected_return_date) < new Date() ? 'text-red-500' : 'text-gray-400'}`}>
-                  戻り予定: {fmtDate(item.expected_return_date)}
-                </span>
-              )}
-            </div>
-          )}
-
           {/* Price + dates */}
-          <div className="flex items-center justify-between mt-2 gap-2">
+          <div className="flex items-center justify-between mt-1 gap-2">
             <div className="flex items-center gap-2 min-w-0">
               {item.price != null && (
                 <span className={`text-sm font-black ${item.prepaid ? 'text-gray-400' : 'text-red-600'}`}>
@@ -1560,40 +1522,78 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected, onTog
         </div>
       </button>
 
-      {/* Primary action button — 2-tap confirmation */}
-      {primaryBtn && (
-        <div className="px-4 pb-4">
-          {confirmPrimary ? (
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3.5 space-y-3">
-              <p className="text-xs text-center text-gray-600 font-bold">
-                もう一度タップして確定します
-              </p>
-              <div className="flex gap-2">
-                <button onClick={() => setConfirmPrimary(false)}
-                  className="flex-1 py-3 rounded-xl bg-white border border-gray-200 text-gray-600 text-sm font-bold active:scale-95 transition-all">
-                  戻る
-                </button>
-                <button onClick={() => { setConfirmPrimary(false); primaryBtn.onClick() }} disabled={loading}
-                  className={`flex-1 py-3 rounded-xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-all shadow-sm ${primaryBtn.color}`}>
-                  {loading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                  確定する
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              onClick={() => setConfirmPrimary(true)}
-              disabled={loading}
-              className={`w-full py-4 rounded-xl font-black text-sm text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 shadow-md ${primaryBtn.color}`}>
-              {loading ? <Loader2 size={16} className="animate-spin" /> : primaryBtn.label}
-            </button>
-          )}
-        </div>
-      )}
-
       {/* Expanded details */}
       {open && (
         <div className="px-4 pb-4 space-y-2 border-t border-gray-100 pt-3">
+          {/* Primary action button — 2-tap confirmation */}
+          {primaryBtn && (
+            <div>
+              {confirmPrimary ? (
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3.5 space-y-3">
+                  <p className="text-xs text-center text-gray-600 font-bold">
+                    もう一度タップして確定します
+                  </p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setConfirmPrimary(false)}
+                      className="flex-1 py-3 rounded-xl bg-white border border-gray-200 text-gray-600 text-sm font-bold active:scale-95 transition-all">
+                      戻る
+                    </button>
+                    <button onClick={() => { setConfirmPrimary(false); primaryBtn.onClick() }} disabled={loading}
+                      className={`flex-1 py-3 rounded-xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-all shadow-sm ${primaryBtn.color}`}>
+                      {loading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                      確定する
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmPrimary(true)}
+                  disabled={loading}
+                  className={`w-full py-4 rounded-xl font-black text-sm text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 shadow-md ${primaryBtn.color}`}>
+                  {loading ? <Loader2 size={16} className="animate-spin" /> : primaryBtn.label}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* 構造化加工データ */}
+          {item.repair_type === 'hem' && item.hem_length_mm !== null && item.hem_length_mm !== 0 && (
+            <div className="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-xl px-2.5 py-1 mb-1.5">
+              <span className="text-sm font-black text-amber-700">{item.hem_length_mm > 0 ? '+' : ''}{item.hem_length_mm}mm</span>
+              <span className="text-[9px] text-amber-500">{item.hem_length_mm > 0 ? '長くする' : '短くする'}</span>
+            </div>
+          )}
+          {item.repair_type === 'sleeve' && item.sleeve_adjust_mm !== null && item.sleeve_adjust_mm !== 0 && (
+            <div className="inline-flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-xl px-2.5 py-1 mb-1.5">
+              <span className="text-sm font-black text-blue-700">袖丈 {item.sleeve_adjust_mm > 0 ? '+' : ''}{item.sleeve_adjust_mm}mm</span>
+            </div>
+          )}
+          {item.repair_type === 'waist' && item.waist_adjust_mm !== null && item.waist_adjust_mm !== 0 && (
+            <div className="inline-flex items-center gap-1.5 bg-purple-50 border border-purple-200 rounded-xl px-2.5 py-1 mb-1.5">
+              <span className="text-sm font-black text-purple-700">ウエスト {item.waist_adjust_mm > 0 ? '+' : ''}{item.waist_adjust_mm}mm</span>
+            </div>
+          )}
+          {item.repair_type === 'embroidery' && item.embroidery_text && (
+            <div className="bg-pink-50 border border-pink-200 rounded-xl px-2.5 py-1.5 mb-1.5 inline-block">
+              <p className="text-sm font-black text-pink-800">「{item.embroidery_text}」</p>
+              <p className="text-[9px] text-pink-400">{[item.embroidery_color, item.embroidery_pos].filter(Boolean).join(' · ')}</p>
+            </div>
+          )}
+
+          {/* 外注情報 */}
+          {item.vendor_name && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {item.sent_to_vendor_at && (
+                <span className="text-[10px] text-gray-400">送付: {fmtDate(item.sent_to_vendor_at)}</span>
+              )}
+              {item.expected_return_date && (
+                <span className={`text-[10px] font-bold ${new Date(item.expected_return_date) < new Date() ? 'text-red-500' : 'text-gray-400'}`}>
+                  戻り予定: {fmtDate(item.expected_return_date)}
+                </span>
+              )}
+            </div>
+          )}
+
           {item.internal_memo && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-3 py-2">
               <p className="text-[10px] font-bold text-yellow-600 mb-0.5">スタッフメモ</p>
