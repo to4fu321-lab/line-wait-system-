@@ -3441,22 +3441,6 @@ export default function RepairsPage() {
             </div>
 
             {/* Status chips */}
-            <div className="flex items-center gap-1 flex-wrap mb-3">
-              {[
-                { label: '未着手',  count: repairNotStarted.length, bg: 'bg-white/15' },
-                { label: '作業中',  count: repairInProgress.length, bg: 'bg-white/10' },
-                { label: '相談',    count: repairConsult.length,    bg: 'bg-teal-300/25' },
-                { label: '問合せ',  count: pendingInquiry.length,   bg: 'bg-rose-300/25' },
-                { label: '入金待', count: pendingPayment.length,   bg: 'bg-red-300/25' },
-                { label: '発注待', count: purchaseUnordered.length, bg: 'bg-amber-300/25' },
-                { label: '発注中',  count: purchaseOnOrder.length,  bg: 'bg-white/10' },
-                { label: '渡し待', count: waiting.length,          bg: 'bg-white/15' },
-              ].filter(s => s.count > 0).map(s => (
-                <span key={s.label} className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${s.bg} text-white/90`}>
-                  {s.label} {s.count}
-                </span>
-              ))}
-            </div>
 
             {/* Tab buttons */}
             {(() => {
