@@ -3446,9 +3446,9 @@ export default function RepairsPage() {
             {(() => {
               const dashTabs = [
                 { id: 'repair'   as const, feat: null,                      emoji: '✂️', label: 'お直し',   count: repairs.length },
-                { id: 'purchase' as const, feat: 'repairs_tab_purchase' as const, emoji: '📦', label: '発注',     count: purchaseUnordered.length + uniformOrders.length },
-                { id: 'arrival'  as const, feat: 'repairs_tab_arrival'  as const, emoji: '🚚', label: '入荷待ち', count: purchaseOnOrder.length + purchaseStocked.length },
-                { id: 'delivery' as const, feat: 'repairs_tab_delivery' as const, emoji: '🎁', label: 'お渡し',   count: waiting.length },
+                { id: 'purchase' as const, feat: null, emoji: '📦', label: '発注',     count: purchaseUnordered.length + uniformOrders.length },
+                { id: 'arrival'  as const, feat: null, emoji: '🚚', label: '入荷待ち', count: purchaseOnOrder.length + purchaseStocked.length },
+                { id: 'delivery' as const, feat: null, emoji: '🎁', label: 'お渡し',   count: waiting.length },
               ].filter(t => t.feat === null || hasFeature(t.feat))
               return (
             <div className={`grid gap-1 border-t border-white/15 pt-2 -mx-4 px-4`}
