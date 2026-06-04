@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   const { data: repair, error: repairErr } = await supabase
     .from('repair_histories')
     .select(`
-      id, item_name, content, slip_number, status,
+      id, item_name, content, slip_number, request_no, status,
       customer:customers ( name, line_user_id, tel ),
       store:stores ( id, name )
     `)
@@ -48,13 +48,16 @@ export async function POST(req: NextRequest) {
 
   const storeName  = store?.name  ?? ''
   const storeLabel = storeName ? `【${storeName}】` : ''
-  const slipText   = repair.slip_number ? `\n伝票番号：${repair.slip_number}` : ''
+  const reqNo      = (repair as any).request_no != null
+    ? `R-${String((repair as any).request_no).padStart(4, '0')}`
+    : repair.slip_number ?? null
+  const reqText    = reqNo ? `\n依頼番号：${reqNo}` : ''
   const storeUrl   = store?.id ? `\n\n▼ 待ち状況\n${LIFF_URL}/${store.id}` : ''
 
   const messageText =
     `✂️ お直しが完了しました！\n\n${storeLabel}\n${customer.name} 様\n\n` +
-    `${repair.item_name}\n${repair.content}${slipText}\n\n` +
-    `お控えの伝票をお持ちの上、ご来店ください。\n` +
+    `${repair.item_name}\n${repair.content}${reqText}\n\n` +
+    `お控えの依頼番号をお伝えください。\n` +
     `スタッフがお渡しの準備をしてお待ちしております。${storeUrl}`
 
   try {

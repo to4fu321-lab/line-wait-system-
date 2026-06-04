@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   const { data: order, error: orderErr } = await supabase
     .from('purchase_orders')
     .select(`
-      id, item_name, notes, price,
+      id, item_name, notes, price, request_no,
       customer:customers ( name, line_user_id ),
       store:stores ( id, name )
     `)
@@ -46,14 +46,18 @@ export async function POST(req: NextRequest) {
 
   const storeName  = store?.name ?? ''
   const storeLabel = storeName ? `【${storeName}】` : ''
+  const reqNo      = (order as any).request_no != null
+    ? `P-${String((order as any).request_no).padStart(4, '0')}`
+    : null
+  const reqText    = reqNo ? `\n依頼番号：${reqNo}` : ''
   const priceText  = order.price != null ? `\n金額：¥${order.price.toLocaleString()}` : ''
   const notesText  = order.notes ? `\n${order.notes}` : ''
   const storeUrl   = store?.id ? `\n\n▼ 店舗ページ\n${LIFF_URL}/${store.id}` : ''
 
   const messageText =
     `📦 ご注文の商品が入荷しました！\n\n${storeLabel}\n${customer.name} 様\n\n` +
-    `${order.item_name}${priceText}${notesText}\n\n` +
-    `お手数ですが、ご来店の上お受け取りをお願いいたします。\n` +
+    `${order.item_name}${priceText}${notesText}${reqText}\n\n` +
+    `依頼番号をお伝えの上、ご来店でお受け取りをお願いいたします。\n` +
     `スタッフがお待ちしております。${storeUrl}`
 
   try {

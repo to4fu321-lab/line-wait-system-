@@ -26,6 +26,12 @@ function fmtDate(d: string | null) {
   return new Date(d).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })
 }
 
+function fmtReqNo(kind: 'repair' | 'purchase', no: number | null, id: string): string {
+  const prefix = kind === 'repair' ? 'R' : 'P'
+  if (no != null) return `${prefix}-${String(no).padStart(4, '0')}`
+  return `${prefix}-${id.replace(/-/g, '').substring(0, 4).toUpperCase()}`
+}
+
 function todayJst() {
   return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
 }
@@ -38,6 +44,7 @@ interface RepairRow {
   delivered_date: string | null; price: number | null; notes: string | null
   notified: boolean; request_type: RequestType | null; prepaid: boolean | null
   desired_completion_date: string | null; work_started: boolean
+  request_no: number | null
   created_at: string; updated_at: string
   customer?: { id: string; name: string; tel: string | null }
   child?: { name: string; school_name: string | null } | null
@@ -61,7 +68,8 @@ interface PurchaseRow {
   id: string; store_id: string; customer_id: string; child_id: string | null
   item_name: string; maker: string | null; notes: string | null; status: PurchaseStatus
   price: number | null; ordered_date: string; arrived_date: string | null
-  delivered_date: string | null; notified: boolean; created_at: string; updated_at: string
+  delivered_date: string | null; notified: boolean; request_no: number | null
+  created_at: string; updated_at: string
   customer?: { id: string; name: string; tel: string | null }
   child?: { name: string; school_name: string | null } | null
 }
@@ -86,6 +94,7 @@ interface DeliveryItem {
   sub_label:      string
   status:         string
   prev_status:    string
+  request_no:     number | null
   received_date:  string
   ready_date:     string | null
   desired_completion_date: string | null
@@ -116,6 +125,7 @@ function rawToItem(row: Record<string, unknown>, kind: 'repair' | 'purchase'): D
     delivered_date: row.delivered_date as string | null,
     price:          row.price as number | null,
     slip_number:    kind === 'repair' ? (row.slip_number as string | null) : null,
+    request_no:     row.request_no as number | null ?? null,
     notified:       (row.notified as boolean) ?? false,
     payment_status: row.payment_status as string | null ?? null,
     delivered_by:   row.delivered_by as string | null ?? null,
@@ -1702,7 +1712,7 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected, onTog
             )}
           </div>
 
-          {/* Row 3: 学校名 + 子供名 + 保護者名 + 受付日 */}
+          {/* Row 3: 学校名 + 子供名 + 保護者名 + 受付日 + 依頼番号 */}
           <div className="flex items-center gap-1.5 mt-0.5">
             {item.child?.school_name && (
               <span className="text-[10px] font-black text-amber-600 truncate max-w-[7rem]">{item.child.school_name}</span>
@@ -1714,7 +1724,7 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected, onTog
               )}
             </span>
             <span className="text-[10px] text-gray-400 shrink-0">受付{fmtDate(item.received_date)}</span>
-            {item.slip_number && <span className="text-[10px] font-mono text-gray-300 shrink-0">#{item.slip_number}</span>}
+            <span className="text-[10px] font-black text-indigo-400 shrink-0 font-mono">{fmtReqNo('repair', item.request_no, item.id)}</span>
           </div>
         </div>
         <div className="shrink-0 self-center ml-1">
@@ -2493,6 +2503,7 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRevertWait
   onRevertWaiting: (item: DeliveryItem) => Promise<void>
   onDelete: (item: DeliveryItem) => Promise<void>
 }) {
+  const [open,          setOpen]          = useState(false)
   const [confirmOpen,   setConfirmOpen]   = useState(false)
   const [payAtDeliver,  setPayAtDeliver]  = useState(item.payment_status === 'paid')
   const [unpaidConfirm, setUnpaidConfirm] = useState(false)
@@ -2501,14 +2512,12 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRevertWait
   const [loading,       setLoading]       = useState<string | null>(null)
   const [staffName,     setStaffName]     = useState('')
 
-  const waitDays = item.ready_date
+  const waitDays   = item.ready_date
     ? Math.floor((Date.now() - new Date(item.ready_date).getTime()) / 86400000)
     : 0
   const alertLevel = waitDays >= 14 ? 3 : waitDays >= 7 ? 2 : waitDays >= 3 ? 1 : 0
-
+  const reqNo      = fmtReqNo(item.kind, item.request_no, item.id)
   const studentName = item.child?.name ?? item.customer?.name ?? '（名前なし）'
-  const parentName  = item.child ? item.customer?.name : null
-  const itemContent = item.sub_label ? `${item.item_name} — ${item.sub_label}` : item.item_name
 
   return (
     <div className={`border rounded-2xl shadow-sm overflow-hidden transition-all ${
@@ -2519,180 +2528,187 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRevertWait
       {alertLevel >= 2 && <div className="h-1 bg-red-500 w-full" />}
       {alertLevel === 1 && <div className="h-1 bg-amber-400 w-full" />}
 
-      {/* Compact content area */}
-      <div className="px-4 pt-3.5 pb-3">
-        <div className="flex items-start gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1 flex-wrap mb-1.5">
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                item.kind === 'repair'
-                  ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                  : 'bg-teal-100 text-teal-700 border-teal-200'
-              }`}>
-                {item.kind === 'repair' ? '✂️ お直し完了' : '📦 入荷済み'}
-              </span>
-              {alertLevel === 1 && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
-                  ⚠️ {waitDays}日経過
-                </span>
-              )}
-              {alertLevel === 2 && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">
-                  🚨 1週間放置
-                </span>
-              )}
-              {alertLevel >= 3 && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-600 text-white animate-pulse">
-                  📢 要連絡
-                </span>
-              )}
-              {item.notified && (
-                <span className="text-[10px] bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-bold">
-                  通知済み
-                </span>
-              )}
-            </div>
+      {/* ── Compact summary row (tap to expand) ── */}
+      <button className="w-full text-left px-3 pt-2 pb-2 flex items-center gap-3" onClick={() => { setOpen(v => !v); setConfirmOpen(false) }}>
+        {/* Request number */}
+        <div className="shrink-0 text-center w-14">
+          <p className="text-xl font-black text-indigo-700 leading-none tabular-nums font-mono">{reqNo}</p>
+          <p className="text-[8px] text-gray-400 leading-none mt-0.5">依頼番号</p>
+        </div>
+        {/* Main info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1 mb-0.5">
             {item.child?.school_name && (
-              <p className="text-[10px] font-black text-amber-600 truncate leading-tight">{item.child.school_name}</p>
+              <span className="text-[10px] font-black text-amber-600 truncate max-w-[8rem]">{item.child.school_name}</span>
             )}
-            <p className="font-black text-lg leading-tight text-gray-900 tracking-tight">{studentName}</p>
-            {parentName && <p className="text-[10px] text-gray-400">保護者: {parentName}</p>}
-            <p className="text-xs text-gray-500 mt-0.5 leading-snug">{itemContent}</p>
-          </div>
-          <div className="shrink-0 text-right">
-            {item.price != null && (
-              <p className={`text-sm font-black ${item.payment_status === 'paid' ? 'text-gray-400' : 'text-red-600'}`}>
-                ¥{item.price.toLocaleString()}
-              </p>
+            <span className={`text-[10px] font-bold px-1.5 py-0 rounded-full border leading-5 ${
+              item.kind === 'repair'
+                ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                : 'bg-teal-100 text-teal-700 border-teal-200'
+            }`}>
+              {item.kind === 'repair' ? '✂️ お直し' : '📦 注文品'}
+            </span>
+            {alertLevel >= 1 && (
+              <span className={`text-[10px] font-bold px-1.5 py-0 rounded-full leading-5 ${
+                alertLevel >= 3 ? 'bg-red-600 text-white animate-pulse'
+                : alertLevel >= 2 ? 'bg-red-100 text-red-700 border border-red-200'
+                : 'bg-amber-100 text-amber-700 border border-amber-200'
+              }`}>
+                {alertLevel >= 3 ? '📢 要連絡' : `⚠️ ${waitDays}日`}
+              </span>
             )}
-            <p className="text-[10px] text-gray-400 mt-0.5">{fmtDate(item.received_date)}</p>
+          </div>
+          <p className="text-base font-black text-gray-900 leading-tight truncate">{studentName}</p>
+          <p className="text-xs text-gray-500 truncate leading-tight">
+            {item.item_name}{item.sub_label ? ` — ${item.sub_label}` : ''}
+          </p>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <PaymentBadge
+              status={item.payment_status}
+              loading={loading === 'payment'}
+              onToggle={async () => {
+                setLoading('payment')
+                await onPaymentToggle(item)
+                setLoading(null)
+              }}
+            />
+            {item.desired_completion_date && (
+              <span className="text-[10px] font-bold text-indigo-600">希望 {fmtDate(item.desired_completion_date)}</span>
+            )}
           </div>
         </div>
-
-        <div className="flex items-center gap-2 mt-2 flex-wrap">
-          <PaymentBadge
-            status={item.payment_status}
-            loading={loading === 'payment'}
-            onToggle={async () => {
-              setLoading('payment')
-              await onPaymentToggle(item)
-              setLoading(null)
-            }}
-          />
-          {item.customer?.tel && (
-            <a href={`tel:${item.customer.tel}`} className="flex items-center gap-1 text-indigo-600 text-xs font-bold">
-              <Phone size={10} />{item.customer.tel}
-            </a>
+        {/* Right: price + chevron */}
+        <div className="shrink-0 flex flex-col items-end gap-1">
+          {item.price != null && (
+            <p className={`text-sm font-black ${item.payment_status === 'paid' ? 'text-gray-400' : 'text-red-600'}`}>
+              ¥{item.price.toLocaleString()}
+            </p>
           )}
-          {item.slip_number && (
-            <span className="text-[10px] font-mono text-gray-300">#{item.slip_number}</span>
-          )}
+          {open
+            ? <ChevronUp size={14} className="text-gray-400" />
+            : <ChevronDown size={14} className="text-gray-400" />}
         </div>
-      </div>
+      </button>
 
-      {/* Action area */}
-      {confirmDelete ? (
-        <div className="px-4 pb-4 space-y-2.5">
-          <p className="text-sm text-red-700 font-black text-center">本当に削除しますか？</p>
-          <div className="flex gap-2">
-            <button onClick={() => setConfirmDelete(false)}
-              className="flex-1 py-3 rounded-xl bg-white border border-gray-200 text-gray-600 text-sm font-bold">戻る</button>
-            <button onClick={async () => {
-              setLoading('delete'); await onDelete(item); setLoading(null)
-            }} disabled={!!loading}
-              className="flex-1 py-3 rounded-xl bg-red-600 text-white text-sm font-black flex items-center justify-center gap-1 disabled:opacity-50">
-              {loading === 'delete' ? <Loader2 size={12} className="animate-spin" /> : <><Trash2 size={12} />削除する</>}
-            </button>
+      {/* ── Expanded actions ── */}
+      {open && (
+        <div className="border-t border-gray-100">
+          {/* Phone + notif info */}
+          <div className="px-3 py-1.5 flex items-center gap-3 text-xs">
+            {item.customer?.tel && (
+              <a href={`tel:${item.customer.tel}`}
+                className="flex items-center gap-1 text-indigo-600 font-bold">
+                <Phone size={10} />{item.customer.tel}
+              </a>
+            )}
+            {item.notified && (
+              <span className="text-[10px] bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-bold">通知済み</span>
+            )}
+            {item.slip_number && (
+              <span className="text-[10px] font-mono text-gray-400">伝票#{item.slip_number}</span>
+            )}
           </div>
-        </div>
-      ) : confirmRevert ? (
-        <div className="px-4 pb-4 space-y-2.5">
-          <p className="text-xs text-amber-700 font-bold text-center">前の状態（作業中/発注中）に戻しますか？</p>
-          <div className="flex gap-2">
-            <button onClick={() => setConfirmRevert(false)}
-              className="flex-1 py-3 rounded-xl bg-white border border-gray-200 text-gray-600 text-sm font-bold">戻る</button>
-            <button onClick={async () => {
-              setLoading('revert'); await onRevertWaiting(item); setLoading(null); setConfirmRevert(false)
-            }} disabled={!!loading}
-              className="flex-1 py-3 rounded-xl bg-amber-600 text-white text-sm font-black flex items-center justify-center gap-1 disabled:opacity-50">
-              {loading === 'revert' ? <Loader2 size={12} className="animate-spin" /> : <><RotateCcw size={12} />戻す</>}
-            </button>
-          </div>
-        </div>
-      ) : !confirmOpen ? (
-        <div className="px-4 pb-4 space-y-2">
-          <button onClick={() => setConfirmOpen(true)}
-            className="w-full py-4 rounded-xl font-black text-sm bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-md shadow-indigo-900/15">
-            <Package size={15} />お渡し済みにする
-          </button>
-          <div className="flex gap-2">
-            <button onClick={() => setConfirmRevert(true)}
-              className="flex-1 py-2.5 rounded-xl font-bold text-xs border border-amber-200 bg-amber-50 text-amber-700 flex items-center justify-center gap-1 hover:bg-amber-100 active:scale-95 transition-all">
-              <RotateCcw size={10} />前の状態に戻す
-            </button>
-            <button onClick={() => setConfirmDelete(true)}
-              className="flex-1 py-2.5 rounded-xl font-bold text-xs border border-red-200 bg-red-50 text-red-500 flex items-center justify-center gap-1 hover:bg-red-100 active:scale-95 transition-all">
-              <Trash2 size={10} />キャンセル
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="px-4 pb-4 space-y-2.5 border-t border-gray-100 pt-3">
-          <p className="text-sm font-black text-gray-900 text-center">お渡し確認</p>
-          <input
-            type="text"
-            value={staffName}
-            onChange={e => setStaffName(e.target.value)}
-            placeholder="担当スタッフ名（任意）"
-            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-indigo-400"
-          />
-          <button onClick={() => setPayAtDeliver(v => !v)}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${
-              payAtDeliver ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 bg-gray-50'
-            }`}>
-            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-              payAtDeliver ? 'border-emerald-500 bg-emerald-500' : 'border-gray-300'
-            }`}>
-              {payAtDeliver && <CheckCheck size={10} className="text-white" />}
-            </div>
-            <div className="text-left flex-1">
-              <p className={`text-sm font-bold ${payAtDeliver ? 'text-emerald-700' : 'text-gray-500'}`}>代金を受け取った</p>
-              <p className="text-xs text-gray-400">
-                {item.price != null ? `¥${item.price.toLocaleString()}` : '金額未設定'}
-              </p>
-            </div>
-          </button>
-          {unpaidConfirm && (
-            <div className="rounded-2xl border-2 border-red-400 bg-red-50 px-4 py-3 space-y-2.5">
-              <p className="text-sm font-black text-red-700 text-center flex items-center justify-center gap-1.5">
-                <AlertCircle size={14} />まだ未払いです！
-              </p>
+
+          {confirmDelete ? (
+            <div className="px-3 pb-3 space-y-2">
+              <p className="text-sm text-red-700 font-black text-center">本当に削除しますか？</p>
               <div className="flex gap-2">
-                <button onClick={() => setUnpaidConfirm(false)}
-                  className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-white border border-gray-200 text-gray-700">戻る</button>
+                <button onClick={() => setConfirmDelete(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-600 text-sm font-bold">戻る</button>
                 <button onClick={async () => {
-                  setUnpaidConfirm(false); setLoading('deliver')
-                  await onDeliver(item, false, staffName); setLoading(null); setConfirmOpen(false)
+                  setLoading('delete'); await onDelete(item); setLoading(null)
                 }} disabled={!!loading}
-                  className="flex-1 py-2.5 rounded-xl font-black text-xs bg-red-600 text-white disabled:opacity-50 flex items-center justify-center gap-1">
-                  {loading === 'deliver' ? <Loader2 size={11} className="animate-spin" /> : '未払いのままお渡し'}
+                  className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-black flex items-center justify-center gap-1 disabled:opacity-50">
+                  {loading === 'delete' ? <Loader2 size={12} className="animate-spin" /> : <><Trash2 size={12} />削除する</>}
+                </button>
+              </div>
+            </div>
+          ) : confirmRevert ? (
+            <div className="px-3 pb-3 space-y-2">
+              <p className="text-xs text-amber-700 font-bold text-center">前の状態（作業中/発注中）に戻しますか？</p>
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmRevert(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-600 text-sm font-bold">戻る</button>
+                <button onClick={async () => {
+                  setLoading('revert'); await onRevertWaiting(item); setLoading(null); setConfirmRevert(false)
+                }} disabled={!!loading}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-600 text-white text-sm font-black flex items-center justify-center gap-1 disabled:opacity-50">
+                  {loading === 'revert' ? <Loader2 size={12} className="animate-spin" /> : <><RotateCcw size={12} />戻す</>}
+                </button>
+              </div>
+            </div>
+          ) : !confirmOpen ? (
+            <div className="px-3 pb-3 space-y-1.5">
+              <button onClick={() => setConfirmOpen(true)}
+                className="w-full py-3 rounded-xl font-black text-sm bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-sm shadow-indigo-900/15">
+                <Package size={14} />お渡し済みにする
+              </button>
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmRevert(true)}
+                  className="flex-1 py-2 rounded-xl font-bold text-xs border border-amber-200 bg-amber-50 text-amber-700 flex items-center justify-center gap-1 hover:bg-amber-100 active:scale-95 transition-all">
+                  <RotateCcw size={10} />前の状態に戻す
+                </button>
+                <button onClick={() => setConfirmDelete(true)}
+                  className="flex-1 py-2 rounded-xl font-bold text-xs border border-red-200 bg-red-50 text-red-500 flex items-center justify-center gap-1 hover:bg-red-100 active:scale-95 transition-all">
+                  <Trash2 size={10} />キャンセル
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="px-3 pb-3 space-y-2 pt-1">
+              <p className="text-sm font-black text-gray-900 text-center">お渡し確認</p>
+              <input
+                type="text" value={staffName} onChange={e => setStaffName(e.target.value)}
+                placeholder="担当スタッフ名（任意）"
+                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-indigo-400"
+              />
+              <button onClick={() => setPayAtDeliver(v => !v)}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl border-2 transition-all ${
+                  payAtDeliver ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 bg-gray-50'
+                }`}>
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                  payAtDeliver ? 'border-emerald-500 bg-emerald-500' : 'border-gray-300'
+                }`}>
+                  {payAtDeliver && <CheckCheck size={10} className="text-white" />}
+                </div>
+                <div className="text-left flex-1">
+                  <p className={`text-sm font-bold ${payAtDeliver ? 'text-emerald-700' : 'text-gray-500'}`}>代金を受け取った</p>
+                  <p className="text-xs text-gray-400">{item.price != null ? `¥${item.price.toLocaleString()}` : '金額未設定'}</p>
+                </div>
+              </button>
+              {unpaidConfirm && (
+                <div className="rounded-2xl border-2 border-red-400 bg-red-50 px-4 py-3 space-y-2">
+                  <p className="text-sm font-black text-red-700 text-center flex items-center justify-center gap-1.5">
+                    <AlertCircle size={14} />まだ未払いです！
+                  </p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setUnpaidConfirm(false)}
+                      className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-white border border-gray-200 text-gray-700">戻る</button>
+                    <button onClick={async () => {
+                      setUnpaidConfirm(false); setLoading('deliver')
+                      await onDeliver(item, false, staffName); setLoading(null); setConfirmOpen(false)
+                    }} disabled={!!loading}
+                      className="flex-1 py-2.5 rounded-xl font-black text-xs bg-red-600 text-white disabled:opacity-50 flex items-center justify-center gap-1">
+                      {loading === 'deliver' ? <Loader2 size={11} className="animate-spin" /> : '未払いのままお渡し'}
+                    </button>
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => { setConfirmOpen(false); setUnpaidConfirm(false) }}
+                  className="py-2.5 rounded-xl font-bold text-sm bg-gray-100 border border-gray-200 text-gray-600">戻る</button>
+                <button onClick={async () => {
+                  if (!payAtDeliver && item.payment_status !== 'paid') { setUnpaidConfirm(true); return }
+                  setLoading('deliver')
+                  await onDeliver(item, payAtDeliver, staffName)
+                  setLoading(null); setConfirmOpen(false)
+                }} disabled={!!loading || unpaidConfirm}
+                  className="py-2.5 rounded-xl font-black text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-sm">
+                  {loading === 'deliver' ? <><Loader2 size={13} className="animate-spin" />処理中...</> : <><Package size={13} />お渡しする</>}
                 </button>
               </div>
             </div>
           )}
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => { setConfirmOpen(false); setUnpaidConfirm(false) }}
-              className="py-3 rounded-xl font-bold text-sm bg-gray-100 border border-gray-200 text-gray-600">戻る</button>
-            <button onClick={async () => {
-              if (!payAtDeliver && item.payment_status !== 'paid') { setUnpaidConfirm(true); return }
-              setLoading('deliver')
-              await onDeliver(item, payAtDeliver, staffName)
-              setLoading(null); setConfirmOpen(false)
-            }} disabled={!!loading || unpaidConfirm}
-              className="py-3 rounded-xl font-black text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-sm">
-              {loading === 'deliver' ? <><Loader2 size={13} className="animate-spin" />処理中...</> : <><Package size={13} />お渡しする</>}
-            </button>
-          </div>
         </div>
       )}
     </div>
@@ -2964,7 +2980,7 @@ function ArrivalCard({ item, storeId, onRefresh, onToast, onEdit, selected, onTo
           {item.notes && (
             <p className="text-xs text-gray-400 truncate leading-tight mb-0.5">{item.notes}</p>
           )}
-          {/* Row 3: school + name + date */}
+          {/* Row 3: school + name + date + request no */}
           <div className="flex items-center gap-1.5">
             {item.child?.school_name && (
               <span className="text-[10px] font-black text-amber-600 truncate max-w-[7rem]">{item.child.school_name}</span>
@@ -2978,6 +2994,7 @@ function ArrivalCard({ item, storeId, onRefresh, onToast, onEdit, selected, onTo
             {item.ordered_date && (
               <span className="text-[10px] text-gray-400 shrink-0">発注{fmtDate(item.ordered_date)}</span>
             )}
+            <span className="text-[10px] font-black text-blue-400 shrink-0 font-mono">{fmtReqNo('purchase', item.request_no, item.id)}</span>
           </div>
         </button>
         {/* Arrive button */}
