@@ -2974,60 +2974,24 @@ export default function RepairsPage() {
   const generateDummy = useCallback(async () => {
     if (!storeId) return
     setDummyLoading(true)
-    const SCHOOLS = ['○○中学校', '△△高等学校', '□□中学校', '◇◇高等学校']
-    const ITEMS   = ['スラックス', 'ブレザー', 'スカート', 'セーター', 'シャツ', 'ネクタイ', 'ソックス']
-    const NAMES   = ['田中花子', '鈴木太郎', '佐藤次郎', '山田美咲', '伊藤健一', '渡辺あかり', '中村大輔']
-    const CONTENTS = ['裾上げ 3cm', 'ウエスト調整', 'ほつれ修理', 'ボタン付け直し', 'サイズ変更 M→L', 'ファスナー交換']
-    const TYPES: Array<'repair' | 'walk_in' | 'hold_request' | 'inquiry'> = ['repair', 'repair', 'repair', 'walk_in', 'hold_request', 'inquiry']
-
-    const rand = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)]
-    const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10)
-
-    // Find or create a test customer
-    const custName = rand(NAMES)
-    let { data: existingCusts } = await (supabase as any)
-      .from('customers').select('id').eq('store_id', storeId).eq('name', custName).limit(1)
-    let customerId = existingCusts?.[0]?.id
-    if (!customerId) {
-      const { data: newCust } = await (supabase as any)
-        .from('customers').insert({
-          store_id: storeId, name: custName, kana: null,
-          tel: `090-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`,
-          school_name: rand(SCHOOLS), created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-        }).select('id').single()
-      customerId = newCust?.id
-    }
-    if (!customerId) { setDummyLoading(false); showToast('err', '顧客作成に失敗しました'); return }
-
-    // Randomly create a repair or purchase
-    const kind = Math.random() < 0.6 ? 'repair' : 'purchase'
-    if (kind === 'repair') {
-      const reqType = rand(TYPES)
-      await (supabase as any).from('repair_histories').insert({
-        store_id: storeId, customer_id: customerId,
-        item_name: rand(ITEMS), content: rand(CONTENTS),
-        status: 'received', request_type: reqType,
-        received_date: daysAgo(Math.floor(Math.random() * 14)),
-        desired_completion_date: Math.random() < 0.6 ? daysAgo(-Math.floor(Math.random() * 14)) : null,
-        work_started: Math.random() < 0.3,
-        prepaid: Math.random() < 0.5,
-        price: [500, 800, 1200, 2000, 3000][Math.floor(Math.random() * 5)],
-        notified: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    try {
+      const res = await fetch(`/api/admin/seed-test-data`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId, dryRun: false, count: 15 }),
       })
-    } else {
-      const MAKERS = ['カンコー', 'トンボ', 'スクールタイガー', null]
-      await (supabase as any).from('purchase_orders').insert({
-        store_id: storeId, customer_id: customerId,
-        item_name: rand(ITEMS), maker: rand(MAKERS),
-        status: rand(['received', 'ordered', 'on_order'] as const),
-        ordered_date: daysAgo(Math.floor(Math.random() * 10)),
-        price: [3000, 5000, 8000, 12000][Math.floor(Math.random() * 4)],
-        notified: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) {
+        showToast('err', json.error ?? 'テストデータ追加に失敗しました')
+      } else {
+        await fetchAll()
+        showToast('ok', `テストデータを追加しました（お直し${json.inserted?.repairs ?? 0}件・発注${json.inserted?.purchases ?? 0}件）`)
+      }
+    } catch {
+      showToast('err', '通信エラーが発生しました')
+    } finally {
+      setDummyLoading(false)
     }
-    await fetchAll()
-    setDummyLoading(false)
-    showToast('ok', `ダミーデータを追加しました（${kind === 'repair' ? 'お直し' : '発注'}）`)
   }, [storeId, fetchAll, showToast])
 
   // ── Sort + derived ─────────────────────────────────────────
