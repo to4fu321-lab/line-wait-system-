@@ -3049,6 +3049,7 @@ export default function RepairsPage() {
   const [showNewOrder,   setShowNewOrder]   = useState(false)
   const [batchSelected,  setBatchSelected]  = useState<Set<string>>(new Set())
   const [batchUpdating,  setBatchUpdating]  = useState(false)
+  const [pendingFilter,  setPendingFilter]  = useState(false)
 
   const showToast = useCallback((type: 'ok' | 'err', msg: string, onUndo?: () => Promise<void>) => {
     setToast({ type, msg, onUndo })
@@ -3295,7 +3296,18 @@ export default function RepairsPage() {
 
   const sortedSubTab: RepairRow[] = [...subTabRepairs].sort(sortFn)
 
-  const filteredRepairs = sortedSubTab.filter(r =>
+  const pendingRepairIds = new Set(
+    repairs.filter(r =>
+      (r.request_type === 'repair' && !r.work_started) ||
+      r.request_type === 'repair_consult' ||
+      r.request_type === 'inquiry' ||
+      r.request_type === 'payment_pending'
+    ).map(r => r.id)
+  )
+  const filteredRepairs = (pendingFilter
+    ? repairs.filter(r => pendingRepairIds.has(r.id))
+    : sortedSubTab
+  ).filter(r =>
     matchSearch([r.content, r.item_name, r.child?.name, r.customer?.name, r.child?.school_name, r.slip_number])
   )
   const filteredPurchases = purchases.filter(p =>
@@ -3422,51 +3434,89 @@ export default function RepairsPage() {
 
           {/* Dashboard card */}
           <div className="bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-600 rounded-2xl px-4 pt-3 pb-0 text-white shadow-lg shadow-indigo-600/25">
-            {/* Top row: pending count + overdue alert */}
-            <div className="flex items-start gap-4 mb-3">
-              <div className="flex-1">
-                <p className="text-[10px] font-bold opacity-60 uppercase tracking-widest mb-0.5">要対応</p>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-5xl font-black leading-none tabular-nums">{pendingCount}</span>
-                  <span className="text-base font-bold opacity-60">件</span>
-                  <span className="text-[10px] opacity-40 font-medium">/ 全{totalActive}</span>
-                </div>
-              </div>
-              {overdueRepairs.length > 0 && (
-                <div className="bg-red-500/25 border border-red-400/40 rounded-2xl px-3 py-2 text-center min-w-[52px]">
-                  <p className="text-2xl font-black text-red-100 leading-none">{overdueRepairs.length}</p>
-                  <p className="text-[9px] font-bold text-red-200 mt-0.5">🚨 期限超過</p>
-                </div>
-              )}
-            </div>
-
-            {/* Status chips */}
-
-            {/* Tab buttons */}
             {(() => {
               const dashTabs = [
-                { id: 'repair'   as const, feat: null,                      emoji: '✂️', label: 'お直し',   count: repairs.length },
-                { id: 'purchase' as const, feat: null, emoji: '📦', label: '発注',     count: purchaseUnordered.length + uniformOrders.length },
-                { id: 'arrival'  as const, feat: null, emoji: '🚚', label: '入荷待ち', count: purchaseOnOrder.length + purchaseStocked.length },
-                { id: 'delivery' as const, feat: null, emoji: '🎁', label: 'お渡し',   count: waiting.length },
-              ].filter(t => t.feat === null || hasFeature(t.feat))
+                { id: 'repair'   as const, emoji: '✂️', label: 'お直し',   count: repairs.length },
+                { id: 'purchase' as const, emoji: '📦', label: '発注',     count: purchaseUnordered.length + uniformOrders.length },
+                { id: 'arrival'  as const, emoji: '🚚', label: '入荷待ち', count: purchaseOnOrder.length + purchaseStocked.length },
+                { id: 'delivery' as const, emoji: '🎁', label: 'お渡し',   count: waiting.length },
+              ]
+              const togglePending = () => {
+                if (!pendingFilter) { setPendingFilter(true); setTab('repair') }
+                else setPendingFilter(false)
+              }
+              if (!isTablet) {
+                return (
+                  <div className="flex items-stretch gap-2 pb-2">
+                    {/* 要対応 tappable area */}
+                    <button className="flex-1 text-left active:opacity-80 transition-opacity" onClick={togglePending}>
+                      <p className="text-[9px] font-bold opacity-60 uppercase tracking-widest mb-0.5">
+                        {pendingFilter ? '▶ 要対応' : '要対応'}
+                      </p>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className={`text-4xl font-black leading-none tabular-nums ${pendingFilter ? 'text-amber-300' : ''}`}>{pendingCount}</span>
+                        <span className="text-sm font-bold opacity-60">件</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[9px] opacity-40">全{totalActive}</span>
+                        {overdueRepairs.length > 0 && <span className="text-[9px] text-red-300 font-black">🚨 {overdueRepairs.length}</span>}
+                        {pendingFilter && <span className="text-[9px] text-amber-300 font-black">絞込中</span>}
+                      </div>
+                    </button>
+                    {/* Mini 2×2 tab grid */}
+                    <div className="grid grid-cols-2 gap-1 shrink-0 self-center">
+                      {dashTabs.map(t => (
+                        <button key={t.id}
+                          onClick={() => { setTab(t.id); setSearchText(''); setBatchSelected(new Set()); setPendingFilter(false) }}
+                          className={`rounded-xl px-2 py-1.5 text-center transition-all active:scale-[0.97] min-w-[52px] ${
+                            tab === t.id ? 'bg-white/20 ring-1 ring-white/30' : 'hover:bg-white/10 opacity-60'
+                          }`}>
+                          <p className="text-lg font-black leading-none tabular-nums">
+                            {t.count > 0 ? t.count : <span className="opacity-30">0</span>}
+                          </p>
+                          <p className="text-[9px] font-bold mt-0.5 opacity-80">{t.emoji} {t.label}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
+              }
+              // Tablet mode: original two-row layout
               return (
-            <div className={`grid gap-1 border-t border-white/15 pt-2 -mx-4 px-4`}
-              style={{ gridTemplateColumns: `repeat(${dashTabs.length}, 1fr)` }}>
-              {dashTabs.map(t => (
-                <button key={t.id} onClick={() => { setTab(t.id); setSearchText(''); setBatchSelected(new Set()) }}
-                  className={`rounded-t-xl py-2.5 text-center transition-all active:scale-[0.97] ${
-                    tab === t.id
-                      ? 'bg-white/20 ring-1 ring-white/30'
-                      : 'hover:bg-white/10 opacity-70'
-                  }`}>
-                  <p className="text-xl font-black leading-none tabular-nums">
-                    {t.count > 0 ? t.count : <span className="opacity-30">0</span>}
-                  </p>
-                  <p className="text-[10px] font-bold mt-0.5 opacity-80">{t.emoji} {t.label}</p>
-                </button>
-              ))}
-            </div>
+                <>
+                  <div className="flex items-start gap-4 mb-3">
+                    <button className="flex-1 text-left active:opacity-80 transition-opacity" onClick={togglePending}>
+                      <p className="text-[10px] font-bold opacity-60 uppercase tracking-widest mb-0.5">
+                        {pendingFilter ? '▶ 要対応（絞込中）' : '要対応'}
+                      </p>
+                      <div className="flex items-baseline gap-2">
+                        <span className={`text-5xl font-black leading-none tabular-nums ${pendingFilter ? 'text-amber-300' : ''}`}>{pendingCount}</span>
+                        <span className="text-base font-bold opacity-60">件</span>
+                        <span className="text-[10px] opacity-40 font-medium">/ 全{totalActive}</span>
+                      </div>
+                    </button>
+                    {overdueRepairs.length > 0 && (
+                      <div className="bg-red-500/25 border border-red-400/40 rounded-2xl px-3 py-2 text-center min-w-[52px]">
+                        <p className="text-2xl font-black text-red-100 leading-none">{overdueRepairs.length}</p>
+                        <p className="text-[9px] font-bold text-red-200 mt-0.5">🚨 期限超過</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid gap-1 border-t border-white/15 pt-2 -mx-4 px-4"
+                    style={{ gridTemplateColumns: `repeat(${dashTabs.length}, 1fr)` }}>
+                    {dashTabs.map(t => (
+                      <button key={t.id} onClick={() => { setTab(t.id); setSearchText(''); setBatchSelected(new Set()); setPendingFilter(false) }}
+                        className={`rounded-t-xl py-2.5 text-center transition-all active:scale-[0.97] ${
+                          tab === t.id ? 'bg-white/20 ring-1 ring-white/30' : 'hover:bg-white/10 opacity-70'
+                        }`}>
+                        <p className="text-xl font-black leading-none tabular-nums">
+                          {t.count > 0 ? t.count : <span className="opacity-30">0</span>}
+                        </p>
+                        <p className="text-[10px] font-bold mt-0.5 opacity-80">{t.emoji} {t.label}</p>
+                      </button>
+                    ))}
+                  </div>
+                </>
               )
             })()}
           </div>
@@ -3536,7 +3586,19 @@ export default function RepairsPage() {
               </select>
             </div>
 
+            {/* 要対応フィルターバッジ */}
+            {pendingFilter && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-300 rounded-xl">
+                <span className="text-xs font-black text-amber-700 flex-1">要対応のみ表示中（{filteredRepairs.length}件）</span>
+                <button onClick={() => setPendingFilter(false)}
+                  className="text-[10px] font-black text-amber-600 hover:text-amber-800 px-2 py-0.5 bg-amber-100 hover:bg-amber-200 rounded-full transition-colors">
+                  解除
+                </button>
+              </div>
+            )}
+
             {/* サブタブ */}
+            {!pendingFilter && (
             <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 no-scrollbar">
               {([
                 { id: 'unstarted'  as const, label: '加工未',   count: subUnstarted.length,  color: 'bg-orange-500' },
@@ -3560,6 +3622,7 @@ export default function RepairsPage() {
                 </button>
               ))}
             </div>
+            )}
 
             {filteredRepairs.length === 0 ? (
               <div className="text-center py-20 text-gray-400">
