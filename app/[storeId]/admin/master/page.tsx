@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   ChevronLeft, ChevronRight, Plus, Pencil, Trash2,
-  GraduationCap, Package, Tag, Loader2, X, AlertCircle, Users, UserCircle, Scissors,
+  GraduationCap, Package, Tag, Loader2, X, AlertCircle, Users, UserCircle, Scissors, ScanLine,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { School, SchoolProduct, SchoolProductVariant, Staff } from '@/types/master'
@@ -139,6 +139,11 @@ function MasterPageInner() {
   const [productSaving,        setProductSaving]        = useState(false)
   const [deleteProductTarget,  setDeleteProductTarget]  = useState<SchoolProduct | null>(null)
   const [deleteProductLoading, setDeleteProductLoading] = useState(false)
+  const [pBarcode,             setPBarcode]             = useState('')
+  const [pScanLoading,         setPScanLoading]         = useState(false)
+  const pScanRef       = useRef<HTMLInputElement | null>(null)
+  const [globalScanLoading,    setGlobalScanLoading]    = useState(false)
+  const globalScanRef  = useRef<HTMLInputElement | null>(null)
 
   // ── Variant form state ────────────────────────────────────
   const [variantModal,         setVariantModal]         = useState(false)
@@ -346,13 +351,13 @@ function MasterPageInner() {
   }
 
   // ── Product CRUD ──────────────────────────────────────────
-  const openProductAdd  = () => { setEditingProduct(null); setPName(''); setPMaker(''); setPColor(''); setPCategory(''); setPGender(''); setPNotes(''); setProductModal(true) }
-  const openProductEdit = (p: SchoolProduct) => { setEditingProduct(p); setPName(p.item_name); setPMaker(p.maker_code ?? ''); setPColor(p.color_code ?? ''); setPCategory(p.category ?? ''); setPGender(p.gender ?? ''); setPNotes(p.notes ?? ''); setProductModal(true) }
+  const openProductAdd  = () => { setEditingProduct(null); setPName(''); setPMaker(''); setPColor(''); setPCategory(''); setPGender(''); setPNotes(''); setPBarcode(''); setProductModal(true) }
+  const openProductEdit = (p: SchoolProduct) => { setEditingProduct(p); setPName(p.item_name); setPMaker(p.maker_code ?? ''); setPColor(p.color_code ?? ''); setPCategory(p.category ?? ''); setPGender(p.gender ?? ''); setPNotes(p.notes ?? ''); setPBarcode(p.barcode ?? ''); setProductModal(true) }
 
   const handleProductSave = async () => {
     if (!pName.trim() || !selectedSchool) return
     setProductSaving(true)
-    const payload = { item_name: pName.trim(), maker_code: pMaker.trim() || null, color_code: pColor.trim() || null, category: pCategory || null, gender: pGender || null, notes: pNotes.trim() || null, updated_at: new Date().toISOString() }
+    const payload = { item_name: pName.trim(), maker_code: pMaker.trim() || null, color_code: pColor.trim() || null, category: pCategory || null, gender: pGender || null, notes: pNotes.trim() || null, barcode: pBarcode.trim() || null, updated_at: new Date().toISOString() }
     if (editingProduct) {
       const { data, error } = await (supabase as any).from('school_products').update(payload).eq('id', editingProduct.id).select().single()
       setProductSaving(false)
@@ -381,6 +386,96 @@ function MasterPageInner() {
     if (selectedProduct?.id === deleteProductTarget.id) { setSelectedProduct(null); setSchoolView('products') }
     showToast('ok', '商品を削除しました')
     setDeleteProductTarget(null)
+  }
+
+  // ── Tag scan: 商品タグのAI認識（フォーム自動入力）────────────
+  const handleTagScan = async (file: File) => {
+    setPScanLoading(true)
+    try {
+      let detectedBarcode: string | null = null
+      if ('BarcodeDetector' in window) {
+        try {
+          const bd = new (window as any).BarcodeDetector()
+          const bitmap = await createImageBitmap(file)
+          const codes = await bd.detect(bitmap)
+          if (codes.length > 0) { detectedBarcode = codes[0].rawValue; setPBarcode(codes[0].rawValue) }
+        } catch {}
+      }
+      const b64 = await new Promise<string>((res, rej) => {
+        const reader = new FileReader()
+        reader.onload = () => res((reader.result as string).split(',')[1])
+        reader.onerror = rej; reader.readAsDataURL(file)
+      })
+      const resp = await fetch('/api/tag-scan', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: b64, mimeType: file.type }),
+      })
+      const { ok, data } = await resp.json()
+      if (ok && data) {
+        if (data.barcode || detectedBarcode) setPBarcode(data.barcode ?? detectedBarcode)
+        if (data.item_name)  setPName(data.item_name)
+        if (data.maker_code) setPMaker(data.maker_code)
+        if (data.color_code) setPColor(data.color_code)
+        if (data.category)   setPCategory(data.category)
+        if (data.gender)     setPGender(data.gender)
+        showToast('ok', `📷 タグを読み取りました（精度: ${data.confidence === 'high' ? '高' : data.confidence === 'medium' ? '中' : '低'}）`)
+      } else {
+        showToast('err', 'タグの読み取りに失敗しました')
+      }
+    } catch (e) {
+      showToast('err', `スキャンエラー: ${String(e)}`)
+    } finally {
+      setPScanLoading(false)
+    }
+  }
+
+  // ── Global scan: バーコードで商品を検索してナビゲート ─────────
+  const handleGlobalScan = async (file: File) => {
+    setGlobalScanLoading(true)
+    try {
+      let barcode: string | null = null
+      if ('BarcodeDetector' in window) {
+        try {
+          const bd = new (window as any).BarcodeDetector()
+          const bitmap = await createImageBitmap(file)
+          const codes = await bd.detect(bitmap)
+          if (codes.length > 0) barcode = codes[0].rawValue
+        } catch {}
+      }
+      if (!barcode) {
+        const b64 = await new Promise<string>((res, rej) => {
+          const reader = new FileReader()
+          reader.onload = () => res((reader.result as string).split(',')[1])
+          reader.onerror = rej; reader.readAsDataURL(file)
+        })
+        const resp = await fetch('/api/tag-scan', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64: b64, mimeType: file.type }),
+        })
+        const { ok, data } = await resp.json()
+        if (ok && data?.barcode) barcode = data.barcode
+      }
+      if (!barcode) { showToast('err', 'バーコードが読み取れませんでした'); return }
+
+      const { data: found } = await (supabase as any).from('school_products')
+        .select('*').eq('store_id', storeId).eq('barcode', barcode).eq('active', true).limit(1)
+      if (!found?.[0]) { showToast('err', `「${barcode}」に一致する商品がマスタに登録されていません`); return }
+
+      const prod = found[0] as SchoolProduct
+      const school = schools.find(s => s.id === prod.school_id)
+      if (!school) { showToast('err', '学校情報が取得できませんでした'); return }
+
+      setSelectedSchool(school)
+      setSelectedProduct(prod)
+      setSchoolView('variants')
+      setMasterTab('schools')
+      await fetchVariants(prod.id)
+      showToast('ok', `📦 ${prod.item_name} を開きました`)
+    } catch (e) {
+      showToast('err', `スキャンエラー: ${String(e)}`)
+    } finally {
+      setGlobalScanLoading(false)
+    }
   }
 
   // ── Variant CRUD ──────────────────────────────────────────
@@ -495,12 +590,21 @@ function MasterPageInner() {
             )}
           </div>
           {masterTab === 'schools' && (
-            <div className="flex items-center gap-0.5 text-[10px] shrink-0">
-              <span className={schoolView === 'schools'  ? 'text-white font-black' : 'text-white/40'}>学校</span>
-              <ChevronRight size={9} className="text-white/30" />
-              <span className={schoolView === 'products' ? 'text-white font-black' : 'text-white/40'}>商品</span>
-              <ChevronRight size={9} className="text-white/30" />
-              <span className={schoolView === 'variants' ? 'text-white font-black' : 'text-white/40'}>価格</span>
+            <div className="flex items-center gap-2 shrink-0">
+              <button onClick={() => globalScanRef.current?.click()} disabled={globalScanLoading}
+                title="バーコード・QRコードで商品を検索"
+                className="p-1.5 text-white/70 hover:text-white bg-white/10 rounded-xl transition-all active:scale-90 disabled:opacity-50">
+                {globalScanLoading ? <Loader2 size={14} className="animate-spin" /> : <ScanLine size={14} />}
+              </button>
+              <input ref={globalScanRef} type="file" accept="image/*" capture="environment" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleGlobalScan(f); e.target.value = '' }} />
+              <div className="flex items-center gap-0.5 text-[10px]">
+                <span className={schoolView === 'schools'  ? 'text-white font-black' : 'text-white/40'}>学校</span>
+                <ChevronRight size={9} className="text-white/30" />
+                <span className={schoolView === 'products' ? 'text-white font-black' : 'text-white/40'}>商品</span>
+                <ChevronRight size={9} className="text-white/30" />
+                <span className={schoolView === 'variants' ? 'text-white font-black' : 'text-white/40'}>価格</span>
+              </div>
             </div>
           )}
         </div>
@@ -972,6 +1076,7 @@ function MasterPageInner() {
                           {product.color_code && <span className="text-[10px] font-mono bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-lg">色: {product.color_code}</span>}
                           {product.category && <span className="text-[10px] bg-teal-50 text-teal-700 border border-teal-200 px-1.5 py-0.5 rounded-lg">{product.category}</span>}
                           {product.gender && <span className="text-[10px] bg-violet-50 text-violet-700 border border-violet-200 px-1.5 py-0.5 rounded-lg">{product.gender}</span>}
+                          {product.barcode && <span className="text-[10px] font-mono bg-sky-50 text-sky-700 border border-sky-200 px-1.5 py-0.5 rounded-lg flex items-center gap-0.5"><ScanLine size={8} />{product.barcode.length > 13 ? product.barcode.slice(0, 13) + '…' : product.barcode}</span>}
                         </div>
                         {product.notes && <p className="text-xs text-gray-400 mt-0.5 truncate">{product.notes}</p>}
                       </div>
@@ -1188,6 +1293,20 @@ function MasterPageInner() {
                   <input type="text" value={pColor} onChange={e => setPColor(e.target.value)} placeholder="例：01（黒）" className={INPUT} />
                 </Field>
               </div>
+              <Field label="バーコード・QRコード">
+                <div className="flex gap-2">
+                  <input type="text" value={pBarcode} onChange={e => setPBarcode(e.target.value)}
+                    placeholder="例：4901234567890" className={`${INPUT} flex-1 font-mono text-xs`} />
+                  <button type="button" onClick={() => pScanRef.current?.click()} disabled={pScanLoading}
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold rounded-xl transition-all active:scale-95 disabled:opacity-60">
+                    {pScanLoading ? <Loader2 size={13} className="animate-spin" /> : <ScanLine size={13} />}
+                    {pScanLoading ? '読取中...' : 'タグ撮影'}
+                  </button>
+                  <input ref={pScanRef} type="file" accept="image/*" capture="environment" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleTagScan(f); e.target.value = '' }} />
+                </div>
+                <p className="text-[10px] text-gray-400 mt-0.5">タグを撮影するとAIが品名・品番・バーコードを自動入力します</p>
+              </Field>
               <div className="grid grid-cols-2 gap-2">
                 <Field label="カテゴリ">
                   <select value={pCategory} onChange={e => setPCategory(e.target.value)} className={INPUT}>

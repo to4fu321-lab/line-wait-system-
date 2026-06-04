@@ -9,7 +9,7 @@ import {
   CheckCheck, Package, Loader2, X, MessageCircle,
   CalendarDays, Pencil, AlertCircle, ChevronDown, ChevronUp,
   RotateCcw, ShoppingBag, Bell, Scissors, GraduationCap,
-  Trash2, ArchiveRestore, Eye, EyeOff, QrCode,
+  Trash2, ArchiveRestore, Eye, EyeOff, QrCode, ScanLine,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type {
@@ -424,8 +424,61 @@ function NewIntakeForm({ customerId, childId, storeId, reservationUrl, onSaved, 
   const [desiredDate, setDesiredDate] = useState('')
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState<string | null>(null)
+  const [scanLoading, setScanLoading] = useState(false)
+  const barcodeInputRef = useRef<HTMLInputElement | null>(null)
 
   const opt = INTAKE_OPTIONS.find(o => o.value === intakeType) ?? INTAKE_OPTIONS[0]
+
+  const handleBarcodeScan = async (file: File) => {
+    setScanLoading(true)
+    try {
+      let barcode: string | null = null
+      if ('BarcodeDetector' in window) {
+        try {
+          const bd = new (window as any).BarcodeDetector()
+          const bitmap = await createImageBitmap(file)
+          const codes = await bd.detect(bitmap)
+          if (codes.length > 0) barcode = codes[0].rawValue
+        } catch {}
+      }
+      if (!barcode) {
+        const b64 = await new Promise<string>((res, rej) => {
+          const reader = new FileReader()
+          reader.onload = () => res((reader.result as string).split(',')[1])
+          reader.onerror = rej; reader.readAsDataURL(file)
+        })
+        const resp = await fetch('/api/tag-scan', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64: b64, mimeType: file.type }),
+        })
+        const { ok, data: td } = await resp.json()
+        if (ok && td) {
+          barcode = td.barcode ?? null
+          if (!barcode && td.item_name) {
+            setItemName(td.item_name)
+            if (td.price) setPrice(String(td.price))
+            return
+          }
+        }
+      }
+      if (barcode) {
+        const { data: prods } = await (supabase as any).from('school_products')
+          .select('item_name, school_product_variants(price, sort_order)')
+          .eq('store_id', storeId).eq('barcode', barcode).eq('active', true).limit(1)
+        if (prods?.[0]) {
+          const p = prods[0]
+          setItemName(p.item_name); setError(null)
+          const v = ((p.school_product_variants ?? []) as any[]).sort((a: any, b: any) => a.sort_order - b.sort_order)
+          if (v[0]?.price) setPrice(String(v[0].price))
+        } else {
+          setError(`バーコード「${barcode}」に一致する商品がマスタに登録されていません`)
+        }
+      } else {
+        setError('バーコードが読み取れませんでした')
+      }
+    } catch (e) { setError(`スキャンエラー: ${String(e)}`) }
+    finally { setScanLoading(false) }
+  }
 
   const handleSave = async () => {
     if (!itemName.trim()) { setError('内容を入力してください'); return }
@@ -496,10 +549,24 @@ function NewIntakeForm({ customerId, childId, storeId, reservationUrl, onSaved, 
         </div>
 
         <Field label={opt.isPurchase ? '商品名' : '内容・商品名'} required>
-          <input type="text"
-            className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
-            placeholder={opt.ph_item} value={itemName}
-            onChange={e => { setItemName(e.target.value); setError(null) }} />
+          <div className="flex gap-2">
+            <input type="text"
+              className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none placeholder-gray-400"
+              placeholder={opt.ph_item} value={itemName}
+              onChange={e => { setItemName(e.target.value); setError(null) }} />
+            {opt.isPurchase && (
+              <>
+                <button type="button" onClick={() => barcodeInputRef.current?.click()} disabled={scanLoading}
+                  title="バーコード・QRコードで商品を検索"
+                  className="shrink-0 flex items-center gap-1 px-2.5 py-2 bg-violet-600 hover:bg-violet-500 text-white text-[11px] font-bold rounded-xl transition-all active:scale-95 disabled:opacity-60">
+                  {scanLoading ? <Loader2 size={13} className="animate-spin" /> : <ScanLine size={13} />}
+                  {scanLoading ? '…' : 'スキャン'}
+                </button>
+                <input ref={barcodeInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleBarcodeScan(f); e.target.value = '' }} />
+              </>
+            )}
+          </div>
         </Field>
 
         {opt.isPurchase && (
