@@ -86,10 +86,10 @@ const SEED_DATA: CategoryDef[] = [
     categoryName: 'セーラー服',
     sortOrder: 5,
     presets: [
-      { item_name: '袖丈 詰め・出し',   repair_type: 'sleeve', default_price: 3000, notes: '小学校セーラー対応+2000' },
-      { item_name: '肩幅 詰め',        repair_type: 'other',  default_price: 5400, notes: null },
-      { item_name: '脇巾 詰め',        repair_type: 'other',  default_price: 4000, notes: null },
-      { item_name: 'ボタン付け（1箇所）', repair_type: 'button', default_price:  200, notes: null },
+      { item_name: '袖丈 詰め・出し',      repair_type: 'sleeve', default_price: 3000, notes: '小学校セーラー対応+2000' },
+      { item_name: '肩幅 詰め',            repair_type: 'other',  default_price: 5400, notes: null },
+      { item_name: '脇巾 詰め',            repair_type: 'other',  default_price: 4000, notes: null },
+      { item_name: 'ボタン付け（1箇所）',  repair_type: 'button', default_price:  200, notes: null },
     ],
   },
   {
@@ -97,7 +97,7 @@ const SEED_DATA: CategoryDef[] = [
     sortOrder: 6,
     presets: [
       { item_name: '脇巾・バスト 詰め', repair_type: 'other', default_price: 3200, notes: null },
-      { item_name: '肩巾 詰め',        repair_type: 'other', default_price: 2800, notes: null },
+      { item_name: '肩巾 詰め',         repair_type: 'other', default_price: 2800, notes: null },
     ],
   },
   {
@@ -113,86 +113,35 @@ const SEED_DATA: CategoryDef[] = [
     categoryName: 'エンブレム・その他',
     sortOrder: 8,
     presets: [
-      { item_name: 'エンブレム付け（ミシン）大',           repair_type: 'embroidery', default_price: 1600, notes: '裏地ほどき有り+700' },
-      { item_name: 'エンブレム付け（ミシン）小',           repair_type: 'embroidery', default_price: 1300, notes: '裏地ほどき有り+700' },
-      { item_name: 'エンブレム付け（手縫い）大',           repair_type: 'embroidery', default_price: 2200, notes: null },
-      { item_name: 'エンブレム付け（手縫い）小',           repair_type: 'embroidery', default_price: 1700, notes: null },
-      { item_name: '仕上げ（袋入れ・たたみ・シール貼りなど）', repair_type: 'other', default_price:  300, notes: null },
-      { item_name: '伝票記入代（1枚）',                   repair_type: 'other',      default_price:  300, notes: null },
+      { item_name: 'エンブレム付け（ミシン）大',               repair_type: 'embroidery', default_price: 1600, notes: '裏地ほどき有り+700' },
+      { item_name: 'エンブレム付け（ミシン）小',               repair_type: 'embroidery', default_price: 1300, notes: '裏地ほどき有り+700' },
+      { item_name: 'エンブレム付け（手縫い）大',               repair_type: 'embroidery', default_price: 2200, notes: null },
+      { item_name: 'エンブレム付け（手縫い）小',               repair_type: 'embroidery', default_price: 1700, notes: null },
+      { item_name: '仕上げ（袋入れ・たたみ・シール貼りなど）', repair_type: 'other',      default_price:  300, notes: null },
+      { item_name: '伝票記入代（1枚）',                        repair_type: 'other',      default_price:  300, notes: null },
     ],
   },
 ]
 
 // ─────────────────────────────────────────────
-// GET: ドライラン（登録予定一覧を返す）
+// 1店舗分のシード処理
 // ─────────────────────────────────────────────
-export async function GET(req: NextRequest) {
-  const storeId = req.nextUrl.searchParams.get('storeId')
-  if (!storeId) {
-    return NextResponse.json({ ok: false, error: 'storeId パラメータが必要です（?storeId=xxx）' }, { status: 400 })
-  }
-
-  const { data: existingCats } = await (supabase as any)
-    .from('repair_item_categories')
-    .select('id, name')
-    .eq('store_id', storeId)
-
-  const existingCatNames = new Set<string>((existingCats ?? []).map((c: any) => c.name))
-
-  const { data: existingPresets } = await (supabase as any)
-    .from('repair_price_presets')
-    .select('item_name, category_id')
-    .eq('store_id', storeId)
-
-  const existingPresetKeys = new Set<string>(
-    (existingPresets ?? []).map((p: any) => `${p.category_id}|${p.item_name}`)
-  )
-  const catIdByName = Object.fromEntries(
-    (existingCats ?? []).map((c: any) => [c.name, c.id])
-  )
-
-  const preview: { category: string; item_name: string; repair_type: string; price: number | null; notes: string | null; status: 'new' | 'skip' }[] = []
-
-  for (const cat of SEED_DATA) {
-    for (const p of cat.presets) {
-      const existingCatId = catIdByName[cat.categoryName]
-      const key = `${existingCatId ?? '__new__'}|${p.item_name}`
-      const isDupName = existingCatNames.has(cat.categoryName) && existingPresetKeys.has(key)
-      preview.push({
-        category:     cat.categoryName,
-        item_name:    p.item_name,
-        repair_type:  p.repair_type,
-        price:        p.default_price,
-        notes:        p.notes,
-        status:       isDupName ? 'skip' : 'new',
-      })
-    }
-  }
-
-  const newCount  = preview.filter(p => p.status === 'new').length
-  const skipCount = preview.filter(p => p.status === 'skip').length
-
-  return NextResponse.json({
-    ok: true,
-    summary: { total: preview.length, new: newCount, skip: skipCount },
-    preview,
-  })
+interface StoreResult {
+  storeId: string
+  storeName: string
+  categoriesCreated: number
+  categoriesSkipped: number
+  presetsCreated: number
+  presetsSkipped: number
+  errors: string[]
 }
 
-// ─────────────────────────────────────────────
-// POST: 実行（dryRun=true なら登録せず結果だけ返す）
-// ─────────────────────────────────────────────
-export async function POST(req: NextRequest) {
-  const { storeId, dryRun = false } = await req.json() as { storeId: string; dryRun?: boolean }
-  if (!storeId) {
-    return NextResponse.json({ ok: false, error: 'storeId が必要です' }, { status: 400 })
-  }
-
-  const categoriesCreated: string[] = []
-  const categoriesSkipped: string[] = []
-  const presetsCreated:    string[] = []
-  const presetsSkipped:    string[] = []
-  const errors:            string[] = []
+async function seedForStore(storeId: string, storeName: string, dryRun: boolean): Promise<StoreResult> {
+  const errors: string[] = []
+  let categoriesCreated = 0
+  let categoriesSkipped = 0
+  let presetsCreated = 0
+  let presetsSkipped = 0
 
   // 既存カテゴリを取得
   const { data: existingCats, error: catFetchErr } = await (supabase as any)
@@ -201,7 +150,8 @@ export async function POST(req: NextRequest) {
     .eq('store_id', storeId)
 
   if (catFetchErr) {
-    return NextResponse.json({ ok: false, error: `カテゴリ取得失敗: ${catFetchErr.message}` }, { status: 500 })
+    return { storeId, storeName, categoriesCreated, categoriesSkipped, presetsCreated, presetsSkipped,
+      errors: [`カテゴリ取得失敗: ${catFetchErr.message}`] }
   }
 
   const catIdByName: Record<string, string> = Object.fromEntries(
@@ -211,11 +161,11 @@ export async function POST(req: NextRequest) {
   // カテゴリを登録
   for (const cat of SEED_DATA) {
     if (catIdByName[cat.categoryName]) {
-      categoriesSkipped.push(cat.categoryName)
+      categoriesSkipped++
       continue
     }
     if (dryRun) {
-      categoriesCreated.push(`[DRY] ${cat.categoryName}`)
+      categoriesCreated++
       continue
     }
     const { data: newCat, error: catInsertErr } = await (supabase as any)
@@ -228,7 +178,7 @@ export async function POST(req: NextRequest) {
       errors.push(`カテゴリ「${cat.categoryName}」: ${catInsertErr.message}`)
     } else {
       catIdByName[newCat.name] = newCat.id
-      categoriesCreated.push(cat.categoryName)
+      categoriesCreated++
     }
   }
 
@@ -239,7 +189,8 @@ export async function POST(req: NextRequest) {
     .eq('store_id', storeId)
 
   if (presetFetchErr) {
-    return NextResponse.json({ ok: false, error: `プリセット取得失敗: ${presetFetchErr.message}` }, { status: 500 })
+    return { storeId, storeName, categoriesCreated, categoriesSkipped, presetsCreated, presetsSkipped,
+      errors: [...errors, `プリセット取得失敗: ${presetFetchErr.message}`] }
   }
 
   const existingPresetKeys = new Set<string>(
@@ -247,7 +198,7 @@ export async function POST(req: NextRequest) {
   )
 
   // プリセットを登録
-  let sortCounter = 1
+  let sortCounter = (existingPresets?.length ?? 0) + 1
   for (const cat of SEED_DATA) {
     const catId = catIdByName[cat.categoryName]
     if (!catId && !dryRun) {
@@ -258,12 +209,11 @@ export async function POST(req: NextRequest) {
     for (const p of cat.presets) {
       const key = `${catId ?? '__new__'}|${p.item_name}`
       if (existingPresetKeys.has(key)) {
-        presetsSkipped.push(`${cat.categoryName} / ${p.item_name}`)
+        presetsSkipped++
         continue
       }
-
       if (dryRun) {
-        presetsCreated.push(`[DRY] ${cat.categoryName} / ${p.item_name} ¥${p.default_price ?? 'お見積り'}`)
+        presetsCreated++
         continue
       }
 
@@ -281,25 +231,106 @@ export async function POST(req: NextRequest) {
         })
 
       if (presetInsertErr) {
-        errors.push(`プリセット「${cat.categoryName} / ${p.item_name}」: ${presetInsertErr.message}`)
+        errors.push(`プリセット「${cat.categoryName}/${p.item_name}」: ${presetInsertErr.message}`)
       } else {
-        presetsCreated.push(`${cat.categoryName} / ${p.item_name}`)
+        presetsCreated++
       }
     }
   }
 
+  return { storeId, storeName, categoriesCreated, categoriesSkipped, presetsCreated, presetsSkipped, errors }
+}
+
+// ─────────────────────────────────────────────
+// GET: ドライラン（登録予定件数を全店舗分返す）
+// ─────────────────────────────────────────────
+export async function GET(req: NextRequest) {
+  const storeId = req.nextUrl.searchParams.get('storeId')
+
+  // 対象店舗を決定
+  let stores: { id: string; name: string }[] = []
+  if (storeId) {
+    stores = [{ id: storeId, name: storeId }]
+  } else {
+    const { data, error } = await (supabase as any).from('stores').select('id, name').order('name')
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
+    stores = data ?? []
+  }
+
+  const results = await Promise.all(
+    stores.map(s => seedForStore(s.id, s.name, true))
+  )
+
+  const totalCatsNew    = results.reduce((s, r) => s + r.categoriesCreated, 0)
+  const totalPresetsNew = results.reduce((s, r) => s + r.presetsCreated, 0)
+
   return NextResponse.json({
-    ok: errors.length === 0,
+    ok: true,
+    dryRun: true,
+    storeCount: stores.length,
+    summary: { categoriesNew: totalCatsNew, presetsNew: totalPresetsNew },
+    stores: results.map(r => ({
+      storeId:   r.storeId,
+      storeName: r.storeName,
+      categories: { new: r.categoriesCreated, skip: r.categoriesSkipped },
+      presets:    { new: r.presetsCreated,    skip: r.presetsSkipped    },
+      errors:     r.errors,
+    })),
+  })
+}
+
+// ─────────────────────────────────────────────
+// POST: 実行
+//   { storeId?: string, allStores?: boolean, dryRun?: boolean }
+//   storeId 省略 または allStores:true → 全店舗に反映
+// ─────────────────────────────────────────────
+export async function POST(req: NextRequest) {
+  const { storeId, allStores = false, dryRun = false } =
+    await req.json() as { storeId?: string; allStores?: boolean; dryRun?: boolean }
+
+  // 対象店舗を決定
+  let stores: { id: string; name: string }[] = []
+  if (!allStores && storeId) {
+    stores = [{ id: storeId, name: storeId }]
+  } else {
+    const { data, error } = await (supabase as any).from('stores').select('id, name').order('name')
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
+    stores = data ?? []
+  }
+
+  if (stores.length === 0) {
+    return NextResponse.json({ ok: false, error: '対象店舗が見つかりません' }, { status: 404 })
+  }
+
+  // 店舗ごとにシード実行（並列だとDB負荷が高いため直列）
+  const results: StoreResult[] = []
+  for (const s of stores) {
+    const result = await seedForStore(s.id, s.name, dryRun)
+    results.push(result)
+  }
+
+  const totalErrors       = results.flatMap(r => r.errors)
+  const totalCatsCreated  = results.reduce((s, r) => s + r.categoriesCreated, 0)
+  const totalCatsSkipped  = results.reduce((s, r) => s + r.categoriesSkipped, 0)
+  const totalPresCreated  = results.reduce((s, r) => s + r.presetsCreated,    0)
+  const totalPresSkipped  = results.reduce((s, r) => s + r.presetsSkipped,    0)
+
+  return NextResponse.json({
+    ok: totalErrors.length === 0,
     dryRun,
+    storeCount: stores.length,
     summary: {
-      categories: { created: categoriesCreated.length, skipped: categoriesSkipped.length },
-      presets:    { created: presetsCreated.length,    skipped: presetsSkipped.length    },
-      errors:     errors.length,
+      categories: { created: totalCatsCreated, skipped: totalCatsSkipped },
+      presets:    { created: totalPresCreated,  skipped: totalPresSkipped },
+      errors:     totalErrors.length,
     },
-    categoriesCreated,
-    categoriesSkipped,
-    presetsCreated,
-    presetsSkipped,
-    errors,
+    stores: results.map(r => ({
+      storeId:   r.storeId,
+      storeName: r.storeName,
+      categories: { created: r.categoriesCreated, skipped: r.categoriesSkipped },
+      presets:    { created: r.presetsCreated,    skipped: r.presetsSkipped    },
+      errors:     r.errors,
+    })),
+    allErrors: totalErrors,
   })
 }
