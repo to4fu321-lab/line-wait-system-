@@ -191,7 +191,7 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   storeId: string; onClose: () => void; onSave: () => void
   onToast: (t: 'ok' | 'err', m: string) => void
 }) {
-  type Step = 'type' | 'cat_repair' | 'details' | 'customer'
+  type Step = 'type' | 'ocr_confirm' | 'cat_repair' | 'details' | 'customer'
   const [step,           setStep]     = useState<Step>('type')
   const [repairType,     setRepairType] = useState<RepairType | null>(null)
   const [itemName,       setItemName]  = useState('')
@@ -218,8 +218,10 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   const [selectedCategoryId,   setSelectedCategoryId]   = useState<string | null>(null)
   const [selectedCategoryName, setSelectedCategoryName] = useState<string>('')
   const [categories,     setCategories] = useState<{ id: string; name: string }[]>([])
-  const [ocrLoading,     setOcrLoading] = useState(false)
-  const [ocrWarnings,    setOcrWarnings] = useState<string[]>([])
+  const [ocrLoading,      setOcrLoading]      = useState(false)
+  const [ocrWarnings,     setOcrWarnings]     = useState<string[]>([])
+  const [ocrConfidence,   setOcrConfidence]   = useState<'high' | 'medium' | 'low' | null>(null)
+  const [ocrCustomerName, setOcrCustomerName] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleOcrRepair = async (file: File) => {
@@ -252,11 +254,11 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
       if (data.vendor_name)      setVendor(data.vendor_name)
       if (data.desired_completion_date) setDeadline(data.desired_completion_date)
       if (data.internal_memo)    setMemo(data.internal_memo)
-      if (data.customer_name)    setCustSearch(data.customer_name)
+      if (data.customer_name)    setOcrCustomerName(data.customer_name)
       if (data.warnings?.length) setOcrWarnings(data.warnings)
+      setOcrConfidence(data.confidence ?? null)
 
-      setStep('details')
-      onToast('ok', `📷 伝票を読み取りました（精度: ${data.confidence === 'high' ? '高' : data.confidence === 'medium' ? '中' : '低'}）`)
+      setStep('ocr_confirm')
     } catch (e) {
       onToast('err', `OCRエラー: ${String(e)}`)
     } finally {
@@ -393,7 +395,7 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
     return [...defaults, ...extras]
   }, [categories])
 
-  const stepLabels: Record<Step, string> = { type: 'アイテム選択', cat_repair: 'お直し選択', details: '内容入力', customer: '顧客選択' }
+  const stepLabels: Record<Step, string> = { type: 'アイテム選択', ocr_confirm: '読み取り確認・修正', cat_repair: 'お直し選択', details: '内容入力', customer: '顧客選択' }
   const steps: Step[] = ['type', 'cat_repair', 'details', 'customer']
 
   return (
@@ -407,8 +409,14 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
           <div className="flex items-center gap-3 mb-3">
             <button onClick={() => {
                 if (step === 'type') onClose()
+                else if (step === 'ocr_confirm') {
+                  setStep('type')
+                  setOcrConfidence(null); setOcrWarnings([]); setOcrCustomerName('')
+                  setRepairType(null); setItemName(''); setHemMm(0); setSleeveMm(0); setWaistMm(0)
+                  setContent(''); setPrice(''); setDeadline(''); setMemo('')
+                }
                 else if (step === 'cat_repair') { setStep('type'); setPresets([]); setSelectedCategoryId(null); setSelectedCategoryName('') }
-                else if (step === 'details') setStep(selectedCategoryName ? 'cat_repair' : 'type')
+                else if (step === 'details') setStep(ocrConfidence ? 'ocr_confirm' : selectedCategoryName ? 'cat_repair' : 'type')
                 else if (step === 'customer') setStep('details')
               }}
               className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 active:scale-95 transition-all">
@@ -438,13 +446,220 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
 
-          {/* OCR 警告バナー */}
-          {ocrWarnings.length > 0 && (
+          {/* OCR 警告バナー（確認画面以外のステップで表示） */}
+          {ocrWarnings.length > 0 && step !== 'ocr_confirm' && (
             <div className="bg-amber-50 border border-amber-300 rounded-2xl px-4 py-3 space-y-1">
               <p className="text-xs font-black text-amber-700 flex items-center gap-1.5"><ScanLine size={13} />読み取り確認が必要な箇所</p>
               {ocrWarnings.map((w, i) => (
                 <p key={i} className="text-xs text-amber-600 pl-4">・{w}</p>
               ))}
+            </div>
+          )}
+
+          {/* ── Step OCR確認: 読み取り結果の確認・修正 ── */}
+          {step === 'ocr_confirm' && (
+            <div className="space-y-4">
+
+              {/* 精度バッジ */}
+              <div className={`rounded-2xl px-4 py-3 flex items-center gap-3 ${
+                ocrConfidence === 'high' ? 'bg-emerald-50 border border-emerald-200' :
+                ocrConfidence === 'low'  ? 'bg-red-50 border border-red-200' :
+                'bg-amber-50 border border-amber-200'
+              }`}>
+                <span className="text-2xl">
+                  {ocrConfidence === 'high' ? '✅' : ocrConfidence === 'low' ? '🔍' : '⚠️'}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-black ${
+                    ocrConfidence === 'high' ? 'text-emerald-700' :
+                    ocrConfidence === 'low'  ? 'text-red-700' : 'text-amber-700'
+                  }`}>
+                    読み取り精度: {ocrConfidence === 'high' ? '高' : ocrConfidence === 'medium' ? '中' : '低'}
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    {ocrConfidence === 'high' ? 'すべての項目が明確に読み取れました' :
+                     ocrConfidence === 'low'  ? '手書きが不鮮明のため内容をご確認ください' :
+                     '一部推測が含まれます。太字の項目を重点的にご確認ください'}
+                  </p>
+                </div>
+              </div>
+
+              {/* 抽出結果フォーム */}
+              <div className="space-y-3.5">
+
+                {/* お直し種別 */}
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">
+                    お直し種別 <span className="text-red-500">*必須</span>
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {REPAIR_TYPES_DEF.map(t => (
+                      <button key={t.type} onClick={() => setRepairType(t.type as RepairType)}
+                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold border-2 transition-all active:scale-95 ${
+                          repairType === t.type
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-300'
+                        }`}>
+                        <span>{t.icon}</span>{t.label}
+                      </button>
+                    ))}
+                  </div>
+                  {!repairType && <p className="text-[10px] text-red-500 mt-1.5">⚠️ 伝票から読み取れませんでした。選択してください</p>}
+                </div>
+
+                {/* 品名 */}
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">品名</label>
+                  <input type="text" value={itemName} onChange={e => setItemName(e.target.value)}
+                    placeholder="例: スラックス 165A"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none bg-white shadow-sm" />
+                </div>
+
+                {/* 種別ごとの主要フィールド */}
+                {repairType === 'hem' && (
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">裾上げ量</label>
+                    <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
+                      <button onClick={() => setHemMm(hemMm - 5)} className="w-9 h-9 rounded-lg bg-gray-100 font-black text-gray-700 text-lg flex items-center justify-center active:scale-95">−</button>
+                      <p className={`flex-1 text-center text-2xl font-black ${hemMm !== 0 ? 'text-amber-600' : 'text-gray-300'}`}>{hemMm > 0 ? '+' : ''}{hemMm}mm</p>
+                      <button onClick={() => setHemMm(hemMm + 5)} className="w-9 h-9 rounded-lg bg-gray-100 font-black text-gray-700 text-lg flex items-center justify-center active:scale-95">＋</button>
+                    </div>
+                    <div className="flex gap-1 mt-1.5 flex-wrap">
+                      {[-30,-25,-20,-15,-10,-5,5,10,15,20,25,30].map(v => (
+                        <button key={v} onClick={() => setHemMm(v)}
+                          className={`flex-1 min-w-[calc(16.6%-4px)] py-1 rounded-lg text-[11px] font-bold border transition-all ${hemMm === v ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-300'}`}>
+                          {v > 0 ? '+' : ''}{v}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {repairType === 'sleeve' && (
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">袖丈調整量</label>
+                    <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
+                      <button onClick={() => setSleeveMm(sleeveMm - 5)} className="w-9 h-9 rounded-lg bg-gray-100 font-black text-gray-700 text-lg flex items-center justify-center active:scale-95">−</button>
+                      <p className={`flex-1 text-center text-2xl font-black ${sleeveMm !== 0 ? 'text-blue-600' : 'text-gray-300'}`}>{sleeveMm > 0 ? '+' : ''}{sleeveMm}mm</p>
+                      <button onClick={() => setSleeveMm(sleeveMm + 5)} className="w-9 h-9 rounded-lg bg-gray-100 font-black text-gray-700 text-lg flex items-center justify-center active:scale-95">＋</button>
+                    </div>
+                    <div className="flex gap-1 mt-1.5 flex-wrap">
+                      {[-30,-25,-20,-15,-10,-5,5,10,15,20,25,30].map(v => (
+                        <button key={v} onClick={() => setSleeveMm(v)}
+                          className={`flex-1 min-w-[calc(16.6%-4px)] py-1 rounded-lg text-[11px] font-bold border transition-all ${sleeveMm === v ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-300'}`}>
+                          {v > 0 ? '+' : ''}{v}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {repairType === 'waist' && (
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">ウエスト調整量</label>
+                    <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
+                      <button onClick={() => setWaistMm(waistMm - 5)} className="w-9 h-9 rounded-lg bg-gray-100 font-black text-gray-700 text-lg flex items-center justify-center active:scale-95">−</button>
+                      <p className={`flex-1 text-center text-2xl font-black ${waistMm !== 0 ? 'text-purple-600' : 'text-gray-300'}`}>{waistMm > 0 ? '+' : ''}{waistMm}mm</p>
+                      <button onClick={() => setWaistMm(waistMm + 5)} className="w-9 h-9 rounded-lg bg-gray-100 font-black text-gray-700 text-lg flex items-center justify-center active:scale-95">＋</button>
+                    </div>
+                    <div className="flex gap-1 mt-1.5 flex-wrap">
+                      {[-30,-25,-20,-15,-10,-5,5,10,15,20,25,30].map(v => (
+                        <button key={v} onClick={() => setWaistMm(v)}
+                          className={`flex-1 min-w-[calc(16.6%-4px)] py-1 rounded-lg text-[11px] font-bold border transition-all ${waistMm === v ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-300'}`}>
+                          {v > 0 ? '+' : ''}{v}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {repairType === 'embroidery' && (
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">刺繍文字</label>
+                      <input type="text" value={embText} onChange={e => setEmbText(e.target.value)}
+                        placeholder="例: 田中　花子"
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none bg-white shadow-sm" />
+                    </div>
+                    <div className="flex gap-1.5">
+                      {['黒', '白', '紺', '指定'].map(c => (
+                        <button key={c} onClick={() => setEmbColor(c)}
+                          className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition-all ${embColor === c ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-600'}`}>
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {repairType && !['hem', 'sleeve', 'waist', 'embroidery'].includes(repairType) && (
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">お直し内容</label>
+                    <input type="text" value={content} onChange={e => setContent(e.target.value)}
+                      placeholder="例: 右ひざほつれ修理"
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none bg-white shadow-sm" />
+                  </div>
+                )}
+
+                {/* 希望完了日・金額 */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">希望完了日</label>
+                    <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none bg-white shadow-sm" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">金額（税込）</label>
+                    <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="未読み取り"
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none bg-white shadow-sm" />
+                  </div>
+                </div>
+
+                {/* 顧客名（OCR読み取り） */}
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">読み取った顧客名</label>
+                  <div className="relative">
+                    <User size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input type="text" value={ocrCustomerName} onChange={e => setOcrCustomerName(e.target.value)}
+                      placeholder="未読み取り"
+                      className="w-full pl-8 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none bg-white shadow-sm" />
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1">次ステップの顧客検索に自動入力されます</p>
+                </div>
+
+                {/* スタッフメモ */}
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">スタッフメモ</label>
+                  <input type="text" value={internalMemo} onChange={e => setMemo(e.target.value)}
+                    placeholder="未読み取り"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none bg-white shadow-sm" />
+                </div>
+              </div>
+
+              {/* 要確認ウォーニング */}
+              {ocrWarnings.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 space-y-1">
+                  <p className="text-xs font-black text-amber-700 flex items-center gap-1.5">
+                    <ScanLine size={12} />要確認 ({ocrWarnings.length}箇所)
+                  </p>
+                  {ocrWarnings.map((w, i) => <p key={i} className="text-xs text-amber-600 pl-4">・{w}</p>)}
+                </div>
+              )}
+
+              {/* アクションボタン */}
+              <div className="flex gap-2.5">
+                <button onClick={() => fileInputRef.current?.click()} disabled={ocrLoading}
+                  className="flex items-center gap-1.5 px-4 py-3.5 border-2 border-gray-200 text-gray-600 text-sm font-bold rounded-2xl hover:bg-gray-50 active:scale-95 transition-all disabled:opacity-50 shrink-0">
+                  {ocrLoading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
+                  再撮影
+                </button>
+                <button
+                  onClick={() => {
+                    if (ocrCustomerName) setCustSearch(ocrCustomerName)
+                    setStep('details')
+                  }}
+                  disabled={!repairType}
+                  className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-sm rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-40 shadow-lg shadow-indigo-500/25">
+                  <Check size={16} />
+                  {repairType ? '確認OK・詳細フォームへ' : '種別を選択してください'}
+                </button>
+              </div>
             </div>
           )}
 

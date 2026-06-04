@@ -11,6 +11,7 @@ const REPAIR_SCHEMA = `
   "content": "お直し内容の自由記述 | null",
   "price": "金額(数値・円) | null",
   "customer_name": "顧客名(氏名) | null",
+  "tel": "電話番号(ハイフンあり・なし可) | null",
   "hem_length_mm": "裾上げ量(mm整数, 正=長く 負=短く) | null",
   "sleeve_adjust_mm": "袖丈調整量(mm整数) | null",
   "waist_adjust_mm": "ウエスト調整量(mm整数) | null",
