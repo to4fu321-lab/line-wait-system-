@@ -18,6 +18,7 @@ import {
 } from '@/types/crm'
 import type { RepairStatus, PurchaseStatus, RequestType, RepairType } from '@/types/crm'
 import { BottomNav } from '../_components/BottomNav'
+import { useStoreFeatures } from '@/lib/useStoreFeatures'
 
 function fmtDate(d: string | null) {
   if (!d) return ''
@@ -187,9 +188,10 @@ interface CustResult {
   children?: { id: string; name: string; school_name: string | null }[]
 }
 
-function NewRepairModal({ storeId, onClose, onSave, onToast }: {
+function NewRepairModal({ storeId, onClose, onSave, onToast, showOcr = true }: {
   storeId: string; onClose: () => void; onSave: () => void
   onToast: (t: 'ok' | 'err', m: string) => void
+  showOcr?: boolean
 }) {
   type Step = 'type' | 'ocr_confirm' | 'cat_repair' | 'details' | 'customer'
   const [step,           setStep]     = useState<Step>('type')
@@ -429,11 +431,13 @@ function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                : '👤 顧客選択'}
             </h2>
             {/* OCR ボタン */}
-            <button onClick={() => fileInputRef.current?.click()} disabled={ocrLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-60 shrink-0">
-              {ocrLoading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
-              {ocrLoading ? '解析中...' : '伝票読取'}
-            </button>
+            {showOcr && (
+              <button onClick={() => fileInputRef.current?.click()} disabled={ocrLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-60 shrink-0">
+                {ocrLoading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
+                {ocrLoading ? '解析中...' : '伝票読取'}
+              </button>
+            )}
             <div className="flex items-center gap-1">
               {steps.map((s, i) => (
                 <div key={s} className={`h-1.5 rounded-full transition-all ${step === s ? 'w-6 bg-indigo-600' : i < steps.indexOf(step) ? 'w-3 bg-indigo-300' : 'w-3 bg-gray-200'}`} />
@@ -3001,6 +3005,7 @@ type RepairSubTab = 'unstarted' | 'inprogress' | 'outsourced' | 'other'
 
 export default function RepairsPage() {
   const { storeId } = useParams<{ storeId: string }>()
+  const { hasFeature } = useStoreFeatures(storeId)
 
   const [tab,            setTab]            = useState<ActiveTab>('repair')
   const [deliverySubTab, setDeliverySubTab] = useState<DeliverySubTab>('waiting')
@@ -3379,11 +3384,13 @@ export default function RepairsPage() {
           {/* Title row */}
           <div className="flex items-center gap-2 mb-3">
             <h1 className="text-sm font-black text-gray-800 flex-1 tracking-tight">業務ダッシュボード</h1>
-            <button onClick={generateDummy} disabled={dummyLoading}
-              className="flex items-center gap-1 px-2 py-1.5 bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-400 text-[10px] font-bold rounded-lg transition-all disabled:opacity-50"
-              title="テスト用ダミーデータを追加">
-              {dummyLoading ? <Loader2 size={11} className="animate-spin" /> : <Database size={11} />}
-            </button>
+            {hasFeature('repairs_dummy') && (
+              <button onClick={generateDummy} disabled={dummyLoading}
+                className="flex items-center gap-1 px-2 py-1.5 bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-400 text-[10px] font-bold rounded-lg transition-all disabled:opacity-50"
+                title="テスト用ダミーデータを追加">
+                {dummyLoading ? <Loader2 size={11} className="animate-spin" /> : <Database size={11} />}
+              </button>
+            )}
             <button onClick={() => setShowNewOrder(true)}
               className="flex items-center gap-1.5 px-3 py-2 bg-teal-600 hover:bg-teal-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-teal-600/20">
               <ShoppingCart size={12} />制服注文
@@ -3433,13 +3440,17 @@ export default function RepairsPage() {
             </div>
 
             {/* Tab buttons */}
-            <div className="grid grid-cols-4 gap-1 border-t border-white/15 pt-2 -mx-4 px-4">
-              {([
-                { id: 'repair'   as const, emoji: '✂️', label: 'お直し',   count: repairs.length },
-                { id: 'purchase' as const, emoji: '📦', label: '発注',     count: purchaseUnordered.length + uniformOrders.length },
-                { id: 'arrival'  as const, emoji: '🚚', label: '入荷待ち', count: purchaseOnOrder.length + purchaseStocked.length },
-                { id: 'delivery' as const, emoji: '🎁', label: 'お渡し',   count: waiting.length },
-              ]).map(t => (
+            {(() => {
+              const dashTabs = [
+                { id: 'repair'   as const, feat: null,                      emoji: '✂️', label: 'お直し',   count: repairs.length },
+                { id: 'purchase' as const, feat: 'repairs_tab_purchase' as const, emoji: '📦', label: '発注',     count: purchaseUnordered.length + uniformOrders.length },
+                { id: 'arrival'  as const, feat: 'repairs_tab_arrival'  as const, emoji: '🚚', label: '入荷待ち', count: purchaseOnOrder.length + purchaseStocked.length },
+                { id: 'delivery' as const, feat: 'repairs_tab_delivery' as const, emoji: '🎁', label: 'お渡し',   count: waiting.length },
+              ].filter(t => t.feat === null || hasFeature(t.feat))
+              return (
+            <div className={`grid gap-1 border-t border-white/15 pt-2 -mx-4 px-4`}
+              style={{ gridTemplateColumns: `repeat(${dashTabs.length}, 1fr)` }}>
+              {dashTabs.map(t => (
                 <button key={t.id} onClick={() => { setTab(t.id); setSearchText(''); setBatchSelected(new Set()) }}
                   className={`rounded-t-xl py-2.5 text-center transition-all active:scale-[0.97] ${
                     tab === t.id
@@ -3453,6 +3464,8 @@ export default function RepairsPage() {
                 </button>
               ))}
             </div>
+              )
+            })()}
           </div>
         </div>
       </div>
@@ -3858,6 +3871,7 @@ export default function RepairsPage() {
           onClose={() => setShowNewRepair(false)}
           onSave={fetchAll}
           onToast={showToast}
+          showOcr={hasFeature('repairs_ocr')}
         />
       )}
       {showNewOrder && (

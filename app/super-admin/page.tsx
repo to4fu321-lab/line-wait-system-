@@ -7,8 +7,25 @@ import {
 } from 'lucide-react'
 import ColorPicker from '@/app/_components/ColorPicker'
 import type { Store, BusinessType } from '@/types/database'
+import { PLAN_DEFS, type Plan, type FeatureKey } from '@/lib/features'
 
 const SUPER_ADMIN_PIN = process.env.NEXT_PUBLIC_SUPER_ADMIN_PIN || '9999'
+
+// ── 細粒度フラグ（プランに加えて個別 on/off できる項目） ────────
+const GRANULAR_FEATURES: { key: FeatureKey; label: string; icon: string }[] = [
+  { key: 'tab_queue',            label: '受付タブ',         icon: '🔢' },
+  { key: 'tab_repairs',          label: '案件タブ',         icon: '✂️' },
+  { key: 'tab_crm',              label: '顧客タブ',         icon: '👥' },
+  { key: 'repairs_tab_purchase', label: '発注サブタブ',     icon: '📋' },
+  { key: 'repairs_tab_arrival',  label: '入荷待ちサブタブ', icon: '🚚' },
+  { key: 'repairs_tab_delivery', label: 'お渡しサブタブ',   icon: '🎁' },
+  { key: 'repairs_ocr',          label: '伝票OCR',          icon: '📷' },
+  { key: 'repairs_master',       label: '料金マスタ',       icon: '📐' },
+  { key: 'repairs_dummy',        label: 'テストデータ生成', icon: '🗄️' },
+  { key: 'reservation',         label: '採寸予約',         icon: '📅' },
+  { key: 'orders',              label: '注文管理',         icon: '🛒' },
+  { key: 'takeout',             label: 'テイクアウト',     icon: '🥡' },
+]
 
 const FEATURES: { key: string; label: string; icon: string }[] = [
   { key: 'queue',           label: '順番待ち',    icon: '🔢' },
@@ -219,21 +236,75 @@ function StoreCard({
             </div>
           </div>
 
-          {/* 機能フラグ */}
+          {/* ── プラン選択 ── */}
           <div>
-            <p className="text-[10px] text-gray-400 mb-1.5 uppercase tracking-wider">利用機能（プラン）</p>
-            <div className="grid grid-cols-2 gap-1">
-              {FEATURES.map(f => {
-                const on = features[f.key] !== false
+            <p className="text-[10px] text-gray-400 mb-2 uppercase tracking-wider">プラン（機能セット）</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {(Object.entries(PLAN_DEFS) as [Plan, typeof PLAN_DEFS[Plan]][]).map(([key, def]) => {
+                const currentPlan = (features._plan as Plan | undefined) ?? 'full'
+                const selected = currentPlan === key
                 return (
-                  <button key={f.key} onClick={() => setFeatures(prev => ({ ...prev, [f.key]: !on }))}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-left text-xs font-bold transition-all ${
-                      on ? 'border-indigo-500/50 bg-indigo-500/10 text-indigo-300' : 'border-gray-700 bg-gray-700/50 text-gray-500'
+                  <button key={key}
+                    onClick={() => setFeatures(prev => {
+                      // プラン変更時は個別オーバーライドをリセット
+                      const { _plan: _p, ...overrides } = prev as Record<string, unknown>
+                      void _p
+                      const planFeatureKeys = Object.keys(def.features) as FeatureKey[]
+                      const cleaned = Object.fromEntries(
+                        Object.entries(overrides).filter(([k]) => !planFeatureKeys.includes(k as FeatureKey))
+                      )
+                      return { ...cleaned, _plan: key }
+                    })}
+                    className={`flex flex-col gap-0.5 px-2.5 py-2 rounded-xl border text-left transition-all ${
+                      selected
+                        ? `${def.tailwind} ring-1 ring-current`
+                        : 'border-gray-700 bg-gray-700/40 text-gray-500 hover:bg-gray-700'
                     }`}>
-                    <span className="text-[13px]">{f.icon}</span>
-                    <span className="flex-1 text-[11px]">{f.label}</span>
-                    <div className={`w-6 h-3.5 rounded-full shrink-0 transition-colors ${on ? 'bg-indigo-500' : 'bg-gray-600'}`}>
-                      <div className={`w-2.5 h-2.5 bg-white rounded-full mt-0.5 transition-transform shadow ${on ? 'translate-x-3' : 'translate-x-0.5'}`} />
+                    <span className="text-base leading-none">{def.emoji}</span>
+                    <span className="text-[11px] font-black leading-none mt-0.5">{def.label}</span>
+                    <span className="text-[9px] leading-tight opacity-70">{def.desc}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* ── 個別フラグ（プランからの上書き） ── */}
+          <div>
+            <p className="text-[10px] text-gray-400 mb-1.5 uppercase tracking-wider">個別オーバーライド（プランより優先）</p>
+            <div className="grid grid-cols-2 gap-1">
+              {GRANULAR_FEATURES.map(f => {
+                const currentPlan = (features._plan as Plan | undefined) ?? 'full'
+                const planDefault = PLAN_DEFS[currentPlan]?.features[f.key as FeatureKey]
+                const override = (features as Record<string, unknown>)[f.key]
+                const effective = override !== undefined ? (override as boolean) : (planDefault !== false)
+                const hasOverride = override !== undefined && override !== planDefault
+                return (
+                  <button key={f.key}
+                    onClick={() => setFeatures(prev => {
+                      const next = { ...prev }
+                      if (override === undefined) {
+                        // 未設定 → planDefault の反転
+                        next[f.key] = !effective
+                      } else if (override === planDefault) {
+                        // plan と同値 → 削除（override 解除）
+                        delete next[f.key]
+                      } else {
+                        // 逆値 → 削除（override 解除）
+                        delete next[f.key]
+                      }
+                      return next
+                    })}
+                    className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl border text-left text-xs font-bold transition-all ${
+                      effective
+                        ? 'border-indigo-500/50 bg-indigo-500/10 text-indigo-300'
+                        : 'border-gray-700 bg-gray-700/50 text-gray-500'
+                    }`}>
+                    <span className="text-[12px]">{f.icon}</span>
+                    <span className="flex-1 text-[10px] leading-tight">{f.label}</span>
+                    {hasOverride && <span className="text-[8px] px-1 py-0.5 rounded bg-amber-500/30 text-amber-300 font-black shrink-0">上書</span>}
+                    <div className={`w-6 h-3.5 rounded-full shrink-0 transition-colors ${effective ? 'bg-indigo-500' : 'bg-gray-600'}`}>
+                      <div className={`w-2.5 h-2.5 bg-white rounded-full mt-0.5 transition-transform shadow ${effective ? 'translate-x-3' : 'translate-x-0.5'}`} />
                     </div>
                   </button>
                 )

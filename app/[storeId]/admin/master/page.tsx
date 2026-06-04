@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import {
   ChevronLeft, ChevronRight, Plus, Pencil, Trash2,
   GraduationCap, Package, Tag, Loader2, X, AlertCircle, Users, UserCircle, Scissors, ScanLine,
@@ -66,6 +67,7 @@ function MasterPageInner() {
   const storeId      = params?.storeId ?? ''
   const router       = useRouter()
   const searchParams = useSearchParams()
+  const { hasFeature, loaded: featLoaded } = useStoreFeatures(storeId)
 
   // ── Tab ──────────────────────────────────────────────────
   const initialTab = (searchParams?.get('tab') ?? 'schools') as MasterTab
@@ -562,6 +564,18 @@ function MasterPageInner() {
   // ============================================================
   // Render
   // ============================================================
+  if (featLoaded && !hasFeature('repairs_master')) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-6 text-center">
+        <div className="text-5xl mb-4">🔒</div>
+        <h1 className="text-lg font-black text-gray-800 mb-2">このページは現在のプランでは利用できません</h1>
+        <p className="text-sm text-gray-400 mb-6">スーパー管理画面でプランを変更するか、管理者にお問い合わせください</p>
+        <button onClick={() => router.back()}
+          className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-2xl">戻る</button>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 pb-10">
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}

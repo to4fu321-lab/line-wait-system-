@@ -5,12 +5,13 @@ import { useParams, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Timer, Search, Settings, ClipboardList } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useStoreFeatures } from '@/lib/useStoreFeatures'
 
-const TABS = [
-  { id: 'queue',    label: '受付',  icon: Timer,         exact: true,  path: (sid: string) => `/${sid}/admin` },
-  { id: 'repairs',  label: '案件',  icon: ClipboardList, exact: false, path: (sid: string) => `/${sid}/admin/repairs` },
-  { id: 'crm',      label: '顧客',  icon: Search,        exact: false, path: (sid: string) => `/${sid}/admin/crm` },
-  { id: 'settings', label: '設定',  icon: Settings,      exact: false, path: (sid: string) => `/${sid}/admin/settings/staff` },
+const ALL_TABS = [
+  { id: 'queue',    featureKey: 'tab_queue',   label: '受付',  icon: Timer,         exact: true,  path: (sid: string) => `/${sid}/admin` },
+  { id: 'repairs',  featureKey: 'tab_repairs',  label: '案件',  icon: ClipboardList, exact: false, path: (sid: string) => `/${sid}/admin/repairs` },
+  { id: 'crm',      featureKey: 'tab_crm',      label: '顧客',  icon: Search,        exact: false, path: (sid: string) => `/${sid}/admin/crm` },
+  { id: 'settings', featureKey: null,            label: '設定',  icon: Settings,      exact: false, path: (sid: string) => `/${sid}/admin/settings/staff` },
 ] as const
 
 export function BottomNav() {
@@ -18,6 +19,7 @@ export function BottomNav() {
   const pathname = usePathname()
   const storeId  = params?.storeId ?? ''
   const [repairBadge, setRepairBadge] = useState(0)
+  const { hasFeature } = useStoreFeatures(storeId)
 
   useEffect(() => {
     if (!storeId) return
@@ -39,7 +41,11 @@ export function BottomNav() {
     return () => clearInterval(t)
   }, [storeId])
 
-  function isActive(tab: typeof TABS[number]) {
+  const tabs = ALL_TABS.filter(t =>
+    t.featureKey === null || hasFeature(t.featureKey as Parameters<typeof hasFeature>[0])
+  )
+
+  function isActive(tab: typeof ALL_TABS[number]) {
     const target = tab.path(storeId)
     if (tab.exact) return pathname === target || pathname === target + '/'
     return pathname.startsWith(target)
@@ -51,9 +57,9 @@ export function BottomNav() {
 
       <nav className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-gray-200 shadow-sm" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="flex max-w-lg mx-auto">
-          {TABS.map(tab => {
-            const active       = isActive(tab)
-            const Icon         = tab.icon
+          {tabs.map(tab => {
+            const active     = isActive(tab)
+            const Icon       = tab.icon
             const badgeCount = tab.id === 'repairs' ? repairBadge : 0
             return (
               <Link
