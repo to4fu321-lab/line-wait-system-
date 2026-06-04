@@ -26,6 +26,7 @@ export interface SchoolProduct {
   category:    string | null
   gender:      string | null
   notes:       string | null
+  barcode:     string | null   // JAN/EAN/QRコード・バーコード値
   sort_order:  number
   active:      boolean
   created_at:  string
