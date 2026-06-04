@@ -19,6 +19,7 @@ import {
 import type { RepairStatus, PurchaseStatus, RequestType, RepairType } from '@/types/crm'
 import { BottomNav } from '../_components/BottomNav'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
+import { useDeviceMode } from '@/lib/useDeviceMode'
 
 function fmtDate(d: string | null) {
   if (!d) return ''
@@ -3006,6 +3007,7 @@ type RepairSubTab = 'unstarted' | 'inprogress' | 'outsourced' | 'other'
 export default function RepairsPage() {
   const { storeId } = useParams<{ storeId: string }>()
   const { hasFeature } = useStoreFeatures(storeId)
+  const { isTablet } = useDeviceMode()
 
   const [tab,            setTab]            = useState<ActiveTab>('repair')
   const [deliverySubTab, setDeliverySubTab] = useState<DeliverySubTab>('waiting')
@@ -3379,7 +3381,7 @@ export default function RepairsPage() {
     <div className="min-h-[100dvh] bg-gray-50 text-gray-900">
       {/* ── Header / Dashboard ────────────────────────────── */}
       <div className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-100" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-        <div className="max-w-2xl mx-auto px-4 pt-3 pb-3">
+        <div className={`${isTablet ? 'px-6' : 'max-w-2xl mx-auto px-4'} pt-3 pb-3`}>
 
           {/* Title row */}
           <div className="flex items-center gap-2 mb-3">
@@ -3471,7 +3473,7 @@ export default function RepairsPage() {
       </div>
 
       {/* ── Body ────────────────────────────────────────────── */}
-      <div className="max-w-2xl mx-auto px-4 pt-4 pb-32 space-y-3">
+      <div className={`${isTablet ? 'px-6 pb-8' : 'max-w-2xl mx-auto px-4 pb-32'} pt-4 space-y-3`}>
         {fetchError && (
           <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-xs text-red-600 flex items-center gap-2">
             <AlertCircle size={13} />DBエラー: {fetchError}
@@ -3592,7 +3594,7 @@ export default function RepairsPage() {
                     </button>
                   )}
                 </div>
-                <div className="space-y-1.5">
+                <div className={isTablet ? 'grid grid-cols-2 gap-2' : 'space-y-1.5'}>
                   {filteredRepairs.map(r => (
                     <RepairCard key={r.id} item={r} storeId={storeId} onRefresh={fetchAll} onToast={showToast}
                       onEdit={item => { setEditItem(item); setEditKind('repair') }}

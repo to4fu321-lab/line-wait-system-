@@ -3,9 +3,10 @@
 import Link from 'next/link'
 import { useParams, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Timer, Search, Settings, ClipboardList } from 'lucide-react'
+import { Timer, Search, Settings, ClipboardList, Monitor } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
+import { useDeviceMode } from '@/lib/useDeviceMode'
 
 const ALL_TABS = [
   { id: 'queue',    featureKey: 'tab_queue',   label: '受付',  icon: Timer,         exact: true,  path: (sid: string) => `/${sid}/admin` },
@@ -20,6 +21,7 @@ export function BottomNav() {
   const storeId  = params?.storeId ?? ''
   const [repairBadge, setRepairBadge] = useState(0)
   const { hasFeature } = useStoreFeatures(storeId)
+  const { isTablet, setMode } = useDeviceMode()
 
   useEffect(() => {
     if (!storeId) return
@@ -40,6 +42,9 @@ export function BottomNav() {
     const t = setInterval(fetchBadges, 60000)
     return () => clearInterval(t)
   }, [storeId])
+
+  // In tablet mode the SideNav handles navigation — hide BottomNav
+  if (isTablet) return null
 
   const tabs = ALL_TABS.filter(t =>
     t.featureKey === null || hasFeature(t.featureKey as Parameters<typeof hasFeature>[0])
@@ -88,6 +93,16 @@ export function BottomNav() {
               </Link>
             )
           })}
+          {/* Tablet mode toggle — long-press / tap the Monitor icon */}
+          <button
+            onClick={() => setMode('tablet')}
+            style={{ touchAction: 'manipulation' }}
+            className="flex flex-col items-center justify-center gap-0.5 py-2 px-3 text-gray-300 active:text-gray-500 transition-none"
+            title="タブレットモードに切替"
+          >
+            <Monitor size={16} strokeWidth={1.5} />
+            <span className="text-[8px] leading-none font-medium">PCモード</span>
+          </button>
         </div>
       </nav>
     </>
