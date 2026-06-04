@@ -1465,11 +1465,16 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected, onTog
             )}
           </div>
 
-          {/* Row 2: content + price */}
-          <div className="flex items-baseline gap-1.5">
-            <p className="text-sm font-black text-gray-900 leading-tight flex-1 truncate">
-              {item.content || item.item_name || '内容未記入'}
-            </p>
+          {/* Row 2: アイテム名 + 内容 + 金額 */}
+          <div className="flex items-start gap-1.5">
+            <div className="flex-1 min-w-0">
+              {item.item_name && item.content && item.item_name !== item.content && (
+                <p className="text-[10px] text-gray-400 truncate leading-none mb-0.5">{item.item_name}</p>
+              )}
+              <p className="text-sm font-black text-gray-900 leading-tight truncate">
+                {item.content || item.item_name || '内容未記入'}
+              </p>
+            </div>
             {item.price != null && (
               <span className={`text-sm font-black shrink-0 ${item.prepaid ? 'text-gray-400' : 'text-red-600'}`}>
                 ¥{item.price.toLocaleString()}
@@ -1477,12 +1482,17 @@ function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected, onTog
             )}
           </div>
 
-          {/* Row 3: school + name + received date */}
+          {/* Row 3: 学校名 + 子供名 + 保護者名 + 受付日 */}
           <div className="flex items-center gap-1.5 mt-0.5">
             {item.child?.school_name && (
               <span className="text-[10px] font-black text-amber-600 truncate max-w-[7rem]">{item.child.school_name}</span>
             )}
-            <span className="text-xs font-bold text-gray-700 truncate flex-1">{name}</span>
+            <span className="text-xs font-bold text-gray-700 truncate flex-1">
+              {item.child?.name ?? item.customer?.name ?? '（顧客不明）'}
+              {item.child?.name && item.customer?.name && (
+                <span className="text-[10px] text-gray-400 font-normal ml-1">({item.customer.name})</span>
+              )}
+            </span>
             <span className="text-[10px] text-gray-400 shrink-0">受付{fmtDate(item.received_date)}</span>
             {item.slip_number && <span className="text-[10px] font-mono text-gray-300 shrink-0">#{item.slip_number}</span>}
           </div>
