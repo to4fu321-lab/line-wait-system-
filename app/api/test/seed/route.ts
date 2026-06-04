@@ -3,19 +3,6 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-const TEST_CUSTOMERS = [
-  { name: '【テスト】田中 太郎', kana: 'タナカ タロウ', tel: '090-0001-0001',
-    child: { name: '田中 太一', kana: 'タナカ タイチ', school: '○○中学校', grade: '中学1年', gender: 'male' } },
-  { name: '【テスト】佐藤 花子', kana: 'サトウ ハナコ', tel: '090-0002-0002',
-    child: { name: '佐藤 さくら', kana: 'サトウ サクラ', school: '○○中学校', grade: '中学2年', gender: 'female' } },
-  { name: '【テスト】鈴木 次郎', kana: 'スズキ ジロウ', tel: '090-0003-0003',
-    child: { name: '鈴木 健一', kana: 'スズキ ケンイチ', school: '○○高等学校', grade: '高校1年', gender: 'male' } },
-  { name: '【テスト】山田 美咲', kana: 'ヤマダ ミサキ', tel: '090-0004-0004',
-    child: { name: '山田 ひなた', kana: 'ヤマダ ヒナタ', school: '○○高等学校', grade: '高校2年', gender: 'female' } },
-  { name: '【テスト】伊藤 健太', kana: 'イトウ ケンタ', tel: '090-0005-0005',
-    child: { name: '伊藤 翔', kana: 'イトウ ショウ', school: '○○中学校', grade: '中学3年', gender: 'male' } },
-]
-
 function daysAgo(n: number) {
   return new Date(Date.now() - n * 86400000).toISOString().slice(0, 10)
 }
@@ -28,7 +15,50 @@ export async function POST(req: NextRequest) {
   const created: string[] = []
 
   try {
-    // 1. 顧客・お子様を作成（再実行時は既存レコードを検索してIDを使う）
+    // 0. マスタから学校・商品を取得してテストデータに反映
+    const { data: masterSchools } = await (supabase as any).from('schools')
+      .select('id, name').eq('store_id', storeId).eq('active', true).order('sort_order').limit(5)
+
+    type MasterProduct = { name: string; price: number | null }
+    let masterProducts: MasterProduct[] = []
+    if (masterSchools && (masterSchools as any[]).length > 0) {
+      const { data: prods } = await (supabase as any).from('school_products')
+        .select('item_name, school_id, school_product_variants(price, sort_order)')
+        .in('school_id', (masterSchools as any[]).map(s => s.id))
+        .eq('active', true).order('sort_order').limit(20)
+      if (prods) {
+        masterProducts = (prods as any[]).map(p => {
+          const variants = ((p.school_product_variants ?? []) as { price: number | null; sort_order: number }[])
+          variants.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+          return { name: p.item_name as string, price: variants[0]?.price ?? null }
+        })
+      }
+    }
+
+    const schoolForIdx = (i: number): string => {
+      if (masterSchools && (masterSchools as any[]).length > 0) {
+        return (masterSchools as any[])[i % (masterSchools as any[]).length].name
+      }
+      return i < 3 ? '○○中学校' : '○○高等学校'
+    }
+
+    const mp = (i: number): MasterProduct | null => masterProducts[i] ?? null
+
+    // 1. テスト顧客定義（学校はマスタに合わせる）
+    const TEST_CUSTOMERS = [
+      { name: '【テスト】田中 太郎', kana: 'タナカ タロウ', tel: '090-0001-0001',
+        child: { name: '田中 太一', kana: 'タナカ タイチ', school: schoolForIdx(0), grade: '中学1年', gender: 'male' } },
+      { name: '【テスト】佐藤 花子', kana: 'サトウ ハナコ', tel: '090-0002-0002',
+        child: { name: '佐藤 さくら', kana: 'サトウ サクラ', school: schoolForIdx(1), grade: '中学2年', gender: 'female' } },
+      { name: '【テスト】鈴木 次郎', kana: 'スズキ ジロウ', tel: '090-0003-0003',
+        child: { name: '鈴木 健一', kana: 'スズキ ケンイチ', school: schoolForIdx(2), grade: '高校1年', gender: 'male' } },
+      { name: '【テスト】山田 美咲', kana: 'ヤマダ ミサキ', tel: '090-0004-0004',
+        child: { name: '山田 ひなた', kana: 'ヤマダ ヒナタ', school: schoolForIdx(3), grade: '高校2年', gender: 'female' } },
+      { name: '【テスト】伊藤 健太', kana: 'イトウ ケンタ', tel: '090-0005-0005',
+        child: { name: '伊藤 翔', kana: 'イトウ ショウ', school: schoolForIdx(4), grade: '中学3年', gender: 'male' } },
+    ]
+
+    // 2. 顧客・お子様を作成（再実行時は既存レコードを検索してIDを使う）
     const customerIds: (string | null)[] = []
     const childIds:    (string | null)[] = []
 
@@ -41,7 +71,6 @@ export async function POST(req: NextRequest) {
       }).select('id').single()
 
       if (newCust) {
-        // 新規顧客: お子様も挿入
         custId = newCust.id
         created.push(`顧客: ${tc.name}`)
         const { data: newChild } = await supabase.from('children').insert({
@@ -50,8 +79,8 @@ export async function POST(req: NextRequest) {
           school_name: tc.child.school, grade: tc.child.grade,
         }).select('id').single()
         childId = newChild?.id ?? null
+        if (childId) created.push(`  お子様: ${tc.child.name}（${tc.child.school} ${tc.child.grade}）`)
       } else {
-        // 既存顧客: IDと既存のお子様を検索のみ（新規挿入しない＝重複防止）
         console.warn('[seed] customer insert skipped, looking up existing:', custErr?.message)
         const { data: existing } = await supabase.from('customers')
           .select('id').eq('store_id', storeId).eq('name', tc.name).single()
@@ -63,12 +92,11 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // 必ず5要素を維持（インデックスがズレないよう常にpush）
       customerIds.push(custId)
       childIds.push(childId)
     }
 
-    // 2. 整理券（待ち）3件 — 身長・体重の事前入力テスト用
+    // 3. 整理券（待ち）3件 — 身長・体重の事前入力テスト用
     const todayJst = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
     const { data: maxRows } = await supabase.from('queues')
       .select('ticket_number').eq('store_id', storeId)
@@ -102,20 +130,16 @@ export async function POST(req: NextRequest) {
         details:     Object.keys(details).length ? details : null,
       })
       if (qErr) { console.error('[seed] queue insert error:', qErr.message); continue }
-      created.push(`整理券: No.${String(ticketNum).padStart(3,'0')} ${tc.name.replace('【テスト】','')} 身長${d.height}cm`)
+      created.push(`整理券: No.${String(ticketNum).padStart(3,'0')} ${tc.name.replace('【テスト】','')}`)
     }
 
-    // 3. 取置き依頼 — 各ステータスを網羅（期限超過テスト含む）
+    // 4. 取置き依頼 — マスタ商品があれば実商品名・価格を使用
     const purchases = [
-      // 通常フロー中
-      { idx: 0, item: 'ワイシャツ（長袖）（170）',  price: 3200,  status: 'ordered',   ordered: today,        arrived: null,        note: '数量：1点' },
-      { idx: 1, item: 'ブレザー（M）',              price: 18000, status: 'on_order',  ordered: daysAgo(5),   arrived: null,        note: 'メーカー取り寄せ' },
-      // 入荷連絡済み・正常（3日前）
-      { idx: 2, item: 'スラックス（W72）',           price: 5800,  status: 'arrived',   ordered: daysAgo(10),  arrived: daysAgo(3),  note: '' },
-      // 入荷連絡済み・期限超過（10日前 → アラートバッジ表示テスト）
-      { idx: 3, item: 'セーラー服（M）',             price: 12000, status: 'arrived',   ordered: daysAgo(20),  arrived: daysAgo(10), note: '連絡済みだが未取りに来ない' },
-      // お渡し済み（完了済み履歴テスト）
-      { idx: 4, item: '体操服上下セット',            price: 4500,  status: 'delivered', ordered: daysAgo(14),  arrived: daysAgo(7),  note: '' },
+      { idx: 0, item: mp(0)?.name ?? 'ワイシャツ（長袖）（170）',  price: mp(0)?.price ?? 3200,  status: 'ordered',   ordered: today,        arrived: null,        note: '数量：1点' },
+      { idx: 1, item: mp(1)?.name ?? 'ブレザー（M）',              price: mp(1)?.price ?? 18000, status: 'on_order',  ordered: daysAgo(5),   arrived: null,        note: 'メーカー取り寄せ' },
+      { idx: 2, item: mp(2)?.name ?? 'スラックス（W72）',           price: mp(2)?.price ?? 5800,  status: 'arrived',   ordered: daysAgo(10),  arrived: daysAgo(3),  note: '' },
+      { idx: 3, item: mp(3)?.name ?? 'セーラー服（M）',             price: mp(3)?.price ?? 12000, status: 'arrived',   ordered: daysAgo(20),  arrived: daysAgo(10), note: '連絡済みだが未取りに来ない' },
+      { idx: 4, item: mp(4)?.name ?? '体操服上下セット',            price: mp(4)?.price ?? 4500,  status: 'delivered', ordered: daysAgo(14),  arrived: daysAgo(7),  note: '' },
     ]
     for (const p of purchases) {
       const cId  = customerIds[p.idx]
@@ -133,18 +157,13 @@ export async function POST(req: NextRequest) {
       created.push(`取置き[${p.status}]: ${p.item}`)
     }
 
-    // 4. お直し・問合せ依頼 — 各ステータス・各タイプを網羅（期限超過テスト含む）
+    // 5. お直し・問合せ依頼 — 各ステータス・各タイプを網羅（期限超過テスト含む）
     const repairs = [
-      // お直し預かり中
-      { idx: 0, item: 'スカート丈つめ',       content: '3cm短く',         price: 1500, status: 'received',  requestType: 'repair',         received: today,       completed: null,       delivered: null },
-      // お直し完了連絡済み・正常（3日前）
-      { idx: 1, item: 'ズボン丈つめ',          content: '2cm短く',         price: 1200, status: 'completed', requestType: 'repair',         received: daysAgo(7),  completed: daysAgo(3), delivered: null },
-      // お直し相談（受付中）
-      { idx: 2, item: 'ブレザー',             content: '採寸・見積り相談', price: null, status: 'received',  requestType: 'repair_consult', received: daysAgo(1),  completed: null,       delivered: null },
-      // お直し完了連絡済み・期限超過（10日前 → アラートバッジ表示テスト）
-      { idx: 3, item: 'スカートウエスト調整', content: '2cm詰め',         price: 1800, status: 'completed', requestType: 'repair',         received: daysAgo(18), completed: daysAgo(10),delivered: null },
-      // その他問合せ（受付中）
-      { idx: 4, item: 'サイズ確認の問合せ',   content: '165Aと170Aの違いを確認したい', price: null, status: 'received', requestType: 'inquiry', received: daysAgo(2), completed: null, delivered: null },
+      { idx: 0, item: mp(2)?.name ?? 'スカート丈つめ',       content: '3cm短く',                               price: 1500, status: 'received',  requestType: 'repair',         received: today,       completed: null,        delivered: null },
+      { idx: 1, item: mp(1)?.name ?? 'ズボン丈つめ',          content: '2cm短く',                               price: 1200, status: 'completed', requestType: 'repair',         received: daysAgo(7),  completed: daysAgo(3),  delivered: null },
+      { idx: 2, item: mp(0)?.name ?? 'ブレザー',             content: '採寸・見積り相談',                       price: null, status: 'received',  requestType: 'repair_consult', received: daysAgo(1),  completed: null,        delivered: null },
+      { idx: 3, item: mp(2)?.name ?? 'スカートウエスト調整', content: 'ウエスト調整2cm詰め',                    price: 1800, status: 'completed', requestType: 'repair',         received: daysAgo(18), completed: daysAgo(10), delivered: null },
+      { idx: 4, item: 'サイズ確認の問合せ',                  content: `${mp(0)?.name ?? '制服'}のサイズについて確認したい`, price: null, status: 'received', requestType: 'inquiry', received: daysAgo(2), completed: null, delivered: null },
     ]
     for (const r of repairs) {
       const cId  = customerIds[r.idx]
@@ -163,7 +182,10 @@ export async function POST(req: NextRequest) {
       created.push(`${r.requestType}[${r.status}]: ${r.item}`)
     }
 
-    return NextResponse.json({ ok: true, created })
+    const usedMaster = masterProducts.length > 0
+      ? `（マスタ商品 ${masterProducts.length}件・学校 ${(masterSchools as any[]).length}校を参照）`
+      : '（マスタ商品未登録のためデフォルト品名を使用）'
+    return NextResponse.json({ ok: true, created, note: usedMaster })
   } catch (e) {
     console.error('[test/seed]', e)
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 })

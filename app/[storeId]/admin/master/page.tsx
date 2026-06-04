@@ -241,14 +241,14 @@ function MasterPageInner() {
     setPresetsLoading(false)
   }, [storeId])
 
-  const openPresetModal = (preset?: RepairPreset) => {
+  const openPresetModal = (preset?: RepairPreset, defaultCategoryId?: string | null, defaultRepairType?: RepairType) => {
     setEditingPreset(preset ?? null)
     setPpItemName(preset?.item_name ?? '')
-    setPpRepairType((preset?.repair_type ?? 'hem') as RepairType)
+    setPpRepairType((preset?.repair_type ?? defaultRepairType ?? 'hem') as RepairType)
     setPpSchoolName(preset?.school_name ?? '')
     setPpPrice(preset?.default_price != null ? String(preset.default_price) : '')
     setPpNotes(preset?.notes ?? '')
-    setPpCategoryId(preset?.category_id ?? null)
+    setPpCategoryId(preset?.category_id ?? defaultCategoryId ?? null)
     setPresetModal(true)
   }
 
@@ -530,32 +530,60 @@ function MasterPageInner() {
       <div className="px-4 py-4 max-w-lg mx-auto space-y-3">
 
         {/* ================================================================
-            お直し料金プリセット
+            お直し料金プリセット（服種×お直し種別の2階層）
         ================================================================ */}
         {masterTab === 'presets' && (
           <>
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-gray-500">お直し受付時にワンタップで品名・金額を入力できます</p>
-            </div>
+            <p className="text-xs text-gray-500">服種（大項目）ごとにお直し料金を設定します。設定内容はお直し受付画面に反映されます。</p>
 
-            {/* ── アイテムカテゴリ管理 ──────────────────────────── */}
+            {/* ── 大項目（服種）管理 ──────────────────────────── */}
             <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                <p className="text-sm font-black text-gray-800 flex items-center gap-2"><Scissors size={14} className="text-amber-500" />品名カテゴリ</p>
+                <p className="text-sm font-black text-gray-800 flex items-center gap-2">
+                  <Scissors size={14} className="text-amber-500" />大項目（服種）
+                </p>
                 <button onClick={() => openCatModal()}
                   className="flex items-center gap-1 text-[10px] font-bold text-amber-600 hover:text-amber-800 px-2 py-1 rounded-lg hover:bg-amber-50 transition-all">
                   <Plus size={11} />追加
                 </button>
               </div>
               {categories.length === 0 ? (
-                <p className="text-xs text-gray-400 px-4 py-3">カテゴリ未登録（例：詰め襟・ブレザー・スラックス）</p>
+                <div className="p-4 space-y-2">
+                  <p className="text-xs text-gray-400">服種カテゴリが未登録です。おすすめから追加できます：</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { name: '上着・ジャケット', icon: '🧥' },
+                      { name: 'スラックス', icon: '👖' },
+                      { name: 'スカート', icon: '👗' },
+                      { name: 'ワイシャツ', icon: '👔' },
+                    ].map((d, i) => (
+                      <button key={d.name}
+                        onClick={async () => {
+                          await (supabase as any).from('repair_item_categories').insert({
+                            store_id: storeId, name: d.name, sort_order: i,
+                          })
+                          fetchCategories()
+                          showToast('ok', `「${d.name}」を追加しました`)
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-xl text-xs font-bold text-amber-700 hover:bg-amber-100 transition-all active:scale-95">
+                        <span>{d.icon}</span>{d.name}<Plus size={9} className="opacity-60" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ) : (
-                <div className="divide-y divide-gray-100">
+                <div className="px-4 py-3 flex flex-wrap gap-2">
                   {categories.map(cat => (
-                    <div key={cat.id} className="flex items-center gap-3 px-4 py-2.5">
-                      <p className="flex-1 text-sm font-bold text-gray-800">{cat.name}</p>
-                      <button onClick={() => openCatModal(cat)} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><Pencil size={12} /></button>
-                      <button onClick={() => handleCatDelete(cat.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={12} /></button>
+                    <div key={cat.id} className="flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-xl px-2.5 py-1.5">
+                      <span className="text-sm font-bold text-amber-800">{cat.name}</span>
+                      <button onClick={() => openCatModal(cat)}
+                        className="p-0.5 text-amber-300 hover:text-amber-700 rounded transition-all ml-0.5">
+                        <Pencil size={10} />
+                      </button>
+                      <button onClick={() => handleCatDelete(cat.id)}
+                        className="p-0.5 text-amber-300 hover:text-red-500 rounded transition-all">
+                        <Trash2 size={10} />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -567,13 +595,13 @@ function MasterPageInner() {
               <div className="fixed inset-0 z-[60] bg-black/40 flex items-end sm:items-center justify-center sm:p-4">
                 <div className="bg-white w-full sm:max-w-sm sm:rounded-3xl rounded-t-3xl p-5 space-y-4">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-sm font-black text-gray-900">{editingCat ? 'カテゴリを編集' : 'カテゴリを追加'}</h2>
+                    <h2 className="text-sm font-black text-gray-900">{editingCat ? '服種カテゴリを編集' : '服種カテゴリを追加'}</h2>
                     <button onClick={() => setCatModal(false)} className="p-2 text-gray-400 hover:text-gray-700"><X size={18} /></button>
                   </div>
                   <div>
                     <label className="text-xs font-bold text-gray-600 block mb-1">カテゴリ名 <span className="text-red-500">*</span></label>
                     <input type="text" value={catName} onChange={e => setCatName(e.target.value)} autoFocus
-                      placeholder="例：詰め襟上着" className={INPUT} />
+                      placeholder="例：上着・ジャケット、スラックス" className={INPUT} />
                   </div>
                   <button onClick={handleCatSave} disabled={!catName.trim() || catSaving}
                     className="w-full py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-amber-500 to-orange-500 text-white disabled:opacity-50 flex items-center justify-center gap-2">
@@ -583,47 +611,120 @@ function MasterPageInner() {
               </div>
             )}
 
+            {/* ── 各服種のお直し設定 ──────────────────────────── */}
             {presetsLoading ? (
               <div className="flex items-center justify-center py-10"><Loader2 size={24} className="animate-spin text-amber-400" /></div>
             ) : (
               <>
-                {/* 種別ごとにグルーピング */}
-                {(Object.keys(REPAIR_TYPE_LABELS) as RepairType[]).map(rtype => {
-                  const group = presets.filter(p => p.repair_type === rtype)
+                {categories.length === 0 && (
+                  <div className="text-center py-10 text-gray-300">
+                    <Scissors size={40} className="mx-auto mb-3 opacity-30" />
+                    <p className="text-sm font-bold text-gray-400">服種カテゴリを追加してから</p>
+                    <p className="text-xs mt-1 text-gray-400">お直し料金を設定できます</p>
+                  </div>
+                )}
+
+                {categories.map(cat => {
+                  const catPresets = presets.filter(p => p.category_id === cat.id)
                   return (
-                    <div key={rtype}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-base">{REPAIR_TYPE_ICONS[rtype]}</span>
-                        <p className="text-xs font-black text-gray-700">{REPAIR_TYPE_LABELS[rtype]}</p>
-                        <button onClick={() => { setPpRepairType(rtype); openPresetModal() }}
-                          className="ml-auto flex items-center gap-1 text-[10px] font-bold text-amber-600 hover:text-amber-800 px-2 py-1 rounded-lg hover:bg-amber-50 transition-all">
-                          <Plus size={11} />追加
-                        </button>
-                      </div>
-                      {group.length === 0 ? (
-                        <p className="text-xs text-gray-300 pl-7 mb-3">未登録</p>
-                      ) : (
-                        <div className="space-y-1.5 mb-3">
-                          {group.map(p => (
-                            <div key={p.id} className="flex items-center gap-3 bg-white border border-gray-200 rounded-2xl px-4 py-3">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-bold text-gray-900">{p.item_name}</p>
-                                <div className="flex gap-2 mt-0.5 flex-wrap">
-                                  {p.category_id && (() => { const c = categories.find(c => c.id === p.category_id); return c ? <span className="text-[10px] text-indigo-600 bg-indigo-50 border border-indigo-200 rounded px-1.5 py-0.5 font-bold">{c.name}</span> : null })()}
-                                  {p.school_name && <span className="text-[10px] text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">{p.school_name}</span>}
-                                  {p.default_price != null && <span className="text-[10px] font-bold text-amber-700">¥{p.default_price.toLocaleString()}</span>}
-                                  {p.notes && <span className="text-[10px] text-gray-400 truncate">{p.notes}</span>}
-                                </div>
-                              </div>
-                              <button onClick={() => openPresetModal(p)} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"><Pencil size={13} /></button>
-                              <button onClick={() => handlePresetDelete(p.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={13} /></button>
-                            </div>
-                          ))}
+                    <div key={cat.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+                      <div className="px-4 py-3 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100 flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-black text-amber-900">{cat.name}</p>
+                          <p className="text-[10px] text-amber-600 mt-0.5">
+                            {catPresets.length > 0 ? `${catPresets.length}件登録済み` : '未設定'}
+                          </p>
                         </div>
-                      )}
+                      </div>
+                      <div className="divide-y divide-gray-50">
+                        {(Object.keys(REPAIR_TYPE_LABELS) as RepairType[]).map(rtype => {
+                          const group = catPresets.filter(p => p.repair_type === rtype)
+                          return (
+                            <div key={rtype} className="px-4 py-2.5">
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <span className="text-sm">{REPAIR_TYPE_ICONS[rtype]}</span>
+                                <p className="text-xs font-black text-gray-600 flex-1">{REPAIR_TYPE_LABELS[rtype]}</p>
+                                <button
+                                  onClick={() => openPresetModal(undefined, cat.id, rtype)}
+                                  className="flex items-center gap-1 text-[10px] font-bold text-amber-600 hover:text-amber-800 px-2 py-1 rounded-lg hover:bg-amber-50 transition-all">
+                                  <Plus size={10} />追加
+                                </button>
+                              </div>
+                              {group.length === 0 ? (
+                                <p className="text-[10px] text-gray-300 pl-6">未設定</p>
+                              ) : (
+                                <div className="flex flex-wrap gap-1.5 pl-6">
+                                  {group.map(p => (
+                                    <div key={p.id} className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
+                                      <span className="text-xs font-bold text-gray-800">{p.item_name}</span>
+                                      {p.default_price != null && (
+                                        <span className="text-xs font-black text-amber-600">¥{p.default_price.toLocaleString()}</span>
+                                      )}
+                                      {p.school_name && (
+                                        <span className="text-[10px] text-gray-400 bg-gray-100 rounded px-1">{p.school_name}</span>
+                                      )}
+                                      <button onClick={() => openPresetModal(p)}
+                                        className="p-1 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
+                                        <Pencil size={10} />
+                                      </button>
+                                      <button onClick={() => handlePresetDelete(p.id)}
+                                        className="p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
+                                        <Trash2 size={10} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
                   )
                 })}
+
+                {/* カテゴリ未分類のプリセット */}
+                {(() => {
+                  const uncatPresets = presets.filter(p => !p.category_id)
+                  if (uncatPresets.length === 0) return null
+                  const typesWithPresets = (Object.keys(REPAIR_TYPE_LABELS) as RepairType[]).filter(
+                    rt => uncatPresets.some(p => p.repair_type === rt)
+                  )
+                  return (
+                    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+                      <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
+                        <p className="text-xs font-black text-gray-500">カテゴリ未分類</p>
+                      </div>
+                      <div className="divide-y divide-gray-50">
+                        {typesWithPresets.map(rtype => {
+                          const group = uncatPresets.filter(p => p.repair_type === rtype)
+                          return (
+                            <div key={rtype} className="px-4 py-2.5">
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <span className="text-sm">{REPAIR_TYPE_ICONS[rtype]}</span>
+                                <p className="text-xs font-bold text-gray-500 flex-1">{REPAIR_TYPE_LABELS[rtype]}</p>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5 pl-6">
+                                {group.map(p => (
+                                  <div key={p.id} className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                                    <span className="text-xs font-bold text-gray-700">{p.item_name}</span>
+                                    {p.default_price != null && (
+                                      <span className="text-xs font-black text-amber-600">¥{p.default_price.toLocaleString()}</span>
+                                    )}
+                                    <button onClick={() => openPresetModal(p)}
+                                      className="p-1 text-gray-300 hover:text-indigo-600 rounded-lg transition-all"><Pencil size={10} /></button>
+                                    <button onClick={() => handlePresetDelete(p.id)}
+                                      className="p-1 text-gray-300 hover:text-red-500 rounded-lg transition-all"><Trash2 size={10} /></button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })()}
               </>
             )}
 
@@ -639,6 +740,14 @@ function MasterPageInner() {
                     <button onClick={() => setPresetModal(false)} className="p-2 text-gray-400 hover:text-gray-700"><X size={18} /></button>
                   </div>
                   <div className="space-y-3">
+                    {categories.length > 0 && (
+                      <Field label="服種カテゴリ">
+                        <select value={ppCategoryId ?? ''} onChange={e => setPpCategoryId(e.target.value || null)} className={INPUT}>
+                          <option value="">未分類</option>
+                          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      </Field>
+                    )}
                     <Field label="お直し種別" required>
                       <select value={ppRepairType} onChange={e => setPpRepairType(e.target.value as RepairType)} className={INPUT}>
                         {(Object.keys(REPAIR_TYPE_LABELS) as RepairType[]).map(t => (
@@ -646,14 +755,6 @@ function MasterPageInner() {
                         ))}
                       </select>
                     </Field>
-                    {categories.length > 0 && (
-                      <Field label="品名カテゴリ">
-                        <select value={ppCategoryId ?? ''} onChange={e => setPpCategoryId(e.target.value || null)} className={INPUT}>
-                          <option value="">カテゴリなし</option>
-                          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                      </Field>
-                    )}
                     <Field label="品名" required>
                       <input type="text" value={ppItemName} onChange={e => setPpItemName(e.target.value)}
                         placeholder="例：詰め襟上着 / スラックス" autoFocus className={INPUT} />
