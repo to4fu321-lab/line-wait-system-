@@ -16,8 +16,12 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: 'storeId and isOpen required' }, { status: 400 })
     }
     const supabase = getSupabase()
-    const { error } = await supabase.from('stores').update({ is_open: isOpen }).eq('id', storeId)
+    const { error, count } = await supabase
+      .from('stores')
+      .update({ is_open: isOpen }, { count: 'exact' })
+      .eq('id', storeId)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (count === 0) return NextResponse.json({ error: 'No rows updated (check RLS or storeId)' }, { status: 500 })
 
     // 実際に反映された値を返す
     const { data } = await supabase.from('stores').select('is_open').eq('id', storeId).single()

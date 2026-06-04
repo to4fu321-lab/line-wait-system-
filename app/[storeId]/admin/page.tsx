@@ -552,16 +552,21 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
   }, [])
 
   const fetchStoreStatus = useCallback(async () => {
+    // is_open を必ず取得（別列の有無に影響されないよう独立クエリ）
     const { data, error } = await supabase.from('stores')
-      .select('is_open, notification_plan, is_test_mode')
+      .select('is_open')
       .eq('id', store.id).single()
-    if (error || !data) {
-      setIsOpen(false)
-      return
+    if (!error && data != null) {
+      setIsOpen((data as any).is_open ?? false)
     }
-    setIsOpen(data.is_open ?? false)
-    if ((data as any).notification_plan) setNotificationPlan((data as any).notification_plan)
-    if ((data as any).is_test_mode != null) setIsTestMode((data as any).is_test_mode)
+    // オプション列は別途取得（存在しない列でエラーになっても is_open に影響させない）
+    const { data: opts } = await (supabase as any).from('stores')
+      .select('notification_plan, is_test_mode')
+      .eq('id', store.id).single()
+    if (opts) {
+      if (opts.notification_plan) setNotificationPlan(opts.notification_plan)
+      if (opts.is_test_mode != null) setIsTestMode(opts.is_test_mode)
+    }
   }, [store.id])
 
   const fetchQueues = useCallback(async () => {
