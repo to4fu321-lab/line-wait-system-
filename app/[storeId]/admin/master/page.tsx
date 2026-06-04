@@ -99,6 +99,8 @@ function MasterPageInner() {
   const [editingCat,      setEditingCat]      = useState<RepairItemCategory | null>(null)
   const [catName,         setCatName]         = useState('')
   const [catSaving,       setCatSaving]       = useState(false)
+  // 種別追加パネルを開いているカテゴリID
+  const [addTypeOpenCatId, setAddTypeOpenCatId] = useState<string | null>(null)
 
   // ── Repair presets state ─────────────────────────────────
   const [presets,         setPresets]         = useState<RepairPreset[]>([])
@@ -741,22 +743,22 @@ function MasterPageInner() {
                         </div>
                       </div>
                       <div className="divide-y divide-gray-50">
-                        {(Object.keys(REPAIR_TYPE_LABELS) as RepairType[]).map(rtype => {
-                          const group = catPresets.filter(p => p.repair_type === rtype)
-                          return (
-                            <div key={rtype} className="px-4 py-2.5">
-                              <div className="flex items-center gap-2 mb-1.5">
-                                <span className="text-sm">{REPAIR_TYPE_ICONS[rtype]}</span>
-                                <p className="text-xs font-black text-gray-600 flex-1">{REPAIR_TYPE_LABELS[rtype]}</p>
-                                <button
-                                  onClick={() => openPresetModal(undefined, cat.id, rtype)}
-                                  className="flex items-center gap-1 text-[10px] font-bold text-amber-600 hover:text-amber-800 px-2 py-1 rounded-lg hover:bg-amber-50 transition-all">
-                                  <Plus size={10} />追加
-                                </button>
-                              </div>
-                              {group.length === 0 ? (
-                                <p className="text-[10px] text-gray-300 pl-6">未設定</p>
-                              ) : (
+                        {/* 登録済みの種別のみ表示 */}
+                        {(Object.keys(REPAIR_TYPE_LABELS) as RepairType[])
+                          .filter(rtype => catPresets.some(p => p.repair_type === rtype))
+                          .map(rtype => {
+                            const group = catPresets.filter(p => p.repair_type === rtype)
+                            return (
+                              <div key={rtype} className="px-4 py-2.5">
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  <span className="text-sm">{REPAIR_TYPE_ICONS[rtype]}</span>
+                                  <p className="text-xs font-black text-gray-600 flex-1">{REPAIR_TYPE_LABELS[rtype]}</p>
+                                  <button
+                                    onClick={() => openPresetModal(undefined, cat.id, rtype)}
+                                    className="flex items-center gap-1 text-[10px] font-bold text-amber-600 hover:text-amber-800 px-2 py-1 rounded-lg hover:bg-amber-50 transition-all">
+                                    <Plus size={10} />追加
+                                  </button>
+                                </div>
                                 <div className="flex flex-wrap gap-1.5 pl-6">
                                   {group.map(p => (
                                     <div key={p.id} className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
@@ -778,10 +780,38 @@ function MasterPageInner() {
                                     </div>
                                   ))}
                                 </div>
-                              )}
+                              </div>
+                            )
+                          })}
+
+                        {/* 種別追加ボタン */}
+                        <div className="px-4 py-2.5">
+                          {addTypeOpenCatId === cat.id ? (
+                            <div className="space-y-2">
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">種別を選んで追加</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {(Object.keys(REPAIR_TYPE_LABELS) as RepairType[]).map(rtype => (
+                                  <button key={rtype}
+                                    onClick={() => { openPresetModal(undefined, cat.id, rtype); setAddTypeOpenCatId(null) }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 hover:border-amber-400 hover:bg-amber-50 rounded-xl text-xs font-bold text-gray-600 hover:text-amber-700 transition-all active:scale-95">
+                                    <span>{REPAIR_TYPE_ICONS[rtype]}</span>
+                                    <span>{REPAIR_TYPE_LABELS[rtype]}</span>
+                                  </button>
+                                ))}
+                              </div>
+                              <button onClick={() => setAddTypeOpenCatId(null)}
+                                className="text-[10px] text-gray-400 hover:text-gray-600 font-bold px-2 py-1">
+                                閉じる
+                              </button>
                             </div>
-                          )
-                        })}
+                          ) : (
+                            <button
+                              onClick={() => setAddTypeOpenCatId(cat.id)}
+                              className="flex items-center gap-1.5 text-[11px] font-bold text-amber-600 hover:text-amber-800 hover:bg-amber-50 px-3 py-2 rounded-xl transition-all w-full justify-center border border-dashed border-amber-300 hover:border-amber-400">
+                              <Plus size={12} />お直し種別を追加
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )
