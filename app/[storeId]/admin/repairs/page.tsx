@@ -2324,8 +2324,8 @@ function NewInquiryModal({ storeId, onClose, onSave, onToast }: {
     if (!content.trim()) return
     setSaving(true)
     const today = new Date().toISOString().slice(0, 10)
-    const name  = selectedCust?.name ?? manualName.trim() || null
-    const school = selectedChild?.school_name ?? selectedCust?.school_name ?? manualSchool.trim() || null
+    const name  = (selectedCust?.name ?? manualName.trim()) || null
+    const school = (selectedChild?.school_name ?? selectedCust?.school_name ?? manualSchool.trim()) || null
     const notesExtra = [
       !selectedCust && name   ? `氏名: ${name}`   : null,
       !selectedCust && school ? `学校: ${school}`  : null,
