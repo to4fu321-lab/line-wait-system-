@@ -135,6 +135,7 @@ function StoreCard({
   const [saving,   setSaving]   = useState(false)
   const [msg,      setMsg]      = useState<{ ok: boolean; text: string } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [welcomeMsg,       setWelcomeMsg]       = useState<string>((store as any).welcome_message ?? '')
   const [isTestMode,       setIsTestMode]       = useState<boolean>((store as any).is_test_mode ?? false)
   const [richmenuApplying, setRichmenuApplying] = useState(false)
   const [richmenuMsg,      setRichmenuMsg]      = useState<{ ok: boolean; text: string } | null>(null)
@@ -145,6 +146,7 @@ function StoreCard({
       setGroupId(store.group_id ?? '')
       setBizType((store.business_type as 'uniform' | 'takeout') ?? 'uniform')
       setFeatures(store.features ?? {})
+      setWelcomeMsg((store as any).welcome_message ?? '')
       setMsg(null); setConfirmDelete(false)
     }
   }, [isEditing, store])
@@ -153,7 +155,7 @@ function StoreCard({
     setSaving(true); setMsg(null)
     const res = await fetch(`/api/super-admin/stores/${store.id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, pin, group_id: groupId || null, features, business_type: bizType }),
+      body: JSON.stringify({ name, pin, group_id: groupId || null, features, business_type: bizType, welcome_message: welcomeMsg }),
     })
     const j = await res.json()
     setSaving(false)
@@ -211,6 +213,12 @@ function StoreCard({
               <label className="text-[10px] text-gray-400 mb-1 block">店舗名</label>
               <input value={name} onChange={e => setName(e.target.value)}
                 className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none" />
+            </div>
+            <div className="col-span-2">
+              <label className="text-[10px] text-gray-400 mb-1 block">ウェルカムメッセージ（受付ページ上部）</label>
+              <textarea value={welcomeMsg} onChange={e => setWelcomeMsg(e.target.value)} rows={2}
+                placeholder="例: ご来店ありがとうございます。受付番号をお取りください。"
+                className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none resize-none" />
             </div>
             <div>
               <label className="text-[10px] text-gray-400 mb-1 block">PIN</label>

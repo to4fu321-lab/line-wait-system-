@@ -17,8 +17,9 @@ export async function PUT(req: Request, { params }: { params: { storeId: string 
     if (body.name     !== undefined) update.name     = body.name.trim()
     if (body.pin      !== undefined) update.pin      = body.pin
     if (body.group_id !== undefined) update.group_id = body.group_id || null
-    if (body.features      !== undefined) update.features      = body.features
-    if (body.business_type !== undefined) update.business_type = body.business_type
+    if (body.features        !== undefined) update.features        = body.features
+    if (body.business_type   !== undefined) update.business_type   = body.business_type
+    if (body.welcome_message !== undefined) update.welcome_message = body.welcome_message || null
 
     if (Object.keys(update).length === 0) {
       return NextResponse.json({ error: '更新項目がありません' }, { status: 400 })
