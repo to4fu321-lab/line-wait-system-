@@ -4266,18 +4266,8 @@ export default function RepairsPage() {
         ) : tab === 'inquiries' ? (
           /* ── ⑤問合せ管理（インライン） ──────────────────────── */
           <div className="space-y-2">
-            {/* ヘッダー: 件数 + 追加ボタン */}
-            <div className="flex items-center gap-2">
-              {(() => {
-                const pending  = inquiries.filter(i => i.status === 'pending').length
-                const urgent   = inquiries.filter(i => i.is_urgent && i.status !== 'completed').length
-                return (
-                  <>
-                    {urgent > 0 && <span className="px-2 py-1 bg-red-100 text-red-700 rounded-lg text-xs font-bold">🚨 緊急 {urgent}件</span>}
-                    {pending > 0 && <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs font-bold">未対応 {pending}件</span>}
-                  </>
-                )
-              })()}
+            {/* ヘッダー: 追加ボタン */}
+            <div className="flex items-center">
               <button onClick={() => { setEditInquiry(null); setShowInqModal(true) }}
                 className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-black rounded-xl transition-colors shadow-sm">
                 <Plus size={12} />追加
