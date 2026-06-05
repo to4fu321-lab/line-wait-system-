@@ -3207,7 +3207,7 @@ function InquiryEditModal({ storeId, item, onClose, onSave }: {
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[90dvh] flex flex-col"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={e => e.stopPropagation()}>
+        onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-gray-100 shrink-0">
           <h2 className="text-sm font-black text-gray-800">{isEdit ? '問合せ編集' : '問合せ追加'}</h2>
           <div className="flex items-center gap-2">
@@ -3283,6 +3283,8 @@ function InquiryEditModal({ storeId, item, onClose, onSave }: {
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}保存する
           </button>
         </div>
+        {/* spacer so save button sits above the bottom nav on mobile */}
+        <div className="sm:hidden shrink-0" style={{ height: 'calc(4rem + env(safe-area-inset-bottom))' }} />
       </div>
     </div>
   )
