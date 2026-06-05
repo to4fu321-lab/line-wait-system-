@@ -3393,7 +3393,8 @@ export default function RepairsPage() {
   const [batchUpdating,  setBatchUpdating]  = useState(false)
   const [pendingFilter,  setPendingFilter]  = useState(false)
 
-  const [inqTypeFilter,setInqTypeFilter]= useState<InquiryType | 'all'>('all')
+  const [inqStatusFilter, setInqStatusFilter] = useState<InquiryStatus | 'all'>('all')
+  const [inqTypeFilter,   setInqTypeFilter]   = useState<InquiryType | 'all'>('all')
   const [showInqModal, setShowInqModal] = useState(false)
   const [editInquiry,  setEditInquiry]  = useState<InquiryRow | null>(null)
 
@@ -4283,20 +4284,25 @@ export default function RepairsPage() {
               return (
                 <div className="grid grid-cols-4 gap-1">
                   {([
-                    { key: 'all',         label: '全て',  color: 'text-gray-800', bg: 'bg-gray-50 border-gray-200' },
-                    { key: 'pending',     label: '未対応', color: 'text-red-700',  bg: 'bg-red-50 border-red-200'  },
-                    { key: 'in_progress', label: '対応中', color: 'text-amber-700',bg: 'bg-amber-50 border-amber-200' },
-                    { key: 'completed',   label: '完了',  color: 'text-green-700',bg: 'bg-green-50 border-green-200' },
-                  ] as const).map(s => (
-                    <div key={s.key} className={`flex flex-col items-center py-1.5 rounded-xl text-center border ${s.bg}`}>
-                      <span className={`text-sm font-black tabular-nums leading-none ${counts[s.key] > 0 ? s.color : 'text-gray-300'}`}>
-                        {counts[s.key]}
-                      </span>
-                      <span className={`text-[9px] font-bold mt-0.5 ${counts[s.key] > 0 ? s.color : 'text-gray-300'}`}>
-                        {s.label}
-                      </span>
-                    </div>
-                  ))}
+                    { key: 'all',         label: '全て',  color: 'text-gray-800', activeBg: 'bg-gray-700 border-gray-700', inactiveBg: 'bg-gray-50 border-gray-200' },
+                    { key: 'pending',     label: '未対応', color: 'text-red-700',  activeBg: 'bg-red-500 border-red-500',   inactiveBg: 'bg-red-50 border-red-200'   },
+                    { key: 'in_progress', label: '対応中', color: 'text-amber-700',activeBg: 'bg-amber-500 border-amber-500',inactiveBg: 'bg-amber-50 border-amber-200'},
+                    { key: 'completed',   label: '完了',  color: 'text-green-700',activeBg: 'bg-green-600 border-green-600',inactiveBg: 'bg-green-50 border-green-200'},
+                  ] as const).map(s => {
+                    const isActive = inqStatusFilter === s.key
+                    return (
+                      <button key={s.key} type="button"
+                        onClick={() => { setInqStatusFilter(s.key); setInqTypeFilter('all') }}
+                        className={`flex flex-col items-center py-1.5 rounded-xl text-center border transition-colors active:scale-95 ${isActive ? s.activeBg : s.inactiveBg}`}>
+                        <span className={`text-sm font-black tabular-nums leading-none ${isActive ? 'text-white' : counts[s.key] > 0 ? s.color : 'text-gray-300'}`}>
+                          {counts[s.key]}
+                        </span>
+                        <span className={`text-[9px] font-bold mt-0.5 ${isActive ? 'text-white' : counts[s.key] > 0 ? s.color : 'text-gray-300'}`}>
+                          {s.label}
+                        </span>
+                      </button>
+                    )
+                  })}
                 </div>
               )
             })()}
@@ -4320,7 +4326,8 @@ export default function RepairsPage() {
             {(() => {
               const statusOrder: Record<InquiryStatus, number> = { pending: 0, in_progress: 1, completed: 2 }
               const filtered = inquiries
-                .filter(i => inqTypeFilter === 'all' || i.type === inqTypeFilter)
+                .filter(i => inqStatusFilter === 'all' || i.status === inqStatusFilter)
+                .filter(i => inqTypeFilter   === 'all' || i.type   === inqTypeFilter)
                 .sort((a, b) => {
                   if (a.is_urgent !== b.is_urgent) return a.is_urgent ? -1 : 1
                   return statusOrder[a.status] - statusOrder[b.status]
