@@ -3764,6 +3764,10 @@ export default function RepairsPage() {
     matchSearch([o.customer?.name, o.child?.name, o.child?.school_name, ...(o.items?.map(i => i.item_name) ?? [])])
   )
 
+  const pendingInqAll = inquiries
+    .filter(i => i.status === 'pending')
+    .sort((a, b) => Number(b.is_urgent) - Number(a.is_urgent))
+
 
   return (
     <div className="min-h-[100dvh] bg-gray-50 text-gray-900">
@@ -3809,10 +3813,7 @@ export default function RepairsPage() {
                 { id: 'delivery'  as const, emoji: '🎁', label: 'お渡し',   count: waiting.length,                                     urgent: 0 },
                 { id: 'inquiries' as const, emoji: '💬', label: '問合せ',   count: pendingInquiries,                                   urgent: urgentInquiries },
               ]
-              const togglePending = () => {
-                if (!pendingFilter) { setPendingFilter(true); setTab('repair') }
-                else setPendingFilter(false)
-              }
+              const togglePending = () => setPendingFilter(prev => !prev)
               if (!isTablet) {
                 return (
                   <div className="flex items-stretch gap-2 pb-2">
@@ -3952,6 +3953,52 @@ export default function RepairsPage() {
             <p className="text-xs font-bold text-gray-400">読み込み中...</p>
           </div>
 
+        ) : pendingFilter ? (
+          /* ── 要対応まとめビュー ──────────────────────────── */
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-300 rounded-xl">
+              <span className="text-xs font-black text-amber-700 flex-1">
+                要対応のみ表示中（{filteredRepairs.length + pendingInqAll.length}件）
+              </span>
+              <button onClick={() => setPendingFilter(false)}
+                className="text-[10px] font-black text-amber-600 hover:text-amber-800 px-2 py-0.5 bg-amber-100 hover:bg-amber-200 rounded-full transition-colors">
+                解除
+              </button>
+            </div>
+
+            {filteredRepairs.length === 0 && pendingInqAll.length === 0 && (
+              <div className="text-center py-20 text-gray-400">
+                <p className="text-sm font-bold">要対応の案件はありません</p>
+              </div>
+            )}
+
+            {filteredRepairs.length > 0 && (
+              <>
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">✂️ お直し・案件 ({filteredRepairs.length})</p>
+                <div className={isTablet ? 'grid grid-cols-2 gap-2' : 'space-y-1.5'}>
+                  {filteredRepairs.map(r => (
+                    <RepairCard key={r.id} item={r} storeId={storeId} onRefresh={fetchAll} onToast={showToast}
+                      onEdit={item => { setEditItem(item); setEditKind('repair') }}
+                      selected={false} onToggle={() => {}} />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {pendingInqAll.length > 0 && (
+              <>
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">💬 問合せ未対応 ({pendingInqAll.length})</p>
+                <div className="space-y-1.5">
+                  {pendingInqAll.map(i => (
+                    <InquiryTabCard key={i.id} item={i}
+                      onEdit={item => { setEditInquiry(item); setShowInqModal(true) }}
+                      onStatusChange={(id, s) => setInquiries(prev => prev.map(x => x.id === id ? { ...x, status: s } : x))} />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
         ) : tab === 'repair' ? (
           /* ── ①お直しタブ ─────────────────────────────────── */
           <div className="space-y-2">
@@ -3975,17 +4022,6 @@ export default function RepairsPage() {
                 <option value="unpaid_first">未払い優先</option>
               </select>
             </div>
-
-            {/* 要対応フィルターバッジ */}
-            {pendingFilter && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-300 rounded-xl">
-                <span className="text-xs font-black text-amber-700 flex-1">要対応のみ表示中（{filteredRepairs.length}件）</span>
-                <button onClick={() => setPendingFilter(false)}
-                  className="text-[10px] font-black text-amber-600 hover:text-amber-800 px-2 py-0.5 bg-amber-100 hover:bg-amber-200 rounded-full transition-colors">
-                  解除
-                </button>
-              </div>
-            )}
 
             {/* サブタブ */}
             {!pendingFilter && (
