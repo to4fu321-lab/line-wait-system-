@@ -134,6 +134,9 @@ function StoreCard({
   const [saving,   setSaving]   = useState(false)
   const [msg,      setMsg]      = useState<{ ok: boolean; text: string } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [isTestMode,       setIsTestMode]       = useState<boolean>((store as any).is_test_mode ?? false)
+  const [richmenuApplying, setRichmenuApplying] = useState(false)
+  const [richmenuMsg,      setRichmenuMsg]      = useState<{ ok: boolean; text: string } | null>(null)
 
   useEffect(() => {
     if (isEditing) {
@@ -313,6 +316,57 @@ function StoreCard({
           </div>
 
           {msg && <p className={`text-xs px-3 py-2 rounded-xl ${msg.ok ? 'bg-emerald-900/40 text-emerald-300' : 'bg-red-900/40 text-red-300'}`}>{msg.text}</p>}
+
+          {/* 店舗ツール */}
+          <div className="border-t border-gray-700 pt-2 space-y-2">
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider">店舗ツール</p>
+            <button
+              onClick={async () => {
+                const next = !isTestMode
+                setIsTestMode(next)
+                await fetch('/api/test/mode', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ storeId: store.id, enabled: next }),
+                })
+              }}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-bold transition-all ${
+                isTestMode ? 'border-amber-500/50 bg-amber-500/10 text-amber-300' : 'border-gray-700 bg-gray-700/50 text-gray-400 hover:bg-gray-700'
+              }`}>
+              <span>🧪 テストモード</span>
+              <div className={`w-8 h-4 rounded-full transition-colors ${isTestMode ? 'bg-amber-500' : 'bg-gray-600'}`}>
+                <div className={`w-3 h-3 bg-white rounded-full mt-0.5 shadow transition-transform ${isTestMode ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </div>
+            </button>
+            <button
+              onClick={async () => {
+                setRichmenuApplying(true); setRichmenuMsg(null)
+                try {
+                  const res = await fetch('/api/richmenu', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ storeId: store.id, storeName: name }),
+                  })
+                  const data = await res.json()
+                  if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`)
+                  setRichmenuMsg({ ok: true, text: `登録完了 (${data.richMenuId?.slice(0, 8)}...)` })
+                } catch (e) {
+                  setRichmenuMsg({ ok: false, text: e instanceof Error ? e.message : String(e) })
+                } finally {
+                  setRichmenuApplying(false)
+                }
+              }}
+              disabled={richmenuApplying}
+              className="w-full py-2 rounded-xl bg-green-900/40 border border-green-700/50 text-green-300 text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-green-900/60 disabled:opacity-50 transition-colors">
+              {richmenuApplying ? <Loader2 size={12} className="animate-spin" /> : '📲'}
+              LINEリッチメニューを更新
+            </button>
+            {richmenuMsg && (
+              <p className={`text-xs text-center ${richmenuMsg.ok ? 'text-emerald-300' : 'text-red-400'}`}>
+                {richmenuMsg.ok ? '✅ ' : '❌ '}{richmenuMsg.text}
+              </p>
+            )}
+          </div>
 
           <div className="flex gap-2">
             <button onClick={save} disabled={saving}
