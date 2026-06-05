@@ -8,6 +8,7 @@ import {
   Banknote, Plus, AlertCircle, CreditCard, CheckCheck,
   History, CalendarDays, Copy, X, Pencil, Truck, Trash2,
   Search, Database, ShoppingCart, Tag, Camera, ScanLine, PackageCheck,
+  MessageSquarePlus,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
@@ -2254,6 +2255,242 @@ function UniformOrderCard({ item, storeId, onRefresh, onToast }: {
   )
 }
 
+// ── 問合せ受付モーダル ────────────────────────────────────────────
+function NewInquiryModal({ storeId, onClose, onSave, onToast }: {
+  storeId: string; onClose: () => void; onSave: () => void
+  onToast: (t: 'ok' | 'err', m: string) => void
+}) {
+  const [content,       setContent]       = useState('')
+  const [custSearch,    setCustSearch]    = useState('')
+  const [custResults,   setCustResults]   = useState<CustResult[]>([])
+  const [searching,     setSearching]     = useState(false)
+  const [selectedCust,  setSelectedCust]  = useState<CustResult | null>(null)
+  const [selectedChild, setSelectedChild] = useState<{ id: string; name: string; school_name: string | null } | null>(null)
+  const [manualName,    setManualName]    = useState('')
+  const [manualSchool,  setManualSchool]  = useState('')
+  const [showManual,    setShowManual]    = useState(false)
+  const [saving,        setSaving]        = useState(false)
+  const [ocrLoading,    setOcrLoading]    = useState(false)
+  const [ocrWarnings,   setOcrWarnings]   = useState<string[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (custSearch.length < 1) { setCustResults([]); return }
+    const t = setTimeout(async () => {
+      setSearching(true)
+      const q = custSearch.trim()
+      const qTel = q.replace(/[-\s]/g, '')
+      const { data } = await (supabase as any)
+        .from('customers')
+        .select('id, name, tel, school_name, children:children(id, name, school_name)')
+        .eq('store_id', storeId)
+        .or(`name.ilike.%${q}%,kana.ilike.%${q}%,tel.ilike.%${q}%,tel.ilike.%${qTel}%,school_name.ilike.%${q}%`)
+        .is('deleted_at', null).limit(8)
+      setCustResults(data ?? [])
+      setSearching(false)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [custSearch, storeId])
+
+  const handleOcr = async (file: File) => {
+    setOcrLoading(true); setOcrWarnings([])
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve((reader.result as string).split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      const res = await fetch('/api/slip-ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mimeType: file.type, slipType: 'inquiry' }),
+      })
+      const { ok, data, error } = await res.json()
+      if (!ok || !data) { onToast('err', `OCR失敗: ${error ?? '不明なエラー'}`); return }
+      if (data.content)       setContent(prev => prev ? `${prev}\n\n${data.content}` : data.content)
+      if (data.customer_name) setCustSearch(data.customer_name)
+      if (data.school_name)   setManualSchool(data.school_name)
+      if (data.warnings?.length) setOcrWarnings(data.warnings)
+      onToast('ok', `📷 メモを読み取りました（精度: ${data.confidence === 'high' ? '高' : data.confidence === 'medium' ? '中' : '低'}）`)
+    } catch (e) {
+      onToast('err', `OCRエラー: ${String(e)}`)
+    } finally {
+      setOcrLoading(false)
+    }
+  }
+
+  async function handleSave() {
+    if (!content.trim()) return
+    setSaving(true)
+    const today = new Date().toISOString().slice(0, 10)
+    const name  = selectedCust?.name ?? manualName.trim() || null
+    const school = selectedChild?.school_name ?? selectedCust?.school_name ?? manualSchool.trim() || null
+    const notesExtra = [
+      !selectedCust && name   ? `氏名: ${name}`   : null,
+      !selectedCust && school ? `学校: ${school}`  : null,
+    ].filter(Boolean).join(' / ')
+    const { error } = await (supabase as any).from('repair_histories').insert({
+      store_id:      storeId,
+      customer_id:   selectedCust?.id ?? null,
+      child_id:      selectedChild?.id ?? null,
+      item_name:     name ?? '問合せ',
+      content:       content.trim(),
+      notes:         notesExtra || null,
+      request_type:  'inquiry',
+      status:        'received',
+      received_date: today,
+      notified:      false,
+      work_started:  false,
+      created_at:    new Date().toISOString(),
+      updated_at:    new Date().toISOString(),
+    })
+    setSaving(false)
+    if (error) { onToast('err', `保存失敗: ${error.message}`); return }
+    onToast('ok', '💬 問合せを受付しました')
+    onSave(); onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-lg bg-white rounded-t-3xl shadow-2xl flex flex-col"
+        style={{ maxHeight: '92dvh', paddingBottom: 'env(safe-area-inset-bottom)' }}
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="px-5 pt-5 pb-4 border-b border-gray-100 shrink-0">
+          <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleOcr(f); e.target.value = '' }} />
+          <div className="flex items-center gap-3">
+            <button onClick={onClose}
+              className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 active:scale-95 transition-all">
+              <X size={18} />
+            </button>
+            <h2 className="flex-1 text-base font-black text-gray-900">💬 問合せ受付</h2>
+            <button onClick={() => fileInputRef.current?.click()} disabled={ocrLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-60 shrink-0">
+              {ocrLoading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
+              {ocrLoading ? '解析中...' : 'メモ撮影'}
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+
+          {/* OCR warnings */}
+          {ocrWarnings.length > 0 && (
+            <div className="bg-amber-50 border border-amber-300 rounded-2xl px-4 py-3 space-y-1">
+              <p className="text-xs font-black text-amber-700 flex items-center gap-1.5">
+                <ScanLine size={13} />読み取り要確認
+              </p>
+              {ocrWarnings.map((w, i) => (
+                <p key={i} className="text-xs text-amber-600 pl-4">・{w}</p>
+              ))}
+            </div>
+          )}
+
+          {/* Content */}
+          <div>
+            <label className="text-xs font-bold text-gray-600 block mb-1.5">
+              問合せ内容 <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={content} onChange={e => setContent(e.target.value)}
+              rows={5} autoFocus
+              placeholder="問合せ・相談内容を自由に入力&#10;（例: ○○中学のスラックスについて、サイズ交換できるか確認したい）"
+              className="w-full border border-gray-300 rounded-xl px-3 py-3 text-sm focus:border-indigo-500 focus:outline-none resize-none leading-relaxed"
+            />
+          </div>
+
+          {/* Customer section */}
+          <div className="border border-gray-200 rounded-2xl overflow-hidden">
+            <p className="text-xs font-bold text-gray-500 px-4 pt-3 pb-2">お客様情報（任意）</p>
+
+            {selectedCust ? (
+              <div className="px-4 pb-3 space-y-3">
+                <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2.5 flex items-center gap-3">
+                  <User size={14} className="text-indigo-500 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-black text-gray-900">{selectedCust.name}</p>
+                    {selectedCust.school_name && <p className="text-xs text-gray-400">{selectedCust.school_name}</p>}
+                  </div>
+                  <button onClick={() => { setSelectedCust(null); setSelectedChild(null); setCustSearch('') }}
+                    className="p-1 text-gray-400 hover:text-gray-600 hover:bg-white rounded-lg transition-all">
+                    <X size={14} />
+                  </button>
+                </div>
+                {selectedCust.children && selectedCust.children.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    <button onClick={() => setSelectedChild(null)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-bold border transition-all ${!selectedChild ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-500'}`}>
+                      保護者のみ
+                    </button>
+                    {selectedCust.children.map(ch => (
+                      <button key={ch.id} onClick={() => setSelectedChild(ch)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-bold border transition-all ${selectedChild?.id === ch.id ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-500'}`}>
+                        {ch.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="px-4 pb-3 space-y-2.5">
+                {/* Search existing */}
+                <div className="relative">
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input type="text" value={custSearch} onChange={e => { setCustSearch(e.target.value); setShowManual(false) }}
+                    placeholder="顧客名・電話番号で検索"
+                    className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:border-indigo-500 focus:outline-none bg-gray-50" />
+                </div>
+                {searching && <div className="text-center py-2"><Loader2 size={16} className="animate-spin text-indigo-400 mx-auto" /></div>}
+                {custResults.length > 0 && (
+                  <div className="space-y-1.5">
+                    {custResults.map(c => (
+                      <button key={c.id} onClick={() => { setSelectedCust(c); setCustSearch(''); setShowManual(false) }}
+                        className="w-full text-left px-3 py-2.5 bg-gray-50 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-300 rounded-xl transition-all active:scale-[0.98]">
+                        <p className="font-bold text-sm text-gray-900">{c.name}</p>
+                        <p className="text-xs text-gray-400">{[c.school_name, c.tel].filter(Boolean).join(' · ')}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Manual entry toggle */}
+                {!showManual ? (
+                  <button onClick={() => setShowManual(true)}
+                    className="w-full text-xs font-bold text-gray-400 hover:text-gray-600 py-1.5 text-center border border-dashed border-gray-200 rounded-xl hover:border-gray-300 transition-all">
+                    お名前・学校名を手入力する
+                  </button>
+                ) : (
+                  <div className="space-y-2 bg-gray-50 rounded-xl p-3">
+                    <input type="text" value={manualName} onChange={e => setManualName(e.target.value)}
+                      placeholder="お客様名（任意）"
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none bg-white" />
+                    <input type="text" value={manualSchool} onChange={e => setManualSchool(e.target.value)}
+                      placeholder="学校名（任意）"
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none bg-white" />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-gray-100 shrink-0">
+          <button onClick={handleSave} disabled={saving || !content.trim()}
+            className="w-full py-4 bg-violet-600 hover:bg-violet-500 text-white font-black rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-40 shadow-lg shadow-violet-500/25">
+            {saving ? <Loader2 size={18} className="animate-spin" /> : <MessageSquarePlus size={18} />}
+            問合せを受付する
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Order Guide: maker-based hierarchy + checklist modal ─────
 
 interface SizeEntry  { size: string | null; count: number; orders: PurchaseRow[] }
@@ -3159,8 +3396,9 @@ export default function RepairsPage() {
   const [editKind,       setEditKind]       = useState<'repair' | 'purchase' | null>(null)
   const [searchText,     setSearchText]     = useState('')
   const [dummyLoading,   setDummyLoading]   = useState(false)
-  const [showNewRepair,  setShowNewRepair]  = useState(false)
-  const [showNewOrder,   setShowNewOrder]   = useState(false)
+  const [showNewRepair,   setShowNewRepair]   = useState(false)
+  const [showNewOrder,    setShowNewOrder]    = useState(false)
+  const [showNewInquiry,  setShowNewInquiry]  = useState(false)
   const [batchSelected,  setBatchSelected]  = useState<Set<string>>(new Set())
   const [batchUpdating,  setBatchUpdating]  = useState(false)
   const [pendingFilter,  setPendingFilter]  = useState(false)
@@ -3536,6 +3774,10 @@ export default function RepairsPage() {
                 {dummyLoading ? <Loader2 size={11} className="animate-spin" /> : <Database size={11} />}
               </button>
             )}
+            <button onClick={() => setShowNewInquiry(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-violet-600/20">
+              <MessageSquarePlus size={12} />問合せ
+            </button>
             <button onClick={() => setShowNewOrder(true)}
               className="flex items-center gap-1.5 px-3 py-2 bg-teal-600 hover:bg-teal-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-teal-600/20">
               <ShoppingCart size={12} />制服注文
@@ -4025,6 +4267,14 @@ export default function RepairsPage() {
           storeId={storeId}
           onClose={() => setShowNewOrder(false)}
           onSave={() => { setShowNewOrder(false); fetchAll() }}
+          onToast={showToast}
+        />
+      )}
+      {showNewInquiry && (
+        <NewInquiryModal
+          storeId={storeId}
+          onClose={() => setShowNewInquiry(false)}
+          onSave={fetchAll}
           onToast={showToast}
         />
       )}

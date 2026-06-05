@@ -44,9 +44,25 @@ const ORDER_SCHEMA = `
   "warnings": ["読み取り不確かな箇所を日本語で列挙"]
 }`
 
-function buildPrompt(slipType: 'repair' | 'order'): string {
-  const schema = slipType === 'order' ? ORDER_SCHEMA : REPAIR_SCHEMA
-  const typeName = slipType === 'order' ? '注文伝票' : 'お直し伝票'
+// ── 問合せメモの抽出スキーマ ────────────────────────────────────
+const INQUIRY_SCHEMA = `
+{
+  "content": "メモ・書き込みの全内容を自由記述でそのまま起こす（改行・箇条書き含む）",
+  "customer_name": "顧客名・お客様名が読み取れる場合 | null",
+  "school_name": "学校名・学年が読み取れる場合 | null",
+  "confidence": "high=全体明確に読めた / medium=一部推測あり / low=判読困難",
+  "warnings": ["読み取り不確かな箇所を日本語で列挙"]
+}`
+
+function buildPrompt(slipType: 'repair' | 'order' | 'inquiry'): string {
+  const schema =
+    slipType === 'order'   ? ORDER_SCHEMA :
+    slipType === 'inquiry' ? INQUIRY_SCHEMA :
+    REPAIR_SCHEMA
+  const typeName =
+    slipType === 'order'   ? '注文伝票' :
+    slipType === 'inquiry' ? '問合せメモ・手書きノート' :
+    'お直し伝票'
 
   return `この画像は制服販売店の「${typeName}」です。
 手書き・印刷どちらにも対応し、読み取れる情報をすべて抽出してください。
@@ -70,7 +86,7 @@ export async function POST(req: NextRequest) {
     const { imageBase64, mimeType, slipType = 'repair' } = body as {
       imageBase64: string
       mimeType?: string
-      slipType?: 'repair' | 'order'
+      slipType?: 'repair' | 'order' | 'inquiry'
     }
 
     if (!imageBase64) {
