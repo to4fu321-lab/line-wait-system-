@@ -95,7 +95,7 @@ export function OrderReminderBanner() {
           .from('purchase_orders')
           .select('*', { count: 'exact', head: true })
           .eq('store_id', storeId)
-          .eq('status', 'on_order')
+          .in('status', ['received', 'ordered'])
         const c = count ?? 0
         setPendingCount(c)
         if (c > 0) setVisible(true)
@@ -108,7 +108,7 @@ export function OrderReminderBanner() {
           .from('purchase_orders')
           .select('*', { count: 'exact', head: true })
           .eq('store_id', storeId)
-          .eq('status', 'on_order')
+          .in('status', ['received', 'ordered'])
         setPendingCount(count ?? 0)
         setVisible(true)
       }
