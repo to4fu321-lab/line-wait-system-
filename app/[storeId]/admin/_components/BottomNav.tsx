@@ -19,6 +19,7 @@ export function BottomNav() {
   const params   = useParams<{ storeId: string }>()
   const pathname = usePathname()
   const storeId  = params?.storeId ?? ''
+  const [queueBadge,  setQueueBadge]  = useState(0)
   const [repairBadge, setRepairBadge] = useState(0)
   const { hasFeature } = useStoreFeatures(storeId)
   const { isTablet, setMode } = useDeviceMode()
@@ -26,7 +27,12 @@ export function BottomNav() {
   useEffect(() => {
     if (!storeId) return
     const fetchBadges = async () => {
-      const [{ count: r }, { count: p }, { count: rc }, { count: pa }] = await Promise.all([
+      const getTodayStart = () => {
+        const d = new Date(); d.setHours(0, 0, 0, 0); return d.toISOString()
+      }
+      const [{ count: waiting }, { count: r }, { count: p }, { count: rc }, { count: pa }, { count: inqPending }] = await Promise.all([
+        (supabase as any).from('queues').select('*', { count: 'exact', head: true })
+          .eq('store_id', storeId).eq('status', 'waiting').gte('created_at', getTodayStart()),
         (supabase as any).from('repair_histories').select('*', { count: 'exact', head: true })
           .eq('store_id', storeId).eq('status', 'received'),
         (supabase as any).from('purchase_orders').select('*', { count: 'exact', head: true })
@@ -35,8 +41,11 @@ export function BottomNav() {
           .eq('store_id', storeId).eq('status', 'completed'),
         (supabase as any).from('purchase_orders').select('*', { count: 'exact', head: true })
           .eq('store_id', storeId).eq('status', 'arrived'),
+        (supabase as any).from('inquiries').select('*', { count: 'exact', head: true })
+          .eq('store_id', storeId).eq('status', 'pending'),
       ])
-      setRepairBadge((r ?? 0) + (p ?? 0) + (rc ?? 0) + (pa ?? 0))
+      setQueueBadge(waiting ?? 0)
+      setRepairBadge((r ?? 0) + (p ?? 0) + (rc ?? 0) + (pa ?? 0) + (inqPending ?? 0))
     }
     fetchBadges()
     const t = setInterval(fetchBadges, 60000)
@@ -56,23 +65,29 @@ export function BottomNav() {
     return pathname.startsWith(target)
   }
 
+  function badgeFor(tab: typeof ALL_TABS[number]) {
+    if (tab.id === 'queue')   return queueBadge
+    if (tab.id === 'repairs') return repairBadge
+    return 0
+  }
+
   return (
     <>
-      <div className="shrink-0" style={{ height: 'calc(4rem + env(safe-area-inset-bottom))' }} />
+      <div className="shrink-0" style={{ height: 'calc(5rem + env(safe-area-inset-bottom))' }} />
 
       <nav className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-gray-200 shadow-sm" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        <div className="flex max-w-lg mx-auto">
+        <div className="flex max-w-lg mx-auto h-20">
           {tabs.map(tab => {
             const active     = isActive(tab)
             const Icon       = tab.icon
-            const badgeCount = tab.id === 'repairs' ? repairBadge : 0
+            const badgeCount = badgeFor(tab)
             return (
               <Link
                 key={tab.id}
                 href={tab.path(storeId)}
                 prefetch={false}
                 style={{ touchAction: 'manipulation' }}
-                className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 relative transition-none ${
+                className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 relative transition-none ${
                   active ? 'text-indigo-600' : 'text-gray-400 active:text-gray-600'
                 }`}
               >
@@ -80,28 +95,28 @@ export function BottomNav() {
                   <span className="absolute top-0 left-2 right-2 h-0.5 bg-indigo-600 rounded-full" />
                 )}
                 <span className="relative inline-flex">
-                  <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
+                  <Icon size={24} strokeWidth={active ? 2.5 : 1.8} />
                   {badgeCount > 0 && (
-                    <span className="absolute -top-2 -right-3 bg-red-500 text-white text-[9px] font-black px-1 rounded-full leading-tight min-w-[15px] text-center">
+                    <span className="absolute -top-2 -right-3.5 bg-red-500 text-white text-[9px] font-black px-1 rounded-full leading-tight min-w-[16px] text-center">
                       {badgeCount > 99 ? '99+' : badgeCount}
                     </span>
                   )}
                 </span>
-                <span className={`text-[9px] leading-none font-medium ${active ? 'text-indigo-600' : 'text-gray-400'}`}>
+                <span className={`text-[10px] leading-none font-medium ${active ? 'text-indigo-600' : 'text-gray-400'}`}>
                   {tab.label}
                 </span>
               </Link>
             )
           })}
-          {/* Tablet mode toggle — long-press / tap the Monitor icon */}
+          {/* Tablet mode toggle */}
           <button
             onClick={() => setMode('tablet')}
             style={{ touchAction: 'manipulation' }}
-            className="flex flex-col items-center justify-center gap-0.5 py-2 px-3 text-gray-300 active:text-gray-500 transition-none"
+            className="flex flex-col items-center justify-center gap-1 py-3 px-3 text-gray-300 active:text-gray-500 transition-none"
             title="タブレットモードに切替"
           >
-            <Monitor size={16} strokeWidth={1.5} />
-            <span className="text-[8px] leading-none font-medium">PCモード</span>
+            <Monitor size={18} strokeWidth={1.5} />
+            <span className="text-[9px] leading-none font-medium">PCモード</span>
           </button>
         </div>
       </nav>

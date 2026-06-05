@@ -3284,7 +3284,7 @@ function InquiryEditModal({ storeId, item, onClose, onSave }: {
           </button>
         </div>
         {/* spacer so save button sits above the bottom nav on mobile */}
-        <div className="sm:hidden shrink-0" style={{ height: 'calc(4rem + env(safe-area-inset-bottom))' }} />
+        <div className="sm:hidden shrink-0" style={{ height: 'calc(5rem + env(safe-area-inset-bottom))' }} />
       </div>
     </div>
   )
