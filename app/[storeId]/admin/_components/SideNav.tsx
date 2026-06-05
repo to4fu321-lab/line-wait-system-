@@ -19,15 +19,21 @@ export function SideNav() {
   const params   = useParams<{ storeId: string }>()
   const pathname = usePathname()
   const storeId  = params?.storeId ?? ''
+  const [queueBadge,  setQueueBadge]  = useState(0)
   const [repairBadge, setRepairBadge] = useState(0)
-  const [storeName, setStoreName] = useState<string>('')
+  const [storeName,   setStoreName]   = useState<string>('')
   const { hasFeature } = useStoreFeatures(storeId)
   const { setMode } = useDeviceMode()
 
   useEffect(() => {
     if (!storeId) return
     const fetchData = async () => {
-      const [{ count: r }, { count: p }, { count: rc }, { count: pa }, storeRes] = await Promise.all([
+      const getTodayStart = () => {
+        const d = new Date(); d.setHours(0, 0, 0, 0); return d.toISOString()
+      }
+      const [{ count: waiting }, { count: r }, { count: p }, { count: rc }, { count: pa }, { count: inqPending }, storeRes] = await Promise.all([
+        (supabase as any).from('queues').select('*', { count: 'exact', head: true })
+          .eq('store_id', storeId).eq('status', 'waiting').gte('created_at', getTodayStart()),
         (supabase as any).from('repair_histories').select('*', { count: 'exact', head: true })
           .eq('store_id', storeId).eq('status', 'received'),
         (supabase as any).from('purchase_orders').select('*', { count: 'exact', head: true })
@@ -36,9 +42,12 @@ export function SideNav() {
           .eq('store_id', storeId).eq('status', 'completed'),
         (supabase as any).from('purchase_orders').select('*', { count: 'exact', head: true })
           .eq('store_id', storeId).eq('status', 'arrived'),
+        (supabase as any).from('inquiries').select('*', { count: 'exact', head: true })
+          .eq('store_id', storeId).eq('status', 'pending'),
         (supabase as any).from('stores').select('name').eq('id', storeId).single(),
       ])
-      setRepairBadge((r ?? 0) + (p ?? 0) + (rc ?? 0) + (pa ?? 0))
+      setQueueBadge(waiting ?? 0)
+      setRepairBadge((r ?? 0) + (p ?? 0) + (rc ?? 0) + (pa ?? 0) + (inqPending ?? 0))
       if (storeRes.data?.name) setStoreName(storeRes.data.name)
     }
     fetchData()
@@ -54,6 +63,12 @@ export function SideNav() {
     const target = tab.path(storeId)
     if (tab.exact) return pathname === target || pathname === target + '/'
     return pathname.startsWith(target)
+  }
+
+  function badgeFor(tab: typeof ALL_TABS[number]) {
+    if (tab.id === 'queue')   return queueBadge
+    if (tab.id === 'repairs') return repairBadge
+    return 0
   }
 
   return (
@@ -72,7 +87,7 @@ export function SideNav() {
         {tabs.map(tab => {
           const active     = isActive(tab)
           const Icon       = tab.icon
-          const badgeCount = tab.id === 'repairs' ? repairBadge : 0
+          const badgeCount = badgeFor(tab)
           return (
             <Link
               key={tab.id}
@@ -87,7 +102,7 @@ export function SideNav() {
               <Icon size={18} strokeWidth={active ? 2.5 : 1.8} />
               <span className="flex-1">{tab.label}</span>
               {badgeCount > 0 && (
-                <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none min-w-[18px] text-center">
+                <span className="inline-flex items-center justify-center w-5 h-5 bg-red-500 text-white text-[10px] font-black rounded-full leading-none">
                   {badgeCount > 99 ? '99+' : badgeCount}
                 </span>
               )}
