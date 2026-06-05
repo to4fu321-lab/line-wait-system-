@@ -3774,6 +3774,12 @@ export default function RepairsPage() {
                 {dummyLoading ? <Loader2 size={11} className="animate-spin" /> : <Database size={11} />}
               </button>
             )}
+            {tab === 'inquiries' && (
+              <button onClick={() => { setEditInquiry(null); setShowInqModal(true) }}
+                className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-violet-600/20">
+                <Plus size={12} />問合せ
+              </button>
+            )}
             <button onClick={() => setShowNewOrder(true)}
               className="flex items-center gap-1.5 px-3 py-2 bg-teal-600 hover:bg-teal-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-teal-600/20">
               <ShoppingCart size={12} />制服注文
@@ -4265,26 +4271,43 @@ export default function RepairsPage() {
           )
         ) : tab === 'inquiries' ? (
           /* ── ⑤問合せ管理（インライン） ──────────────────────── */
-          <div className="space-y-2">
-            {/* ヘッダー: 追加ボタン */}
-            <div className="flex items-center">
-              <button onClick={() => { setEditInquiry(null); setShowInqModal(true) }}
-                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-black rounded-xl transition-colors shadow-sm">
-                <Plus size={12} />追加
-              </button>
-            </div>
-            {/* フィルター */}
-            <div className="flex gap-1 overflow-x-auto pb-0.5 no-scrollbar">
-              {(['all', 'pending', 'in_progress', 'completed'] as const).map(s => (
-                <button key={s} onClick={() => setInqFilter(s)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 transition-colors ${inqFilter === s ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 border border-gray-200'}`}>
-                  {s === 'all' ? `全て(${inquiries.length})` : INQ_STATUS_LABELS[s as InquiryStatus]}
-                </button>
-              ))}
-              <div className="w-px bg-gray-200 mx-0.5 shrink-0" />
+          <div className="space-y-1.5">
+            {/* 進捗フィルター: 4等分グリッド */}
+            {(() => {
+              const counts: Record<string, number> = {
+                all: inquiries.length,
+                pending:     inquiries.filter(i => i.status === 'pending').length,
+                in_progress: inquiries.filter(i => i.status === 'in_progress').length,
+                completed:   inquiries.filter(i => i.status === 'completed').length,
+              }
+              return (
+                <div className="grid grid-cols-4 gap-1">
+                  {(['all', 'pending', 'in_progress', 'completed'] as const).map(s => (
+                    <button key={s} onClick={() => setInqFilter(s)}
+                      className={`flex flex-col items-center py-1.5 rounded-xl text-center transition-colors ${inqFilter === s ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 border border-gray-200'}`}>
+                      <span className={`text-sm font-black tabular-nums leading-none ${inqFilter === s ? 'text-white' : counts[s] > 0 ? 'text-gray-800' : 'text-gray-300'}`}>
+                        {counts[s]}
+                      </span>
+                      <span className="text-[9px] font-bold mt-0.5 opacity-80">
+                        {s === 'all' ? '全て' : INQ_STATUS_LABELS[s as InquiryStatus]}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )
+            })()}
+            {/* 種別フィルター: コンパクトピル */}
+            <div className="flex gap-1 overflow-x-auto no-scrollbar">
               {(['all', 'inquiry', 'complaint', 'request', 'other'] as const).map(t => (
                 <button key={t} onClick={() => setInqTypeFilter(t)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 transition-colors ${inqTypeFilter === t ? 'bg-gray-800 text-white' : 'bg-white text-gray-500 border border-gray-200'}`}>
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold whitespace-nowrap flex-shrink-0 transition-colors border ${
+                    inqTypeFilter === t
+                      ? t === 'all' ? 'bg-gray-700 text-white border-gray-700'
+                        : t === 'complaint' ? 'bg-red-500 text-white border-red-500'
+                        : t === 'request'   ? 'bg-purple-500 text-white border-purple-500'
+                        : 'bg-blue-500 text-white border-blue-500'
+                      : 'bg-white text-gray-400 border-gray-200'
+                  }`}>
                   {t === 'all' ? '全種別' : INQ_TYPE_LABELS[t as InquiryType]}
                 </button>
               ))}
