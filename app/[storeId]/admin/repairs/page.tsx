@@ -3738,7 +3738,7 @@ export default function RepairsPage() {
   )
 
   const pendingInquiriesCount = inquiries.filter(i => i.status === 'pending').length
-  const urgentInquiriesCount  = inquiries.filter(i => i.is_urgent).length
+  const urgentInquiriesCount  = inquiries.filter(i => i.is_urgent && i.status !== 'completed').length
 
   // 未着手数（未着手お直し + 相談 + 未対応問合せ + 入金待ち + お渡しアラート + 問合せ未対応）
   const pendingCount =
