@@ -27,6 +27,25 @@ function fmtDate(d: string | null) {
   return new Date(d).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })
 }
 
+async function compressImage(file: File, maxDim = 1400, quality = 0.82): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height))
+      const w = Math.round(img.width * scale)
+      const h = Math.round(img.height * scale)
+      const canvas = document.createElement('canvas')
+      canvas.width = w; canvas.height = h
+      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
+      resolve(canvas.toDataURL('image/jpeg', quality).split(',')[1])
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image load failed')) }
+    img.src = url
+  })
+}
+
 function fmtReqNo(kind: 'repair' | 'purchase', no: number | null, id: string): string {
   const prefix = kind === 'repair' ? 'R' : 'P'
   if (no != null) return `${prefix}-${String(no).padStart(4, '0')}`
@@ -241,16 +260,11 @@ function NewRepairModal({ storeId, onClose, onSave, onToast, showOcr = true }: {
   const handleOcrRepair = async (file: File) => {
     setOcrLoading(true); setOcrWarnings([])
     try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve((reader.result as string).split(',')[1])
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
+      const base64 = await compressImage(file)
       const res = await fetch('/api/slip-ocr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64, mimeType: file.type, slipType: 'repair' }),
+        body: JSON.stringify({ imageBase64: base64, mimeType: 'image/jpeg', slipType: 'repair' }),
       })
       const { ok, data, error } = await res.json()
       if (!ok || !data) { onToast('err', `OCR失敗: ${error ?? '不明なエラー'}`); return }
@@ -1089,16 +1103,11 @@ function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   const handleOcrOrder = async (file: File) => {
     setOcrLoading(true); setOcrWarnings([])
     try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve((reader.result as string).split(',')[1])
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
+      const base64 = await compressImage(file)
       const res = await fetch('/api/slip-ocr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64, mimeType: file.type, slipType: 'order' }),
+        body: JSON.stringify({ imageBase64: base64, mimeType: 'image/jpeg', slipType: 'order' }),
       })
       const { ok, data, error } = await res.json()
       if (!ok || !data) { onToast('err', `OCR失敗: ${error ?? '不明なエラー'}`); return }
@@ -3164,15 +3173,10 @@ function InquiryEditModal({ storeId, item, onClose, onSave }: {
   const handleOcr = async (file: File) => {
     setOcrLoading(true)
     try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve((reader.result as string).split(',')[1])
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
+      const base64 = await compressImage(file)
       const res = await fetch('/api/slip-ocr', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64, mimeType: file.type, slipType: 'inquiry' }),
+        body: JSON.stringify({ imageBase64: base64, mimeType: 'image/jpeg', slipType: 'inquiry' }),
       })
       const { ok, data } = await res.json()
       if (ok && data) {
