@@ -1,8 +1,9 @@
 'use client'
 
+import React from 'react'
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { Bell, BellOff, Store, Clock, Loader2, Check, GraduationCap, Users, ChevronRight, Settings } from 'lucide-react'
+import { Bell, BellOff, Store, Clock, Loader2, Check, GraduationCap, Users, ChevronRight, Settings, ChevronDown } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../../_components/BottomNav'
@@ -74,6 +75,27 @@ function BigToggle({ on, onToggle, label, sub, emoji, color }: {
   )
 }
 
+function Section({ emoji, title, open, onToggle, children }: {
+  emoji: string; title: string; open: boolean
+  onToggle: () => void; children: React.ReactNode
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+      <button type="button" onClick={onToggle}
+        className="w-full flex items-center gap-3 px-5 py-4 text-left active:bg-gray-50 transition-colors">
+        <span className="text-xl leading-none">{emoji}</span>
+        <span className="flex-1 text-base font-bold text-gray-800">{title}</span>
+        <ChevronDown size={18} className={`text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="px-5 pb-5 border-t border-gray-100 pt-4 space-y-3">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function StaffSettingsPage() {
   const { storeId } = useParams<{ storeId: string }>()
 
@@ -86,6 +108,16 @@ export default function StaffSettingsPage() {
   const [saved,         setSaved]         = useState(false)
   const [saveError,     setSaveError]     = useState<string | null>(null)
   const [pushStatus,    setPushStatus]    = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle')
+  const [openSections,  setOpenSections]  = useState<Set<string>>(new Set())
+
+  const toggleSection = (id: string) => {
+    setOpenSections(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -178,9 +210,8 @@ export default function StaffSettingsPage() {
 
       <div className="max-w-lg mx-auto px-4 py-5 space-y-4 pb-32">
 
-        {/* マスタ管理 */}
-        <div className="space-y-3">
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">マスタ管理</p>
+        {/* 📋 マスタ管理 */}
+        <Section emoji="📋" title="マスタ管理" open={openSections.has('master')} onToggle={() => toggleSection('master')}>
           <div className="grid grid-cols-2 gap-3">
             <Link href={`/${storeId}/admin/master`}
               className="flex flex-col gap-3 px-4 py-4 rounded-2xl bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 active:scale-[0.98] transition-all">
@@ -209,134 +240,140 @@ export default function StaffSettingsPage() {
               </div>
             </Link>
           </div>
-        </div>
+        </Section>
 
-        {/* ① 受付通知 */}
-        <button
-          onClick={() => { if (pushStatus !== 'granted' && pushStatus !== 'unsupported') setupPush() }}
-          disabled={pushStatus === 'granted' || pushStatus === 'unsupported'}
-          style={{ touchAction: 'manipulation' }}
-          className={`w-full flex items-center gap-4 px-5 py-5 rounded-2xl border-2 transition-all active:scale-[0.98] ${
-            pushStatus === 'granted'     ? 'border-emerald-500/60 bg-emerald-500/10 cursor-default' :
-            pushStatus === 'denied'      ? 'border-red-500/40 bg-red-500/10' :
-            pushStatus === 'unsupported' ? 'border-gray-300 bg-gray-100 cursor-not-allowed opacity-60' :
-            'border-indigo-500/50 bg-indigo-500/10 hover:border-indigo-400'
-          }`}>
-          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${
-            pushStatus === 'granted' ? 'bg-emerald-500/20' :
-            pushStatus === 'denied'  ? 'bg-red-500/20' : 'bg-indigo-500/20'
-          }`}>
-            {pushStatus === 'denied'
-              ? <BellOff size={28} className="text-red-600" />
-              : <Bell size={28} className={pushStatus === 'granted' ? 'text-emerald-600' : 'text-indigo-600'} />}
-          </div>
-          <div className="text-left flex-1">
-            <p className={`font-black text-lg leading-tight ${
-              pushStatus === 'granted' ? 'text-emerald-700' :
-              pushStatus === 'denied' ? 'text-red-600' : 'text-gray-900'
+        {/* 🔔 通知・受付設定 */}
+        <Section emoji="🔔" title="通知・受付設定" open={openSections.has('notify')} onToggle={() => toggleSection('notify')}>
+          <button
+            onClick={() => { if (pushStatus !== 'granted' && pushStatus !== 'unsupported') setupPush() }}
+            disabled={pushStatus === 'granted' || pushStatus === 'unsupported'}
+            style={{ touchAction: 'manipulation' }}
+            className={`w-full flex items-center gap-4 px-5 py-5 rounded-2xl border-2 transition-all active:scale-[0.98] ${
+              pushStatus === 'granted'     ? 'border-emerald-500/60 bg-emerald-500/10 cursor-default' :
+              pushStatus === 'denied'      ? 'border-red-500/40 bg-red-500/10' :
+              pushStatus === 'unsupported' ? 'border-gray-300 bg-gray-100 cursor-not-allowed opacity-60' :
+              'border-indigo-500/50 bg-indigo-500/10 hover:border-indigo-400'
             }`}>
-              {pushStatus === 'granted'     ? '受付通知　オン' :
-               pushStatus === 'denied'      ? '通知がブロック中' :
-               pushStatus === 'unsupported' ? '通知非対応' :
-               '受付通知をオンにする'}
-            </p>
-            <p className="text-gray-500 text-sm mt-1">
-              {pushStatus === 'granted'     ? 'お客様が受付したとき通知が届きます' :
-               pushStatus === 'denied'      ? 'ブラウザの設定から通知を許可してください' :
-               pushStatus === 'unsupported' ? 'このブラウザは通知に対応していません' :
-               'タップしてこの端末で通知を受け取る'}
-            </p>
-          </div>
-          {pushStatus === 'granted' && (
-            <div className="shrink-0 w-4 h-4 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/50" />
-          )}
-        </button>
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${
+              pushStatus === 'granted' ? 'bg-emerald-500/20' :
+              pushStatus === 'denied'  ? 'bg-red-500/20' : 'bg-indigo-500/20'
+            }`}>
+              {pushStatus === 'denied'
+                ? <BellOff size={28} className="text-red-600" />
+                : <Bell size={28} className={pushStatus === 'granted' ? 'text-emerald-600' : 'text-indigo-600'} />}
+            </div>
+            <div className="text-left flex-1">
+              <p className={`font-black text-lg leading-tight ${
+                pushStatus === 'granted' ? 'text-emerald-700' :
+                pushStatus === 'denied' ? 'text-red-600' : 'text-gray-900'
+              }`}>
+                {pushStatus === 'granted'     ? '受付通知　オン' :
+                 pushStatus === 'denied'      ? '通知がブロック中' :
+                 pushStatus === 'unsupported' ? '通知非対応' :
+                 '受付通知をオンにする'}
+              </p>
+              <p className="text-gray-500 text-sm mt-1">
+                {pushStatus === 'granted'     ? 'お客様が受付したとき通知が届きます' :
+                 pushStatus === 'denied'      ? 'ブラウザの設定から通知を許可してください' :
+                 pushStatus === 'unsupported' ? 'このブラウザは通知に対応していません' :
+                 'タップしてこの端末で通知を受け取る'}
+              </p>
+            </div>
+            {pushStatus === 'granted' && (
+              <div className="shrink-0 w-4 h-4 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/50" />
+            )}
+          </button>
 
-        {/* 管理者用詳細設定リンク */}
-        <Link href={`/${storeId}/admin/settings`}
-          className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-gray-200 bg-white hover:bg-gray-50 active:scale-[0.98] transition-all">
-          <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center shrink-0">
-            <Settings size={26} className="text-indigo-600" />
-          </div>
-          <div className="text-left flex-1">
-            <p className="font-black text-lg text-gray-700">管理者用詳細設定</p>
-            <p className="text-gray-500 text-sm mt-0.5">通知・予約・LINEなど全設定</p>
-          </div>
-          <ChevronRight size={18} className="text-gray-400 shrink-0" />
-        </Link>
+          <BigToggle
+            on={allowRemote}
+            onToggle={() => setAllowRemote(v => !v)}
+            label="遠隔チェックイン"
+            sub={allowRemote ? '来店前の順番取りを許可しています' : '現地受付のみです'}
+            emoji="🏠"
+            color="indigo"
+          />
+        </Section>
 
-        {/* ② 店舗を切り替える */}
-        <button
-          onClick={() => {
-            sessionStorage.removeItem('admin_auth')
-            sessionStorage.removeItem('admin_store_id')
-            window.location.href = `/${storeId}/admin`
-          }}
-          style={{ touchAction: 'manipulation' }}
-          className="w-full flex items-center gap-4 px-5 py-5 rounded-2xl border border-gray-200 bg-white hover:bg-gray-100 active:scale-[0.98] transition-all">
-          <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center shrink-0">
-            <Store size={28} className="text-gray-600" />
-          </div>
-          <div className="text-left flex-1">
-            <p className="font-black text-lg text-gray-700">店舗を切り替える</p>
-            <p className="text-gray-500 text-sm mt-1">別の店舗に切り替えます（再ログインが必要）</p>
-          </div>
-        </button>
+        {/* ⚙️ 詳細設定 */}
+        <Section emoji="⚙️" title="詳細設定" open={openSections.has('detail')} onToggle={() => toggleSection('detail')}>
+          <Link href={`/${storeId}/admin/settings`}
+            className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-gray-200 bg-gray-50 hover:bg-gray-100 active:scale-[0.98] transition-all">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center shrink-0">
+              <Settings size={26} className="text-indigo-600" />
+            </div>
+            <div className="text-left flex-1">
+              <p className="font-black text-lg text-gray-700">管理者用詳細設定</p>
+              <p className="text-gray-500 text-sm mt-0.5">通知・予約・LINEなど全設定</p>
+            </div>
+            <ChevronRight size={18} className="text-gray-400 shrink-0" />
+          </Link>
+        </Section>
 
-        {/* ③ 営業時間 */}
-        <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
-          <div className="flex items-center gap-2 px-5 pt-4 pb-3">
-            <Clock size={20} className="text-gray-600" />
-            <p className="font-black text-lg text-gray-900">営業時間</p>
+        {/* 🏪 店舗・アカウント */}
+        <Section emoji="🏪" title="店舗・アカウント" open={openSections.has('store')} onToggle={() => toggleSection('store')}>
+          <button
+            onClick={() => {
+              sessionStorage.removeItem('admin_auth')
+              sessionStorage.removeItem('admin_store_id')
+              window.location.href = `/${storeId}/admin`
+            }}
+            style={{ touchAction: 'manipulation' }}
+            className="w-full flex items-center gap-4 px-5 py-5 rounded-2xl border border-gray-200 bg-gray-50 hover:bg-gray-100 active:scale-[0.98] transition-all">
+            <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center shrink-0">
+              <Store size={28} className="text-gray-600" />
+            </div>
+            <div className="text-left flex-1">
+              <p className="font-black text-lg text-gray-700">店舗を切り替える</p>
+              <p className="text-gray-500 text-sm mt-1">別の店舗に切り替えます（再ログインが必要）</p>
+            </div>
+          </button>
+        </Section>
+
+        {/* 🕐 営業時間 */}
+        <Section emoji="🕐" title="営業時間" open={openSections.has('hours')} onToggle={() => toggleSection('hours')}>
+          <div className="bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
+            <div className="flex items-center gap-2 px-5 pt-4 pb-3">
+              <Clock size={20} className="text-gray-600" />
+              <p className="font-black text-lg text-gray-900">営業時間</p>
+            </div>
+            {DAY_LABELS.map(({ key, label, color }) => {
+              const h = businessHours.hours[key] ?? DEFAULT_HOURS.hours[key]!
+              const update = (patch: Partial<DayHours>) =>
+                setBusinessHours(prev => ({ hours: { ...prev.hours, [key]: { ...h, ...patch } } }))
+              return (
+                <div key={key} className={`flex items-center gap-3 px-4 py-3 border-t border-gray-100 ${h.closed ? 'opacity-40' : ''}`}>
+                  <span className={`w-7 text-base font-black text-center ${color}`}>{label}</span>
+                  {h.closed ? (
+                    <span className="flex-1 text-gray-500 text-base">定休日</span>
+                  ) : (
+                    <div className="flex items-center gap-2 flex-1">
+                      <input type="time" value={h.open} onChange={e => update({ open: e.target.value })}
+                        className="bg-gray-100 border border-gray-300 rounded-xl px-3 py-2 text-base text-gray-900 focus:border-indigo-500 focus:outline-none w-28" />
+                      <span className="text-gray-400">〜</span>
+                      <input type="time" value={h.close} onChange={e => update({ close: e.target.value })}
+                        className="bg-gray-100 border border-gray-300 rounded-xl px-3 py-2 text-base text-gray-900 focus:border-indigo-500 focus:outline-none w-28" />
+                    </div>
+                  )}
+                  <button onClick={() => update({ closed: !h.closed })}
+                    className={`shrink-0 px-3 py-2 rounded-xl text-sm font-bold transition-colors ${
+                      h.closed ? 'bg-gray-200 text-gray-600 hover:bg-emerald-100 hover:text-emerald-700' : 'bg-red-100 text-red-700 hover:bg-red-200'
+                    }`}>
+                    {h.closed ? '開店' : '定休'}
+                  </button>
+                </div>
+              )
+            })}
           </div>
-          {DAY_LABELS.map(({ key, label, color }) => {
-            const h = businessHours.hours[key] ?? DEFAULT_HOURS.hours[key]!
-            const update = (patch: Partial<DayHours>) =>
-              setBusinessHours(prev => ({ hours: { ...prev.hours, [key]: { ...h, ...patch } } }))
-            return (
-              <div key={key} className={`flex items-center gap-3 px-4 py-3 border-t border-gray-100 ${h.closed ? 'opacity-40' : ''}`}>
-                <span className={`w-7 text-base font-black text-center ${color}`}>{label}</span>
-                {h.closed ? (
-                  <span className="flex-1 text-gray-500 text-base">定休日</span>
-                ) : (
-                  <div className="flex items-center gap-2 flex-1">
-                    <input type="time" value={h.open} onChange={e => update({ open: e.target.value })}
-                      className="bg-gray-100 border border-gray-300 rounded-xl px-3 py-2 text-base text-gray-900 focus:border-indigo-500 focus:outline-none w-28" />
-                    <span className="text-gray-400">〜</span>
-                    <input type="time" value={h.close} onChange={e => update({ close: e.target.value })}
-                      className="bg-gray-100 border border-gray-300 rounded-xl px-3 py-2 text-base text-gray-900 focus:border-indigo-500 focus:outline-none w-28" />
-                  </div>
-                )}
-                <button onClick={() => update({ closed: !h.closed })}
-                  className={`shrink-0 px-3 py-2 rounded-xl text-sm font-bold transition-colors ${
-                    h.closed ? 'bg-gray-200 text-gray-600 hover:bg-emerald-100 hover:text-emerald-700' : 'bg-red-100 text-red-700 hover:bg-red-200'
-                  }`}>
-                  {h.closed ? '開店' : '定休'}
-                </button>
-              </div>
-            )
-          })}
-        </div>
 
-        {/* ④ 遠隔チェックイン */}
-        <BigToggle
-          on={allowRemote}
-          onToggle={() => setAllowRemote(v => !v)}
-          label="遠隔チェックイン"
-          sub={allowRemote ? '来店前の順番取りを許可しています' : '現地受付のみです'}
-          emoji="🏠"
-          color="indigo"
-        />
-
-        {/* ⑤ 練習モード */}
-        <BigToggle
-          on={isTestMode}
-          onToggle={handleTestModeToggle}
-          label="練習モード"
-          sub={isTestMode ? '練習中 — LINE・通知は送信されません' : 'オフ — 本番として動作します'}
-          emoji="🧪"
-          color="amber"
-        />
+          <BigToggle
+            on={isTestMode}
+            onToggle={handleTestModeToggle}
+            label="練習モード"
+            sub={isTestMode ? '練習中 — LINE・通知は送信されません' : 'オフ — 本番として動作します'}
+            emoji="🧪"
+            color="amber"
+          />
+        </Section>
 
         {/* 保存 */}
         {saveError && (
