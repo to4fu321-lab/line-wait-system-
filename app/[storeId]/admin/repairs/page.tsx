@@ -2254,91 +2254,256 @@ function UniformOrderCard({ item, storeId, onRefresh, onToast }: {
   )
 }
 
-// ── Aggregated Order UI ───────────────────────────────────────
-interface OrderGroup {
-  groupKey:   string
-  item_name:  string
-  maker:      string | null
-  totalCount: number
-  orders:     PurchaseRow[]
+// ── Order Guide: maker-based hierarchy + checklist modal ─────
+
+interface SizeEntry  { size: string | null; count: number; orders: PurchaseRow[] }
+interface ItemEntry  { item_name: string; sizes: SizeEntry[]; totalCount: number }
+interface SchoolEntry{ school_name: string; items: ItemEntry[]; totalCount: number }
+interface MakerEntry { maker: string; schools: SchoolEntry[]; totalCount: number; allOrders: PurchaseRow[] }
+
+function buildMakerHierarchy(orders: PurchaseRow[]): MakerEntry[] {
+  const makerMap = new Map<string, MakerEntry>()
+  for (const order of orders) {
+    const mk  = order.maker?.trim()            || '（メーカー未設定）'
+    const sch = order.child?.school_name       ?? '（学校未設定）'
+    const itm = order.item_name.trim()
+    const sz  = order.notes?.trim()            ?? ''
+    if (!makerMap.has(mk)) makerMap.set(mk, { maker: mk, schools: [], totalCount: 0, allOrders: [] })
+    const me = makerMap.get(mk)!
+    me.totalCount++; me.allOrders.push(order)
+    let se = me.schools.find(s => s.school_name === sch)
+    if (!se) { se = { school_name: sch, items: [], totalCount: 0 }; me.schools.push(se) }
+    se.totalCount++
+    let ie = se.items.find(i => i.item_name === itm)
+    if (!ie) { ie = { item_name: itm, sizes: [], totalCount: 0 }; se.items.push(ie) }
+    ie.totalCount++
+    let ze = ie.sizes.find(z => (z.size ?? '') === sz)
+    if (!ze) { ze = { size: order.notes ?? null, count: 0, orders: [] }; ie.sizes.push(ze) }
+    ze.count++; ze.orders.push(order)
+  }
+  return Array.from(makerMap.values()).sort((a, b) => a.maker.localeCompare(b.maker, 'ja'))
 }
 
-function AggregatedOrderCard({ group, checked, onCheck, onToast, onEdit }: {
-  group: OrderGroup; checked: boolean; onCheck: () => void
-  onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
-  onEdit?: (item: PurchaseRow) => void
+// ── Order Guide Modal ─────────────────────────────────────────
+function OrderGuideModal({ maker, orders, onClose, onComplete }: {
+  maker: string
+  orders: PurchaseRow[]
+  onClose: () => void
+  onComplete: (ids: string[]) => Promise<void>
 }) {
-  const [open,   setOpen]   = useState(false)
-  const [copied, setCopied] = useState(false)
+  const checklistItems = useMemo(() => {
+    const map = new Map<string, { school: string; item: string; size: string | null; count: number; ids: string[] }>()
+    for (const o of orders) {
+      const school = o.child?.school_name ?? '（学校未設定）'
+      const key = `${school}|${o.item_name.trim()}|${o.notes ?? ''}`
+      if (!map.has(key)) map.set(key, { school, item: o.item_name, size: o.notes ?? null, count: 0, ids: [] })
+      const g = map.get(key)!; g.count++; g.ids.push(o.id)
+    }
+    return Array.from(map.entries()).map(([key, v]) => ({ key, ...v }))
+  }, [orders])
 
-  function copyToClipboard() {
-    const breakdown = group.orders
-      .map(o => `・${o.child?.name ?? o.customer?.name ?? '不明'}${o.notes ? `（${o.notes}）` : ''}`)
-      .join('\n')
-    const lines = [
-      `【品名】${group.item_name}`,
-      group.maker ? `【メーカー】${group.maker}` : null,
-      `【数量】${group.totalCount}件`,
-      `─内訳─`,
-      breakdown,
-    ].filter(Boolean).join('\n')
-    navigator.clipboard.writeText(lines)
-      .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
-      .catch(() => onToast('err', 'コピーに失敗しました'))
+  const [checked,      setChecked]      = useState<Set<string>>(new Set())
+  const [step,         setStep]         = useState<'list' | 'confirm'>('list')
+  const [confirmInput, setConfirmInput] = useState('')
+  const [completing,   setCompleting]   = useState(false)
+
+  const totalCount = orders.length
+  const allChecked = checked.size === checklistItems.length && checklistItems.length > 0
+  const inputNum   = parseInt(confirmInput, 10)
+  const matches    = confirmInput !== '' && inputNum === totalCount
+
+  function toggleItem(key: string) {
+    setChecked(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
+  }
+
+  async function handleComplete() {
+    if (!matches) return
+    setCompleting(true)
+    await onComplete(orders.map(o => o.id))
+    setCompleting(false)
   }
 
   return (
-    <div className={`rounded-2xl border-2 overflow-hidden transition-colors ${
-      checked ? 'border-orange-400 bg-orange-50' : 'border-slate-200 bg-white'
-    }`}>
-      <div className="flex items-center gap-2 p-3">
-        <button onClick={e => { e.stopPropagation(); onCheck() }}
-          className={`w-7 h-7 rounded-lg border-2 flex items-center justify-center shrink-0 transition-all ${
-            checked ? 'border-orange-500 bg-orange-500' : 'border-gray-300 hover:border-gray-400'
-          }`}>
-          {checked && <Check size={13} className="text-white" />}
-        </button>
-        <button className="flex-1 text-left min-w-0" onClick={() => setOpen(v => !v)}>
-          {group.maker && <p className="text-[10px] font-bold text-gray-400 leading-tight">{group.maker}</p>}
-          <p className="font-black text-gray-900 text-sm leading-snug">{group.item_name}</p>
-          <div className="flex items-baseline gap-1 mt-0.5">
-            <span className="text-2xl font-black text-orange-600">{group.totalCount}</span>
-            <span className="text-xs font-bold text-gray-500">件</span>
-            <span className="text-[10px] text-gray-400">/ {group.orders.length}人</span>
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-lg bg-white rounded-t-3xl shadow-2xl flex flex-col"
+        style={{ maxHeight: '92dvh', paddingBottom: 'env(safe-area-inset-bottom)' }}
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="px-5 pt-5 pb-4 border-b border-gray-100 shrink-0">
+          <div className="flex items-center gap-3 mb-3">
+            <button onClick={onClose} className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 active:scale-95 transition-all">
+              <X size={18} />
+            </button>
+            <h2 className="flex-1 text-base font-black text-gray-900">📋 {maker} — 発注ガイド</h2>
           </div>
+          {step === 'list' && (
+            <>
+              <p className="text-xs text-gray-500 mb-2.5">外部サイトで入力しながら 1行ずつチェックしてください</p>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+                    style={{ width: `${checklistItems.length ? (checked.size / checklistItems.length) * 100 : 0}%` }} />
+                </div>
+                <span className="text-xs font-black text-indigo-600 tabular-nums">{checked.size}/{checklistItems.length}</span>
+              </div>
+            </>
+          )}
+          {step === 'confirm' && (
+            <p className="text-xs text-gray-500">外部サイトに入力した合計数量を確認してください</p>
+          )}
+        </div>
+
+        {/* Body */}
+        {step === 'list' ? (
+          <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
+            {checklistItems.map(item => (
+              <button key={item.key} onClick={() => toggleItem(item.key)}
+                className={`w-full flex items-center gap-3 px-5 py-4 transition-all text-left active:scale-[0.99] ${
+                  checked.has(item.key) ? 'bg-emerald-50' : 'hover:bg-gray-50'
+                }`}>
+                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                  checked.has(item.key) ? 'border-emerald-500 bg-emerald-500 scale-110' : 'border-gray-300'
+                }`}>
+                  {checked.has(item.key) && <Check size={13} className="text-white" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-bold text-amber-600">{item.school}</p>
+                  <p className={`text-sm font-bold leading-snug ${checked.has(item.key) ? 'text-emerald-600 line-through' : 'text-gray-900'}`}>
+                    {item.item}
+                    {item.size && <span className="ml-1.5 text-indigo-600 not-italic">{item.size}</span>}
+                  </p>
+                </div>
+                <span className={`text-2xl font-black tabular-nums shrink-0 ${checked.has(item.key) ? 'text-emerald-400' : 'text-orange-600'}`}>
+                  ×{item.count}
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="flex-1 px-5 py-6 space-y-4">
+            <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 text-center">
+              <p className="text-xs font-bold text-indigo-600 mb-1">システム集計（発注すべき合計）</p>
+              <p className="text-5xl font-black text-indigo-700 tabular-nums">{totalCount}</p>
+              <p className="text-sm font-bold text-indigo-500 mt-1">件</p>
+            </div>
+            <div>
+              <label className="text-sm font-bold text-gray-700 block mb-2">
+                外部サイトで入力した合計数量を入力
+              </label>
+              <input type="number" value={confirmInput} onChange={e => setConfirmInput(e.target.value)}
+                autoFocus inputMode="numeric"
+                className="w-full text-center text-4xl font-black border-2 border-gray-300 rounded-2xl py-5 focus:border-indigo-500 focus:outline-none tabular-nums"
+                placeholder="0" />
+            </div>
+            {confirmInput !== '' && !matches && (
+              <div className="bg-red-50 border border-red-300 rounded-2xl px-4 py-3 flex items-center gap-2">
+                <AlertCircle size={16} className="text-red-500 shrink-0" />
+                <p className="text-sm font-bold text-red-700">
+                  システム集計（{totalCount}件）と一致しません。発注画面を再確認してください。
+                </p>
+              </div>
+            )}
+            {matches && (
+              <div className="bg-emerald-50 border border-emerald-300 rounded-2xl px-4 py-3 flex items-center gap-2">
+                <Check size={16} className="text-emerald-600 shrink-0" />
+                <p className="text-sm font-black text-emerald-700">数量一致！発注完了できます</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-gray-100 shrink-0 space-y-2">
+          {step === 'list' ? (
+            <button onClick={() => setStep('confirm')} disabled={!allChecked}
+              className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl disabled:opacity-40 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25">
+              {allChecked
+                ? <><Check size={16} />全件チェック完了 — 数量確認へ</>
+                : `残り ${checklistItems.length - checked.size} 件をチェックしてください`}
+            </button>
+          ) : (
+            <>
+              <button onClick={handleComplete}
+                disabled={completing || !matches}
+                className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl disabled:opacity-40 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25">
+                {completing ? <Loader2 size={16} className="animate-spin" /> : <CheckCheck size={16} />}
+                発注済みにする（{totalCount}件）
+              </button>
+              <button onClick={() => setStep('list')}
+                className="w-full py-2 text-xs font-bold text-gray-500 hover:text-gray-700 transition-colors">
+                ← チェックリストに戻る
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Maker Card ────────────────────────────────────────────────
+function MakerCard({ maker, onGuide, onEdit }: {
+  maker: MakerEntry
+  onGuide: () => void
+  onEdit?: (item: PurchaseRow) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const itemCount = maker.schools.reduce((s, sc) => s + sc.items.length, 0)
+
+  return (
+    <div className="rounded-2xl border-2 border-orange-200 bg-white overflow-hidden shadow-sm">
+      <div className="flex items-center gap-3 px-4 py-3.5">
+        <button className="flex-1 text-left min-w-0" onClick={() => setOpen(v => !v)}>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-base font-black text-gray-900">📦 {maker.maker}</span>
+            <span className="text-xs font-black bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+              {maker.totalCount}件
+            </span>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-0.5">
+            {maker.schools.length}校 · {itemCount}品目
+          </p>
         </button>
-        <button onClick={copyToClipboard}
-          className={`shrink-0 p-2 rounded-xl transition-all ${
-            copied ? 'bg-emerald-100 text-emerald-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-          }`}>
-          {copied ? <CheckCheck size={15} /> : <Copy size={15} />}
+        <button onClick={onGuide}
+          className="shrink-0 flex items-center gap-1.5 px-3 py-2.5 bg-orange-600 hover:bg-orange-500 text-white text-xs font-black rounded-xl active:scale-95 transition-all shadow-md shadow-orange-200">
+          <ClipboardList size={13} />発注ガイド
         </button>
         <button onClick={() => setOpen(v => !v)} className="shrink-0 text-gray-400 p-1">
-          {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </button>
       </div>
+
       {open && (
-        <div className="border-t border-gray-100">
-          {group.orders.map((order, idx) => (
-            <div key={order.id} className={`px-4 py-2.5 flex items-start gap-3 ${idx > 0 ? 'border-t border-gray-50' : ''}`}>
-              <div className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center shrink-0 mt-0.5">
-                <span className="text-[10px] font-bold text-gray-500">{idx + 1}</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-gray-800">{order.child?.name ?? order.customer?.name ?? '（不明）'}</p>
-                {order.child && <p className="text-[10px] text-gray-400">保護者: {order.customer?.name}</p>}
-                {order.notes && <p className="text-xs text-gray-500 mt-0.5">{order.notes}</p>}
-                <p className="text-[10px] text-gray-400 mt-0.5">依頼日: {fmtDate(order.ordered_date)}</p>
-              </div>
-              {order.price != null && (
-                <p className="text-xs font-bold text-gray-600 shrink-0">¥{order.price.toLocaleString()}</p>
-              )}
-              {onEdit && (
-                <button onClick={() => onEdit(order)}
-                  className="shrink-0 p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
-                  <Pencil size={11} />
-                </button>
-              )}
+        <div className="border-t border-orange-100 divide-y divide-gray-50">
+          {maker.schools.map(school => (
+            <div key={school.school_name} className="px-4 py-3">
+              <p className="text-[10px] font-black text-amber-600 mb-2">🏫 {school.school_name}</p>
+              {school.items.map(item => (
+                <div key={item.item_name} className="ml-2 mb-3 last:mb-0">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <p className="text-sm font-bold text-gray-800">{item.item_name}</p>
+                    <span className="text-[10px] text-gray-400">計{item.totalCount}件</span>
+                  </div>
+                  {item.sizes.map(sz => (
+                    <div key={sz.size ?? '_none'} className="flex items-center gap-2 ml-3 py-1">
+                      <span className="text-xs font-bold text-indigo-600 min-w-[64px] shrink-0">
+                        {sz.size || '（サイズ未設定）'}
+                      </span>
+                      <span className="text-xl font-black text-orange-600 tabular-nums shrink-0">×{sz.count}</span>
+                      <p className="text-[10px] text-gray-400 truncate">
+                        {sz.orders.map(o => o.child?.name ?? o.customer?.name ?? '?').join('、')}
+                      </p>
+                      {onEdit && sz.orders.map(o => (
+                        <button key={o.id} onClick={() => onEdit(o)}
+                          className="shrink-0 p-1 text-gray-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-all">
+                          <Pencil size={10} />
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              ))}
             </div>
           ))}
         </div>
@@ -2347,109 +2512,56 @@ function AggregatedOrderCard({ group, checked, onCheck, onToast, onEdit }: {
   )
 }
 
-function AggregatedOrderList({ orders, storeId, onRefresh, onToast, onEdit }: {
-  orders: PurchaseRow[]; storeId: string; onRefresh: () => void
+// ── Maker Order Panel (replaces AggregatedOrderList) ──────────
+function MakerOrderPanel({ orders, onRefresh, onToast, onEdit }: {
+  orders: PurchaseRow[]
+  onRefresh: () => void
   onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
   onEdit?: (item: PurchaseRow) => void
 }) {
-  const [checked,  setChecked]  = useState<Set<string>>(new Set())
-  const [updating, setUpdating] = useState(false)
+  const [guideFor, setGuideFor] = useState<MakerEntry | null>(null)
+  const makers = useMemo(() => buildMakerHierarchy(orders), [orders])
 
-  const groups = useMemo<OrderGroup[]>(() => {
-    const map = new Map<string, OrderGroup>()
-    for (const order of orders) {
-      const key = order.item_name.trim()
-      if (!map.has(key)) map.set(key, { groupKey: key, item_name: order.item_name, maker: order.maker, totalCount: 0, orders: [] })
-      const g = map.get(key)!
-      g.totalCount++
-      g.orders.push(order)
-    }
-    return Array.from(map.values()).sort((a, b) => {
-      if (a.maker && b.maker) return a.maker.localeCompare(b.maker, 'ja')
-      if (a.maker) return -1; if (b.maker) return 1
-      return a.item_name.localeCompare(b.item_name, 'ja')
-    })
-  }, [orders])
-
-  useEffect(() => { setChecked(new Set()) }, [orders])
-
-  function toggleCheck(key: string) {
-    setChecked(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
-  }
-  function toggleAll() {
-    setChecked(checked.size === groups.length ? new Set() : new Set(groups.map(g => g.groupKey)))
-  }
-
-  async function bulkMarkOrdered() {
-    const selectedGroups = groups.filter(g => checked.has(g.groupKey))
-    const selectedIds    = selectedGroups.flatMap(g => g.orders.map(o => o.id))
-    if (selectedIds.length === 0) return
-    const prevStatuses = Object.fromEntries(selectedGroups.flatMap(g => g.orders.map(o => [o.id, o.status])))
-    setUpdating(true)
+  async function completeOrdering(ids: string[]) {
+    const prevMap = Object.fromEntries(orders.filter(o => ids.includes(o.id)).map(o => [o.id, o.status]))
     const { error } = await (supabase as any)
       .from('purchase_orders')
       .update({ status: 'on_order', updated_at: new Date().toISOString() })
-      .in('id', selectedIds)
-    setUpdating(false)
+      .in('id', ids)
     if (error) { onToast('err', '更新に失敗しました'); return }
     onRefresh()
-    onToast('ok', `${selectedIds.length}件を発注済みにしました`, async () => {
-      await Promise.all(
-        Object.entries(prevStatuses).map(([id, status]) =>
-          (supabase as any).from('purchase_orders')
-            .update({ status, updated_at: new Date().toISOString() }).eq('id', id)
-        )
-      )
+    onToast('ok', `${ids.length}件を発注済みにしました`, async () => {
+      await Promise.all(Object.entries(prevMap).map(([id, st]) =>
+        (supabase as any).from('purchase_orders').update({ status: st, updated_at: new Date().toISOString() }).eq('id', id)
+      ))
       onRefresh()
     })
+    setGuideFor(null)
   }
 
-  if (orders.length === 0) {
-    return (
-      <div className="text-center py-6 text-gray-400">
-        <ShoppingBag size={24} className="mx-auto mb-2 opacity-30" />
-        <p className="text-sm">未発注の追加購入はありません</p>
-      </div>
-    )
-  }
-
-  const allChecked   = checked.size === groups.length && groups.length > 0
-  const checkedTotal = groups.filter(g => checked.has(g.groupKey)).reduce((s, g) => s + g.totalCount, 0)
+  if (orders.length === 0) return (
+    <div className="text-center py-6 text-gray-400">
+      <ShoppingBag size={24} className="mx-auto mb-2 opacity-30" />
+      <p className="text-sm">未発注の追加購入はありません</p>
+    </div>
+  )
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-3 px-1">
-        <button onClick={toggleAll} className="flex items-center gap-2 text-xs font-bold text-gray-600 hover:text-gray-800">
-          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${allChecked ? 'border-orange-500 bg-orange-500' : 'border-gray-300'}`}>
-            {allChecked && <Check size={11} className="text-white" />}
-          </div>
-          {allChecked ? 'すべて解除' : 'すべて選択'}
-        </button>
-        <span className="text-xs text-gray-400">{groups.length}品目 / 計{orders.length}件</span>
-      </div>
-      <div className="space-y-2 pb-4">
-        {groups.map(group => (
-          <AggregatedOrderCard key={group.groupKey} group={group}
-            checked={checked.has(group.groupKey)} onCheck={() => toggleCheck(group.groupKey)}
-            onToast={onToast} onEdit={onEdit} />
+    <>
+      <div className="space-y-3">
+        {makers.map(m => (
+          <MakerCard key={m.maker} maker={m} onGuide={() => setGuideFor(m)} onEdit={onEdit} />
         ))}
       </div>
-      {checked.size > 0 && (
-        <div className="fixed bottom-20 left-0 right-0 z-30 flex justify-center px-4 pointer-events-none">
-          <div className="max-w-lg w-full bg-orange-700 text-white rounded-2xl shadow-2xl p-3 flex items-center gap-3 pointer-events-auto">
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold opacity-70">選択中</p>
-              <p className="text-sm font-black">{checked.size}品目 / {checkedTotal}件</p>
-            </div>
-            <button onClick={bulkMarkOrdered} disabled={updating}
-              className="shrink-0 px-5 py-2.5 bg-white text-orange-700 font-black text-sm rounded-xl flex items-center gap-2 active:scale-95 transition-all disabled:opacity-60 shadow">
-              {updating ? <Loader2 size={14} className="animate-spin" /> : <Truck size={14} />}
-              まとめて発注済みに
-            </button>
-          </div>
-        </div>
+      {guideFor && (
+        <OrderGuideModal
+          maker={guideFor.maker}
+          orders={guideFor.allOrders}
+          onClose={() => setGuideFor(null)}
+          onComplete={completeOrdering}
+        />
       )}
-    </div>
+    </>
   )
 }
 
@@ -2900,10 +3012,12 @@ function EditModal({ kind, item, onClose, onSave, onToast }: {
           )}
         </div>
         <div>
-          <label className="text-xs font-bold text-gray-600 block mb-1">備考・サイズ変更メモ</label>
+          <label className="text-xs font-bold text-gray-600 block mb-1">
+            {kind === 'purchase' ? 'サイズ' : '備考メモ'}
+          </label>
           <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
             className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none resize-none"
-            placeholder="数量変更・サイズ変更などの追記事項" />
+            placeholder={kind === 'purchase' ? '例: 165A / 73cm / LL' : '数量変更・サイズ変更などの追記事項'} />
         </div>
         <button onClick={handleSave} disabled={saving || !itemName.trim()}
           className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-indigo-600/25 active:scale-[0.98] transition-all">
@@ -3706,12 +3820,12 @@ export default function RepairsPage() {
               />
             </div>
 
-            {filteredPurchases.length === 0 && filteredUniformOrders.length === 0 ? (
+            {filteredPurchaseUnordered.length === 0 && filteredUniformOrders.length === 0 ? (
               <div className="text-center py-20 text-gray-400">
                 <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
                   <ShoppingBag size={28} className="opacity-40" />
                 </div>
-                <p className="text-sm font-bold">{searchText ? '該当する発注がありません' : '対応中の発注はありません'}</p>
+                <p className="text-sm font-bold">{searchText ? '該当する発注がありません' : '未発注の依頼はありません'}</p>
               </div>
             ) : (
               <>
@@ -3731,7 +3845,7 @@ export default function RepairsPage() {
                   </section>
                 )}
 
-                {/* 未発注: 集約リスト */}
+                {/* 未発注: メーカー別発注パネル */}
                 {filteredPurchaseUnordered.length > 0 && (
                   <section>
                     <div className="flex items-center gap-2.5 mb-3 px-1">
@@ -3739,45 +3853,11 @@ export default function RepairsPage() {
                       <p className="text-sm font-black text-gray-800 flex-1">未発注</p>
                       <span className="text-xs font-black bg-orange-100 text-orange-700 px-2.5 py-1 rounded-full">{filteredPurchaseUnordered.length}件</span>
                     </div>
-                    <AggregatedOrderList
+                    <MakerOrderPanel
                       orders={filteredPurchaseUnordered}
-                      storeId={storeId} onRefresh={fetchAll} onToast={showToast}
+                      onRefresh={fetchAll} onToast={showToast}
                       onEdit={item => { setEditItem(item); setEditKind('purchase') }}
                     />
-                  </section>
-                )}
-
-                {/* 発注済み: 入荷待ち */}
-                {filteredPurchaseOnOrder.length > 0 && (
-                  <section>
-                    <div className="flex items-center gap-2.5 mb-3 px-1">
-                      <div className="w-2 h-6 rounded-full bg-blue-500 shrink-0" />
-                      <p className="text-sm font-black text-gray-800 flex-1">発注済み — 入荷待ち</p>
-                      <span className="text-xs font-black bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full">{filteredPurchaseOnOrder.length}件</span>
-                    </div>
-                    <div className="space-y-2.5">
-                      {filteredPurchaseOnOrder.map(p => (
-                        <PurchaseCard key={p.id} item={p} storeId={storeId} onRefresh={fetchAll} onToast={showToast}
-                          onEdit={item => { setEditItem(item); setEditKind('purchase') }} />
-                      ))}
-                    </div>
-                  </section>
-                )}
-
-                {/* 在庫確保済み */}
-                {filteredPurchaseStocked.length > 0 && (
-                  <section>
-                    <div className="flex items-center gap-2.5 mb-3 px-1">
-                      <div className="w-2 h-6 rounded-full bg-teal-500 shrink-0" />
-                      <p className="text-sm font-black text-gray-800 flex-1">在庫確保済み</p>
-                      <span className="text-xs font-black bg-teal-100 text-teal-700 px-2.5 py-1 rounded-full">{filteredPurchaseStocked.length}件</span>
-                    </div>
-                    <div className="space-y-2.5">
-                      {filteredPurchaseStocked.map(p => (
-                        <PurchaseCard key={p.id} item={p} storeId={storeId} onRefresh={fetchAll} onToast={showToast}
-                          onEdit={item => { setEditItem(item); setEditKind('purchase') }} />
-                      ))}
-                    </div>
                   </section>
                 )}
               </>
