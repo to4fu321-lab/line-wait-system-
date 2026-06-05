@@ -3,30 +3,32 @@
 import Link from 'next/link'
 import { useParams, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Timer, Search, Settings, ClipboardList, Monitor } from 'lucide-react'
+import { Timer, Search, Settings, ClipboardList, Monitor, MessageSquarePlus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { useDeviceMode } from '@/lib/useDeviceMode'
 
 const ALL_TABS = [
-  { id: 'queue',    featureKey: 'tab_queue',   label: '受付',  icon: Timer,         exact: true,  path: (sid: string) => `/${sid}/admin` },
-  { id: 'repairs',  featureKey: 'tab_repairs',  label: '案件',  icon: ClipboardList, exact: false, path: (sid: string) => `/${sid}/admin/repairs` },
-  { id: 'crm',      featureKey: 'tab_crm',      label: '顧客',  icon: Search,        exact: false, path: (sid: string) => `/${sid}/admin/crm` },
-  { id: 'settings', featureKey: null,            label: '設定',  icon: Settings,      exact: false, path: (sid: string) => `/${sid}/admin/settings/staff` },
+  { id: 'queue',     featureKey: 'tab_queue',      label: '受付',   icon: Timer,              exact: true,  path: (sid: string) => `/${sid}/admin` },
+  { id: 'repairs',   featureKey: 'tab_repairs',    label: '案件',   icon: ClipboardList,      exact: false, path: (sid: string) => `/${sid}/admin/repairs` },
+  { id: 'inquiries', featureKey: 'tab_inquiries',  label: '問合せ', icon: MessageSquarePlus,  exact: false, path: (sid: string) => `/${sid}/admin/inquiries` },
+  { id: 'crm',       featureKey: 'tab_crm',        label: '顧客',   icon: Search,             exact: false, path: (sid: string) => `/${sid}/admin/crm` },
+  { id: 'settings',  featureKey: null,              label: '設定',   icon: Settings,           exact: false, path: (sid: string) => `/${sid}/admin/settings/staff` },
 ] as const
 
 export function BottomNav() {
   const params   = useParams<{ storeId: string }>()
   const pathname = usePathname()
   const storeId  = params?.storeId ?? ''
-  const [repairBadge, setRepairBadge] = useState(0)
+  const [repairBadge,  setRepairBadge]  = useState(0)
+  const [inquiryBadge, setInquiryBadge] = useState(0)
   const { hasFeature } = useStoreFeatures(storeId)
   const { isTablet, setMode } = useDeviceMode()
 
   useEffect(() => {
     if (!storeId) return
     const fetchBadges = async () => {
-      const [{ count: r }, { count: p }, { count: rc }, { count: pa }] = await Promise.all([
+      const [{ count: r }, { count: p }, { count: rc }, { count: pa }, { count: iq }] = await Promise.all([
         (supabase as any).from('repair_histories').select('*', { count: 'exact', head: true })
           .eq('store_id', storeId).eq('status', 'received'),
         (supabase as any).from('purchase_orders').select('*', { count: 'exact', head: true })
@@ -35,8 +37,11 @@ export function BottomNav() {
           .eq('store_id', storeId).eq('status', 'completed'),
         (supabase as any).from('purchase_orders').select('*', { count: 'exact', head: true })
           .eq('store_id', storeId).eq('status', 'arrived'),
+        (supabase as any).from('inquiries').select('*', { count: 'exact', head: true })
+          .eq('store_id', storeId).in('status', ['pending', 'in_progress']),
       ])
       setRepairBadge((r ?? 0) + (p ?? 0) + (rc ?? 0) + (pa ?? 0))
+      setInquiryBadge(iq ?? 0)
     }
     fetchBadges()
     const t = setInterval(fetchBadges, 60000)
@@ -65,7 +70,7 @@ export function BottomNav() {
           {tabs.map(tab => {
             const active     = isActive(tab)
             const Icon       = tab.icon
-            const badgeCount = tab.id === 'repairs' ? repairBadge : 0
+            const badgeCount = tab.id === 'repairs' ? repairBadge : tab.id === 'inquiries' ? inquiryBadge : 0
             return (
               <Link
                 key={tab.id}

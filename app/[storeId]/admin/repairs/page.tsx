@@ -1,6 +1,6 @@
 'use client'
 
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   Scissors, ShoppingBag, Loader2, ChevronDown, ChevronUp, ChevronLeft,
@@ -3137,6 +3137,7 @@ type RepairSubTab = 'unstarted' | 'inprogress' | 'outsourced' | 'other'
 
 export default function RepairsPage() {
   const { storeId } = useParams<{ storeId: string }>()
+  const router = useRouter()
   const { hasFeature } = useStoreFeatures(storeId)
   const { isTablet } = useDeviceMode()
 
@@ -3536,6 +3537,10 @@ export default function RepairsPage() {
                 {dummyLoading ? <Loader2 size={11} className="animate-spin" /> : <Database size={11} />}
               </button>
             )}
+            <button onClick={() => router.push(`/${storeId}/admin/inquiries`)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-violet-600/20">
+              <MessageSquarePlus size={12} />問合せ
+            </button>
             <button onClick={() => setShowNewOrder(true)}
               className="flex items-center gap-1.5 px-3 py-2 bg-teal-600 hover:bg-teal-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-teal-600/20">
               <ShoppingCart size={12} />制服注文
