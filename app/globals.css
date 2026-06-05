@@ -18,6 +18,8 @@
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
   }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }
 
 @keyframes pulse-bg {

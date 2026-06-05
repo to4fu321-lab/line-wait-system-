@@ -3132,7 +3132,19 @@ function ArrivalCard({ item, storeId, onRefresh, onToast, onEdit, selected, onTo
 }
 
 // ── Main Page ─────────────────────────────────────────────────
-type ActiveTab = 'repair' | 'purchase' | 'arrival' | 'delivery'
+type ActiveTab = 'repair' | 'purchase' | 'arrival' | 'delivery' | 'inquiries'
+type InquiryDashStatus = 'pending' | 'in_progress' | 'completed'
+type InquiryDashType   = 'inquiry' | 'complaint' | 'request' | 'other'
+interface InquiryDashRow {
+  id: string
+  customer_name: string | null
+  content: string
+  type: InquiryDashType
+  is_urgent: boolean
+  due_date: string | null
+  status: InquiryDashStatus
+  created_at: string
+}
 type DeliverySubTab = 'waiting' | 'history'
 type SortOrder = 'priority' | 'received_asc' | 'deadline_asc' | 'school' | 'name' | 'unpaid_first'
 type RepairSubTab = 'unstarted' | 'inprogress' | 'outsourced' | 'other'
@@ -3151,6 +3163,7 @@ export default function RepairsPage() {
   const [uniformOrders,  setUniformOrders]  = useState<UniformOrderRow[]>([])
   const [waiting,        setWaiting]        = useState<DeliveryItem[]>([])
   const [history,        setHistory]        = useState<DeliveryItem[]>([])
+  const [inquiries,      setInquiries]      = useState<InquiryDashRow[]>([])
   const [loading,        setLoading]        = useState(true)
   const [histLoading,    setHistLoading]    = useState(false)
   const [histFetched,    setHistFetched]    = useState(false)
@@ -3191,6 +3204,7 @@ export default function RepairsPage() {
       { data: waitRepairs  },
       { data: waitPurchases },
       { data: uniformData  },
+      { data: inquiryData  },
     ] = await Promise.all([
       (supabase as any).from('repair_histories')
         .select('*, desired_completion_date, work_started, customer:customers(id,name,tel), child:children(name,school_name)')
@@ -3212,12 +3226,17 @@ export default function RepairsPage() {
         .select('*, customer:customers(id,name,tel), child:children(name,school_name), items:uniform_order_items(item_name,size_label,quantity,unit_price)')
         .eq('store_id', storeId).not('status', 'in', '("delivered")')
         .order('created_at', { ascending: true }),
+      (supabase as any).from('inquiries')
+        .select('id,customer_name,content,type,is_urgent,due_date,status,created_at')
+        .eq('store_id', storeId).not('status', 'eq', 'completed')
+        .order('created_at', { ascending: true }),
     ])
     if (repairErr)    setFetchError(repairErr.message)
     else if (purchaseErr) setFetchError(purchaseErr.message)
     setRepairs(repairData ?? [])
     setPurchases(purchaseData ?? [])
     setUniformOrders(uniformData ?? [])
+    setInquiries(inquiryData ?? [])
     const waitingItems: DeliveryItem[] = [
       ...(waitRepairs   ?? []).map((r: Record<string, unknown>) => rawToItem(r, 'repair')),
       ...(waitPurchases ?? []).map((p: Record<string, unknown>) => rawToItem(p, 'purchase')),
@@ -3556,11 +3575,13 @@ export default function RepairsPage() {
           {/* Dashboard card */}
           <div className="bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-600 rounded-2xl px-4 pt-3 pb-0 text-white shadow-lg shadow-indigo-600/25">
             {(() => {
+              const pendingInquiries = inquiries.filter(i => i.status === 'pending').length
               const dashTabs = [
-                { id: 'repair'   as const, emoji: '✂️', label: 'お直し',   count: repairs.length },
-                { id: 'purchase' as const, emoji: '📦', label: '発注',     count: purchaseUnordered.length + uniformOrders.length },
-                { id: 'arrival'  as const, emoji: '🚚', label: '入荷待ち', count: purchaseOnOrder.length + purchaseStocked.length },
-                { id: 'delivery' as const, emoji: '🎁', label: 'お渡し',   count: waiting.length },
+                { id: 'repair'    as const, emoji: '✂️', label: 'お直し',   count: repairs.length },
+                { id: 'purchase'  as const, emoji: '📦', label: '発注',     count: purchaseUnordered.length + uniformOrders.length },
+                { id: 'arrival'   as const, emoji: '🚚', label: '入荷待ち', count: purchaseOnOrder.length + purchaseStocked.length },
+                { id: 'delivery'  as const, emoji: '🎁', label: 'お渡し',   count: waiting.length },
+                { id: 'inquiries' as const, emoji: '💬', label: '問合せ',   count: pendingInquiries },
               ]
               const togglePending = () => {
                 if (!pendingFilter) { setPendingFilter(true); setTab('repair') }
@@ -3584,12 +3605,12 @@ export default function RepairsPage() {
                         {pendingFilter && <span className="text-[9px] text-amber-300 font-black">絞込中</span>}
                       </div>
                     </button>
-                    {/* Mini 2×2 tab grid */}
-                    <div className="grid grid-cols-2 gap-1 shrink-0 self-center">
+                    {/* Tab list — horizontal scroll */}
+                    <div className="flex gap-1 shrink-0 self-center overflow-x-auto no-scrollbar">
                       {dashTabs.map(t => (
                         <button key={t.id}
                           onClick={() => { setTab(t.id); setSearchText(''); setBatchSelected(new Set()); setPendingFilter(false) }}
-                          className={`rounded-xl px-2 py-1.5 text-center transition-all active:scale-[0.97] min-w-[52px] ${
+                          className={`rounded-xl px-2 py-1.5 text-center transition-all active:scale-[0.97] min-w-[48px] shrink-0 ${
                             tab === t.id ? 'bg-white/20 ring-1 ring-white/30' : 'hover:bg-white/10 opacity-60'
                           }`}>
                           <p className="text-lg font-black leading-none tabular-nums">
@@ -4007,6 +4028,48 @@ export default function RepairsPage() {
               </div>
             )
           )
+        ) : tab === 'inquiries' ? (
+          /* ── ⑤問合せタブ ─────────────────────────────────── */
+          <div className="space-y-2">
+            {inquiries.length === 0 ? (
+              <div className="text-center py-20 text-gray-400">
+                <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                  <MessageSquarePlus size={28} className="opacity-40" />
+                </div>
+                <p className="text-sm font-bold">未対応・対応中の問合せはありません</p>
+              </div>
+            ) : (
+              inquiries.map(inq => {
+                const typeLabel: Record<string,string> = { inquiry:'問合せ', complaint:'クレーム', request:'要望', other:'その他' }
+                const statusLabel: Record<string,string> = { pending:'未対応', in_progress:'対応中', completed:'完了' }
+                const typeBorder: Record<string,string> = { inquiry:'border-l-blue-400', complaint:'border-l-red-500', request:'border-l-purple-400', other:'border-l-gray-300' }
+                const statusBg: Record<string,string> = { pending:'bg-red-100 text-red-700', in_progress:'bg-amber-100 text-amber-700', completed:'bg-green-100 text-green-700' }
+                const typeBg: Record<string,string> = { inquiry:'bg-blue-100 text-blue-700', complaint:'bg-red-100 text-red-700', request:'bg-purple-100 text-purple-700', other:'bg-gray-100 text-gray-500' }
+                return (
+                  <div key={inq.id}
+                    className={`bg-white rounded-2xl border-l-4 border border-gray-100 shadow-sm px-4 py-3 space-y-1 ${typeBorder[inq.type] ?? 'border-l-gray-300'}`}
+                    onClick={() => router.push(`/${storeId}/admin/inquiries`)}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${typeBg[inq.type]}`}>{typeLabel[inq.type]}</span>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${statusBg[inq.status]}`}>{statusLabel[inq.status]}</span>
+                      {inq.is_urgent && <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-500 text-white">緊急</span>}
+                      {inq.customer_name && <span className="text-xs font-bold text-gray-600">{inq.customer_name}</span>}
+                    </div>
+                    <p className="text-sm text-gray-800 line-clamp-2">{inq.content}</p>
+                    <div className="flex items-center gap-3 text-[10px] text-gray-400">
+                      <span>{new Date(inq.created_at).toLocaleDateString('ja-JP', { month:'numeric', day:'numeric' })}</span>
+                      {inq.due_date && <span className="text-amber-600 font-bold">期限: {new Date(inq.due_date).toLocaleDateString('ja-JP', { month:'numeric', day:'numeric' })}</span>}
+                    </div>
+                  </div>
+                )
+              })
+            )}
+            <button
+              onClick={() => router.push(`/${storeId}/admin/inquiries`)}
+              className="w-full py-3 text-xs font-bold text-violet-600 bg-violet-50 hover:bg-violet-100 rounded-2xl transition-colors">
+              問合せ管理ページを開く →
+            </button>
+          </div>
         ) : null}
 
       </div>
