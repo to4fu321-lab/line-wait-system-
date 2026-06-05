@@ -3392,7 +3392,7 @@ export default function RepairsPage() {
   const [batchSelected,  setBatchSelected]  = useState<Set<string>>(new Set())
   const [batchUpdating,  setBatchUpdating]  = useState(false)
   const [pendingFilter,  setPendingFilter]  = useState(false)
-  const [inqFilter,    setInqFilter]    = useState<InquiryStatus | 'all'>('all')
+
   const [inqTypeFilter,setInqTypeFilter]= useState<InquiryType | 'all'>('all')
   const [showInqModal, setShowInqModal] = useState(false)
   const [editInquiry,  setEditInquiry]  = useState<InquiryRow | null>(null)
@@ -4282,16 +4282,20 @@ export default function RepairsPage() {
               }
               return (
                 <div className="grid grid-cols-4 gap-1">
-                  {(['all', 'pending', 'in_progress', 'completed'] as const).map(s => (
-                    <button key={s} onClick={() => setInqFilter(s)}
-                      className={`flex flex-col items-center py-1.5 rounded-xl text-center transition-colors ${inqFilter === s ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 border border-gray-200'}`}>
-                      <span className={`text-sm font-black tabular-nums leading-none ${inqFilter === s ? 'text-white' : counts[s] > 0 ? 'text-gray-800' : 'text-gray-300'}`}>
-                        {counts[s]}
+                  {([
+                    { key: 'all',         label: '全て',  color: 'text-gray-800', bg: 'bg-gray-50 border-gray-200' },
+                    { key: 'pending',     label: '未対応', color: 'text-red-700',  bg: 'bg-red-50 border-red-200'  },
+                    { key: 'in_progress', label: '対応中', color: 'text-amber-700',bg: 'bg-amber-50 border-amber-200' },
+                    { key: 'completed',   label: '完了',  color: 'text-green-700',bg: 'bg-green-50 border-green-200' },
+                  ] as const).map(s => (
+                    <div key={s.key} className={`flex flex-col items-center py-1.5 rounded-xl text-center border ${s.bg}`}>
+                      <span className={`text-sm font-black tabular-nums leading-none ${counts[s.key] > 0 ? s.color : 'text-gray-300'}`}>
+                        {counts[s.key]}
                       </span>
-                      <span className="text-[9px] font-bold mt-0.5 opacity-80">
-                        {s === 'all' ? '全て' : INQ_STATUS_LABELS[s as InquiryStatus]}
+                      <span className={`text-[9px] font-bold mt-0.5 ${counts[s.key] > 0 ? s.color : 'text-gray-300'}`}>
+                        {s.label}
                       </span>
-                    </button>
+                    </div>
                   ))}
                 </div>
               )
@@ -4312,16 +4316,14 @@ export default function RepairsPage() {
                 </button>
               ))}
             </div>
-            {/* リスト */}
+            {/* リスト: 種別フィルターのみ。進捗は常に全件表示しバッジで確認 */}
             {(() => {
+              const statusOrder: Record<InquiryStatus, number> = { pending: 0, in_progress: 1, completed: 2 }
               const filtered = inquiries
-                .filter(i => inqFilter === 'all' || i.status === inqFilter)
                 .filter(i => inqTypeFilter === 'all' || i.type === inqTypeFilter)
                 .sort((a, b) => {
-                  if (a.status === 'completed' && b.status !== 'completed') return 1
-                  if (a.status !== 'completed' && b.status === 'completed') return -1
                   if (a.is_urgent !== b.is_urgent) return a.is_urgent ? -1 : 1
-                  return 0
+                  return statusOrder[a.status] - statusOrder[b.status]
                 })
               if (filtered.length === 0) return (
                 <div className="text-center py-16 text-gray-400">
