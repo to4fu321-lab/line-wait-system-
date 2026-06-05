@@ -8,7 +8,7 @@ import {
   Banknote, Plus, AlertCircle, CreditCard, CheckCheck,
   History, CalendarDays, Copy, X, Pencil, Truck, Trash2,
   Search, Database, ShoppingCart, Tag, Camera, ScanLine, PackageCheck,
-  MessageSquarePlus,
+  MessageSquarePlus, Sparkles,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
@@ -3167,8 +3167,27 @@ function InquiryEditModal({ storeId, item, onClose, onSave }: {
   const [saving,       setSaving]       = useState(false)
   const [formError,    setFormError]    = useState<string | null>(null)
   const [ocrLoading,   setOcrLoading]   = useState(false)
+  const [aiLoading,    setAiLoading]    = useState(false)
+  const [aiAdvice,     setAiAdvice]     = useState<{
+    priority: string; priority_reason: string
+    recommended_action: string; sample_reply: string; notes: string | null
+  } | null>(null)
+  const [showAdvice,   setShowAdvice]   = useState(false)
   const ocrRef = useRef<HTMLInputElement>(null)
   const isEdit = !!item
+
+  async function handleAiAdvice() {
+    if (!content.trim()) return
+    setAiLoading(true); setAiAdvice(null); setShowAdvice(false)
+    try {
+      const res = await fetch('/api/inquiry-advice', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, content, isUrgent, customerName }),
+      })
+      const json = await res.json()
+      if (json.ok) { setAiAdvice(json.advice); setShowAdvice(true) }
+    } finally { setAiLoading(false) }
+  }
 
   const handleOcr = async (file: File) => {
     setOcrLoading(true)
@@ -3249,9 +3268,47 @@ function InquiryEditModal({ storeId, item, onClose, onSave }: {
           </div>
           <div>
             <label className="text-xs font-bold text-gray-600 mb-1 block">内容 <span className="text-red-500">*</span></label>
-            <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="問合せ・クレームの内容..."
+            <textarea value={content} onChange={e => { setContent(e.target.value); setAiAdvice(null) }} placeholder="問合せ・クレームの内容..."
               rows={3} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none" />
+            <button type="button" onClick={handleAiAdvice} disabled={!content.trim() || aiLoading}
+              className="mt-2 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black border transition-all disabled:opacity-40 bg-gradient-to-r from-violet-500 to-indigo-500 text-white border-transparent hover:from-violet-400 hover:to-indigo-400 shadow-sm disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200 disabled:from-transparent disabled:to-transparent disabled:shadow-none">
+              {aiLoading ? <><Loader2 size={12} className="animate-spin" />AIが分析中...</> : <><Sparkles size={12} />AIアドバイスを取得</>}
+            </button>
           </div>
+
+          {aiAdvice && (
+            <div className="rounded-xl border border-violet-200 bg-violet-50 overflow-hidden">
+              <button type="button" onClick={() => setShowAdvice(v => !v)}
+                className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-black text-violet-700">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles size={12} />AIアドバイス
+                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${aiAdvice.priority === '高' ? 'bg-red-100 text-red-700' : aiAdvice.priority === '中' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                    優先度：{aiAdvice.priority}
+                  </span>
+                </span>
+                {showAdvice ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+              {showAdvice && (
+                <div className="px-3 pb-3 space-y-2.5 border-t border-violet-100">
+                  <p className="text-[11px] text-violet-600 pt-2">{aiAdvice.priority_reason}</p>
+                  <div>
+                    <p className="text-[10px] font-black text-violet-500 mb-0.5">推奨対応</p>
+                    <p className="text-xs text-gray-700 leading-relaxed">{aiAdvice.recommended_action}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-violet-500 mb-0.5">返答例</p>
+                    <p className="text-xs text-gray-600 leading-relaxed bg-white rounded-lg px-2.5 py-2 border border-violet-100">「{aiAdvice.sample_reply}」</p>
+                  </div>
+                  {aiAdvice.notes && (
+                    <div>
+                      <p className="text-[10px] font-black text-violet-500 mb-0.5">注意点</p>
+                      <p className="text-xs text-gray-600 leading-relaxed">{aiAdvice.notes}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex gap-2">
             <div className="flex-1">
               <label className="text-xs font-bold text-gray-600 mb-1 block">期日</label>
