@@ -3737,13 +3737,17 @@ export default function RepairsPage() {
     i.ready_date && (Date.now() - new Date(i.ready_date).getTime()) / 86400000 > alertDays
   )
 
-  // 未着手数（未着手お直し + 相談 + 未対応問合せ + 入金待ち + お渡しアラート）
+  const pendingInquiriesCount = inquiries.filter(i => i.status === 'pending').length
+  const urgentInquiriesCount  = inquiries.filter(i => i.is_urgent).length
+
+  // 未着手数（未着手お直し + 相談 + 未対応問合せ + 入金待ち + お渡しアラート + 問合せ未対応）
   const pendingCount =
     repairNotStarted.length +
     repairConsult.length +
     pendingInquiry.length +
     pendingPayment.length +
-    waitingAlert.length
+    waitingAlert.length +
+    pendingInquiriesCount
 
   // 全案件合計（進行中含む）
   const totalActive =
@@ -3796,8 +3800,8 @@ export default function RepairsPage() {
           {/* Dashboard card */}
           <div className="bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-600 rounded-2xl px-4 pt-3 pb-0 text-white shadow-lg shadow-indigo-600/25">
             {(() => {
-              const pendingInquiries = inquiries.filter(i => i.status === 'pending').length
-              const urgentInquiries  = inquiries.filter(i => i.is_urgent).length
+              const pendingInquiries = pendingInquiriesCount
+              const urgentInquiries  = urgentInquiriesCount
               const dashTabs = [
                 { id: 'repair'    as const, emoji: '✂️', label: 'お直し',   count: repairs.length,                                     urgent: 0 },
                 { id: 'purchase'  as const, emoji: '📦', label: '発注',     count: purchaseUnordered.length + uniformOrders.length,    urgent: 0 },
