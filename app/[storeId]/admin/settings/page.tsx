@@ -5,7 +5,9 @@ import { useEffect, useState, useCallback } from 'react'
 import {
   Settings, Loader2, Plus, Trash2, GraduationCap, AlertCircle, Save,
   CalendarDays, Clock, CheckCheck, LayoutDashboard, Store, Key, ChevronRight, Users,
+  PackageSearch,
 } from 'lucide-react'
+import type { OrderSchedule, ScheduleType } from '../_components/OrderReminderBanner'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { WaitThreshold } from '@/types/database'
@@ -88,6 +90,9 @@ export default function SettingsPage() {
   const [businessHours,     setBusinessHours]     = useState<BusinessHours>(DEFAULT_BUSINESS_HOURS)
   const [saveError,         setSaveError]         = useState<string | null>(null)
 
+  const [orderSchedule,     setOrderSchedule]     = useState<OrderSchedule | null>(null)
+  const [orderScheduleOn,   setOrderScheduleOn]   = useState(false)
+
   // ── 予約設定 ──────────────────────────────────────────────
   type ResvSetting = {
     service_type: string; label: string; duration_min: number
@@ -114,7 +119,7 @@ export default function SettingsPage() {
     setLoading(true)
     const { data } = await (supabase as any)
       .from('stores')
-      .select('name, pin, theme_color, notice_threshold, wait_thresholds, allow_remote, notification_plan, push_settings, alert_days_repair, alert_days_purchase, school_names, is_test_mode, repair_notes, welcome_message, notice_text, business_hours')
+      .select('name, pin, theme_color, notice_threshold, wait_thresholds, allow_remote, notification_plan, push_settings, alert_days_repair, alert_days_purchase, school_names, is_test_mode, repair_notes, welcome_message, notice_text, business_hours, order_schedule')
       .eq('id', storeId)
       .single()
     if (data) {
@@ -135,6 +140,10 @@ export default function SettingsPage() {
       if (data.welcome_message != null) setWelcomeMessage(data.welcome_message)
       if (data.notice_text != null) setNoticeText(data.notice_text)
       if (data.business_hours?.hours) setBusinessHours(data.business_hours)
+      if (data.order_schedule) {
+        setOrderScheduleOn(true)
+        setOrderSchedule(data.order_schedule as OrderSchedule)
+      }
     }
     setLoading(false)
   }, [storeId])
@@ -201,6 +210,7 @@ export default function SettingsPage() {
         school_names:        schoolNames.filter((s: string) => s.trim()),
         repair_notes:        repairNotes || null,
         business_hours:      businessHours,
+        order_schedule:      orderScheduleOn && orderSchedule ? orderSchedule : null,
       })
       .eq('id', storeId)
     setSaving(false)
@@ -489,6 +499,108 @@ export default function SettingsPage() {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* 発注スケジュール */}
+        <div className="space-y-2">
+          <SectionLabel title="発注促進スケジュール" />
+          <p className="text-xs text-gray-400">設定した条件を満たすと、管理画面上部に「発注タイミングです！」バナーが表示されます。</p>
+          <Toggle
+            on={orderScheduleOn}
+            onToggle={() => {
+              const next = !orderScheduleOn
+              setOrderScheduleOn(next)
+              if (next && !orderSchedule) setOrderSchedule({ type: 'daily', time: '21:00' })
+            }}
+            label="📦 発注リマインダーを使う"
+            sub={orderScheduleOn ? 'スケジュールに従ってバナーを表示します' : 'OFFの場合はバナーを表示しません'}
+          />
+          {orderScheduleOn && orderSchedule && (
+            <div className="bg-white border border-gray-100 rounded-xl p-4 space-y-4">
+              {/* タイプ選択 */}
+              <div>
+                <p className="text-xs text-gray-500 mb-2">発注タイミング</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {(
+                    [
+                      { value: 'immediate', label: '即時',    desc: '未発注が1件でもあれば常に表示' },
+                      { value: 'daily',     label: '毎日',    desc: '指定時刻以降に表示' },
+                      { value: 'interval',  label: 'N日ごと', desc: '前回消したN日後に表示' },
+                      { value: 'weekly',    label: '週1回',   desc: '指定曜日・時刻以降に表示' },
+                    ] as { value: ScheduleType; label: string; desc: string }[]
+                  ).map(opt => (
+                    <button key={opt.value} type="button"
+                      onClick={() => setOrderSchedule(prev => ({ ...(prev ?? {}), type: opt.value } as OrderSchedule))}
+                      className={`flex flex-col items-start px-3 py-2.5 rounded-xl border-2 transition-all text-left ${
+                        orderSchedule.type === opt.value ? 'border-amber-500 bg-amber-50' : 'border-gray-200 bg-gray-50'
+                      }`}>
+                      <span className={`text-xs font-bold ${orderSchedule.type === opt.value ? 'text-amber-700' : 'text-gray-600'}`}>{opt.label}</span>
+                      <span className="text-[10px] text-gray-400 mt-0.5 leading-relaxed">{opt.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 毎日・週1: 時刻 */}
+              {(orderSchedule.type === 'daily' || orderSchedule.type === 'weekly') && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-1.5 flex items-center gap-1"><Clock size={11} />表示開始時刻</p>
+                  <input type="time"
+                    value={orderSchedule.time ?? '21:00'}
+                    onChange={e => setOrderSchedule(prev => ({ ...prev!, time: e.target.value }))}
+                    className="bg-gray-100 border border-gray-300 rounded-xl px-3 py-2 text-sm text-gray-900 focus:border-amber-500 focus:outline-none" />
+                </div>
+              )}
+
+              {/* 週1: 曜日 */}
+              {orderSchedule.type === 'weekly' && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-1.5">発注曜日</p>
+                  <div className="flex gap-1.5">
+                    {(['日','月','火','水','木','金','土'] as const).map((label, i) => (
+                      <button key={i} type="button"
+                        onClick={() => setOrderSchedule(prev => ({ ...prev!, day_of_week: i }))}
+                        className={`w-9 h-9 rounded-xl text-xs font-bold transition-all ${
+                          orderSchedule.day_of_week === i
+                            ? 'bg-amber-500 text-white'
+                            : i === 0 ? 'bg-red-50 text-red-500 hover:bg-red-100'
+                            : i === 6 ? 'bg-blue-50 text-blue-500 hover:bg-blue-100'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* N日ごと: 日数 */}
+              {orderSchedule.type === 'interval' && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-1.5">発注間隔</p>
+                  <div className="flex items-center gap-2">
+                    <div className="flex gap-1.5">
+                      {[1, 3, 7, 14, 30].map(d => (
+                        <button key={d} type="button"
+                          onClick={() => setOrderSchedule(prev => ({ ...prev!, interval_days: d }))}
+                          className={`w-11 h-9 rounded-xl text-xs font-bold transition-all ${
+                            orderSchedule.interval_days === d ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                          }`}>{d}</button>
+                      ))}
+                    </div>
+                    <span className="text-xs text-gray-400">日ごと</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 flex items-start gap-2">
+                <PackageSearch size={13} className="text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-[11px] text-amber-700 leading-relaxed">
+                  バナーは「×」か「発注画面へ」で消えます。次の発注タイミングが来ると再度表示されます。
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 採寸予約設定 */}
