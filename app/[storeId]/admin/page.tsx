@@ -517,6 +517,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
   const [isTestMode,     setIsTestMode]     = useState(false)
   const [showQrModal,    setShowQrModal]    = useState(false)
   const [pushStatus,     setPushStatus]     = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle')
+  const [testLoading,    setTestLoading]    = useState(false)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const setupPush = useCallback(async (storeId: string) => {
@@ -665,6 +666,31 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     setQueues(prev => prev.map(q => q.id === id ? { ...q, checked_in: true } : q))
     showToast('ok', '代理チェックイン済みにしました')
   }
+
+  const addTestPerson = useCallback(async () => {
+    setTestLoading(true)
+    const names = ['田中 花子', '鈴木 太郎', '佐藤 明', '高橋 結衣', '伊藤 大輔', '渡辺 さくら', '山本 健', '中村 愛']
+    const schools = ['○○中学校', '△△高校', '□□学園', '◇◇学院', '星川中学校', '南高等学校']
+    const genders = ['male', 'female', 'other'] as const
+    const categories = ['fitting', 'pickup', 'other'] as const
+    const { data: last } = await supabase.from('queues')
+      .select('ticket_number').eq('store_id', store.id)
+      .gte('created_at', getTodayStart())
+      .order('ticket_number', { ascending: false }).limit(1).maybeSingle()
+    const nextNum = (last?.ticket_number ?? 0) + 1
+    const name     = names[Math.floor(Math.random() * names.length)]
+    const school   = schools[Math.floor(Math.random() * schools.length)]
+    const gender   = genders[Math.floor(Math.random() * genders.length)]
+    const category = categories[Math.floor(Math.random() * categories.length)]
+    const { error } = await supabase.from('queues').insert({
+      store_id: store.id, ticket_number: nextNum, status: 'waiting',
+      customer_name: name, school_name: school, child_name: null,
+      category, gender, is_remote: false, checked_in: false,
+    })
+    setTestLoading(false)
+    if (error) showToast('err', 'テスト追加失敗: ' + error.message)
+    else { showToast('ok', `テスト: ${name} (#${nextNum})を追加`); fetchQueues() }
+  }, [store.id, fetchQueues, showToast])
 
   const waitingTickets = queues.filter(q => q.status === 'waiting')
   const callingTickets = queues.filter(q => q.status === 'calling')
@@ -844,6 +870,12 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
                   <span>呼出中なし</span>
                 </div>
               )}
+              <button onClick={addTestPerson} disabled={testLoading}
+                className="ml-auto flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-xl text-gray-400 text-[10px] font-bold transition-colors disabled:opacity-50"
+                title="テスト用の人を追加">
+                {testLoading ? <Loader2 size={11} className="animate-spin" /> : <Users size={11} />}
+                テスト追加
+              </button>
             </div>
             {waitingTickets.length === 0 ? (
               <div className="text-center py-10 text-gray-400 bg-gray-50 rounded-2xl border border-gray-200">

@@ -3131,18 +3131,230 @@ function ArrivalCard({ item, storeId, onRefresh, onToast, onEdit, selected, onTo
   )
 }
 
+// ── Inquiry constants ──────────────────────────────────────────
+const INQ_TYPE_LABELS: Record<InquiryType, string> = { inquiry:'問合せ', complaint:'クレーム', request:'要望', other:'その他' }
+const INQ_TYPE_BADGE: Record<InquiryType, string> = {
+  inquiry:'bg-blue-100 text-blue-700 border border-blue-200',
+  complaint:'bg-red-100 text-red-700 border border-red-200',
+  request:'bg-purple-100 text-purple-700 border border-purple-200',
+  other:'bg-gray-100 text-gray-500 border border-gray-200',
+}
+const INQ_TYPE_BORDER: Record<InquiryType, string> = { inquiry:'border-l-blue-400', complaint:'border-l-red-500', request:'border-l-purple-400', other:'border-l-gray-300' }
+const INQ_STATUS_LABELS: Record<InquiryStatus, string> = { pending:'未対応', in_progress:'対応中', completed:'完了' }
+const INQ_STATUS_BADGE: Record<InquiryStatus, string> = { pending:'bg-red-100 text-red-700', in_progress:'bg-amber-100 text-amber-700', completed:'bg-green-100 text-green-700' }
+const INQ_METHOD_LABELS: Record<string, string> = { line:'LINE', phone:'電話', in_store:'店頭', email:'メール' }
+
+function InquiryEditModal({ storeId, item, onClose, onSave }: {
+  storeId: string; item: InquiryRow | null; onClose: () => void; onSave: () => void
+}) {
+  const [type,         setType]         = useState<InquiryType>(item?.type ?? 'inquiry')
+  const [customerName, setCustomerName] = useState(item?.customer_name ?? '')
+  const [content,      setContent]      = useState(item?.content ?? '')
+  const [isUrgent,     setIsUrgent]     = useState(item?.is_urgent ?? false)
+  const [dueDate,      setDueDate]      = useState(item?.due_date ?? '')
+  const [status,       setStatus]       = useState<InquiryStatus>(item?.status ?? 'pending')
+  const [method,       setMethod]       = useState<string>(item?.response_method ?? '')
+  const [notes,        setNotes]        = useState(item?.response_notes ?? '')
+  const [saving,       setSaving]       = useState(false)
+  const [formError,    setFormError]    = useState<string | null>(null)
+  const [ocrLoading,   setOcrLoading]   = useState(false)
+  const ocrRef = useRef<HTMLInputElement>(null)
+  const isEdit = !!item
+
+  const handleOcr = async (file: File) => {
+    setOcrLoading(true)
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve((reader.result as string).split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      const res = await fetch('/api/slip-ocr', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mimeType: file.type, slipType: 'inquiry' }),
+      })
+      const { ok, data } = await res.json()
+      if (ok && data) {
+        if (data.content)       setContent(prev => prev ? prev + '\n' + data.content : data.content)
+        if (data.customer_name) setCustomerName(data.customer_name)
+      }
+    } catch { /* ignore */ }
+    setOcrLoading(false)
+  }
+
+  async function handleSave() {
+    if (!content.trim()) { setFormError('内容を入力してください'); return }
+    setSaving(true); setFormError(null)
+    const now = new Date().toISOString()
+    const payload: Record<string, unknown> = {
+      store_id: storeId, customer_name: customerName.trim() || null,
+      content: content.trim(), type, is_urgent: isUrgent,
+      due_date: dueDate || null, status,
+      response_method: method || null, response_notes: notes.trim() || null,
+      responded_at: status === 'completed' && !item?.responded_at ? now : (item?.responded_at ?? null),
+      updated_at: now,
+    }
+    const q = isEdit
+      ? (supabase as any).from('inquiries').update(payload).eq('id', item.id)
+      : (supabase as any).from('inquiries').insert({ ...payload, created_at: now })
+    const { error } = await q
+    setSaving(false)
+    if (error) { setFormError('保存に失敗しました'); return }
+    onSave(); onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center" onClick={onClose}>
+      <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[90dvh] flex flex-col"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-gray-100 shrink-0">
+          <h2 className="text-sm font-black text-gray-800">{isEdit ? '問合せ編集' : '問合せ追加'}</h2>
+          <div className="flex items-center gap-2">
+            <input ref={ocrRef} type="file" accept="image/*" capture="environment" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleOcr(f); e.target.value = '' }} />
+            <button onClick={() => ocrRef.current?.click()} disabled={ocrLoading}
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-violet-100 hover:bg-violet-200 text-violet-700 text-xs font-bold rounded-lg transition-colors disabled:opacity-50">
+              {ocrLoading ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} />}
+              {ocrLoading ? '読取中...' : '画像読取'}
+            </button>
+            <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"><X size={16} /></button>
+          </div>
+        </div>
+        <div className="overflow-y-auto flex-1 px-4 py-3 space-y-3">
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="text-xs font-bold text-gray-600 mb-1 block">種別</label>
+              <select value={type} onChange={e => setType(e.target.value as InquiryType)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white">
+                {(Object.entries(INQ_TYPE_LABELS) as [InquiryType, string][]).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col justify-end">
+              <label className="text-xs font-bold text-gray-600 mb-1 block">急ぎ</label>
+              <button onClick={() => setIsUrgent(u => !u)}
+                className={`px-3 py-2 rounded-xl text-sm font-bold border transition-colors ${isUrgent ? 'bg-red-500 text-white border-red-500' : 'bg-white text-gray-400 border-gray-200'}`}>
+                🔴 急ぎ
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-bold text-gray-600 mb-1 block">お客様名</label>
+            <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="山田 太郎"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-gray-600 mb-1 block">内容 <span className="text-red-500">*</span></label>
+            <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="問合せ・クレームの内容..."
+              rows={3} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none" />
+          </div>
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="text-xs font-bold text-gray-600 mb-1 block">期日</label>
+              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+            </div>
+            <div className="flex-1">
+              <label className="text-xs font-bold text-gray-600 mb-1 block">ステータス</label>
+              <select value={status} onChange={e => setStatus(e.target.value as InquiryStatus)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white">
+                {(Object.entries(INQ_STATUS_LABELS) as [InquiryStatus, string][]).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="bg-gray-50 rounded-xl p-3 space-y-2.5">
+            <p className="text-xs font-bold text-gray-500">対応情報</p>
+            <div className="flex flex-wrap gap-1.5">
+              {(['', 'line', 'phone', 'in_store', 'email'] as const).map(m => (
+                <button key={m} onClick={() => setMethod(m)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors ${method === m ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white text-gray-500 border-gray-200'}`}>
+                  {m === '' ? '未定' : INQ_METHOD_LABELS[m]}
+                </button>
+              ))}
+            </div>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="対応内容を記録..."
+              rows={2} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none bg-white" />
+          </div>
+          {formError && <p className="text-xs text-red-600 font-bold">{formError}</p>}
+        </div>
+        <div className="px-4 py-3 border-t border-gray-100 shrink-0">
+          <button onClick={handleSave} disabled={saving}
+            className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-black disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}保存する
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function InquiryTabCard({ item, onEdit, onStatusChange }: {
+  item: InquiryRow; onEdit: (item: InquiryRow) => void; onStatusChange: (id: string, s: InquiryStatus) => void
+}) {
+  const [updating, setUpdating] = useState(false)
+  const today = new Date(); today.setHours(0,0,0,0)
+  const isOverdue = item.due_date && item.status !== 'completed' && new Date(item.due_date) < today
+
+  async function advanceStatus(e: React.MouseEvent) {
+    e.stopPropagation()
+    const next: Record<InquiryStatus, InquiryStatus> = { pending:'in_progress', in_progress:'completed', completed:'pending' }
+    setUpdating(true)
+    const now = new Date().toISOString()
+    const n = next[item.status]
+    await (supabase as any).from('inquiries').update({ status: n, responded_at: n === 'completed' ? now : null, updated_at: now }).eq('id', item.id)
+    setUpdating(false)
+    onStatusChange(item.id, n)
+  }
+
+  return (
+    <div onClick={() => onEdit(item)}
+      className={`bg-white rounded-xl border border-gray-100 border-l-4 ${INQ_TYPE_BORDER[item.type]} shadow-sm active:scale-[0.99] transition-transform cursor-pointer p-3`}>
+      <div className="flex items-start gap-2">
+        <div className="flex flex-col gap-1 pt-0.5 shrink-0">
+          <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md leading-tight ${INQ_TYPE_BADGE[item.type]}`}>{INQ_TYPE_LABELS[item.type]}</span>
+          {item.is_urgent && <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-red-500 text-white leading-tight text-center">急ぎ</span>}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+            {item.customer_name && <span className="text-xs font-bold text-gray-700">{item.customer_name}</span>}
+            {isOverdue && <span className="text-[10px] font-black text-red-600">期限超過</span>}
+            {item.due_date && !isOverdue && item.status !== 'completed' && (
+              <span className="text-[10px] text-gray-400">〆{new Date(item.due_date).toLocaleDateString('ja-JP', { month:'numeric', day:'numeric' })}</span>
+            )}
+          </div>
+          <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">{item.content}</p>
+          {item.response_notes && <p className="text-[10px] text-gray-400 mt-1 line-clamp-1">💬 {item.response_notes}</p>}
+          <p className="text-[10px] text-gray-300 mt-1">
+            {new Date(item.created_at).toLocaleDateString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}
+            {item.response_method && ` · ${INQ_METHOD_LABELS[item.response_method]}`}
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md leading-tight ${INQ_STATUS_BADGE[item.status]}`}>{INQ_STATUS_LABELS[item.status]}</span>
+          <button onClick={advanceStatus} disabled={updating} className="p-1 hover:bg-gray-100 rounded-lg transition-colors" title="ステータスを進める">
+            {updating ? <Loader2 size={14} className="animate-spin text-gray-400" /> : <CheckCheck size={14} className="text-gray-400" />}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────
 type ActiveTab = 'repair' | 'purchase' | 'arrival' | 'delivery' | 'inquiries'
-type InquiryDashStatus = 'pending' | 'in_progress' | 'completed'
-type InquiryDashType   = 'inquiry' | 'complaint' | 'request' | 'other'
-interface InquiryDashRow {
+type InquiryType   = 'inquiry' | 'complaint' | 'request' | 'other'
+type InquiryStatus = 'pending' | 'in_progress' | 'completed'
+interface InquiryRow {
   id: string
   customer_name: string | null
   content: string
-  type: InquiryDashType
+  type: InquiryType
   is_urgent: boolean
   due_date: string | null
-  status: InquiryDashStatus
+  status: InquiryStatus
+  response_method: 'line' | 'phone' | 'in_store' | 'email' | null
+  response_notes: string | null
+  responded_at: string | null
   created_at: string
 }
 type DeliverySubTab = 'waiting' | 'history'
@@ -3163,7 +3375,7 @@ export default function RepairsPage() {
   const [uniformOrders,  setUniformOrders]  = useState<UniformOrderRow[]>([])
   const [waiting,        setWaiting]        = useState<DeliveryItem[]>([])
   const [history,        setHistory]        = useState<DeliveryItem[]>([])
-  const [inquiries,      setInquiries]      = useState<InquiryDashRow[]>([])
+  const [inquiries,      setInquiries]      = useState<InquiryRow[]>([])
   const [loading,        setLoading]        = useState(true)
   const [histLoading,    setHistLoading]    = useState(false)
   const [histFetched,    setHistFetched]    = useState(false)
@@ -3180,6 +3392,10 @@ export default function RepairsPage() {
   const [batchSelected,  setBatchSelected]  = useState<Set<string>>(new Set())
   const [batchUpdating,  setBatchUpdating]  = useState(false)
   const [pendingFilter,  setPendingFilter]  = useState(false)
+  const [inqFilter,    setInqFilter]    = useState<InquiryStatus | 'all'>('all')
+  const [inqTypeFilter,setInqTypeFilter]= useState<InquiryType | 'all'>('all')
+  const [showInqModal, setShowInqModal] = useState(false)
+  const [editInquiry,  setEditInquiry]  = useState<InquiryRow | null>(null)
 
   const showToast = useCallback((type: 'ok' | 'err', msg: string, onUndo?: () => Promise<void>) => {
     setToast({ type, msg, onUndo })
@@ -3227,8 +3443,8 @@ export default function RepairsPage() {
         .eq('store_id', storeId).not('status', 'in', '("delivered")')
         .order('created_at', { ascending: true }),
       (supabase as any).from('inquiries')
-        .select('id,customer_name,content,type,is_urgent,due_date,status,created_at')
-        .eq('store_id', storeId).not('status', 'eq', 'completed')
+        .select('id,customer_name,content,type,is_urgent,due_date,status,response_method,response_notes,responded_at,created_at')
+        .eq('store_id', storeId)
         .order('created_at', { ascending: true }),
     ])
     if (repairErr)    setFetchError(repairErr.message)
@@ -3558,10 +3774,6 @@ export default function RepairsPage() {
                 {dummyLoading ? <Loader2 size={11} className="animate-spin" /> : <Database size={11} />}
               </button>
             )}
-            <button onClick={() => router.push(`/${storeId}/admin/inquiries`)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-violet-600/20">
-              <MessageSquarePlus size={12} />問合せ
-            </button>
             <button onClick={() => setShowNewOrder(true)}
               className="flex items-center gap-1.5 px-3 py-2 bg-teal-600 hover:bg-teal-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-teal-600/20">
               <ShoppingCart size={12} />制服注文
@@ -4052,68 +4264,69 @@ export default function RepairsPage() {
             )
           )
         ) : tab === 'inquiries' ? (
-          /* ── ⑤問合せタブ ─────────────────────────────────── */
+          /* ── ⑤問合せ管理（インライン） ──────────────────────── */
           <div className="space-y-2">
-            {/* サマリーバー */}
-            {inquiries.length > 0 && (() => {
-              const urgent = inquiries.filter(i => i.is_urgent).length
-              const pending = inquiries.filter(i => i.status === 'pending').length
+            {/* ヘッダー: 件数 + 追加ボタン */}
+            <div className="flex items-center gap-2">
+              {(() => {
+                const pending  = inquiries.filter(i => i.status === 'pending').length
+                const urgent   = inquiries.filter(i => i.is_urgent && i.status !== 'completed').length
+                return (
+                  <>
+                    {urgent > 0 && <span className="px-2 py-1 bg-red-100 text-red-700 rounded-lg text-xs font-bold">🚨 緊急 {urgent}件</span>}
+                    {pending > 0 && <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs font-bold">未対応 {pending}件</span>}
+                  </>
+                )
+              })()}
+              <button onClick={() => { setEditInquiry(null); setShowInqModal(true) }}
+                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-black rounded-xl transition-colors shadow-sm">
+                <Plus size={12} />追加
+              </button>
+            </div>
+            {/* フィルター */}
+            <div className="flex gap-1 overflow-x-auto pb-0.5 no-scrollbar">
+              {(['all', 'pending', 'in_progress', 'completed'] as const).map(s => (
+                <button key={s} onClick={() => setInqFilter(s)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 transition-colors ${inqFilter === s ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 border border-gray-200'}`}>
+                  {s === 'all' ? `全て(${inquiries.length})` : INQ_STATUS_LABELS[s as InquiryStatus]}
+                </button>
+              ))}
+              <div className="w-px bg-gray-200 mx-0.5 shrink-0" />
+              {(['all', 'inquiry', 'complaint', 'request', 'other'] as const).map(t => (
+                <button key={t} onClick={() => setInqTypeFilter(t)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 transition-colors ${inqTypeFilter === t ? 'bg-gray-800 text-white' : 'bg-white text-gray-500 border border-gray-200'}`}>
+                  {t === 'all' ? '全種別' : INQ_TYPE_LABELS[t as InquiryType]}
+                </button>
+              ))}
+            </div>
+            {/* リスト */}
+            {(() => {
+              const filtered = inquiries
+                .filter(i => inqFilter === 'all' || i.status === inqFilter)
+                .filter(i => inqTypeFilter === 'all' || i.type === inqTypeFilter)
+                .sort((a, b) => {
+                  if (a.status === 'completed' && b.status !== 'completed') return 1
+                  if (a.status !== 'completed' && b.status === 'completed') return -1
+                  if (a.is_urgent !== b.is_urgent) return a.is_urgent ? -1 : 1
+                  return 0
+                })
+              if (filtered.length === 0) return (
+                <div className="text-center py-16 text-gray-400">
+                  <MessageSquarePlus size={28} className="mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">問合せはありません</p>
+                </div>
+              )
               return (
-                <div className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-bold ${
-                  urgent > 0 ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-amber-50 border border-amber-200 text-amber-700'
-                }`}>
-                  <span className="text-base">{urgent > 0 ? '🚨' : '💬'}</span>
-                  <span className="flex-1">
-                    {urgent > 0 && `緊急 ${urgent}件 · `}未対応 {pending}件 / 全{inquiries.length}件
-                  </span>
+                <div className="space-y-2">
+                  {filtered.map(inq => (
+                    <InquiryTabCard key={inq.id} item={inq}
+                      onEdit={item => { setEditInquiry(item); setShowInqModal(true) }}
+                      onStatusChange={(id, s) => setInquiries(prev => prev.map(i => i.id === id ? { ...i, status: s } : i))}
+                    />
+                  ))}
                 </div>
               )
             })()}
-            {inquiries.length === 0 ? (
-              <div className="text-center py-20 text-gray-400">
-                <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                  <MessageSquarePlus size={28} className="opacity-40" />
-                </div>
-                <p className="text-sm font-bold">未対応・対応中の問合せはありません</p>
-              </div>
-            ) : (
-              /* 緊急を先頭に、未対応→対応中の順で表示 */
-              [...inquiries].sort((a, b) => {
-                if (a.is_urgent !== b.is_urgent) return a.is_urgent ? -1 : 1
-                const order: Record<string,number> = { pending: 0, in_progress: 1, completed: 2 }
-                return (order[a.status] ?? 9) - (order[b.status] ?? 9)
-              }).map(inq => {
-                const typeLabel: Record<string,string> = { inquiry:'問合せ', complaint:'クレーム', request:'要望', other:'その他' }
-                const statusLabel: Record<string,string> = { pending:'未対応', in_progress:'対応中', completed:'完了' }
-                const typeBorder: Record<string,string> = { inquiry:'border-l-blue-400', complaint:'border-l-red-500', request:'border-l-purple-400', other:'border-l-gray-300' }
-                const statusBg: Record<string,string> = { pending:'bg-red-100 text-red-700', in_progress:'bg-amber-100 text-amber-700', completed:'bg-green-100 text-green-700' }
-                const typeBg: Record<string,string> = { inquiry:'bg-blue-100 text-blue-700', complaint:'bg-red-100 text-red-700', request:'bg-purple-100 text-purple-700', other:'bg-gray-100 text-gray-500' }
-                return (
-                  <button key={inq.id} type="button"
-                    className={`w-full text-left bg-white rounded-2xl border-l-4 border border-gray-100 shadow-sm px-4 py-3 space-y-1 active:bg-gray-50 transition-colors ${
-                      inq.is_urgent ? 'border-l-red-500 ring-1 ring-red-200' : (typeBorder[inq.type] ?? 'border-l-gray-300')
-                    }`}
-                    onClick={() => router.push(`/${storeId}/admin/inquiries`)}>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {inq.is_urgent && <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-500 text-white animate-pulse">🚨 緊急</span>}
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${typeBg[inq.type]}`}>{typeLabel[inq.type]}</span>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${statusBg[inq.status]}`}>{statusLabel[inq.status]}</span>
-                      {inq.customer_name && <span className="text-xs font-bold text-gray-600">{inq.customer_name}</span>}
-                    </div>
-                    <p className="text-sm text-gray-800 line-clamp-2">{inq.content}</p>
-                    <div className="flex items-center gap-3 text-[10px] text-gray-400">
-                      <span>{new Date(inq.created_at).toLocaleDateString('ja-JP', { month:'numeric', day:'numeric' })}</span>
-                      {inq.due_date && <span className="text-amber-600 font-bold">期限: {new Date(inq.due_date).toLocaleDateString('ja-JP', { month:'numeric', day:'numeric' })}</span>}
-                    </div>
-                  </button>
-                )
-              })
-            )}
-            <button
-              onClick={() => router.push(`/${storeId}/admin/inquiries`)}
-              className="w-full py-3 text-xs font-bold text-violet-600 bg-violet-50 hover:bg-violet-100 rounded-2xl transition-colors">
-              問合せ管理ページを開く →
-            </button>
           </div>
         ) : null}
 
@@ -4141,6 +4354,14 @@ export default function RepairsPage() {
           onClose={() => setShowNewOrder(false)}
           onSave={() => { setShowNewOrder(false); fetchAll() }}
           onToast={showToast}
+        />
+      )}
+      {showInqModal && (
+        <InquiryEditModal
+          storeId={storeId}
+          item={editInquiry}
+          onClose={() => setShowInqModal(false)}
+          onSave={fetchAll}
         />
       )}
 
