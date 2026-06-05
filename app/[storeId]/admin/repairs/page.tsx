@@ -3576,12 +3576,13 @@ export default function RepairsPage() {
           <div className="bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-600 rounded-2xl px-4 pt-3 pb-0 text-white shadow-lg shadow-indigo-600/25">
             {(() => {
               const pendingInquiries = inquiries.filter(i => i.status === 'pending').length
+              const urgentInquiries  = inquiries.filter(i => i.is_urgent).length
               const dashTabs = [
-                { id: 'repair'    as const, emoji: '✂️', label: 'お直し',   count: repairs.length },
-                { id: 'purchase'  as const, emoji: '📦', label: '発注',     count: purchaseUnordered.length + uniformOrders.length },
-                { id: 'arrival'   as const, emoji: '🚚', label: '入荷待ち', count: purchaseOnOrder.length + purchaseStocked.length },
-                { id: 'delivery'  as const, emoji: '🎁', label: 'お渡し',   count: waiting.length },
-                { id: 'inquiries' as const, emoji: '💬', label: '問合せ',   count: pendingInquiries },
+                { id: 'repair'    as const, emoji: '✂️', label: 'お直し',   count: repairs.length,                                     urgent: 0 },
+                { id: 'purchase'  as const, emoji: '📦', label: '発注',     count: purchaseUnordered.length + uniformOrders.length,    urgent: 0 },
+                { id: 'arrival'   as const, emoji: '🚚', label: '入荷待ち', count: purchaseOnOrder.length + purchaseStocked.length,     urgent: 0 },
+                { id: 'delivery'  as const, emoji: '🎁', label: 'お渡し',   count: waiting.length,                                     urgent: 0 },
+                { id: 'inquiries' as const, emoji: '💬', label: '問合せ',   count: pendingInquiries,                                   urgent: urgentInquiries },
               ]
               const togglePending = () => {
                 if (!pendingFilter) { setPendingFilter(true); setTab('repair') }
@@ -3607,18 +3608,29 @@ export default function RepairsPage() {
                     </button>
                     {/* Tab list — horizontal scroll */}
                     <div className="flex gap-1 shrink-0 self-center overflow-x-auto no-scrollbar">
-                      {dashTabs.map(t => (
-                        <button key={t.id}
-                          onClick={() => { setTab(t.id); setSearchText(''); setBatchSelected(new Set()); setPendingFilter(false) }}
-                          className={`rounded-xl px-2 py-1.5 text-center transition-all active:scale-[0.97] min-w-[48px] shrink-0 ${
-                            tab === t.id ? 'bg-white/20 ring-1 ring-white/30' : 'hover:bg-white/10 opacity-60'
-                          }`}>
-                          <p className="text-lg font-black leading-none tabular-nums">
-                            {t.count > 0 ? t.count : <span className="opacity-30">0</span>}
-                          </p>
-                          <p className="text-[9px] font-bold mt-0.5 opacity-80">{t.emoji} {t.label}</p>
-                        </button>
-                      ))}
+                      {dashTabs.map(t => {
+                        const isInq = t.id === 'inquiries'
+                        const hasAlert = isInq && (t.urgent > 0 || t.count > 0)
+                        return (
+                          <button key={t.id}
+                            onClick={() => { setTab(t.id); setSearchText(''); setBatchSelected(new Set()); setPendingFilter(false) }}
+                            className={`rounded-xl px-2 py-1.5 text-center transition-all active:scale-[0.97] min-w-[48px] shrink-0 relative ${
+                              tab === t.id
+                                ? hasAlert ? 'bg-red-500/30 ring-1 ring-red-300/50' : 'bg-white/20 ring-1 ring-white/30'
+                                : hasAlert ? 'bg-red-500/20 opacity-90' : 'hover:bg-white/10 opacity-60'
+                            }`}>
+                            <p className={`text-lg font-black leading-none tabular-nums ${hasAlert ? 'text-red-200' : ''}`}>
+                              {t.count > 0 ? t.count : <span className="opacity-30">0</span>}
+                            </p>
+                            <p className="text-[9px] font-bold mt-0.5 opacity-80">{t.emoji} {t.label}</p>
+                            {t.urgent > 0 && (
+                              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center leading-none">
+                                {t.urgent}
+                              </span>
+                            )}
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
                 )
@@ -3646,17 +3658,28 @@ export default function RepairsPage() {
                   </div>
                   <div className="grid gap-1 border-t border-white/15 pt-2 -mx-4 px-4"
                     style={{ gridTemplateColumns: `repeat(${dashTabs.length}, 1fr)` }}>
-                    {dashTabs.map(t => (
-                      <button key={t.id} onClick={() => { setTab(t.id); setSearchText(''); setBatchSelected(new Set()); setPendingFilter(false) }}
-                        className={`rounded-t-xl py-2.5 text-center transition-all active:scale-[0.97] ${
-                          tab === t.id ? 'bg-white/20 ring-1 ring-white/30' : 'hover:bg-white/10 opacity-70'
-                        }`}>
-                        <p className="text-xl font-black leading-none tabular-nums">
-                          {t.count > 0 ? t.count : <span className="opacity-30">0</span>}
-                        </p>
-                        <p className="text-[10px] font-bold mt-0.5 opacity-80">{t.emoji} {t.label}</p>
-                      </button>
-                    ))}
+                    {dashTabs.map(t => {
+                      const isInq = t.id === 'inquiries'
+                      const hasAlert = isInq && (t.urgent > 0 || t.count > 0)
+                      return (
+                        <button key={t.id} onClick={() => { setTab(t.id); setSearchText(''); setBatchSelected(new Set()); setPendingFilter(false) }}
+                          className={`rounded-t-xl py-2.5 text-center transition-all active:scale-[0.97] relative ${
+                            tab === t.id
+                              ? hasAlert ? 'bg-red-500/30 ring-1 ring-red-300/50' : 'bg-white/20 ring-1 ring-white/30'
+                              : hasAlert ? 'bg-red-500/20 opacity-90' : 'hover:bg-white/10 opacity-70'
+                          }`}>
+                          <p className={`text-xl font-black leading-none tabular-nums ${hasAlert ? 'text-red-200' : ''}`}>
+                            {t.count > 0 ? t.count : <span className="opacity-30">0</span>}
+                          </p>
+                          <p className="text-[10px] font-bold mt-0.5 opacity-80">{t.emoji} {t.label}</p>
+                          {t.urgent > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center leading-none">
+                              {t.urgent}
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
                   </div>
                 </>
               )
@@ -4031,6 +4054,21 @@ export default function RepairsPage() {
         ) : tab === 'inquiries' ? (
           /* ── ⑤問合せタブ ─────────────────────────────────── */
           <div className="space-y-2">
+            {/* サマリーバー */}
+            {inquiries.length > 0 && (() => {
+              const urgent = inquiries.filter(i => i.is_urgent).length
+              const pending = inquiries.filter(i => i.status === 'pending').length
+              return (
+                <div className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-bold ${
+                  urgent > 0 ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-amber-50 border border-amber-200 text-amber-700'
+                }`}>
+                  <span className="text-base">{urgent > 0 ? '🚨' : '💬'}</span>
+                  <span className="flex-1">
+                    {urgent > 0 && `緊急 ${urgent}件 · `}未対応 {pending}件 / 全{inquiries.length}件
+                  </span>
+                </div>
+              )
+            })()}
             {inquiries.length === 0 ? (
               <div className="text-center py-20 text-gray-400">
                 <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
@@ -4039,20 +4077,27 @@ export default function RepairsPage() {
                 <p className="text-sm font-bold">未対応・対応中の問合せはありません</p>
               </div>
             ) : (
-              inquiries.map(inq => {
+              /* 緊急を先頭に、未対応→対応中の順で表示 */
+              [...inquiries].sort((a, b) => {
+                if (a.is_urgent !== b.is_urgent) return a.is_urgent ? -1 : 1
+                const order: Record<string,number> = { pending: 0, in_progress: 1, completed: 2 }
+                return (order[a.status] ?? 9) - (order[b.status] ?? 9)
+              }).map(inq => {
                 const typeLabel: Record<string,string> = { inquiry:'問合せ', complaint:'クレーム', request:'要望', other:'その他' }
                 const statusLabel: Record<string,string> = { pending:'未対応', in_progress:'対応中', completed:'完了' }
                 const typeBorder: Record<string,string> = { inquiry:'border-l-blue-400', complaint:'border-l-red-500', request:'border-l-purple-400', other:'border-l-gray-300' }
                 const statusBg: Record<string,string> = { pending:'bg-red-100 text-red-700', in_progress:'bg-amber-100 text-amber-700', completed:'bg-green-100 text-green-700' }
                 const typeBg: Record<string,string> = { inquiry:'bg-blue-100 text-blue-700', complaint:'bg-red-100 text-red-700', request:'bg-purple-100 text-purple-700', other:'bg-gray-100 text-gray-500' }
                 return (
-                  <div key={inq.id}
-                    className={`bg-white rounded-2xl border-l-4 border border-gray-100 shadow-sm px-4 py-3 space-y-1 ${typeBorder[inq.type] ?? 'border-l-gray-300'}`}
+                  <button key={inq.id} type="button"
+                    className={`w-full text-left bg-white rounded-2xl border-l-4 border border-gray-100 shadow-sm px-4 py-3 space-y-1 active:bg-gray-50 transition-colors ${
+                      inq.is_urgent ? 'border-l-red-500 ring-1 ring-red-200' : (typeBorder[inq.type] ?? 'border-l-gray-300')
+                    }`}
                     onClick={() => router.push(`/${storeId}/admin/inquiries`)}>
                     <div className="flex items-center gap-2 flex-wrap">
+                      {inq.is_urgent && <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-500 text-white animate-pulse">🚨 緊急</span>}
                       <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${typeBg[inq.type]}`}>{typeLabel[inq.type]}</span>
                       <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${statusBg[inq.status]}`}>{statusLabel[inq.status]}</span>
-                      {inq.is_urgent && <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-500 text-white">緊急</span>}
                       {inq.customer_name && <span className="text-xs font-bold text-gray-600">{inq.customer_name}</span>}
                     </div>
                     <p className="text-sm text-gray-800 line-clamp-2">{inq.content}</p>
@@ -4060,7 +4105,7 @@ export default function RepairsPage() {
                       <span>{new Date(inq.created_at).toLocaleDateString('ja-JP', { month:'numeric', day:'numeric' })}</span>
                       {inq.due_date && <span className="text-amber-600 font-bold">期限: {new Date(inq.due_date).toLocaleDateString('ja-JP', { month:'numeric', day:'numeric' })}</span>}
                     </div>
-                  </div>
+                  </button>
                 )
               })
             )}
@@ -4087,7 +4132,7 @@ export default function RepairsPage() {
           onClose={() => setShowNewRepair(false)}
           onSave={fetchAll}
           onToast={showToast}
-          showOcr={hasFeature('repairs_ocr')}
+          showOcr={true}
         />
       )}
       {showNewOrder && (
