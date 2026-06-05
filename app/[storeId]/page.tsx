@@ -222,35 +222,95 @@ function AddChildForm({
 
 // ── 待ち時間中の顧客情報編集フォーム ──────────────────────
 function WaitingCustomerEditForm({
-  customer, onSaved, onClose,
+  customer, selectedChild, schoolOptions, onSaved, onChildSaved, onClose,
 }: {
   customer: Customer
+  selectedChild?: Child | null
+  schoolOptions?: string[]
   onSaved: (c: Customer) => void
+  onChildSaved?: (c: Child) => void
   onClose: () => void
 }) {
   const theme = useStoreTheme()
-  const [name, setName] = useState(customer.name)
-  const [tel,  setTel]  = useState(customer.tel ?? '')
-  const [saving, setSaving] = useState(false)
+  const [name,       setName]       = useState(customer.name)
+  const [kana,       setKana]       = useState(customer.kana ?? '')
+  const [tel,        setTel]        = useState(customer.tel ?? '')
+  const [childName,  setChildName]  = useState(selectedChild?.name ?? '')
+  const [childKana,  setChildKana]  = useState(selectedChild?.kana ?? '')
+  const [schoolName, setSchoolName] = useState(selectedChild?.school_name ?? '')
+  const [grade,      setGrade]      = useState(selectedChild?.grade ?? '')
+  const [saving,     setSaving]     = useState(false)
 
+  const effectiveSchoolOptions = schoolOptions && schoolOptions.length > 0 ? schoolOptions : SCHOOL_OPTIONS
   const base = 'w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all'
+  const focus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = theme.colors.primary)
+  const blur  = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = '')
 
   const handleSave = async () => {
     if (!name.trim()) return
     setSaving(true)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.from('customers') as any)
-      .update({ name: name.trim(), tel: tel.trim() || null })
-      .eq('id', customer.id).select().single()
+    const [custResult, childResult] = await Promise.all([
+      (supabase.from('customers') as any)
+        .update({ name: name.trim(), kana: kana.trim() || null, tel: tel.trim() || null })
+        .eq('id', customer.id).select().single(),
+      selectedChild
+        ? (supabase.from('children') as any)
+            .update({ name: childName.trim() || selectedChild.name, kana: childKana.trim() || null, school_name: schoolName.trim() || null, grade: grade || null })
+            .eq('id', selectedChild.id).select().single()
+        : Promise.resolve({ data: null, error: null }),
+    ])
     setSaving(false)
-    if (!error && data) onSaved(data as Customer)
+    if (!custResult.error && custResult.data) onSaved(custResult.data as Customer)
+    if (!childResult.error && childResult.data && onChildSaved) onChildSaved(childResult.data as Child)
+    onClose()
   }
 
   return (
-    <div className="mt-3 pt-3 border-t border-zinc-100 space-y-2">
-      <p className="text-xs font-bold mb-1" style={{ color: theme.colors.primary }}>保護者情報の変更</p>
-      <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="お名前" className={base} />
-      <input type="tel" inputMode="tel" value={tel} onChange={e => setTel(e.target.value)} placeholder="電話番号" className={base} />
+    <div className="mt-3 pt-3 border-t border-zinc-100 space-y-3">
+      <p className="text-xs font-bold mb-1" style={{ color: theme.colors.primary }}>保護者情報</p>
+      <div>
+        <label className="block text-xs font-bold text-zinc-500 mb-1">お名前</label>
+        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="山田 太郎" className={base} onFocus={focus} onBlur={blur} />
+      </div>
+      <div>
+        <label className="block text-xs font-bold text-zinc-500 mb-1">フリガナ</label>
+        <input type="text" value={kana} onChange={e => setKana(e.target.value)} placeholder="ヤマダ タロウ" className={base} onFocus={focus} onBlur={blur} />
+      </div>
+      <div>
+        <label className="block text-xs font-bold text-zinc-500 mb-1">電話番号</label>
+        <input type="tel" inputMode="tel" value={tel} onChange={e => setTel(e.target.value)} placeholder="090-1234-5678" className={base} onFocus={focus} onBlur={blur} />
+      </div>
+
+      {selectedChild && (
+        <>
+          <p className="text-xs font-bold pt-2 border-t border-zinc-100" style={{ color: theme.colors.primary }}>お子様情報（{selectedChild.name}）</p>
+          <div>
+            <label className="block text-xs font-bold text-zinc-500 mb-1">お名前</label>
+            <input type="text" value={childName} onChange={e => setChildName(e.target.value)} placeholder="山田 花子" className={base} onFocus={focus} onBlur={blur} />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-zinc-500 mb-1">フリガナ</label>
+            <input type="text" value={childKana} onChange={e => setChildKana(e.target.value)} placeholder="ヤマダ ハナコ" className={base} onFocus={focus} onBlur={blur} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-zinc-500 mb-1">学校名</label>
+              <select value={schoolName} onChange={e => setSchoolName(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
+                <option value="">選択してください</option>
+                {effectiveSchoolOptions.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-zinc-500 mb-1">学年</label>
+              <select value={grade} onChange={e => setGrade(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
+                <option value="">選択</option>
+                {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
+          </div>
+        </>
+      )}
+
       <div className="flex gap-2 pt-1">
         <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-zinc-200 text-zinc-500 text-sm font-bold active:scale-95 transition-transform">キャンセル</button>
         <button onClick={handleSave} disabled={saving || !name.trim()}
@@ -464,9 +524,21 @@ export default function CustomerPage() {
   useEffect(() => {
     if (!ticket || !['queue_waiting', 'queue_calling'].includes(view)) return
     fetchWaitingAhead(ticket)
-    const pollId = setInterval(() => {
-      if (ticketRef.current) fetchWaitingAhead(ticketRef.current)
-    }, 15000)
+
+    const checkStatus = async () => {
+      const t = ticketRef.current
+      if (!t) return
+      fetchWaitingAhead(t)
+      // realtime 取りこぼし補完: ステータスをポーリングで確認
+      const { data } = await supabase.from('queues').select('status').eq('id', t.id).single()
+      if (data && data.status !== t.status) {
+        setTicket(prev => prev ? { ...prev, status: data.status } : prev)
+        if (data.status === 'calling')   { setView('queue_calling');   playAlertSound(); if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([300,100,300,100,300]) }
+        if (data.status === 'completed') setView('queue_completed')
+        if (data.status === 'cancelled') setView('queue_cancelled')
+      }
+    }
+    const pollId = setInterval(checkStatus, 8000)
     if (channelRef.current) supabase.removeChannel(channelRef.current)
     const ch = supabase.channel(`ticket-${ticket.id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'queues', filter: `id=eq.${ticket.id}` },
@@ -1151,7 +1223,10 @@ export default function CustomerPage() {
                       {waitingEditMode === 'info' && (
                         <WaitingCustomerEditForm
                           customer={customer}
-                          onSaved={updated => { setCustomer(updated); setWaitingEditMode(null) }}
+                          selectedChild={selectedChild}
+                          schoolOptions={storeSchoolOptions}
+                          onSaved={updated => setCustomer(updated)}
+                          onChildSaved={updated => setSelectedChild(updated)}
                           onClose={() => setWaitingEditMode(null)}
                         />
                       )}
