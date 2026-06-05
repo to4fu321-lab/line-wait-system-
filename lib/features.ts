@@ -9,6 +9,7 @@ export type FeatureKey =
   // ── ボトムナビタブ ─────────────────────
   | 'tab_queue'             // 受付タブ
   | 'tab_repairs'           // 案件タブ
+  | 'tab_inquiries'         // 問合せタブ
   | 'tab_crm'               // 顧客タブ
   // ── 案件ページ内タブ ───────────────────
   | 'repairs_tab_purchase'  // 発注サブタブ
@@ -44,6 +45,7 @@ export const PLAN_DEFS: Record<Plan, {
     features: {
       tab_queue:             false,
       tab_repairs:           false,
+      tab_inquiries:         false,
       tab_crm:               false,
       repairs_tab_purchase:  false,
       repairs_tab_arrival:   false,
@@ -68,6 +70,7 @@ export const PLAN_DEFS: Record<Plan, {
     features: {
       tab_queue:             true,
       tab_repairs:           true,
+      tab_inquiries:         true,
       tab_crm:               true,
       repairs_tab_purchase:  false,
       repairs_tab_arrival:   false,
@@ -92,6 +95,7 @@ export const PLAN_DEFS: Record<Plan, {
     features: {
       tab_queue:             true,
       tab_repairs:           true,
+      tab_inquiries:         true,
       tab_crm:               true,
       repairs_tab_purchase:  true,
       repairs_tab_arrival:   true,
@@ -116,6 +120,7 @@ export const PLAN_DEFS: Record<Plan, {
     features: {
       tab_queue:             true,
       tab_repairs:           true,
+      tab_inquiries:         true,
       tab_crm:               true,
       repairs_tab_purchase:  true,
       repairs_tab_arrival:   true,

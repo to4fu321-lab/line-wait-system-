@@ -15,6 +15,7 @@ const SUPER_ADMIN_PIN = process.env.NEXT_PUBLIC_SUPER_ADMIN_PIN || '9999'
 const GRANULAR_FEATURES: { key: FeatureKey; label: string; icon: string }[] = [
   { key: 'tab_queue',            label: '受付タブ',         icon: '🔢' },
   { key: 'tab_repairs',          label: '案件タブ',         icon: '✂️' },
+  { key: 'tab_inquiries',        label: '問合せタブ',       icon: '💬' },
   { key: 'tab_crm',              label: '顧客タブ',         icon: '👥' },
   { key: 'repairs_tab_purchase', label: '発注サブタブ',     icon: '📋' },
   { key: 'repairs_tab_arrival',  label: '入荷待ちサブタブ', icon: '🚚' },
