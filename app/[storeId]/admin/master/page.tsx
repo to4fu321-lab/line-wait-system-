@@ -101,8 +101,8 @@ function MasterPageInner() {
   const [editingCat,      setEditingCat]      = useState<RepairItemCategory | null>(null)
   const [catName,         setCatName]         = useState('')
   const [catSaving,       setCatSaving]       = useState(false)
-  // 種別追加パネルを開いているカテゴリID
-  const [addTypeOpenCatId, setAddTypeOpenCatId] = useState<string | null>(null)
+  // 展開中カテゴリID（アコーディオン）
+  const [expandedCatId, setExpandedCatId] = useState<string | null>(null)
 
   // ── Repair presets state ─────────────────────────────────
   const [presets,         setPresets]         = useState<RepairPreset[]>([])
@@ -746,87 +746,86 @@ function MasterPageInner() {
 
                 {categories.map(cat => {
                   const catPresets = presets.filter(p => p.category_id === cat.id)
+                  const isOpen = expandedCatId === cat.id
                   return (
                     <div key={cat.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-                      <div className="px-4 py-3 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100 flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-black text-amber-900">{cat.name}</p>
-                          <p className="text-[10px] text-amber-600 mt-0.5">
-                            {catPresets.length > 0 ? `${catPresets.length}件登録済み` : '未設定'}
+                      {/* ── 大項目ヘッダー（タップで展開） ── */}
+                      <button
+                        onClick={() => setExpandedCatId(isOpen ? null : cat.id)}
+                        className="w-full flex items-center gap-3 px-4 py-4 bg-gradient-to-r from-amber-50 to-orange-50 active:bg-amber-100 transition-all text-left"
+                        aria-expanded={isOpen}>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-base font-black text-amber-900">{cat.name}</p>
+                          <p className="text-xs text-amber-600 mt-0.5 font-medium">
+                            {catPresets.length > 0 ? `${catPresets.length}件` : '未設定'}
                           </p>
                         </div>
-                      </div>
-                      <div className="divide-y divide-gray-50">
-                        {/* 登録済みの種別のみ表示 */}
-                        {(Object.keys(REPAIR_TYPE_LABELS) as RepairType[])
-                          .filter(rtype => catPresets.some(p => p.repair_type === rtype))
-                          .map(rtype => {
-                            const group = catPresets.filter(p => p.repair_type === rtype)
-                            return (
-                              <div key={rtype} className="px-4 py-2.5">
-                                <div className="flex items-center gap-2 mb-1.5">
-                                  <span className="text-sm">{REPAIR_TYPE_ICONS[rtype]}</span>
-                                  <p className="text-xs font-black text-gray-600 flex-1">{REPAIR_TYPE_LABELS[rtype]}</p>
-                                  <button
-                                    onClick={() => openPresetModal(undefined, cat.id, rtype)}
-                                    className="flex items-center gap-1 text-[10px] font-bold text-amber-600 hover:text-amber-800 px-2 py-1 rounded-lg hover:bg-amber-50 transition-all">
-                                    <Plus size={10} />追加
-                                  </button>
-                                </div>
-                                <div className="flex flex-wrap gap-1.5 pl-6">
-                                  {group.map(p => (
-                                    <div key={p.id} className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
-                                      <span className="text-xs font-bold text-gray-800">{p.item_name}</span>
-                                      {p.default_price != null && (
-                                        <span className="text-xs font-black text-amber-600">¥{p.default_price.toLocaleString()}</span>
-                                      )}
-                                      {p.school_name && (
-                                        <span className="text-[10px] text-gray-400 bg-gray-100 rounded px-1">{p.school_name}</span>
-                                      )}
-                                      <button onClick={() => openPresetModal(p)}
-                                        className="p-1 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
-                                        <Pencil size={10} />
-                                      </button>
-                                      <button onClick={() => handlePresetDelete(p.id)}
-                                        className="p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
-                                        <Trash2 size={10} />
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )
-                          })}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button onClick={e => { e.stopPropagation(); openCatModal(cat) }}
+                            className="p-2 text-amber-300 hover:text-amber-700 hover:bg-amber-100 rounded-xl transition-all active:scale-90"
+                            aria-label={`${cat.name}を編集`}>
+                            <Pencil size={14} />
+                          </button>
+                          <button onClick={e => { e.stopPropagation(); handleCatDelete(cat.id) }}
+                            className="p-2 text-amber-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-90"
+                            aria-label={`${cat.name}を削除`}>
+                            <Trash2 size={14} />
+                          </button>
+                          <ChevronRight size={16} className={`text-amber-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                        </div>
+                      </button>
 
-                        {/* 種別追加ボタン */}
-                        <div className="px-4 py-2.5">
-                          {addTypeOpenCatId === cat.id ? (
-                            <div className="space-y-2">
-                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">種別を選んで追加</p>
-                              <div className="flex flex-wrap gap-1.5">
-                                {(Object.keys(REPAIR_TYPE_LABELS) as RepairType[]).map(rtype => (
-                                  <button key={rtype}
-                                    onClick={() => { openPresetModal(undefined, cat.id, rtype); setAddTypeOpenCatId(null) }}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 hover:border-amber-400 hover:bg-amber-50 rounded-xl text-xs font-bold text-gray-600 hover:text-amber-700 transition-all active:scale-95">
-                                    <span>{REPAIR_TYPE_ICONS[rtype]}</span>
-                                    <span>{REPAIR_TYPE_LABELS[rtype]}</span>
-                                  </button>
-                                ))}
-                              </div>
-                              <button onClick={() => setAddTypeOpenCatId(null)}
-                                className="text-[10px] text-gray-400 hover:text-gray-600 font-bold px-2 py-1">
-                                閉じる
-                              </button>
+                      {/* ── 項目フラット一覧（展開時） ── */}
+                      {isOpen && (
+                        <div>
+                          {catPresets.length === 0 ? (
+                            <div className="px-4 py-6 text-center">
+                              <Scissors size={28} className="mx-auto mb-2 text-gray-200" />
+                              <p className="text-sm text-gray-400 font-bold">まだ項目がありません</p>
+                              <p className="text-xs text-gray-300 mt-0.5">下の「＋追加」から登録してください</p>
                             </div>
                           ) : (
-                            <button
-                              onClick={() => setAddTypeOpenCatId(cat.id)}
-                              className="flex items-center gap-1.5 text-[11px] font-bold text-amber-600 hover:text-amber-800 hover:bg-amber-50 px-3 py-2 rounded-xl transition-all w-full justify-center border border-dashed border-amber-300 hover:border-amber-400">
-                              <Plus size={12} />お直し種別を追加
-                            </button>
+                            <div className="divide-y divide-gray-50">
+                              {catPresets.map(p => (
+                                <div key={p.id} className="flex items-center gap-3 px-4 py-3.5">
+                                  <span className="text-xl shrink-0 w-8 text-center">
+                                    {REPAIR_TYPE_ICONS[p.repair_type as RepairType] ?? '✂️'}
+                                  </span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold text-gray-900 leading-tight">{p.item_name}</p>
+                                    {p.notes && <p className="text-[10px] text-gray-400 mt-0.5 truncate">{p.notes}</p>}
+                                    {p.school_name && (
+                                      <span className="inline-block text-[10px] bg-indigo-50 text-indigo-600 border border-indigo-100 rounded px-1.5 py-0.5 mt-0.5">{p.school_name}</span>
+                                    )}
+                                  </div>
+                                  {p.default_price != null && (
+                                    <span className="text-sm font-black text-amber-600 shrink-0">¥{p.default_price.toLocaleString()}</span>
+                                  )}
+                                  <div className="flex gap-1 shrink-0">
+                                    <button onClick={() => openPresetModal(p)}
+                                      className="p-2 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-90"
+                                      aria-label={`${p.item_name}を編集`}>
+                                      <Pencil size={13} />
+                                    </button>
+                                    <button onClick={() => handlePresetDelete(p.id)}
+                                      className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-90"
+                                      aria-label={`${p.item_name}を削除`}>
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           )}
+                          <div className="px-4 py-3 border-t border-gray-50">
+                            <button
+                              onClick={() => openPresetModal(undefined, cat.id)}
+                              className="flex items-center gap-2 text-sm font-bold text-amber-600 hover:text-amber-800 hover:bg-amber-50 px-4 py-3 rounded-xl transition-all w-full justify-center border-2 border-dashed border-amber-300 hover:border-amber-400 active:scale-[0.98]">
+                              <Plus size={15} />お直し項目を追加
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   )
                 })}
@@ -888,28 +887,9 @@ function MasterPageInner() {
                     <button onClick={() => setPresetModal(false)} className="p-2 text-gray-400 hover:text-gray-700"><X size={18} /></button>
                   </div>
                   <div className="space-y-3">
-                    {categories.length > 0 && (
-                      <Field label="服種カテゴリ">
-                        <select value={ppCategoryId ?? ''} onChange={e => setPpCategoryId(e.target.value || null)} className={INPUT}>
-                          <option value="">未分類</option>
-                          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                      </Field>
-                    )}
-                    <Field label="お直し種別" required>
-                      <select value={ppRepairType} onChange={e => setPpRepairType(e.target.value as RepairType)} className={INPUT}>
-                        {(Object.keys(REPAIR_TYPE_LABELS) as RepairType[]).map(t => (
-                          <option key={t} value={t}>{REPAIR_TYPE_ICONS[t]} {REPAIR_TYPE_LABELS[t]}</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="品名" required>
+                    <Field label="項目名" required>
                       <input type="text" value={ppItemName} onChange={e => setPpItemName(e.target.value)}
-                        placeholder="例：詰め襟上着 / スラックス" autoFocus className={INPUT} />
-                    </Field>
-                    <Field label="対象学校（空欄=全学校共通）">
-                      <input type="text" value={ppSchoolName} onChange={e => setPpSchoolName(e.target.value)}
-                        placeholder="例：○○中学校" className={INPUT} />
+                        placeholder="例：裾上げ（シングル） / 袖丈詰め" autoFocus className={INPUT} />
                     </Field>
                     <Field label="標準価格（円）">
                       <div className="relative">
@@ -918,10 +898,31 @@ function MasterPageInner() {
                           placeholder="800" className="w-full border border-gray-300 rounded-xl pl-6 pr-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:border-amber-500 bg-white" />
                       </div>
                     </Field>
-                    <Field label="備考">
+                    <Field label="備考・スタッフへの補足">
                       <input type="text" value={ppNotes} onChange={e => setPpNotes(e.target.value)}
-                        placeholder="スタッフへの補足" className={INPUT} />
+                        placeholder="例：グローイング対応、ヘム仕上げ+¥400" className={INPUT} />
                     </Field>
+                    {categories.length > 0 && (
+                      <Field label="服種カテゴリ">
+                        <select value={ppCategoryId ?? ''} onChange={e => setPpCategoryId(e.target.value || null)} className={INPUT}>
+                          <option value="">未分類</option>
+                          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      </Field>
+                    )}
+                    <Field label="対象学校（空欄＝全学校共通）">
+                      <input type="text" value={ppSchoolName} onChange={e => setPpSchoolName(e.target.value)}
+                        placeholder="例：○○中学校" className={INPUT} />
+                    </Field>
+                    <div className="border-t border-gray-100 pt-2">
+                      <Field label="✂️ お直し種別タグ（受付フォームの入力欄を切り替えます）">
+                        <select value={ppRepairType} onChange={e => setPpRepairType(e.target.value as RepairType)} className={INPUT}>
+                          {(Object.keys(REPAIR_TYPE_LABELS) as RepairType[]).map(t => (
+                            <option key={t} value={t}>{REPAIR_TYPE_ICONS[t]} {REPAIR_TYPE_LABELS[t]}</option>
+                          ))}
+                        </select>
+                      </Field>
+                    </div>
                   </div>
                   <button onClick={handlePresetSave} disabled={!ppItemName.trim() || ppSaving}
                     className="w-full py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-amber-500 to-orange-500 text-white disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.98]">

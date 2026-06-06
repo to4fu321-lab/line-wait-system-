@@ -722,69 +722,56 @@ function NewRepairModal({ storeId, onClose, onSave, onToast, showOcr = true }: {
             </div>
           )}
 
-          {/* ── Step 1b: カテゴリ内お直し選択 ── */}
-          {step === 'cat_repair' && selectedCategoryName && (() => {
-            const typeGroups = new Map<string, typeof presets>()
-            for (const p of presets) {
-              const rt = p.repair_type ?? 'other'
-              if (!typeGroups.has(rt)) typeGroups.set(rt, [])
-              typeGroups.get(rt)!.push(p)
-            }
-            const usedTypes = new Set(typeGroups.keys())
-            const otherTypes = REPAIR_TYPES_DEF.filter(t => !usedTypes.has(t.type))
-            return (
-              <div className="space-y-3">
-                {presets.length === 0 && (
-                  <div className="text-center py-6">
-                    <p className="text-sm text-gray-400">このカテゴリのプリセットが未登録です</p>
-                    <p className="text-xs text-gray-300 mt-1">マスタページで料金プリセットを登録してください</p>
-                  </div>
-                )}
-                {REPAIR_TYPES_DEF.filter(t => usedTypes.has(t.type)).map(typeDef => (
-                  <div key={typeDef.type} className="rounded-2xl border border-gray-200 overflow-hidden bg-white shadow-sm">
-                    <button
-                      onClick={() => { setRepairType(typeDef.type as RepairType); setStep('details') }}
-                      className="w-full flex items-center gap-2.5 px-4 py-3.5 bg-gray-50 hover:bg-gray-100 transition-all text-left font-black text-sm text-gray-800 border-b border-gray-100">
-                      <span className="text-lg">{typeDef.icon}</span>
-                      <span className="flex-1">{typeDef.label}</span>
-                      <span className="text-[10px] text-gray-400 font-normal">詳細入力</span>
-                      <ChevronDown size={14} className="text-gray-400" />
+          {/* ── Step 1b: カテゴリ内お直し選択（フラット一覧） ── */}
+          {step === 'cat_repair' && selectedCategoryName && (
+            <div className="space-y-3">
+              {presets.length === 0 ? (
+                <div className="text-center py-10">
+                  <Scissors size={36} className="mx-auto mb-3 text-gray-200" />
+                  <p className="text-sm text-gray-400 font-bold">プリセットが未登録です</p>
+                  <p className="text-xs text-gray-300 mt-1">マスタページで料金を登録してください</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {presets.map(p => {
+                    const icon = REPAIR_TYPE_ICONS[(p.repair_type ?? 'other') as RepairType] ?? '✂️'
+                    return (
+                      <button key={p.id}
+                        onClick={() => {
+                          setRepairType((p.repair_type ?? 'other') as RepairType)
+                          setItemName(p.item_name)
+                          if (p.default_price != null) setPrice(String(p.default_price))
+                          setStep('details')
+                        }}
+                        className="flex flex-col items-start gap-2 px-4 py-5 bg-white hover:bg-indigo-50 border-2 border-gray-200 hover:border-indigo-300 rounded-2xl text-left transition-all active:scale-95 shadow-sm min-h-[88px]">
+                        <span className="text-2xl leading-none">{icon}</span>
+                        <div className="w-full">
+                          <p className="text-sm font-bold text-gray-800 leading-snug">{p.item_name}</p>
+                          {p.default_price != null && (
+                            <p className="text-base font-black text-indigo-600 mt-0.5">¥{p.default_price.toLocaleString()}</p>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+              {/* その他（種別直接指定） */}
+              <div className="border-t border-gray-100 pt-3">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">この服種のその他のお直し</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {REPAIR_TYPES_DEF.map(t => (
+                    <button key={t.type}
+                      onClick={() => { setRepairType(t.type as RepairType); setStep('details') }}
+                      className={`flex flex-col items-center gap-1.5 py-3.5 rounded-2xl border-2 font-bold text-xs transition-all active:scale-95 ${t.color}`}>
+                      <span className="text-2xl">{t.icon}</span>
+                      {t.label}
                     </button>
-                    <div className="px-4 pb-3 pt-2.5 flex flex-wrap gap-2">
-                      {typeGroups.get(typeDef.type)!.map(p => (
-                        <button key={p.id}
-                          onClick={() => {
-                            setRepairType(typeDef.type as RepairType)
-                            setItemName(p.item_name)
-                            if (p.default_price != null) setPrice(String(p.default_price))
-                            setStep('details')
-                          }}
-                          className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white hover:bg-indigo-50 border-2 border-gray-200 hover:border-indigo-300 rounded-xl text-sm font-bold text-gray-700 active:scale-95 transition-all shadow-sm">
-                          <span>{p.item_name}</span>
-                          {p.default_price != null && <span className="text-indigo-600 font-black">¥{p.default_price.toLocaleString()}</span>}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-                {otherTypes.length > 0 && (
-                  <div>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">その他のお直し</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {otherTypes.map(t => (
-                        <button key={t.type}
-                          onClick={() => { setRepairType(t.type as RepairType); setStep('details') }}
-                          className={`flex flex-col items-center gap-1.5 py-3 rounded-2xl border-2 font-bold text-xs transition-all active:scale-95 ${t.color}`}>
-                          <span className="text-2xl">{t.icon}</span>
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                  ))}
+                </div>
               </div>
-            )
-          })()}
+            </div>
+          )}
 
           {/* ── Step 2: 内容入力 ── */}
           {step === 'details' && repairType && (
