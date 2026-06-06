@@ -116,7 +116,7 @@ export default function RepairsPage() {
         .eq('store_id', storeId).not('status', 'in', '("delivered")')
         .order('created_at', { ascending: true }),
       (supabase as any).from('inquiries')
-        .select('id,customer_name,content,type,is_urgent,due_date,status,response_method,response_notes,responded_at,created_at')
+        .select('id,customer_name,content,type,is_urgent,due_date,status,response_method,response_notes,responded_at,received_by,handled_by,created_at')
         .eq('store_id', storeId)
         .order('created_at', { ascending: true }),
     ])
