@@ -3315,7 +3315,7 @@ export default function RepairsPage() {
         .eq('store_id', storeId).not('status', 'in', '("delivered")')
         .order('created_at', { ascending: true }),
       (supabase as any).from('inquiries')
-        .select('id,customer_name,content,type,is_urgent,due_date,status,response_method,response_notes,responded_at,created_at')
+        .select('id,customer_name,content,type,is_urgent,due_date,status,response_method,response_notes,responded_at,received_by,handled_by,created_at')
         .eq('store_id', storeId)
         .order('created_at', { ascending: true }),
     ])
@@ -3900,73 +3900,6 @@ export default function RepairsPage() {
 
       {/* ── Body ────────────────────────────────────────────── */}
       <div className={`${isTablet ? 'px-6 pb-8' : 'max-w-2xl mx-auto px-4 pb-32'} pt-4 space-y-3`}>
-
-        {/* 順番待ちミニパネル */}
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100">
-            <span className={`w-2 h-2 rounded-full shrink-0 ${isOpen ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`} />
-            <span className="text-xs font-black text-gray-700">順番待ち</span>
-            <div className="flex items-center gap-2 ml-auto">
-              {queueCalling.length > 0 && (
-                <span className="text-[10px] bg-amber-100 text-amber-700 font-black px-2 py-0.5 rounded-full">
-                  呼出中 {queueCalling.length}
-                </span>
-              )}
-              <span className="text-xs text-gray-500">
-                待ち <span className="font-black text-gray-800">{queueWaiting.length}</span>人
-              </span>
-              <button onClick={fetchQueue} style={{ touchAction: 'manipulation' }}
-                className="p-1.5 rounded-lg hover:bg-gray-100 active:opacity-60">
-                <RefreshCw size={11} className="text-gray-400" />
-              </button>
-            </div>
-          </div>
-
-          {/* 呼出中 */}
-          {queueCalling.map(t => (
-            <div key={t.id} className="flex items-center gap-3 px-4 py-3 bg-amber-50 border-b border-amber-100 last:border-b-0">
-              <div className="w-8 h-8 rounded-full bg-amber-200 flex items-center justify-center shrink-0">
-                <span className="text-amber-800 font-black text-xs">{t.ticket_number}</span>
-              </div>
-              <span className="text-sm text-gray-800 font-bold flex-1">{t.customer_name ?? 'お客様'}</span>
-              <button onClick={() => handleQueueAction(t.id, 'completed')} disabled={queueUpdating === t.id}
-                style={{ touchAction: 'manipulation' }}
-                className="px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-black rounded-xl active:opacity-70 disabled:opacity-50">
-                {queueUpdating === t.id ? '…' : '完了'}
-              </button>
-              <button onClick={() => handleQueueAction(t.id, 'cancelled')} disabled={queueUpdating === t.id}
-                style={{ touchAction: 'manipulation' }}
-                className="px-3 py-1.5 bg-gray-100 text-gray-600 text-[10px] font-black rounded-xl active:opacity-70 disabled:opacity-50">
-                不在
-              </button>
-            </div>
-          ))}
-
-          {/* 次の方 + 呼ぶボタン */}
-          {queueWaiting.length > 0 ? (
-            <div className="flex items-center gap-3 px-4 py-3">
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-gray-400 mb-0.5">次の方</p>
-                <p className="text-sm font-bold text-gray-700 truncate">
-                  #{queueWaiting[0].ticket_number}　{queueWaiting[0].customer_name ?? 'お客様'}
-                </p>
-                {queueWaiting.length > 1 && (
-                  <p className="text-[10px] text-gray-400">他 {queueWaiting.length - 1}人待ち</p>
-                )}
-              </div>
-              <button
-                onClick={() => handleQueueAction(queueWaiting[0].id, 'calling')}
-                disabled={!isOpen || !!queueUpdating}
-                style={{ touchAction: 'manipulation' }}
-                className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white text-xs font-black rounded-xl shadow-sm shadow-blue-900/30 active:opacity-70 disabled:opacity-40">
-                <BellRing size={13} />
-                呼ぶ
-              </button>
-            </div>
-          ) : queueCalling.length === 0 ? (
-            <div className="px-4 py-3.5 text-center text-gray-400 text-xs">待ちなし</div>
-          ) : null}
-        </div>
 
         {fetchError && (
           <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-xs text-red-600 flex items-center gap-2">
