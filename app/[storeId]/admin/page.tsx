@@ -518,6 +518,14 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
   const [showQrModal,    setShowQrModal]    = useState(false)
   const [pushStatus,     setPushStatus]     = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle')
   const [testLoading,    setTestLoading]    = useState(false)
+  const [openCloseModal, setOpenCloseModal] = useState<'opening' | 'closing' | null>(null)
+  const [briefing,       setBriefing]       = useState<string | null>(null)
+  const [briefingLoading,setBriefingLoading]= useState(false)
+  const [closingChecklist,setClosingChecklist] = useState<{ label: string; checked: boolean }[]>([])
+  const [closingSummary, setClosingSummary] = useState<string | null>(null)
+  const [closingLoading, setClosingLoading] = useState(false)
+  const [handoverNote,   setHandoverNote]   = useState('')
+  const [confirmingOC,   setConfirmingOC]   = useState(false)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const setupPush = useCallback(async (storeId: string) => {
@@ -614,6 +622,50 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
       setIsOpen(!next)
       showToast('err', '受付切替失敗: 通信エラー')
     }
+  }
+
+  const callBriefingApi = async (mode: 'open' | 'close', note?: string) => {
+    const res = await fetch('/api/stores/briefing', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storeId: store.id, mode, handoverNote: note ?? '' }),
+    })
+    return res.ok ? res.json() : null
+  }
+
+  const openOpenModal = async () => {
+    setOpenCloseModal('opening'); setBriefing(null); setBriefingLoading(true)
+    const savedNote = typeof window !== 'undefined' ? (localStorage.getItem(`handover-${store.id}`) ?? '') : ''
+    const data = await callBriefingApi('open', savedNote).catch(() => null)
+    if (data?.ok) setBriefing(data.briefing)
+    setBriefingLoading(false)
+  }
+
+  const openClosingModal = async () => {
+    setOpenCloseModal('closing'); setClosingSummary(null); setClosingLoading(true)
+    setHandoverNote(''); setClosingChecklist([])
+    const data = await callBriefingApi('close').catch(() => null)
+    if (data?.ok) {
+      setClosingSummary(data.summary)
+      setClosingChecklist((data.checklist ?? []).map((c: { label: string }) => ({ label: c.label, checked: false })))
+    }
+    setClosingLoading(false)
+  }
+
+  const confirmOpen = async () => {
+    setConfirmingOC(true)
+    await handleToggleOpen()
+    setOpenCloseModal(null); setConfirmingOC(false)
+  }
+
+  const confirmClose = async () => {
+    setConfirmingOC(true)
+    if (typeof window !== 'undefined') {
+      handoverNote.trim()
+        ? localStorage.setItem(`handover-${store.id}`, handoverNote.trim())
+        : localStorage.removeItem(`handover-${store.id}`)
+    }
+    await handleToggleOpen()
+    setOpenCloseModal(null); setConfirmingOC(false)
   }
 
   const handleAction = async (id: string, status: QueueStatus) => {
@@ -723,18 +775,20 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
             </p>
           </div>
           <div className="flex items-center gap-1.5">
-            {/* 受付切替（コンパクト・右上） */}
-            <button onClick={handleToggleOpen} disabled={isOpen === null}
+            {/* 開店/閉店ボタン → モーダルを開く */}
+            <button
+              onClick={() => isOpen ? openClosingModal() : openOpenModal()}
+              disabled={isOpen === null}
               style={{ touchAction: 'manipulation' }}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-xs active:opacity-60 transition-all disabled:opacity-40 ${
                 isOpen === null ? 'bg-gray-200 text-gray-500' :
                 isOpen ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-900/50' :
-                'bg-red-700 text-white shadow-sm shadow-red-900/50'
+                'bg-indigo-600 text-white shadow-sm shadow-indigo-900/50'
               }`}>
               <span className={`w-2 h-2 rounded-full shrink-0 ${
-                isOpen === null ? 'bg-gray-400' : isOpen ? 'bg-white animate-pulse' : 'bg-red-200'
+                isOpen === null ? 'bg-gray-400' : isOpen ? 'bg-white animate-pulse' : 'bg-indigo-200'
               }`} />
-              {isOpen === null ? '...' : isOpen ? '受付中' : '停止中'}
+              {isOpen === null ? '...' : isOpen ? '営業中' : '開店する'}
             </button>
             <button onClick={fetchQueues} disabled={refreshing}
               className="p-2 rounded-xl bg-gray-100 border border-gray-200 hover:bg-gray-200 active:opacity-60 transition-all disabled:opacity-50">
@@ -920,6 +974,152 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
           onClose={() => setShowQrModal(false)}
           onSwitchStore={() => { setShowQrModal(false); onLogout() }}
         />
+      )}
+
+      {/* 開店ブリーフィングモーダル */}
+      {openCloseModal === 'opening' && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div className="bg-gradient-to-r from-amber-400 to-orange-400 px-6 py-5">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🌅</span>
+                <div>
+                  <h2 className="text-white font-black text-lg">開店ブリーフィング</h2>
+                  <p className="text-amber-100 text-xs">今日のポイントをお伝えします</p>
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              {briefingLoading ? (
+                <div className="flex flex-col items-center gap-3 py-6">
+                  <Loader2 size={32} className="animate-spin text-amber-400" />
+                  <p className="text-gray-400 text-sm">AIが今日の情報を確認しています…</p>
+                </div>
+              ) : briefing ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-4">
+                  <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">{briefing}</p>
+                </div>
+              ) : (
+                <div className="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-4 text-center text-gray-400 text-sm">
+                  情報を取得できませんでした
+                </div>
+              )}
+              <div className="flex gap-3 pt-1">
+                <button
+                  onClick={() => setOpenCloseModal(null)}
+                  className="flex-1 py-3.5 rounded-2xl border border-gray-200 text-gray-500 font-bold text-sm active:opacity-70"
+                  style={{ touchAction: 'manipulation' }}
+                >
+                  キャンセル
+                </button>
+                <button
+                  onClick={confirmOpen}
+                  disabled={confirmingOC}
+                  className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-400 text-white font-black text-sm shadow-lg active:opacity-80 disabled:opacity-50 flex items-center justify-center gap-2"
+                  style={{ touchAction: 'manipulation' }}
+                >
+                  {confirmingOC ? <Loader2 size={16} className="animate-spin" /> : <span>🌅</span>}
+                  開店する
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 閉店チェックモーダル */}
+      {openCloseModal === 'closing' && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden max-h-[90dvh] flex flex-col">
+            <div className="bg-gradient-to-r from-indigo-500 to-violet-500 px-6 py-5 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🌙</span>
+                <div>
+                  <h2 className="text-white font-black text-lg">閉店チェック</h2>
+                  <p className="text-indigo-100 text-xs">今日の締めをしっかり確認</p>
+                </div>
+              </div>
+            </div>
+            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+              {closingLoading ? (
+                <div className="flex flex-col items-center gap-3 py-6">
+                  <Loader2 size={32} className="animate-spin text-indigo-400" />
+                  <p className="text-gray-400 text-sm">AIが今日のサマリーを生成しています…</p>
+                </div>
+              ) : (
+                <>
+                  {closingSummary && (
+                    <div className="bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-3">
+                      <p className="text-gray-800 text-sm leading-relaxed">{closingSummary}</p>
+                    </div>
+                  )}
+                  {closingChecklist.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">チェックリスト</p>
+                      {closingChecklist.map((item, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setClosingChecklist(prev =>
+                            prev.map((c, j) => j === i ? { ...c, checked: !c.checked } : c)
+                          )}
+                          className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border text-left transition-all active:opacity-70 ${
+                            item.checked
+                              ? 'bg-emerald-50 border-emerald-300'
+                              : 'bg-white border-gray-200'
+                          }`}
+                          style={{ touchAction: 'manipulation' }}
+                        >
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                            item.checked ? 'bg-emerald-500 border-emerald-500' : 'border-gray-300'
+                          }`}>
+                            {item.checked && (
+                              <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                                <path d="M1 4L4 7L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            )}
+                          </div>
+                          <span className={`text-sm font-medium ${item.checked ? 'text-emerald-700 line-through' : 'text-gray-700'}`}>
+                            {item.label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
+                      明日への引継ぎメモ
+                    </label>
+                    <textarea
+                      value={handoverNote}
+                      onChange={e => setHandoverNote(e.target.value)}
+                      placeholder="明日のスタッフへ伝えることがあれば…（任意）"
+                      rows={3}
+                      className="w-full px-4 py-3 rounded-2xl border border-gray-200 text-sm text-gray-800 placeholder-gray-300 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="px-6 pb-6 pt-2 flex gap-3 shrink-0 border-t border-gray-100">
+              <button
+                onClick={() => setOpenCloseModal(null)}
+                className="flex-1 py-3.5 rounded-2xl border border-gray-200 text-gray-500 font-bold text-sm active:opacity-70"
+                style={{ touchAction: 'manipulation' }}
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={confirmClose}
+                disabled={confirmingOC}
+                className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-black text-sm shadow-lg active:opacity-80 disabled:opacity-50 flex items-center justify-center gap-2"
+                style={{ touchAction: 'manipulation' }}
+              >
+                {confirmingOC ? <Loader2 size={16} className="animate-spin" /> : <span>🌙</span>}
+                閉店する
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <BottomNav />
