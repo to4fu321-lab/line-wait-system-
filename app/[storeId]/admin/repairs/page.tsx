@@ -3735,16 +3735,21 @@ export default function RepairsPage() {
       <div className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-100" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className={`${isTablet ? 'px-6' : 'max-w-2xl mx-auto px-4'} pt-3 pb-3`}>
 
-          {/* Title row */}
-          <div className="flex items-center gap-2 mb-3">
-            <h1 className="text-sm font-black text-gray-800 flex-1 tracking-tight">業務ダッシュボード</h1>
+          {/* Title row — 2行構造 */}
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-base font-black text-gray-900 leading-tight whitespace-nowrap">業務ダッシュボード</h1>
+              <p className="text-gray-400 text-[11px] leading-none mt-0.5">
+                {new Date().toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
+              </p>
+            </div>
 
             {/* 開店/閉店ボタン */}
             <button
               onClick={() => isOpen ? openClosingModal() : openOpenModal()}
               disabled={isOpen === null}
               style={{ touchAction: 'manipulation' }}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-xs active:opacity-60 transition-all disabled:opacity-40 ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-xs active:opacity-60 transition-all disabled:opacity-40 shrink-0 ${
                 isOpen === null ? 'bg-gray-200 text-gray-500' :
                 isOpen ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-900/50' :
                 'bg-indigo-600 text-white shadow-sm shadow-indigo-900/50'
@@ -3754,7 +3759,10 @@ export default function RepairsPage() {
               }`} />
               {isOpen === null ? '...' : isOpen ? '営業中' : '開店する'}
             </button>
+          </div>
 
+          {/* Action buttons row */}
+          <div className="flex items-center gap-1.5 mb-3">
             {hasFeature('repairs_dummy') && (
               <button onClick={generateDummy} disabled={dummyLoading}
                 className="flex items-center gap-1 px-2 py-1.5 bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-400 text-[10px] font-bold rounded-lg transition-all disabled:opacity-50"
@@ -3762,6 +3770,7 @@ export default function RepairsPage() {
                 {dummyLoading ? <Loader2 size={11} className="animate-spin" /> : <Database size={11} />}
               </button>
             )}
+            <div className="flex-1" />
             <button onClick={() => { setEditInquiry(null); setShowInqModal(true) }}
               className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-violet-600/20">
               <Plus size={12} />問合せ
