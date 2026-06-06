@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useParams, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Timer, Search, Settings, ClipboardList, Monitor } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { supabase, getTodayStart } from '@/lib/supabase'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { useDeviceMode } from '@/lib/useDeviceMode'
 
@@ -27,9 +27,6 @@ export function BottomNav() {
   useEffect(() => {
     if (!storeId) return
     const fetchBadges = async () => {
-      const getTodayStart = () => {
-        const d = new Date(); d.setHours(0, 0, 0, 0); return d.toISOString()
-      }
       const [{ count: waiting }, { count: r }, { count: p }, { count: rc }, { count: pa }, { count: inqPending }] = await Promise.all([
         (supabase as any).from('queues').select('*', { count: 'exact', head: true })
           .eq('store_id', storeId).eq('status', 'waiting').gte('created_at', getTodayStart()),

@@ -1,9 +1,5 @@
 import type { KanaRow } from './types'
-
-export function fmtDate(d: string | null) {
-  if (!d) return ''
-  return new Date(d).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })
-}
+export { fmtDate } from '@/lib/adminUtils'
 
 export function getKanaRow(kana: string | null | undefined): KanaRow {
   if (!kana) return '他'

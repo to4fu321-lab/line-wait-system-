@@ -10,6 +10,7 @@ import {
   ChevronDown, RefreshCw,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fmtDate, todayJst } from '@/lib/adminUtils'
 
 // ── types ─────────────────────────────────────────────────────
 
@@ -37,14 +38,6 @@ interface DeliveryItem {
 }
 
 // ── utils ─────────────────────────────────────────────────────
-
-function fmtDate(d: string | null) {
-  if (!d) return ''
-  return new Date(d).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })
-}
-function todayJst() {
-  return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
-}
 
 function Toast({ msg, type, onUndo }: { msg: string; type: 'ok' | 'err' | 'undo'; onUndo?: () => Promise<void> | void }) {
   const [undoing, setUndoing] = useState(false)

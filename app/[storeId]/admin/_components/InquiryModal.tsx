@@ -5,6 +5,12 @@ import {
   X, Loader2, Check, Sparkles, ChevronDown, ChevronUp, Camera,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { compressImage } from '@/lib/adminUtils'
+import {
+  INQ_TYPE_LABELS as TYPE_LABELS,
+  INQ_STATUS_LABELS as STATUS_LABELS,
+  INQ_METHOD_LABELS as METHOD_LABELS,
+} from '../repairs/_components/constants'
 
 export type InquiryType    = 'inquiry' | 'complaint' | 'request' | 'other'
 export type InquiryStatus  = 'pending' | 'in_progress' | 'completed'
@@ -24,36 +30,6 @@ export interface InquiryRow {
   received_by: string | null
   handled_by: string | null
   created_at: string
-}
-
-const TYPE_LABELS: Record<InquiryType, string> = {
-  inquiry: '問合せ', complaint: 'クレーム', request: '要望', other: 'その他',
-}
-const STATUS_LABELS: Record<InquiryStatus, string> = {
-  pending: '未対応', in_progress: '対応中', completed: '完了',
-}
-const METHOD_LABELS: Record<ResponseMethod, string> = {
-  line: 'LINE', phone: '電話', in_store: '店頭', email: 'メール',
-}
-
-async function compressImage(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    const url = URL.createObjectURL(file)
-    img.onload = () => {
-      URL.revokeObjectURL(url)
-      const maxDim = 1400
-      const scale = Math.min(1, maxDim / Math.max(img.width, img.height))
-      const w = Math.round(img.width * scale)
-      const h = Math.round(img.height * scale)
-      const canvas = document.createElement('canvas')
-      canvas.width = w; canvas.height = h
-      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
-      resolve(canvas.toDataURL('image/jpeg', 0.82).split(',')[1])
-    }
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image load failed')) }
-    img.src = url
-  })
 }
 
 interface StaffMember { id: string; name: string }
