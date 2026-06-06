@@ -198,7 +198,24 @@ const REPAIR_TYPES_DEF: Array<{ type: RepairType; label: string; icon: string; c
   { type: 'other',        label: 'その他',    icon: '📝', color: 'border-slate-300 bg-slate-50 text-slate-600 hover:bg-slate-100' },
 ]
 
-// アイテムカテゴリ デフォルト定義（DBなしでも常時表示）
+// カテゴリ名からアイコンを解決
+function getCatIcon(name: string): string {
+  const n = name.replace(/[\s・]/g, '')
+  if (/ジャケット|上着|ブレザー/.test(n)) return '🧥'
+  if (/スラックス|ズボン|パンツ/.test(n)) return '👖'
+  if (/スカート/.test(n)) return '👗'
+  if (/ワイシャツ|シャツ|ブラウス/.test(n)) return '👔'
+  if (/セーラー/.test(n)) return '👘'
+  if (/詰め?襟|詰襟|学生服/.test(n)) return '🎓'
+  if (/ベスト/.test(n)) return '🦺'
+  if (/コート|マント/.test(n)) return '🧣'
+  if (/体操|ジャージ/.test(n)) return '🏃'
+  if (/刺繍|エンブレム/.test(n)) return '✨'
+  if (/リボン|ネクタイ/.test(n)) return '🎀'
+  return '✂️'
+}
+
+// DBなし時のフォールバック
 const DEFAULT_REPAIR_CATS = [
   { name: '上着・ジャケット', icon: '🧥' },
   { name: 'スラックス',       icon: '👖' },
@@ -206,13 +223,16 @@ const DEFAULT_REPAIR_CATS = [
   { name: 'ワイシャツ',       icon: '👔' },
 ] as const
 
-const CAT_PALETTES = [
-  'bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200',
-  'bg-blue-100 border-blue-300 text-blue-800 hover:bg-blue-200',
-  'bg-purple-100 border-purple-300 text-purple-800 hover:bg-purple-200',
-  'bg-emerald-100 border-emerald-300 text-emerald-800 hover:bg-emerald-200',
-  'bg-rose-100 border-rose-300 text-rose-800 hover:bg-rose-200',
-  'bg-indigo-100 border-indigo-300 text-indigo-800 hover:bg-indigo-200',
+// カラーパレット（アイコン背景用）
+const CAT_ICON_COLORS = [
+  'bg-amber-100 text-amber-700',
+  'bg-blue-100 text-blue-700',
+  'bg-violet-100 text-violet-700',
+  'bg-emerald-100 text-emerald-700',
+  'bg-rose-100 text-rose-700',
+  'bg-indigo-100 text-indigo-700',
+  'bg-teal-100 text-teal-700',
+  'bg-orange-100 text-orange-700',
 ]
 
 interface CustResult {
@@ -410,18 +430,12 @@ function NewRepairModal({ storeId, onClose, onSave, onToast, showOcr = true }: {
     </div>
   )
 
-  // デフォルト + DBカテゴリをマージ（常時表示）
+  // DBカテゴリがあればそれのみ使用、なければデフォルト表示
   const displayCats = useMemo(() => {
-    const dbByName = new Map(categories.map(c => [c.name, c.id]))
-    const defaults = DEFAULT_REPAIR_CATS.map(dc => ({
-      id: dbByName.get(dc.name) ?? null,
-      name: dc.name as string,
-      icon: dc.icon,
-    }))
-    const extras = categories
-      .filter(c => !DEFAULT_REPAIR_CATS.some(dc => dc.name === c.name))
-      .map(c => ({ id: c.id, name: c.name, icon: '📦' }))
-    return [...defaults, ...extras]
+    if (categories.length > 0) {
+      return categories.map(c => ({ id: c.id, name: c.name, icon: getCatIcon(c.name) }))
+    }
+    return DEFAULT_REPAIR_CATS.map(dc => ({ id: null as string | null, name: dc.name as string, icon: dc.icon }))
   }, [categories])
 
   const stepLabels: Record<Step, string> = { type: 'アイテム選択', ocr_confirm: '読み取り確認・修正', cat_repair: 'お直し選択', details: '内容入力', customer: '顧客選択' }
@@ -694,27 +708,29 @@ function NewRepairModal({ storeId, onClose, onSave, onToast, showOcr = true }: {
             </div>
           )}
 
-          {/* ── Step 1: アイテムカテゴリ選択（デフォルト+DB常時表示） ── */}
+          {/* ── Step 1: 服種選択 ── */}
           {step === 'type' && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                {displayCats.map((cat, i) => (
-                  <button key={cat.name}
-                    onClick={() => { setSelectedCategoryId(cat.id); setSelectedCategoryName(cat.name); setStep('cat_repair') }}
-                    className={`flex flex-col items-center justify-center gap-2.5 py-8 rounded-2xl border-2 font-bold transition-all active:scale-95 ${CAT_PALETTES[i % CAT_PALETTES.length]}`}>
-                    <span className="text-4xl">{cat.icon}</span>
-                    <span className="text-sm leading-tight text-center">{cat.name}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="border-t border-gray-100 pt-3">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">カテゴリなし / その他</p>
-                <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-2">
+              {displayCats.map((cat, i) => (
+                <button key={cat.name}
+                  onClick={() => { setSelectedCategoryId(cat.id); setSelectedCategoryName(cat.name); setStep('cat_repair') }}
+                  className="w-full flex items-center gap-4 px-4 py-3.5 bg-white rounded-2xl shadow-sm border border-gray-100 hover:border-indigo-200 hover:shadow-md active:scale-[0.98] transition-all text-left">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0 ${CAT_ICON_COLORS[i % CAT_ICON_COLORS.length]}`}>
+                    {cat.icon}
+                  </div>
+                  <span className="flex-1 text-base font-bold text-gray-800">{cat.name}</span>
+                  <ChevronRight size={18} className="text-gray-300 shrink-0" />
+                </button>
+              ))}
+              <div className="pt-2">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-1 mb-2">服種以外のお直し</p>
+                <div className="grid grid-cols-4 gap-2">
                   {REPAIR_TYPES_DEF.map(t => (
-                    <button key={t.type} onClick={() => { setRepairType(t.type); setSelectedCategoryId(null); setSelectedCategoryName(''); setStep('details') }}
-                      className={`flex flex-col items-center gap-1.5 py-3 rounded-2xl border-2 font-bold transition-all active:scale-95 ${t.color}`}>
-                      <span className="text-2xl">{t.icon}</span>
-                      <span className="text-[11px] leading-tight text-center">{t.label}</span>
+                    <button key={t.type}
+                      onClick={() => { setRepairType(t.type); setSelectedCategoryId(null); setSelectedCategoryName(''); setStep('details') }}
+                      className="flex flex-col items-center gap-1.5 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm active:scale-95 transition-all font-bold text-gray-600">
+                      <span className="text-xl">{t.icon}</span>
+                      <span className="text-[10px] leading-tight text-center">{t.label}</span>
                     </button>
                   ))}
                 </div>
