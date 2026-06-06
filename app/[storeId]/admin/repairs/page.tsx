@@ -8,7 +8,7 @@ import {
   Banknote, Plus, AlertCircle, CreditCard, CheckCheck,
   History, CalendarDays, Copy, X, Pencil, Truck, Trash2,
   Search, Database, ShoppingCart, Tag, Camera, ScanLine, PackageCheck,
-  MessageSquarePlus,
+  MessageSquarePlus, BellRing, RefreshCw,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
@@ -3252,6 +3252,23 @@ export default function RepairsPage() {
   const [showInqModal, setShowInqModal] = useState(false)
   const [editInquiry,  setEditInquiry]  = useState<InquiryRow | null>(null)
 
+  // ── 開閉管理 ─────────────────────────────────────────────────
+  const [isOpen,           setIsOpen]           = useState<boolean | null>(null)
+  const [openCloseModal,   setOpenCloseModal]   = useState<'opening' | 'closing' | null>(null)
+  const [briefing,         setBriefing]         = useState<string | null>(null)
+  const [briefingLoading,  setBriefingLoading]  = useState(false)
+  const [closingChecklist, setClosingChecklist] = useState<{ label: string; checked: boolean }[]>([])
+  const [closingSummary,   setClosingSummary]   = useState<string | null>(null)
+  const [closingLoading,   setClosingLoading]   = useState(false)
+  const [handoverNote,     setHandoverNote]     = useState('')
+  const [confirmingOC,     setConfirmingOC]     = useState(false)
+
+  // ── 順番待ち ──────────────────────────────────────────────────
+  type QueueItem = { id: string; ticket_number: number; customer_name: string | null; purpose: string | null }
+  const [queueWaiting,  setQueueWaiting]  = useState<QueueItem[]>([])
+  const [queueCalling,  setQueueCalling]  = useState<Omit<QueueItem, 'purpose'>[]>([])
+  const [queueUpdating, setQueueUpdating] = useState<string | null>(null)
+
   const showToast = useCallback((type: 'ok' | 'err', msg: string, onUndo?: () => Promise<void>) => {
     setToast({ type, msg, onUndo })
   }, [])
@@ -3342,6 +3359,97 @@ export default function RepairsPage() {
   useEffect(() => {
     if (tab === 'delivery' && deliverySubTab === 'history' && !histFetched) fetchHistory()
   }, [tab, deliverySubTab, histFetched, fetchHistory])
+
+  // ── 開閉 & 順番待ち ──────────────────────────────────────────
+  useEffect(() => {
+    if (!storeId) return
+    ;(supabase as any).from('stores').select('is_open').eq('id', storeId).single()
+      .then(({ data }: { data: { is_open: boolean } | null }) => { if (data) setIsOpen(data.is_open) })
+  }, [storeId])
+
+  const fetchQueue = useCallback(async () => {
+    if (!storeId) return
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+    const iso = todayStart.toISOString()
+    const [{ data: w }, { data: c }] = await Promise.all([
+      (supabase as any).from('queues').select('id,ticket_number,customer_name,purpose')
+        .eq('store_id', storeId).eq('status', 'waiting').gte('created_at', iso).order('created_at'),
+      (supabase as any).from('queues').select('id,ticket_number,customer_name')
+        .eq('store_id', storeId).eq('status', 'calling').gte('created_at', iso).order('created_at'),
+    ])
+    setQueueWaiting(w ?? [])
+    setQueueCalling(c ?? [])
+  }, [storeId])
+
+  useEffect(() => { fetchQueue() }, [fetchQueue])
+
+  const handleToggleOpen = async () => {
+    if (isOpen === null || !storeId) return
+    const next = !isOpen
+    setIsOpen(next)
+    try {
+      const res = await fetch('/api/stores/open', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId, isOpen: next }),
+      })
+      const json = await res.json()
+      if (typeof json.is_open === 'boolean') setIsOpen(json.is_open)
+    } catch {
+      setIsOpen(!next)
+      showToast('err', '受付切替失敗: 通信エラー')
+    }
+  }
+
+  const callBriefingApi = async (mode: 'open' | 'close', note?: string) => {
+    const res = await fetch('/api/stores/briefing', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storeId, mode, handoverNote: note ?? '' }),
+    })
+    return res.ok ? res.json() : null
+  }
+
+  const openOpenModal = async () => {
+    setOpenCloseModal('opening'); setBriefing(null); setBriefingLoading(true)
+    const savedNote = typeof window !== 'undefined' ? (localStorage.getItem(`handover-${storeId}`) ?? '') : ''
+    const data = await callBriefingApi('open', savedNote).catch(() => null)
+    if (data?.ok) setBriefing(data.briefing)
+    setBriefingLoading(false)
+  }
+
+  const openClosingModal = async () => {
+    setOpenCloseModal('closing'); setClosingSummary(null); setClosingLoading(true)
+    setHandoverNote(''); setClosingChecklist([])
+    const data = await callBriefingApi('close').catch(() => null)
+    if (data?.ok) {
+      setClosingSummary(data.summary)
+      setClosingChecklist((data.checklist ?? []).map((c: { label: string }) => ({ label: c.label, checked: false })))
+    }
+    setClosingLoading(false)
+  }
+
+  const confirmOpen = async () => {
+    setConfirmingOC(true)
+    await handleToggleOpen()
+    setOpenCloseModal(null); setConfirmingOC(false)
+  }
+
+  const confirmClose = async () => {
+    setConfirmingOC(true)
+    if (typeof window !== 'undefined') {
+      handoverNote.trim()
+        ? localStorage.setItem(`handover-${storeId}`, handoverNote.trim())
+        : localStorage.removeItem(`handover-${storeId}`)
+    }
+    await handleToggleOpen()
+    setOpenCloseModal(null); setConfirmingOC(false)
+  }
+
+  const handleQueueAction = async (id: string, status: 'completed' | 'cancelled' | 'calling') => {
+    setQueueUpdating(id)
+    await (supabase as any).from('queues').update({ status }).eq('id', id)
+    await fetchQueue()
+    setQueueUpdating(null)
+  }
 
   // ── Delivery actions ───────────────────────────────────────
   const handleDeliver = useCallback(async (item: DeliveryItem, paid: boolean, deliveredBy: string) => {
@@ -3630,6 +3738,23 @@ export default function RepairsPage() {
           {/* Title row */}
           <div className="flex items-center gap-2 mb-3">
             <h1 className="text-sm font-black text-gray-800 flex-1 tracking-tight">業務ダッシュボード</h1>
+
+            {/* 開店/閉店ボタン */}
+            <button
+              onClick={() => isOpen ? openClosingModal() : openOpenModal()}
+              disabled={isOpen === null}
+              style={{ touchAction: 'manipulation' }}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-xs active:opacity-60 transition-all disabled:opacity-40 ${
+                isOpen === null ? 'bg-gray-200 text-gray-500' :
+                isOpen ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-900/50' :
+                'bg-indigo-600 text-white shadow-sm shadow-indigo-900/50'
+              }`}>
+              <span className={`w-2 h-2 rounded-full shrink-0 ${
+                isOpen === null ? 'bg-gray-400' : isOpen ? 'bg-white animate-pulse' : 'bg-indigo-200'
+              }`} />
+              {isOpen === null ? '...' : isOpen ? '営業中' : '開店する'}
+            </button>
+
             {hasFeature('repairs_dummy') && (
               <button onClick={generateDummy} disabled={dummyLoading}
                 className="flex items-center gap-1 px-2 py-1.5 bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-400 text-[10px] font-bold rounded-lg transition-all disabled:opacity-50"
@@ -3766,6 +3891,74 @@ export default function RepairsPage() {
 
       {/* ── Body ────────────────────────────────────────────── */}
       <div className={`${isTablet ? 'px-6 pb-8' : 'max-w-2xl mx-auto px-4 pb-32'} pt-4 space-y-3`}>
+
+        {/* 順番待ちミニパネル */}
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${isOpen ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`} />
+            <span className="text-xs font-black text-gray-700">順番待ち</span>
+            <div className="flex items-center gap-2 ml-auto">
+              {queueCalling.length > 0 && (
+                <span className="text-[10px] bg-amber-100 text-amber-700 font-black px-2 py-0.5 rounded-full">
+                  呼出中 {queueCalling.length}
+                </span>
+              )}
+              <span className="text-xs text-gray-500">
+                待ち <span className="font-black text-gray-800">{queueWaiting.length}</span>人
+              </span>
+              <button onClick={fetchQueue} style={{ touchAction: 'manipulation' }}
+                className="p-1.5 rounded-lg hover:bg-gray-100 active:opacity-60">
+                <RefreshCw size={11} className="text-gray-400" />
+              </button>
+            </div>
+          </div>
+
+          {/* 呼出中 */}
+          {queueCalling.map(t => (
+            <div key={t.id} className="flex items-center gap-3 px-4 py-3 bg-amber-50 border-b border-amber-100 last:border-b-0">
+              <div className="w-8 h-8 rounded-full bg-amber-200 flex items-center justify-center shrink-0">
+                <span className="text-amber-800 font-black text-xs">{t.ticket_number}</span>
+              </div>
+              <span className="text-sm text-gray-800 font-bold flex-1">{t.customer_name ?? 'お客様'}</span>
+              <button onClick={() => handleQueueAction(t.id, 'completed')} disabled={queueUpdating === t.id}
+                style={{ touchAction: 'manipulation' }}
+                className="px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-black rounded-xl active:opacity-70 disabled:opacity-50">
+                {queueUpdating === t.id ? '…' : '完了'}
+              </button>
+              <button onClick={() => handleQueueAction(t.id, 'cancelled')} disabled={queueUpdating === t.id}
+                style={{ touchAction: 'manipulation' }}
+                className="px-3 py-1.5 bg-gray-100 text-gray-600 text-[10px] font-black rounded-xl active:opacity-70 disabled:opacity-50">
+                不在
+              </button>
+            </div>
+          ))}
+
+          {/* 次の方 + 呼ぶボタン */}
+          {queueWaiting.length > 0 ? (
+            <div className="flex items-center gap-3 px-4 py-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-gray-400 mb-0.5">次の方</p>
+                <p className="text-sm font-bold text-gray-700 truncate">
+                  #{queueWaiting[0].ticket_number}　{queueWaiting[0].customer_name ?? 'お客様'}
+                </p>
+                {queueWaiting.length > 1 && (
+                  <p className="text-[10px] text-gray-400">他 {queueWaiting.length - 1}人待ち</p>
+                )}
+              </div>
+              <button
+                onClick={() => handleQueueAction(queueWaiting[0].id, 'calling')}
+                disabled={!isOpen || !!queueUpdating}
+                style={{ touchAction: 'manipulation' }}
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white text-xs font-black rounded-xl shadow-sm shadow-blue-900/30 active:opacity-70 disabled:opacity-40">
+                <BellRing size={13} />
+                呼ぶ
+              </button>
+            </div>
+          ) : queueCalling.length === 0 ? (
+            <div className="px-4 py-3.5 text-center text-gray-400 text-xs">待ちなし</div>
+          ) : null}
+        </div>
+
         {fetchError && (
           <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-xs text-red-600 flex items-center gap-2">
             <AlertCircle size={13} />DBエラー: {fetchError}
@@ -4277,6 +4470,138 @@ export default function RepairsPage() {
           onClose={() => setShowInqModal(false)}
           onSave={fetchAll}
         />
+      )}
+
+      {/* 開店ブリーフィングモーダル */}
+      {openCloseModal === 'opening' && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div className="bg-gradient-to-r from-amber-400 to-orange-400 px-6 py-5">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🌅</span>
+                <div>
+                  <h2 className="text-white font-black text-lg">開店ブリーフィング</h2>
+                  <p className="text-amber-100 text-xs">今日のポイントをお伝えします</p>
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              {briefingLoading ? (
+                <div className="flex flex-col items-center gap-3 py-6">
+                  <Loader2 size={32} className="animate-spin text-amber-400" />
+                  <p className="text-gray-400 text-sm">AIが今日の情報を確認しています…</p>
+                </div>
+              ) : briefing ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-4">
+                  <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">{briefing}</p>
+                </div>
+              ) : (
+                <div className="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-4 text-center text-gray-400 text-sm">
+                  情報を取得できませんでした
+                </div>
+              )}
+              <div className="flex gap-3 pt-1">
+                <button onClick={() => setOpenCloseModal(null)}
+                  className="flex-1 py-3.5 rounded-2xl border border-gray-200 text-gray-500 font-bold text-sm active:opacity-70"
+                  style={{ touchAction: 'manipulation' }}>
+                  キャンセル
+                </button>
+                <button onClick={confirmOpen} disabled={confirmingOC}
+                  className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-400 text-white font-black text-sm shadow-lg active:opacity-80 disabled:opacity-50 flex items-center justify-center gap-2"
+                  style={{ touchAction: 'manipulation' }}>
+                  {confirmingOC ? <Loader2 size={16} className="animate-spin" /> : <span>🌅</span>}
+                  開店する
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 閉店チェックモーダル */}
+      {openCloseModal === 'closing' && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden max-h-[90dvh] flex flex-col">
+            <div className="bg-gradient-to-r from-indigo-500 to-violet-500 px-6 py-5 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🌙</span>
+                <div>
+                  <h2 className="text-white font-black text-lg">閉店チェック</h2>
+                  <p className="text-indigo-100 text-xs">今日の締めをしっかり確認</p>
+                </div>
+              </div>
+            </div>
+            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+              {closingLoading ? (
+                <div className="flex flex-col items-center gap-3 py-6">
+                  <Loader2 size={32} className="animate-spin text-indigo-400" />
+                  <p className="text-gray-400 text-sm">AIが今日のサマリーを生成しています…</p>
+                </div>
+              ) : (
+                <>
+                  {closingSummary && (
+                    <div className="bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-3">
+                      <p className="text-gray-800 text-sm leading-relaxed">{closingSummary}</p>
+                    </div>
+                  )}
+                  {closingChecklist.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">チェックリスト</p>
+                      {closingChecklist.map((item, i) => (
+                        <button key={i}
+                          onClick={() => setClosingChecklist(prev =>
+                            prev.map((c, j) => j === i ? { ...c, checked: !c.checked } : c)
+                          )}
+                          className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border text-left transition-all active:opacity-70 ${
+                            item.checked ? 'bg-emerald-50 border-emerald-300' : 'bg-white border-gray-200'
+                          }`}
+                          style={{ touchAction: 'manipulation' }}>
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                            item.checked ? 'bg-emerald-500 border-emerald-500' : 'border-gray-300'
+                          }`}>
+                            {item.checked && (
+                              <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                                <path d="M1 4L4 7L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            )}
+                          </div>
+                          <span className={`text-sm font-medium ${item.checked ? 'text-emerald-700 line-through' : 'text-gray-700'}`}>
+                            {item.label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
+                      明日への引継ぎメモ
+                    </label>
+                    <textarea
+                      value={handoverNote}
+                      onChange={e => setHandoverNote(e.target.value)}
+                      placeholder="明日のスタッフへ伝えることがあれば…（任意）"
+                      rows={3}
+                      className="w-full px-4 py-3 rounded-2xl border border-gray-200 text-sm text-gray-800 placeholder-gray-300 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="px-6 pb-6 pt-2 flex gap-3 shrink-0 border-t border-gray-100">
+              <button onClick={() => setOpenCloseModal(null)}
+                className="flex-1 py-3.5 rounded-2xl border border-gray-200 text-gray-500 font-bold text-sm active:opacity-70"
+                style={{ touchAction: 'manipulation' }}>
+                キャンセル
+              </button>
+              <button onClick={confirmClose} disabled={confirmingOC}
+                className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-black text-sm shadow-lg active:opacity-80 disabled:opacity-50 flex items-center justify-center gap-2"
+                style={{ touchAction: 'manipulation' }}>
+                {confirmingOC ? <Loader2 size={16} className="animate-spin" /> : <span>🌙</span>}
+                閉店する
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <BottomNav />
