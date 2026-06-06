@@ -3,7 +3,7 @@
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
-  Scissors, ShoppingBag, Loader2, ChevronDown, ChevronUp, ChevronLeft,
+  Scissors, ShoppingBag, Loader2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   Phone, User, Check, RotateCcw, Package, ClipboardList,
   Banknote, Plus, AlertCircle, CreditCard, CheckCheck,
   History, CalendarDays, Copy, X, Pencil, Truck, Trash2,
