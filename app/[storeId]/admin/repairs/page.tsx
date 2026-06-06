@@ -4483,7 +4483,8 @@ export default function RepairsPage() {
 
       {/* 開店ブリーフィングモーダル */}
       {openCloseModal === 'opening' && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm px-4 pt-4"
+          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
             <div className="bg-gradient-to-r from-amber-400 to-orange-400 px-6 py-5">
               <div className="flex items-center gap-2">
@@ -4529,7 +4530,7 @@ export default function RepairsPage() {
 
       {/* 閉店チェックモーダル */}
       {openCloseModal === 'closing' && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm px-4 pt-4"
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm px-4 pt-4"
           style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden max-h-[88dvh] flex flex-col">
             <div className="bg-gradient-to-r from-indigo-500 to-violet-500 px-6 py-5 shrink-0">
