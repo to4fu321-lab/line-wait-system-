@@ -525,7 +525,7 @@ export default function RepairsPage() {
         <div className={`${isTablet ? 'px-6' : 'max-w-2xl mx-auto px-4'} pt-3 pb-3`}>
 
           {/* Title row */}
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-2">
             <h1 className="text-sm font-black text-gray-800 tracking-tight whitespace-nowrap">業務ダッシュボード</h1>
             {/* 開店/閉店ボタン */}
             <button
@@ -549,6 +549,10 @@ export default function RepairsPage() {
                 {dummyLoading ? <Loader2 size={11} className="animate-spin" /> : <Database size={11} />}
               </button>
             )}
+          </div>
+          {/* Action buttons row */}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="flex-1" />
             <button onClick={() => { setEditInquiry(null); setShowInqModal(true) }}
               className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-violet-600/20">
               <Plus size={12} />問合せ
