@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation'
 import { useEffect, useState, useCallback } from 'react'
-import { MessageSquarePlus, Loader2, CheckCheck, Plus } from 'lucide-react'
+import { MessageSquarePlus, Loader2, CheckCheck, Plus, ChevronLeft, Sparkles } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useDeviceMode } from '@/lib/useDeviceMode'
 import { useSimpleMode } from '@/lib/useSimpleMode'
@@ -22,6 +22,8 @@ import {
   INQ_METHOD_LABELS as METHOD_LABELS,
 } from '../repairs/_components/constants'
 
+type SimpleStep = 'idle' | 'loading' | 'advice' | 'completing'
+
 // ── Card ───────────────────────────────────────────────────────────
 function InquiryCard({
   item, onEdit, onStatusChange, isSimpleMode = false,
@@ -31,7 +33,13 @@ function InquiryCard({
   onStatusChange: (id: string, status: InquiryStatus) => void
   isSimpleMode?: boolean
 }) {
-  const [updating, setUpdating] = useState(false)
+  const [updating,      setUpdating]      = useState(false)
+  const [simpleStep,    setSimpleStep]    = useState<SimpleStep>('idle')
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([])
+  const [selectedReply, setSelectedReply] = useState('')
+  const [showCustom,    setShowCustom]    = useState(false)
+  const [customReply,   setCustomReply]   = useState('')
+
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const isOverdue = item.due_date && item.status !== 'completed' && new Date(item.due_date) < today
@@ -51,14 +59,184 @@ function InquiryCard({
     onStatusChange(item.id, n)
   }
 
+  async function fetchAdvice() {
+    setSimpleStep('loading')
+    try {
+      const res = await fetch('/api/inquiry-advice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: item.content, type: item.type }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const s: string[] = []
+        if (data.sample_reply)       s.push(data.sample_reply)
+        if (data.recommended_action) s.push(data.recommended_action)
+        if (s.length < 3) s.push('担当者に確認してお返事します')
+        if (s.length < 3) s.push('ご不便をおかけして申し訳ございません')
+        setAiSuggestions(s.slice(0, 3))
+      } else {
+        setAiSuggestions(['担当者に確認してお返事します', 'ご不便をおかけして申し訳ございません'])
+      }
+    } catch {
+      setAiSuggestions(['担当者に確認してお返事します', 'ご不便をおかけして申し訳ございません'])
+    }
+    setSimpleStep('advice')
+  }
+
+  async function completeWithMethod(method: ResponseMethod | '') {
+    setUpdating(true)
+    const finalReply = showCustom ? customReply.trim() : selectedReply.trim()
+    const now = new Date().toISOString()
+    await (supabase as any).from('inquiries').update({
+      status: 'completed',
+      response_method: method || null,
+      response_notes: finalReply || null,
+      responded_at: now,
+      updated_at: now,
+    }).eq('id', item.id)
+    setUpdating(false)
+    onStatusChange(item.id, 'completed')
+    setSimpleStep('idle')
+    setSelectedReply('')
+    setCustomReply('')
+    setShowCustom(false)
+  }
+
   // ── シンプルモード ───────────────────────────────────────────────
   if (isSimpleMode) {
-    const advanceLabel: Record<InquiryStatus, string> = {
-      pending: '対応中にする', in_progress: '完了にする', completed: '未対応に戻す',
+
+    // 完了済み
+    if (item.status === 'completed') {
+      return (
+        <div onClick={() => onEdit(item)}
+          className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${TYPE_LEFT_BORDER[item.type]} shadow-sm cursor-pointer active:scale-[0.99] transition-transform`}>
+          <div className="p-4">
+            <div className="flex items-start justify-between gap-2 mb-3">
+              <span className={`text-xs font-black px-2.5 py-1.5 rounded-lg ${TYPE_BADGE[item.type]}`}>
+                {TYPE_LABELS[item.type]}
+              </span>
+              <span className={`text-xs font-black px-2.5 py-1.5 rounded-lg shrink-0 ${STATUS_BADGE[item.status]}`}>
+                {STATUS_LABELS[item.status]}
+              </span>
+            </div>
+            {item.customer_name && <p className="text-xl font-black text-gray-800 mb-2">{item.customer_name}</p>}
+            <p className="text-base text-gray-600 leading-relaxed mb-3 line-clamp-2">{item.content}</p>
+            {item.response_notes && <p className="text-sm text-gray-400 mb-3 leading-relaxed">💬 {item.response_notes}</p>}
+            {item.response_method && (
+              <p className="text-sm text-gray-400 mb-3">{METHOD_LABELS[item.response_method]}で対応済み</p>
+            )}
+            <button onClick={e => { e.stopPropagation(); advanceStatus(e) }} disabled={updating}
+              className="text-sm text-gray-400 underline underline-offset-2">
+              {updating ? <Loader2 size={14} className="animate-spin inline mr-1" /> : null}未対応に戻す
+            </button>
+          </div>
+        </div>
+      )
     }
-    const advanceColor: Record<InquiryStatus, string> = {
-      pending: 'bg-blue-600 text-white', in_progress: 'bg-emerald-600 text-white', completed: 'bg-gray-400 text-white',
+
+    // AI読み込み中
+    if (simpleStep === 'loading') {
+      return (
+        <div className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${TYPE_LEFT_BORDER[item.type]} shadow-sm`}>
+          <div className="p-6 flex flex-col items-center gap-4">
+            <Loader2 size={36} className="animate-spin text-violet-500" />
+            <p className="text-base font-bold text-gray-600">AIが対応案を考えています…</p>
+          </div>
+        </div>
+      )
     }
+
+    // 対応案選択
+    if (simpleStep === 'advice') {
+      const canProceed = selectedReply.trim().length > 0 || (showCustom && customReply.trim().length > 0)
+      return (
+        <div className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${TYPE_LEFT_BORDER[item.type]} shadow-sm`}>
+          <div className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <button onClick={() => { setSimpleStep('idle'); setSelectedReply(''); setShowCustom(false) }}
+                className="p-1.5 rounded-xl hover:bg-gray-100 active:scale-95 transition-all">
+                <ChevronLeft size={20} className="text-gray-500" />
+              </button>
+              <p className="text-base font-black text-gray-800">対応案を選んでください</p>
+            </div>
+            <p className="text-sm text-gray-500 mb-4 leading-relaxed line-clamp-2">{item.content}</p>
+            <div className="space-y-2.5 mb-5">
+              {aiSuggestions.map((s, i) => (
+                <button key={i} onClick={() => { setSelectedReply(s); setShowCustom(false) }}
+                  className={`w-full text-left px-4 py-3.5 rounded-2xl border-2 text-sm leading-relaxed transition-all active:scale-[0.99] ${
+                    selectedReply === s && !showCustom
+                      ? 'border-violet-500 bg-violet-50 text-violet-900 font-bold'
+                      : 'border-gray-200 text-gray-700 bg-white'
+                  }`}>
+                  {i === 0 && <span className="text-xs font-black text-violet-500 mr-1.5">✨ AI</span>}
+                  {s}
+                </button>
+              ))}
+              <button onClick={() => { setShowCustom(true); setSelectedReply('') }}
+                className={`w-full text-left px-4 py-3.5 rounded-2xl border-2 text-sm transition-all active:scale-[0.99] ${
+                  showCustom
+                    ? 'border-violet-500 bg-violet-50 text-violet-900 font-bold'
+                    : 'border-gray-200 text-gray-500 bg-white'
+                }`}>
+                ✏️ 自分で入力する
+              </button>
+              {showCustom && (
+                <textarea
+                  value={customReply}
+                  onChange={e => setCustomReply(e.target.value)}
+                  placeholder="対応内容を入力…"
+                  rows={3}
+                  className="w-full px-4 py-3 rounded-2xl border-2 border-violet-300 text-base text-gray-800 focus:outline-none focus:border-violet-500 resize-none"
+                  autoFocus
+                />
+              )}
+            </div>
+            <button onClick={() => setSimpleStep('completing')} disabled={!canProceed}
+              className="w-full py-5 rounded-2xl text-base font-black bg-emerald-600 text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-40 shadow-md">
+              <CheckCheck size={18} />完了する
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    // 対応方法選択
+    if (simpleStep === 'completing') {
+      const methods: { value: ResponseMethod | ''; label: string; emoji: string }[] = [
+        { value: 'phone',    label: '電話で対応した',   emoji: '📞' },
+        { value: 'line',     label: 'LINEで対応した',  emoji: '💬' },
+        { value: 'in_store', label: '店頭で対応した',   emoji: '🏪' },
+        { value: 'email',    label: 'メールで対応した', emoji: '📧' },
+        { value: '',         label: 'その他',           emoji: '✅' },
+      ]
+      const backStep: SimpleStep = item.status === 'pending' ? 'advice' : 'idle'
+      return (
+        <div className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${TYPE_LEFT_BORDER[item.type]} shadow-sm`}>
+          <div className="p-4">
+            <div className="flex items-center gap-2 mb-5">
+              <button onClick={() => setSimpleStep(backStep)}
+                className="p-1.5 rounded-xl hover:bg-gray-100 active:scale-95 transition-all">
+                <ChevronLeft size={20} className="text-gray-500" />
+              </button>
+              <p className="text-base font-black text-gray-800">どのように対応しましたか？</p>
+            </div>
+            <div className="space-y-2.5">
+              {methods.map(m => (
+                <button key={m.value} onClick={() => completeWithMethod(m.value)} disabled={updating}
+                  style={{ touchAction: 'manipulation' }}
+                  className="w-full py-5 rounded-2xl text-base font-black border-2 border-gray-200 bg-white text-gray-700 flex items-center justify-center gap-3 active:scale-[0.98] transition-all disabled:opacity-50 hover:border-emerald-400 hover:bg-emerald-50">
+                  {updating ? <Loader2 size={20} className="animate-spin" /> : <span className="text-2xl leading-none">{m.emoji}</span>}
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    // アイドル（pending / in_progress）
     return (
       <div onClick={() => onEdit(item)}
         className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${TYPE_LEFT_BORDER[item.type]} shadow-sm cursor-pointer active:scale-[0.99] transition-transform`}>
@@ -85,12 +263,19 @@ function InquiryCard({
             {new Date(item.created_at).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
             {item.response_method && ` · ${METHOD_LABELS[item.response_method]}`}
           </p>
-          <button onClick={advanceStatus} disabled={updating}
-            style={{ touchAction: 'manipulation' }}
-            className={`w-full py-4 rounded-2xl text-base font-black flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50 ${advanceColor[item.status]}`}>
-            {updating ? <Loader2 size={18} className="animate-spin" /> : <CheckCheck size={18} />}
-            {advanceLabel[item.status]}
-          </button>
+          {item.status === 'pending' ? (
+            <button onClick={e => { e.stopPropagation(); fetchAdvice() }}
+              style={{ touchAction: 'manipulation' }}
+              className="w-full py-5 rounded-2xl text-base font-black bg-violet-600 text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-md shadow-violet-600/20">
+              <Sparkles size={18} />対応する
+            </button>
+          ) : (
+            <button onClick={e => { e.stopPropagation(); setSimpleStep('completing') }}
+              style={{ touchAction: 'manipulation' }}
+              className="w-full py-5 rounded-2xl text-base font-black bg-emerald-600 text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-md shadow-emerald-600/20">
+              <CheckCheck size={18} />完了にする
+            </button>
+          )}
         </div>
       </div>
     )

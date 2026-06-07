@@ -136,6 +136,26 @@ export function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected
 
   // ── シンプルモード ───────────────────────────────────────────────
   if (isSimpleMode) {
+    // 次のステップを文章で案内するテキスト
+    let nextStepText: string | null = null
+    if (reqType === 'repair') {
+      if (!item.work_started) {
+        nextStepText = `「${item.content || item.item_name || 'この商品'}」の作業を始めましょう`
+      } else {
+        nextStepText = `作業が終わったら完了ボタンを押してお客様に連絡しましょう`
+      }
+    } else if (reqType === 'walk_in') {
+      nextStepText = `お客様の対応が終わったら完了にしましょう`
+    } else if (reqType === 'hold_request') {
+      nextStepText = `商品を確保できたらお客様に連絡しましょう`
+    } else if (reqType === 'inquiry') {
+      nextStepText = `お問い合わせへの対応が完了したら記録しましょう`
+    } else if (reqType === 'repair_consult') {
+      nextStepText = `相談への対応が完了したら記録しましょう`
+    } else if (reqType === 'payment_pending') {
+      nextStepText = `入金を確認したら完了にしましょう`
+    }
+
     return (
       <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
         {(isOverdue || isDueSoon) && (
@@ -180,9 +200,17 @@ export function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected
 
           {/* 希望日 */}
           {item.desired_completion_date && (
-            <p className={`text-sm font-bold mb-4 ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-gray-500'}`}>
+            <p className={`text-sm font-bold mb-3 ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-gray-500'}`}>
               希望日：{new Date(item.desired_completion_date).toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
             </p>
+          )}
+
+          {/* 次のステップ案内 */}
+          {nextStepText && (
+            <div className="bg-indigo-50 border border-indigo-100 rounded-2xl px-4 py-3 mb-4">
+              <p className="text-xs font-black text-indigo-500 mb-0.5">▶ 次のステップ</p>
+              <p className="text-sm font-bold text-indigo-800 leading-relaxed">{nextStepText}</p>
+            </div>
           )}
 
           {/* メインアクション */}
