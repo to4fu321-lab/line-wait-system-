@@ -525,7 +525,7 @@ export default function RepairsPage() {
         <div className={`${isTablet ? 'px-6' : 'max-w-2xl mx-auto px-4'} pt-3 pb-3`}>
 
           {/* Title row */}
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-3">
             <h1 className="text-sm font-black text-gray-800 tracking-tight whitespace-nowrap">業務ダッシュボード</h1>
             {/* 開店/閉店ボタン */}
             <button
@@ -549,21 +549,20 @@ export default function RepairsPage() {
                 {dummyLoading ? <Loader2 size={11} className="animate-spin" /> : <Database size={11} />}
               </button>
             )}
-          </div>
-          {/* Action buttons row */}
-          <div className="flex items-center gap-2 mb-3">
-            <div className="flex-1" />
             <button onClick={() => { setEditInquiry(null); setShowInqModal(true) }}
-              className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-violet-600/20">
-              <Plus size={12} />問合せ
+              className={`flex items-center justify-center gap-1.5 py-2 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-violet-600/20 ${isTablet ? 'px-3' : 'px-2.5'}`}>
+              <MessageSquarePlus size={13} />
+              {isTablet && '問合せ'}
             </button>
             <button onClick={() => setShowNewOrder(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-teal-600 hover:bg-teal-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-teal-600/20">
-              <ShoppingCart size={12} />制服注文
+              className={`flex items-center justify-center gap-1.5 py-2 bg-teal-600 hover:bg-teal-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-teal-600/20 ${isTablet ? 'px-3' : 'px-2.5'}`}>
+              <ShoppingCart size={13} />
+              {isTablet && '制服注文'}
             </button>
             <button onClick={() => setShowNewRepair(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-indigo-600/20">
-              <Plus size={12} />お直し
+              className={`flex items-center justify-center gap-1.5 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-indigo-600/20 ${isTablet ? 'px-3' : 'px-2.5'}`}>
+              <Scissors size={13} />
+              {isTablet && 'お直し'}
             </button>
           </div>
 
