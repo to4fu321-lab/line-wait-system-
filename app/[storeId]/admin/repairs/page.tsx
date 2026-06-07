@@ -14,6 +14,7 @@ import { InquiryModal, type InquiryRow, type InquiryType, type InquiryStatus } f
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { useDeviceMode } from '@/lib/useDeviceMode'
 import { rawToItem, todayJst } from './_components/utils'
+import { useSimpleMode } from '@/lib/useSimpleMode'
 import type { RepairRow, PurchaseRow, UniformOrderRow, DeliveryItem } from './_components/types'
 import { Toast } from './_components/Toast'
 import { NewRepairModal } from './_components/NewRepairModal'
@@ -38,6 +39,7 @@ export default function RepairsPage() {
   const router = useRouter()
   const { hasFeature } = useStoreFeatures(storeId)
   const { isTablet } = useDeviceMode()
+  const { isSimpleMode } = useSimpleMode(storeId)
 
   const [tab,            setTab]            = useState<ActiveTab>('repair')
   const [deliverySubTab, setDeliverySubTab] = useState<DeliverySubTab>('waiting')
@@ -1192,6 +1194,7 @@ export default function RepairsPage() {
           item={editInquiry}
           onClose={() => setShowInqModal(false)}
           onSave={fetchAll}
+          isSimpleMode={isSimpleMode}
         />
       )}
 

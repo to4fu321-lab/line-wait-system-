@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabase'
 import type { WaitThreshold } from '@/types/database'
 import { DEFAULT_THRESHOLDS } from '@/types/database'
 import { BottomNav } from '../_components/BottomNav'
+import { useSimpleMode } from '@/lib/useSimpleMode'
 
 type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
 type DayHours = { open: string; close: string; closed: boolean }
@@ -78,6 +79,7 @@ function Section({ id, emoji, title, open, onToggle, children }: {
 
 export default function SettingsPage() {
   const { storeId } = useParams<{ storeId: string }>()
+  const { isSimpleMode, toggle: toggleSimpleMode } = useSimpleMode(storeId)
 
   const [loading,           setLoading]           = useState(true)
   const [saving,            setSaving]            = useState(false)
@@ -255,6 +257,36 @@ export default function SettingsPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-3 pb-28">
+
+        {/* 👴 シンプルモード */}
+        <div className="bg-white rounded-2xl border-2 border-gray-100 overflow-hidden shadow-sm">
+          <div className="px-4 py-4">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl leading-none mt-0.5">👴</span>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-gray-800">シンプルモード</p>
+                <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                  60代以上の方向けに、入力を1つずつ大きく表示します。<br />
+                  問合せ追加など各フォームがウィザード形式になります。
+                </p>
+              </div>
+            </div>
+            <button type="button" onClick={toggleSimpleMode}
+              className={`mt-3 w-full flex items-center justify-between px-4 py-3.5 rounded-xl border-2 transition-all ${
+                isSimpleMode ? 'border-indigo-500 bg-indigo-500/10' : 'border-gray-200 bg-gray-50'
+              }`}>
+              <p className={`font-bold text-sm ${isSimpleMode ? 'text-indigo-700' : 'text-gray-600'}`}>
+                {isSimpleMode ? '✅ シンプルモード ON' : 'シンプルモード OFF'}
+              </p>
+              <div className={`w-13 h-7 rounded-full transition-colors relative shrink-0 ${isSimpleMode ? 'bg-indigo-500' : 'bg-gray-300'}`}
+                style={{ width: 52, height: 28 }}>
+                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transition-transform ${
+                  isSimpleMode ? 'translate-x-[26px]' : 'translate-x-1'
+                }`} />
+              </div>
+            </button>
+          </div>
+        </div>
 
         {/* ① 受付ページ設定 */}
         <Section id="reception" emoji="🔢" title="受付ページ設定" open={openSections.has('reception')} onToggle={() => toggle('reception')}>

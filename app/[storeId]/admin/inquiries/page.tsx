@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { MessageSquarePlus, Loader2, CheckCheck, Plus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useDeviceMode } from '@/lib/useDeviceMode'
+import { useSimpleMode } from '@/lib/useSimpleMode'
 import {
   InquiryModal,
   type InquiryRow,
@@ -100,6 +101,7 @@ function InquiryCard({
 export default function InquiriesPage() {
   const { storeId } = useParams<{ storeId: string }>()
   const { isTablet } = useDeviceMode()
+  const { isSimpleMode } = useSimpleMode(storeId)
 
   const [inquiries,  setInquiries]  = useState<InquiryRow[]>([])
   const [loading,    setLoading]    = useState(true)
@@ -227,6 +229,7 @@ export default function InquiriesPage() {
             fetchInquiries()
             showToast(editItem ? '更新しました' : '追加しました')
           }}
+          isSimpleMode={isSimpleMode}
         />
       )}
 

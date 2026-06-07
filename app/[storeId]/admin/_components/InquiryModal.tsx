@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import {
-  X, Loader2, Check, Sparkles, ChevronDown, ChevronUp, Camera,
+  X, Loader2, Check, Sparkles, ChevronDown, ChevronUp, Camera, ChevronLeft,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { compressImage } from '@/lib/adminUtils'
@@ -35,12 +35,13 @@ export interface InquiryRow {
 interface StaffMember { id: string; name: string }
 
 export function InquiryModal({
-  storeId, item, onClose, onSave,
+  storeId, item, onClose, onSave, isSimpleMode = false,
 }: {
   storeId: string
   item: InquiryRow | null
   onClose: () => void
   onSave: () => void
+  isSimpleMode?: boolean
 }) {
   const [type,         setType]         = useState<InquiryType>(item?.type ?? 'inquiry')
   const [customerName, setCustomerName] = useState(item?.customer_name ?? '')
@@ -63,6 +64,7 @@ export function InquiryModal({
   const [showAdvice,   setShowAdvice]   = useState(false)
   const [staffList,    setStaffList]    = useState<StaffMember[]>([])
   const [showConfirm,  setShowConfirm]  = useState(false)
+  const [step,         setStep]         = useState(0)
   const ocrRef = useRef<HTMLInputElement>(null)
   const isEdit = !!item
 
@@ -174,6 +176,237 @@ export function InquiryModal({
       return
     }
     doSave()
+  }
+
+  // ── シンプルモード（ウィザード形式）────────────────────────────────
+  if (isSimpleMode) {
+    const STEP_LABELS = ['種別', '急ぎ', 'お名前', '内容', '対応方法', '確認']
+    const TOTAL = STEP_LABELS.length
+    return (
+      <div className="fixed inset-0 z-[60] bg-black/50 flex items-end sm:items-center justify-center"
+        onClick={onClose}>
+        <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[95dvh] flex flex-col"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+          onClick={e => e.stopPropagation()}>
+
+          {/* ヘッダー */}
+          <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100 shrink-0">
+            <div className="flex items-center gap-3">
+              {step > 0 && (
+                <button onClick={() => setStep(s => s - 1)}
+                  className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors active:scale-95">
+                  <ChevronLeft size={22} className="text-gray-600" />
+                </button>
+              )}
+              <div>
+                <h2 className="text-lg font-black text-gray-800">{isEdit ? '問合せを修正' : '問合せを追加'}</h2>
+                <p className="text-sm text-gray-400">{STEP_LABELS[step]}　{step + 1} / {TOTAL}</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">
+              <X size={22} className="text-gray-600" />
+            </button>
+          </div>
+
+          {/* プログレスバー */}
+          <div className="h-2 bg-gray-100 shrink-0">
+            <div className="h-full bg-indigo-500 transition-all duration-300 rounded-full"
+              style={{ width: `${((step + 1) / TOTAL) * 100}%` }} />
+          </div>
+
+          {/* コンテンツ */}
+          <div className="flex-1 overflow-y-auto px-5 py-6">
+
+            {/* ステップ0：種別 */}
+            {step === 0 && (
+              <div>
+                <p className="text-xl font-black text-gray-800 mb-1">どの種類ですか？</p>
+                <p className="text-sm text-gray-500 mb-5">当てはまるものをタップしてください</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {([
+                    { value: 'inquiry'   as InquiryType, emoji: '💬', label: '問合せ',  desc: '商品・在庫のご質問', sel: 'border-blue-400 bg-blue-50'   },
+                    { value: 'complaint' as InquiryType, emoji: '😠', label: 'クレーム', desc: 'ご不満・お申し立て',  sel: 'border-red-400 bg-red-50'    },
+                    { value: 'request'   as InquiryType, emoji: '📋', label: 'ご要望',  desc: 'お願い・ご意見',     sel: 'border-amber-400 bg-amber-50' },
+                    { value: 'other'     as InquiryType, emoji: '📌', label: 'その他',  desc: '上記以外',           sel: 'border-gray-400 bg-gray-100'  },
+                  ]).map(opt => (
+                    <button key={opt.value}
+                      onClick={() => { setType(opt.value); setTimeout(() => setStep(1), 150) }}
+                      style={{ touchAction: 'manipulation' }}
+                      className={`flex flex-col items-center justify-center gap-2 py-7 rounded-2xl border-2 active:scale-95 transition-all ${
+                        type === opt.value ? opt.sel : 'border-gray-200 bg-white'
+                      }`}>
+                      <span className="text-4xl leading-none">{opt.emoji}</span>
+                      <span className="text-base font-black text-gray-800">{opt.label}</span>
+                      <span className="text-[11px] text-gray-500 text-center leading-tight px-1">{opt.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ステップ1：急ぎ */}
+            {step === 1 && (
+              <div>
+                <p className="text-xl font-black text-gray-800 mb-1">急ぎの対応が必要ですか？</p>
+                <p className="text-sm text-gray-500 mb-5">どちらかをタップしてください</p>
+                <div className="flex flex-col gap-4">
+                  <button onClick={() => { setIsUrgent(true); setTimeout(() => setStep(2), 150) }}
+                    style={{ touchAction: 'manipulation' }}
+                    className={`flex items-center gap-4 px-5 py-6 rounded-2xl border-2 active:scale-95 transition-all ${
+                      isUrgent ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white'
+                    }`}>
+                    <span className="text-4xl leading-none">🔴</span>
+                    <div className="text-left">
+                      <p className="text-xl font-black text-red-700">急ぎです</p>
+                      <p className="text-sm text-red-400 mt-0.5">すぐに対応が必要</p>
+                    </div>
+                    {isUrgent && <Check size={22} className="ml-auto text-red-500 shrink-0" />}
+                  </button>
+                  <button onClick={() => { setIsUrgent(false); setTimeout(() => setStep(2), 150) }}
+                    style={{ touchAction: 'manipulation' }}
+                    className={`flex items-center gap-4 px-5 py-6 rounded-2xl border-2 active:scale-95 transition-all ${
+                      !isUrgent ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 bg-white'
+                    }`}>
+                    <span className="text-4xl leading-none">🟢</span>
+                    <div className="text-left">
+                      <p className="text-xl font-black text-emerald-700">急がない</p>
+                      <p className="text-sm text-emerald-500 mt-0.5">通常の対応でよい</p>
+                    </div>
+                    {!isUrgent && <Check size={22} className="ml-auto text-emerald-500 shrink-0" />}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ステップ2：お客様名 */}
+            {step === 2 && (
+              <div>
+                <p className="text-xl font-black text-gray-800 mb-1">お客様のお名前は？</p>
+                <p className="text-sm text-gray-500 mb-5">わからない場合は空欄のまま「次へ」を押してください</p>
+                <input value={customerName} onChange={e => setCustomerName(e.target.value)}
+                  placeholder="例：山田 太郎"
+                  className="w-full border-2 border-gray-200 rounded-2xl px-5 py-5 text-2xl focus:border-indigo-400 focus:outline-none"
+                  autoComplete="off" />
+              </div>
+            )}
+
+            {/* ステップ3：内容 */}
+            {step === 3 && (
+              <div>
+                <p className="text-xl font-black text-gray-800 mb-1">どのような内容ですか？</p>
+                <p className="text-sm text-gray-500 mb-5">
+                  できるだけ詳しく入力してください <span className="text-red-500">（必須）</span>
+                </p>
+                <textarea value={content} onChange={e => { setContent(e.target.value); setFormError(null) }}
+                  placeholder="問合せ・クレームの内容を入力..."
+                  rows={7}
+                  className="w-full border-2 border-gray-200 rounded-2xl px-5 py-4 text-xl resize-none focus:border-indigo-400 focus:outline-none leading-relaxed"
+                  autoComplete="off" />
+                {formError && <p className="text-red-600 text-base font-bold mt-3">{formError}</p>}
+              </div>
+            )}
+
+            {/* ステップ4：対応方法 */}
+            {step === 4 && (
+              <div>
+                <p className="text-xl font-black text-gray-800 mb-1">どのように連絡しますか？</p>
+                <p className="text-sm text-gray-500 mb-5">対応方法をタップして「次へ」を押してください</p>
+                <div className="flex flex-col gap-3">
+                  {([
+                    { value: ''        , emoji: '⬜', label: 'まだ決まっていない' },
+                    { value: 'line'    , emoji: '💬', label: 'LINE で連絡する'   },
+                    { value: 'phone'   , emoji: '📞', label: 'お電話で連絡する'  },
+                    { value: 'in_store', emoji: '🏪', label: '次回来店時に対応'  },
+                    { value: 'email'   , emoji: '📧', label: 'メールで連絡する'  },
+                  ] as const).map(m => (
+                    <button key={m.value} onClick={() => setMethod(m.value as ResponseMethod | '')}
+                      style={{ touchAction: 'manipulation' }}
+                      className={`flex items-center gap-4 px-5 py-4 rounded-2xl border-2 active:scale-95 transition-all ${
+                        method === m.value ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-white'
+                      }`}>
+                      <span className="text-3xl leading-none">{m.emoji}</span>
+                      <span className="text-lg font-bold text-gray-800">{m.label}</span>
+                      {method === m.value && <Check size={20} className="ml-auto text-indigo-500 shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ステップ5：確認 */}
+            {step === 5 && (
+              <div>
+                <p className="text-xl font-black text-gray-800 mb-1">内容を確認してください</p>
+                <p className="text-sm text-gray-500 mb-5">問題なければ「保存する」を押してください</p>
+                <div className="bg-gray-50 rounded-2xl p-5 space-y-4">
+                  {[
+                    { label: '種別',     value: TYPE_LABELS[type] },
+                    { label: '急ぎ',     value: isUrgent ? '🔴 急ぎです' : '🟢 急がない' },
+                    { label: 'お名前',   value: customerName || '（未入力）' },
+                    { label: '内容',     value: content },
+                    { label: '対応方法', value: method ? METHOD_LABELS[method as ResponseMethod] : 'まだ決まっていない' },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex flex-col gap-1 border-b border-gray-200 last:border-0 pb-4 last:pb-0">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+                      <p className="text-lg font-bold text-gray-800 leading-relaxed whitespace-pre-wrap">{value}</p>
+                    </div>
+                  ))}
+                </div>
+                {formError && <p className="text-red-600 text-base font-bold mt-3">{formError}</p>}
+              </div>
+            )}
+
+          </div>
+
+          {/* フッター */}
+          <div className="px-5 py-4 border-t border-gray-100 shrink-0">
+            {step === 5 ? (
+              <button onClick={handleSave} disabled={saving}
+                style={{ touchAction: 'manipulation' }}
+                className="w-full py-5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xl font-black disabled:opacity-50 flex items-center justify-center gap-3 transition-colors active:scale-[0.98]">
+                {saving ? <Loader2 size={22} className="animate-spin" /> : <Check size={22} />}
+                {isEdit ? '更新する' : '保存する'}
+              </button>
+            ) : step >= 2 ? (
+              <button
+                onClick={() => {
+                  if (step === 3 && !content.trim()) { setFormError('内容を入力してください'); return }
+                  setStep(s => s + 1)
+                }}
+                style={{ touchAction: 'manipulation' }}
+                className="w-full py-5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xl font-black transition-colors active:scale-[0.98]">
+                次へ →
+              </button>
+            ) : null}
+          </div>
+
+        </div>
+
+        {/* 完了確認ダイアログ（シンプルモード用） */}
+        {showConfirm && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-6"
+            onClick={() => setShowConfirm(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden"
+              onClick={e => e.stopPropagation()}>
+              <div className="bg-emerald-500 px-5 py-4">
+                <p className="text-white font-black text-base">対応完了にしますか？</p>
+              </div>
+              <div className="px-5 py-4 flex gap-3">
+                <button onClick={() => setShowConfirm(false)}
+                  className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 text-base font-bold active:opacity-70">
+                  戻る
+                </button>
+                <button onClick={() => { setShowConfirm(false); doSave() }} disabled={saving}
+                  className="flex-1 py-3 rounded-xl bg-emerald-600 text-white text-base font-black active:opacity-70 disabled:opacity-50 flex items-center justify-center gap-1.5">
+                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+                  完了にする
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
