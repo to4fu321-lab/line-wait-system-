@@ -1090,6 +1090,7 @@ export default function RepairsPage() {
       )}
       {showInqModal && (
         <InquiryModal
+          key={editInquiry?.id ?? 'new'}
           storeId={storeId}
           item={editInquiry}
           onClose={() => setShowInqModal(false)}

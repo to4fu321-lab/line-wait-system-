@@ -66,8 +66,8 @@ export function InquiryModal({
   const ocrRef = useRef<HTMLInputElement>(null)
   const isEdit = !!item
 
-  // 初期値スナップショット（変更検知用）
-  const initial = useMemo(() => ({
+  // 初期値スナップショット（変更検知用）— useRef でマウント時の値を保持
+  const initialRef = useRef({
     type: item?.type ?? 'inquiry',
     customerName: item?.customer_name ?? '',
     content: item?.content ?? '',
@@ -78,8 +78,8 @@ export function InquiryModal({
     notes: item?.response_notes ?? '',
     receivedBy: item?.received_by ?? '',
     handledBy: item?.handled_by ?? '',
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [])
+  })
+  const initial = initialRef.current
 
   const isDirty = useMemo(() =>
     type !== initial.type ||
@@ -105,6 +105,7 @@ export function InquiryModal({
       .then(({ data }: { data: StaffMember[] | null }) => {
         if (data) setStaffList(data)
       })
+      .catch(() => { /* スタッフ取得失敗時はドロップダウンを空のまま */ })
   }, [storeId])
 
   const handleOcr = async (file: File) => {

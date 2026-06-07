@@ -29,14 +29,13 @@ export async function POST(req: NextRequest) {
     const todayStart = `${today}T00:00:00+09:00`
     const tomorrowStart = `${tomorrow}T00:00:00+09:00`
 
-    // ── データ取得（並列） ──────────────────────────────────
+    // ── データ取得（並列・開店/閉店共通） ──────────────────────────────
     const [
       { data: reservations },
       { data: repairsDueToday },
       { data: repairsCompleted },
       { data: urgentInquiries },
       { data: arrivedOrders },
-      { data: todayRepairsReceived },
     ] = await Promise.all([
       // 今日の予約（confirmed）
       supabase.from('reservations')
@@ -74,12 +73,6 @@ export async function POST(req: NextRequest) {
         .select('item_name')
         .eq('store_id', storeId)
         .eq('status', 'arrived'),
-
-      // 今日受付したお直し（閉店サマリー用）
-      supabase.from('repair_histories')
-        .select('id')
-        .eq('store_id', storeId)
-        .gte('received_date', today),
     ])
 
     const client = new Anthropic()
@@ -128,6 +121,13 @@ export async function POST(req: NextRequest) {
       })
     } else {
       // ── 閉店チェックリスト＆サマリー ──────────────────────
+      // 今日受付したお直し（閉店サマリー専用）
+      const { data: todayRepairsReceived } = await supabase
+        .from('repair_histories')
+        .select('id')
+        .eq('store_id', storeId)
+        .gte('received_date', today)
+
       const checklist = [
         ...(repairsDueToday?.length ? [{
           label: `納期が来ているお直しの確認（${repairsDueToday.length}件）`,

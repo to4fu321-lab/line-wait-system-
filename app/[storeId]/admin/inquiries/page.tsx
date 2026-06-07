@@ -12,29 +12,14 @@ import {
   type InquiryStatus,
   type ResponseMethod,
 } from '../_components/InquiryModal'
-
-const TYPE_LABELS: Record<InquiryType, string> = {
-  inquiry: '問合せ', complaint: 'クレーム', request: '要望', other: 'その他',
-}
-const TYPE_BADGE: Record<InquiryType, string> = {
-  inquiry:   'bg-blue-100 text-blue-700 border border-blue-200',
-  complaint: 'bg-red-100 text-red-700 border border-red-200',
-  request:   'bg-purple-100 text-purple-700 border border-purple-200',
-  other:     'bg-gray-100 text-gray-500 border border-gray-200',
-}
-const TYPE_LEFT_BORDER: Record<InquiryType, string> = {
-  inquiry: 'border-l-blue-400', complaint: 'border-l-red-500',
-  request: 'border-l-purple-400', other: 'border-l-gray-300',
-}
-const STATUS_LABELS: Record<InquiryStatus, string> = {
-  pending: '未対応', in_progress: '対応中', completed: '完了',
-}
-const STATUS_BADGE: Record<InquiryStatus, string> = {
-  pending: 'bg-red-100 text-red-700', in_progress: 'bg-amber-100 text-amber-700', completed: 'bg-green-100 text-green-700',
-}
-const METHOD_LABELS: Record<ResponseMethod, string> = {
-  line: 'LINE', phone: '電話', in_store: '店頭', email: 'メール',
-}
+import {
+  INQ_TYPE_LABELS as TYPE_LABELS,
+  INQ_TYPE_BADGE as TYPE_BADGE,
+  INQ_TYPE_BORDER as TYPE_LEFT_BORDER,
+  INQ_STATUS_LABELS as STATUS_LABELS,
+  INQ_STATUS_BADGE as STATUS_BADGE,
+  INQ_METHOD_LABELS as METHOD_LABELS,
+} from '../repairs/_components/constants'
 
 // ── Card ───────────────────────────────────────────────────────────
 function InquiryCard({
@@ -131,7 +116,7 @@ export default function InquiriesPage() {
     setLoading(true)
     const { data, error } = await (supabase as any)
       .from('inquiries')
-      .select('id, customer_name, content, type, is_urgent, due_date, status, response_method, response_notes, responded_at, created_at')
+      .select('id, customer_name, content, type, is_urgent, due_date, status, response_method, response_notes, responded_at, received_by, handled_by, created_at')
       .eq('store_id', storeId)
       .order('created_at', { ascending: false })
     setLoading(false)
@@ -234,6 +219,7 @@ export default function InquiriesPage() {
 
       {showModal && (
         <InquiryModal
+          key={editItem?.id ?? 'new'}
           storeId={storeId}
           item={editItem}
           onClose={() => setShowModal(false)}

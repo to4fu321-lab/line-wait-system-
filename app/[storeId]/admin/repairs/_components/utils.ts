@@ -7,8 +7,6 @@ export function fmtReqNo(kind: 'repair' | 'purchase', no: number | null, id: str
   return `${prefix}-${id.replace(/-/g, '').substring(0, 4).toUpperCase()}`
 }
 
-export { todayJst } from '@/lib/adminUtils'
-
 export function rawToItem(row: Record<string, unknown>, kind: 'repair' | 'purchase'): DeliveryItem {
   return {
     id:             row.id as string,
