@@ -529,11 +529,10 @@ export default function RepairsPage() {
             <h1 className="text-sm font-black text-gray-800 tracking-tight whitespace-nowrap">業務ダッシュボード</h1>
             {/* 開店/閉店ボタン */}
             <button
-              onClick={() => isOpen ? openClosingModal() : openOpenModal()}
-              disabled={isOpen === null}
+              onClick={() => { if (isOpen === null) return; isOpen ? openClosingModal() : openOpenModal() }}
               style={{ touchAction: 'manipulation' }}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl font-black text-xs active:opacity-60 transition-all disabled:opacity-40 ${
-                isOpen === null ? 'bg-gray-200 text-gray-500' :
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl font-black text-xs active:opacity-60 transition-all ${
+                isOpen === null ? 'bg-gray-200 text-gray-500 opacity-60' :
                 isOpen ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-900/50' :
                 'bg-indigo-600 text-white shadow-sm shadow-indigo-900/50'
               }`}>
