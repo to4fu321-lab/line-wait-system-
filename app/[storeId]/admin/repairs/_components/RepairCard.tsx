@@ -16,12 +16,13 @@ import type { RequestType } from '@/types/crm'
 import { fmtDate, fmtReqNo } from './utils'
 import type { RepairRow } from './types'
 
-export function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected, onToggle }: {
+export function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected, onToggle, isSimpleMode = false }: {
   item: RepairRow; storeId: string; onRefresh: () => void
   onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
   onEdit?: (item: RepairRow) => void
   selected?: boolean
   onToggle?: () => void
+  isSimpleMode?: boolean
 }) {
   const [open,          setOpen]          = useState(false)
   const [loading,       setLoading]       = useState(false)
@@ -132,6 +133,98 @@ export function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected
     isDueSoon  ? 'bg-amber-50 border-2 border-amber-400' :
     item.work_started ? 'bg-amber-50/50 border border-amber-200' :
     'bg-white border border-gray-200'
+
+  // ── シンプルモード ───────────────────────────────────────────────
+  if (isSimpleMode) {
+    return (
+      <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
+        {(isOverdue || isDueSoon) && (
+          <div className={`h-1.5 w-full ${isOverdue ? 'bg-red-500' : 'bg-amber-400'}`} />
+        )}
+        <div className="p-4">
+          {/* バッジ */}
+          <div className="flex items-center gap-2 flex-wrap mb-3">
+            <span className={`text-xs font-black px-2.5 py-1.5 rounded-lg border ${REQUEST_TYPE_COLORS[reqType]}`}>
+              {REQUEST_TYPE_LABELS[reqType]}
+            </span>
+            {isOverdue && (
+              <span className="text-xs font-black px-2.5 py-1.5 rounded-lg bg-red-600 text-white">🚨 {Math.abs(daysLeft!)}日超過</span>
+            )}
+            {isDueSoon && !isOverdue && (
+              <span className="text-xs font-black px-2.5 py-1.5 rounded-lg bg-amber-500 text-white">⚠️ 期限間近</span>
+            )}
+            {!item.prepaid && (
+              <span className="text-xs font-black px-2.5 py-1.5 rounded-lg bg-red-600 text-white">未払い</span>
+            )}
+          </div>
+
+          {/* 内容 + 金額 */}
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <p className="text-xl font-black text-gray-900 leading-tight flex-1">
+              {item.content || item.item_name || '内容未記入'}
+            </p>
+            {item.price != null && (
+              <span className={`text-lg font-black shrink-0 ${item.prepaid ? 'text-gray-400' : 'text-red-600'}`}>
+                ¥{item.price.toLocaleString()}
+              </span>
+            )}
+          </div>
+
+          {/* 学校 + お名前 */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mb-1">
+            {item.child?.school_name && (
+              <span className="text-sm font-black text-amber-600">{item.child.school_name}</span>
+            )}
+            <span className="text-base font-bold text-gray-700">{name}</span>
+          </div>
+
+          {/* 希望日 */}
+          {item.desired_completion_date && (
+            <p className={`text-sm font-bold mb-4 ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-gray-500'}`}>
+              希望日：{new Date(item.desired_completion_date).toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
+            </p>
+          )}
+
+          {/* メインアクション */}
+          {primaryBtn && (
+            confirmPrimary ? (
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4 space-y-3">
+                <p className="text-base text-center text-gray-600 font-bold">もう一度タップして確定します</p>
+                <div className="flex gap-3">
+                  <button onClick={() => setConfirmPrimary(false)}
+                    className="flex-1 py-4 rounded-xl bg-white border border-gray-200 text-gray-600 text-base font-bold">
+                    戻る
+                  </button>
+                  <button onClick={() => { setConfirmPrimary(false); primaryBtn!.onClick() }} disabled={loading}
+                    className={`flex-1 py-4 rounded-xl font-black text-base text-white flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm ${primaryBtn!.color}`}>
+                    {loading ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}確定する
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmPrimary(true)} disabled={loading}
+                style={{ touchAction: 'manipulation' }}
+                className={`w-full py-5 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 shadow-md active:scale-[0.98] disabled:opacity-50 ${primaryBtn.color}`}>
+                {loading ? <Loader2 size={18} className="animate-spin" /> : primaryBtn.label}
+              </button>
+            )
+          )}
+
+          {/* 電話・顧客詳細 */}
+          {(item.customer?.tel || item.customer_id) && (
+            <div className="flex items-center gap-4 mt-3 flex-wrap">
+              {item.customer?.tel && (
+                <a href={`tel:${item.customer.tel}`} onClick={e => e.stopPropagation()}
+                  className="flex items-center gap-2 text-base text-indigo-600 font-bold">
+                  <Phone size={16} />{item.customer.tel}
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={`rounded-2xl overflow-hidden shadow-sm transition-all ${cardBg}${selected ? ' ring-2 ring-indigo-500/50 ring-offset-1' : ''}`}>

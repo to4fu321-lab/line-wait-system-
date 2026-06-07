@@ -9,8 +9,9 @@ import {
   INQ_STATUS_LABELS, INQ_STATUS_BADGE, INQ_METHOD_LABELS,
 } from './constants'
 
-export function InquiryTabCard({ item, onEdit, onStatusChange }: {
+export function InquiryTabCard({ item, onEdit, onStatusChange, isSimpleMode = false }: {
   item: InquiryRow; onEdit: (item: InquiryRow) => void; onStatusChange: (id: string, s: InquiryStatus) => void
+  isSimpleMode?: boolean
 }) {
   const [updating, setUpdating] = useState(false)
   const today = new Date(); today.setHours(0,0,0,0)
@@ -25,6 +26,66 @@ export function InquiryTabCard({ item, onEdit, onStatusChange }: {
     await (supabase as any).from('inquiries').update({ status: n, responded_at: n === 'completed' ? now : null, updated_at: now }).eq('id', item.id)
     setUpdating(false)
     onStatusChange(item.id, n)
+  }
+
+  // ── シンプルモード ───────────────────────────────────────────────
+  if (isSimpleMode) {
+    const advanceLabel: Record<InquiryStatus, string> = {
+      pending: '対応中にする',
+      in_progress: '完了にする',
+      completed: '未対応に戻す',
+    }
+    const advanceColor: Record<InquiryStatus, string> = {
+      pending:     'bg-blue-600 text-white',
+      in_progress: 'bg-emerald-600 text-white',
+      completed:   'bg-gray-400 text-white',
+    }
+    return (
+      <div onClick={() => onEdit(item)}
+        className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${INQ_TYPE_BORDER[item.type]} shadow-sm cursor-pointer active:scale-[0.99] transition-transform`}>
+        <div className="p-4">
+          {/* バッジ行 */}
+          <div className="flex items-start justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`text-xs font-black px-2.5 py-1.5 rounded-lg ${INQ_TYPE_BADGE[item.type]}`}>
+                {INQ_TYPE_LABELS[item.type]}
+              </span>
+              {item.is_urgent && (
+                <span className="text-xs font-black px-2.5 py-1.5 rounded-lg bg-red-500 text-white">🔴 急ぎ</span>
+              )}
+              {isOverdue && (
+                <span className="text-xs font-black text-red-600">⚠️ 期限超過</span>
+              )}
+            </div>
+            <span className={`text-xs font-black px-2.5 py-1.5 rounded-lg shrink-0 ${INQ_STATUS_BADGE[item.status]}`}>
+              {INQ_STATUS_LABELS[item.status]}
+            </span>
+          </div>
+
+          {/* お名前 */}
+          {item.customer_name && (
+            <p className="text-xl font-black text-gray-800 mb-2">{item.customer_name}</p>
+          )}
+
+          {/* 内容 */}
+          <p className="text-base text-gray-700 leading-relaxed mb-3 line-clamp-3">{item.content}</p>
+
+          {/* 日時 */}
+          <p className="text-xs text-gray-400 mb-4">
+            {new Date(item.created_at).toLocaleDateString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}
+            {item.response_method && ` · ${INQ_METHOD_LABELS[item.response_method]}`}
+          </p>
+
+          {/* ステータス進めるボタン */}
+          <button onClick={advanceStatus} disabled={updating}
+            style={{ touchAction: 'manipulation' }}
+            className={`w-full py-4 rounded-2xl text-base font-black flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50 ${advanceColor[item.status]}`}>
+            {updating ? <Loader2 size={18} className="animate-spin" /> : <CheckCheck size={18} />}
+            {advanceLabel[item.status]}
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (

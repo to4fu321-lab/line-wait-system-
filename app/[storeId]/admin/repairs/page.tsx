@@ -746,7 +746,7 @@ export default function RepairsPage() {
                   {filteredRepairs.map(r => (
                     <RepairCard key={r.id} item={r} storeId={storeId} onRefresh={fetchAll} onToast={showToast}
                       onEdit={item => { setEditItem(item); setEditKind('repair') }}
-                      selected={false} onToggle={() => {}} />
+                      selected={false} onToggle={() => {}} isSimpleMode={isSimpleMode} />
                   ))}
                 </div>
               </>
@@ -759,7 +759,8 @@ export default function RepairsPage() {
                   {pendingInqAll.map(i => (
                     <InquiryTabCard key={i.id} item={i}
                       onEdit={item => { setEditInquiry(item); setShowInqModal(true) }}
-                      onStatusChange={(id, s) => setInquiries(prev => prev.map(x => x.id === id ? { ...x, status: s } : x))} />
+                      onStatusChange={(id, s) => setInquiries(prev => prev.map(x => x.id === id ? { ...x, status: s } : x))}
+                      isSimpleMode={isSimpleMode} />
                   ))}
                 </div>
               </>
@@ -856,6 +857,7 @@ export default function RepairsPage() {
                     <RepairCard key={r.id} item={r} storeId={storeId} onRefresh={fetchAll} onToast={showToast}
                       onEdit={item => { setEditItem(item); setEditKind('repair') }}
                       selected={batchSelected.has(r.id)}
+                      isSimpleMode={isSimpleMode}
                       onToggle={() => setBatchSelected(prev => {
                         const n = new Set(prev); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n
                       })}
@@ -1153,6 +1155,7 @@ export default function RepairsPage() {
                     <InquiryTabCard key={inq.id} item={inq}
                       onEdit={item => { setEditInquiry(item); setShowInqModal(true) }}
                       onStatusChange={(id, s) => setInquiries(prev => prev.map(i => i.id === id ? { ...i, status: s } : i))}
+                      isSimpleMode={isSimpleMode}
                     />
                   ))}
                 </div>
