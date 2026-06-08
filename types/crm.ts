@@ -118,15 +118,18 @@ export const PURCHASE_STATUS_COLORS: Record<PurchaseStatus, string> = {
 // お子様
 // ──────────────────────────────────────────────
 export interface Child {
-  id:          string
-  customer_id: string
-  store_id:    string
-  name:        string
-  kana:        string | null
-  school_name: string | null
-  grade:       string | null
-  created_at:  string
-  updated_at:  string
+  id:             string
+  customer_id:    string
+  store_id:       string
+  name:           string
+  kana:           string | null
+  school_name:    string | null
+  school_id:      string | null
+  grade:          string | null
+  gender:         string | null  // 'male' | 'female'
+  admission_year: number | null
+  created_at:     string
+  updated_at:     string
 }
 
 export const GRADE_OPTIONS = [

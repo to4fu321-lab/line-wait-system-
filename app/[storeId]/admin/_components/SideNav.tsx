@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useParams, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Timer, Search, Settings, ClipboardList, Smartphone } from 'lucide-react'
+import { Timer, Search, Settings, ClipboardList, Smartphone, Ruler } from 'lucide-react'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { useDeviceMode } from '@/lib/useDeviceMode'
@@ -12,6 +12,7 @@ const ALL_TABS = [
   { id: 'queue',    featureKey: 'tab_queue',   label: '受付管理', icon: Timer,         exact: true,  path: (sid: string) => `/${sid}/admin` },
   { id: 'repairs',  featureKey: 'tab_repairs', label: '案件管理', icon: ClipboardList, exact: false, path: (sid: string) => `/${sid}/admin/repairs` },
   { id: 'crm',      featureKey: 'tab_crm',     label: '顧客管理', icon: Search,        exact: false, path: (sid: string) => `/${sid}/admin/crm` },
+  { id: 'fitting',  featureKey: null,           label: '採寸受付', icon: Ruler,         exact: false, path: (sid: string) => `/${sid}/admin/fitting` },
   { id: 'settings', featureKey: null,           label: '設定',     icon: Settings,      exact: false, path: (sid: string) => `/${sid}/admin/settings/staff` },
 ] as const
 

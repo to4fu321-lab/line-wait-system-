@@ -7,8 +7,20 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Customer, Child } from '@/types/crm'
-import { GRADE_OPTIONS, SCHOOL_OPTIONS } from '@/types/crm'
+import { GRADE_OPTIONS } from '@/types/crm'
 import type { CustomerInfoData } from './types'
+
+interface SchoolOption { id: string; name: string }
+
+function useSchools(storeId: string) {
+  const [schools, setSchools] = useState<SchoolOption[]>([])
+  useEffect(() => {
+    if (!storeId) return
+    supabase.from('schools').select('id, name').eq('store_id', storeId).eq('active', true)
+      .order('sort_order').then(({ data }) => setSchools((data as SchoolOption[] | null) ?? []))
+  }, [storeId])
+  return schools
+}
 
 // ============================================================
 // 共通フィールドラベル
@@ -126,24 +138,31 @@ export function EditCustomerForm({ customer, onSaved, onCancel }: {
 // ============================================================
 // お子様編集フォーム
 // ============================================================
-export function EditChildForm({ child, onSaved, onCancel, schoolOptions }: {
+export function EditChildForm({ child, onSaved, onCancel, schoolOptions: _ignored }: {
   child: Child
   onSaved: (c: Child) => void
   onCancel: () => void
   schoolOptions?: string[]
 }) {
-  const [name,       setName]       = useState(child.name)
-  const [kana,       setKana]       = useState(child.kana ?? '')
-  const [schoolName, setSchoolName] = useState(child.school_name ?? '')
-  const [grade,      setGrade]      = useState(child.grade ?? '')
-  const [loading,    setLoading]    = useState(false)
-  const [error,      setError]      = useState<string | null>(null)
+  const schools    = useSchools(child.store_id)
+  const [name,     setName]     = useState(child.name)
+  const [kana,     setKana]     = useState(child.kana ?? '')
+  const [schoolId, setSchoolId] = useState(child.school_id ?? '')
+  const [grade,    setGrade]    = useState(child.grade ?? '')
+  const [gender,   setGender]   = useState(child.gender ?? '')
+  const [loading,  setLoading]  = useState(false)
+  const [error,    setError]    = useState<string | null>(null)
 
   const handleSave = async () => {
     if (!name.trim()) { setError('お名前を入力してください'); return }
     setLoading(true); setError(null)
+    const schoolName = schools.find(s => s.id === schoolId)?.name ?? child.school_name ?? null
     const { data, error: err } = await supabase.from('children')
-      .update({ name: name.trim(), kana: kana.trim() || null, school_name: schoolName.trim() || null, grade: grade || null })
+      .update({
+        name: name.trim(), kana: kana.trim() || null,
+        school_id: schoolId || null, school_name: schoolName,
+        grade: grade || null, gender: gender || null,
+      })
       .eq('id', child.id).select().single()
     setLoading(false)
     if (err) { setError(`保存失敗: ${err.message}`); return }
@@ -168,19 +187,27 @@ export function EditChildForm({ child, onSaved, onCancel, schoolOptions }: {
             placeholder="ヤマダ ハナコ" value={kana} onChange={e => setKana(e.target.value)} />
         </Field>
       </div>
+      <Field label="学校">
+        <select value={schoolId} onChange={e => setSchoolId(e.target.value)}
+          className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-amber-500 focus:outline-none">
+          <option value="">選択してください</option>
+          {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+      </Field>
       <div className="grid grid-cols-2 gap-2">
-        <Field label="学校名">
-          <select value={schoolName} onChange={e => setSchoolName(e.target.value)}
-            className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-amber-500 focus:outline-none">
-            <option value="">選択</option>
-            {(schoolOptions && schoolOptions.length > 0 ? schoolOptions : SCHOOL_OPTIONS).map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </Field>
         <Field label="学年">
           <select value={grade} onChange={e => setGrade(e.target.value)}
             className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-amber-500 focus:outline-none">
             <option value="">選択</option>
             {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+        </Field>
+        <Field label="性別">
+          <select value={gender} onChange={e => setGender(e.target.value)}
+            className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-amber-500 focus:outline-none">
+            <option value="">選択</option>
+            <option value="male">男子</option>
+            <option value="female">女子</option>
           </select>
         </Field>
       </div>
@@ -200,24 +227,28 @@ export function EditChildForm({ child, onSaved, onCancel, schoolOptions }: {
 // ============================================================
 // お子様追加フォーム（CRM内）
 // ============================================================
-export function AddChildFormCRM({ customerId, storeId, onSaved, onCancel, schoolOptions }: {
+export function AddChildFormCRM({ customerId, storeId, onSaved, onCancel, schoolOptions: _ignored }: {
   customerId: string; storeId: string; onSaved: (c: Child) => void; onCancel: () => void
   schoolOptions?: string[]
 }) {
-  const [name,       setName]       = useState('')
-  const [kana,       setKana]       = useState('')
-  const [schoolName, setSchoolName] = useState('')
-  const [grade,      setGrade]      = useState('')
-  const [loading,    setLoading]    = useState(false)
-  const [error,      setError]      = useState<string | null>(null)
+  const schools    = useSchools(storeId)
+  const [name,     setName]     = useState('')
+  const [kana,     setKana]     = useState('')
+  const [schoolId, setSchoolId] = useState('')
+  const [grade,    setGrade]    = useState('')
+  const [gender,   setGender]   = useState('')
+  const [loading,  setLoading]  = useState(false)
+  const [error,    setError]    = useState<string | null>(null)
 
   const handleSave = async () => {
     if (!name.trim()) { setError('お名前を入力してください'); return }
     setLoading(true); setError(null)
+    const schoolName = schools.find(s => s.id === schoolId)?.name ?? null
     const { data, error: err } = await supabase.from('children').insert({
       customer_id: customerId, store_id: storeId,
       name: name.trim(), kana: kana.trim() || null,
-      school_name: schoolName.trim() || null, grade: grade || null,
+      school_id: schoolId || null, school_name: schoolName,
+      grade: grade || null, gender: gender || null,
     }).select().single()
     setLoading(false)
     if (err) { setError(`保存失敗: ${err.message}`); return }
@@ -242,19 +273,27 @@ export function AddChildFormCRM({ customerId, storeId, onSaved, onCancel, school
             placeholder="ヤマダ ハナコ" value={kana} onChange={e => setKana(e.target.value)} />
         </Field>
       </div>
+      <Field label="学校">
+        <select value={schoolId} onChange={e => setSchoolId(e.target.value)}
+          className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none">
+          <option value="">選択してください</option>
+          {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+      </Field>
       <div className="grid grid-cols-2 gap-2">
-        <Field label="学校名">
-          <select value={schoolName} onChange={e => setSchoolName(e.target.value)}
-            className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none">
-            <option value="">選択</option>
-            {(schoolOptions && schoolOptions.length > 0 ? schoolOptions : SCHOOL_OPTIONS).map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </Field>
         <Field label="学年">
           <select value={grade} onChange={e => setGrade(e.target.value)}
             className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none">
             <option value="">選択</option>
             {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+        </Field>
+        <Field label="性別">
+          <select value={gender} onChange={e => setGender(e.target.value)}
+            className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:border-indigo-500 focus:outline-none">
+            <option value="">選択</option>
+            <option value="male">男子</option>
+            <option value="female">女子</option>
           </select>
         </Field>
       </div>
