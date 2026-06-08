@@ -37,6 +37,7 @@ type HistoryTab = 'completed' | 'cancelled'
 // ダッシュボード
 // ============================================================
 function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; groupCode: string | null; onLogout: () => void }) {
+  const router = useRouter()
   const [queues,         setQueues]         = useState<Queue[]>([])
   const [refreshing,     setRefreshing]     = useState(false)
   const [historyTab,     setHistoryTab]     = useState<HistoryTab>('completed')
@@ -242,6 +243,10 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     }
   }
 
+  const handleStartFitting = useCallback((ticket: Queue) => {
+    router.push(`/${store.id}/admin/fitting?queueId=${ticket.id}`)
+  }, [store.id, router])
+
   const handleCheckIn = async (id: string) => {
     const { error } = await supabase.from('queues').update({ checked_in: true }).eq('id', id)
     if (error) { showToast('err', 'チェックイン失敗: ' + error.message); return }
@@ -427,7 +432,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
                   <span className="bg-amber-400 text-amber-950 text-xs font-black px-1.5 py-0.5 rounded-full">{callingTickets.length}</span>
                 </div>
               </div>
-              {callingTickets.map(t => <CallingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} />)}
+              {callingTickets.map(t => <CallingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onGoToFitting={t.category === 'fitting' ? handleStartFitting : undefined} />)}
             </div>
           )}
 
@@ -466,7 +471,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
                 <Users size={32} className="mx-auto mb-2 opacity-30" />
                 <p className="text-sm">待ちはいません</p>
               </div>
-            ) : waitingTickets.map(t => <WaitingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onCheckIn={handleCheckIn} />)}
+            ) : waitingTickets.map(t => <WaitingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onCheckIn={handleCheckIn} onStartFitting={t.category === 'fitting' ? handleStartFitting : undefined} />)}
           </div>
 
           {/* 履歴（完了・不在バッジのタップで表示） */}

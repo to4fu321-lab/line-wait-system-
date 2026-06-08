@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import {
   BellRing, CheckCheck, UserX, Clock,
   Loader2, Phone, User, GraduationCap,
-  MapPin, Bell, BellOff,
+  MapPin, Bell, BellOff, Ruler,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Queue, QueueStatus } from '@/types/database'
@@ -69,10 +69,11 @@ export function CustomerInfoPanel({ customerId, storeId }: { customerId: string;
 // ============================================================
 // 待ちカード
 // ============================================================
-export function WaitingCard({ ticket, storeId, onAction, onCheckIn }: {
+export function WaitingCard({ ticket, storeId, onAction, onCheckIn, onStartFitting }: {
   ticket: Queue; storeId: string
   onAction: (id: string, s: QueueStatus) => Promise<void>
   onCheckIn: (id: string) => Promise<void>
+  onStartFitting?: (ticket: Queue) => void
 }) {
   const [loading, setLoading]   = useState<string | null>(null)
   const [custOpen, setCustOpen] = useState(false)
@@ -197,11 +198,22 @@ export function WaitingCard({ ticket, storeId, onAction, onCheckIn }: {
           </div>
         </div>
       ) : (
-        <button onClick={() => act('calling')} disabled={!!loading}
-          className="w-full mt-3 flex items-center justify-center gap-2 py-3.5 rounded-xl font-black text-base bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-amber-900/40">
-          {loading === 'calling' ? <Loader2 size={18} className="animate-spin" /> : <BellRing size={18} />}
-          呼 出
-        </button>
+        <div className="mt-3 space-y-2">
+          <button onClick={() => act('calling')} disabled={!!loading}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-black text-base bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-amber-900/40">
+            {loading === 'calling' ? <Loader2 size={18} className="animate-spin" /> : <BellRing size={18} />}
+            呼 出
+          </button>
+          {ticket.category === 'fitting' && onStartFitting && (
+            <button
+              onClick={async () => { await act('calling'); onStartFitting(ticket) }}
+              disabled={!!loading}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-black text-sm bg-teal-600 hover:bg-teal-500 text-white transition-all active:scale-95 disabled:opacity-50">
+              {loading === 'calling' ? <Loader2 size={15} className="animate-spin" /> : <Ruler size={15} />}
+              呼出 &amp; 採寸へ進む
+            </button>
+          )}
+        </div>
       )}
     </div>
   )
@@ -210,7 +222,11 @@ export function WaitingCard({ ticket, storeId, onAction, onCheckIn }: {
 // ============================================================
 // 呼出中カード（常時アクションボタン表示）
 // ============================================================
-export function CallingCard({ ticket, storeId, onAction }: { ticket: Queue; storeId: string; onAction: (id: string, s: QueueStatus) => Promise<void> }) {
+export function CallingCard({ ticket, storeId, onAction, onGoToFitting }: {
+  ticket: Queue; storeId: string
+  onAction: (id: string, s: QueueStatus) => Promise<void>
+  onGoToFitting?: (ticket: Queue) => void
+}) {
   const [loading, setLoading]   = useState<string | null>(null)
   const [custOpen, setCustOpen] = useState(false)
   const waitMin   = Math.floor((Date.now() - new Date(ticket.created_at).getTime()) / 60000)
@@ -294,7 +310,14 @@ export function CallingCard({ ticket, storeId, onAction }: { ticket: Queue; stor
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-2 mt-3">
+      {ticket.category === 'fitting' && onGoToFitting && (
+        <button
+          onClick={() => onGoToFitting(ticket)}
+          className="w-full mt-3 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-sm bg-teal-600 hover:bg-teal-500 text-white active:scale-95 transition-all">
+          <Ruler size={15} />採寸へ進む
+        </button>
+      )}
+      <div className="grid grid-cols-3 gap-2 mt-2">
         <button onClick={() => act('completed')} disabled={!!loading}
           className="flex items-center justify-center gap-1.5 py-3.5 rounded-xl font-black text-base bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white active:scale-95 disabled:opacity-50 shadow-lg shadow-emerald-900/40 transition-all">
           {loading === 'completed' ? <Loader2 size={16} className="animate-spin" /> : <CheckCheck size={16} />}完了

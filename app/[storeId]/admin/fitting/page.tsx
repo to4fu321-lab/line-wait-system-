@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import {
   Search, User, GraduationCap, Ruler, ChevronLeft, ChevronRight,
   Plus, Minus, Check, Loader2, X, AlertCircle, ChevronDown, ChevronUp,
-  Phone, RotateCcw, CalendarClock, Send, Bell,
+  Phone, RotateCcw, CalendarClock, Send, Hash,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../_components/BottomNav'
@@ -113,8 +113,9 @@ function StepBar({ step }: { step: FittingStep }) {
 // メインコンポーネント
 // ============================================================
 function FittingPageInner() {
-  const params  = useParams<{ storeId: string }>()
-  const storeId = params?.storeId ?? ''
+  const params       = useParams<{ storeId: string }>()
+  const storeId      = params?.storeId ?? ''
+  const searchParams = useSearchParams()
 
   const [step, setStep] = useState<FittingStep>('customer')
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
@@ -128,6 +129,11 @@ function FittingPageInner() {
   const [linkedResId,     setLinkedResId]     = useState<string | null>(null)
   const [linkedLineUserId, setLinkedLineUserId] = useState<string | null>(null)
   const [notifySending,   setNotifySending]   = useState(false)
+
+  // ── 順番待ちキュー連動 ────────────────────────────────────
+  const [linkedQueueId,  setLinkedQueueId]   = useState<string | null>(null)
+  interface QueueBanner { ticketNumber: number; schoolName: string; customerName: string; childName: string | null; gender: string }
+  const [queueBanner,    setQueueBanner]     = useState<QueueBanner | null>(null)
 
   // ── ステップ1+2: お客様・お子様 ──────────────────────────
   const [schools,        setSchools]        = useState<SchoolRow[]>([])
@@ -193,6 +199,65 @@ function FittingPageInner() {
   }, [storeId])
 
   useEffect(() => { loadReservations() }, [loadReservations])
+
+  // 順番待ちから採寸を開始
+  const startFromQueue = useCallback(async (qId: string) => {
+    const { data: q } = await (supabase as any)
+      .from('queues')
+      .select('id, ticket_number, school_name, customer_name, child_name, gender, line_user_id, details, customer_id, child_id')
+      .eq('id', qId).single()
+    if (!q) { showToast('err', '受付データが見つかりません'); return }
+
+    setLinkedQueueId(q.id)
+    setLinkedLineUserId(q.line_user_id ?? null)
+
+    // 身長・体重を先行入力
+    const det = (q.details ?? {}) as Record<string, string>
+    if (det.height) setHeightCm(String(det.height))
+    if (det.weight) setWeightKg(String(det.weight))
+
+    if (q.customer_id) {
+      // CRM顧客が紐付き済み
+      const { data: cust } = await supabase.from('customers')
+        .select('id, name, kana, tel').eq('id', q.customer_id).single()
+      if (cust) {
+        setCustomer(cust as CustomerRow)
+        const { data: kids } = await supabase.from('children').select('*').eq('customer_id', cust.id)
+        const kidList = (kids ?? []) as ChildRow[]
+        setChildren(kidList)
+
+        // 特定のお子様が紐付いていれば直接採寸ステップへ
+        if (q.child_id) {
+          const target = kidList.find(k => k.id === q.child_id)
+          if (target) {
+            setChild(target)
+            await goToMeasureWithChild(target)
+            return
+          }
+        }
+        // お子様未指定: お子様選択で止まる（バナーのみ表示）
+        return
+      }
+    }
+
+    // CRM顧客未リンク: 検索欄に名前をセット & バナー表示
+    setQuery(q.customer_name ?? '')
+    setQueueBanner({
+      ticketNumber: q.ticket_number,
+      schoolName:   q.school_name ?? '',
+      customerName: q.customer_name ?? '',
+      childName:    q.child_name ?? null,
+      gender:       q.gender ?? '',
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showToast, goToMeasureWithChild])
+
+  // URLパラメータ queueId があれば自動起動
+  useEffect(() => {
+    const qId = searchParams.get('queueId')
+    if (qId) startFromQueue(qId)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // お客様検索
   const searchCustomers = useCallback(async (q: string) => {
@@ -435,6 +500,9 @@ function FittingPageInner() {
         await (supabase as any).from('reservations').update({ status: 'completed' }).eq('id', linkedResId)
         setReservations(prev => prev.map(rv => rv.id === linkedResId ? { ...rv, status: 'completed' } : rv))
       }
+      if (linkedQueueId) {
+        await (supabase as any).from('queues').update({ status: 'completed' }).eq('id', linkedQueueId)
+      }
       setSaving(false)
       setSavedId(meas.id)
       setStep('done')
@@ -480,6 +548,9 @@ function FittingPageInner() {
       await (supabase as any).from('reservations').update({ status: 'completed' }).eq('id', linkedResId)
       setReservations(prev => prev.map(rv => rv.id === linkedResId ? { ...rv, status: 'completed' } : rv))
     }
+    if (linkedQueueId) {
+      await (supabase as any).from('queues').update({ status: 'completed' }).eq('id', linkedQueueId)
+    }
     setSaving(false)
     setSavedId(meas.id)
     setStep('done')
@@ -494,6 +565,7 @@ function FittingPageInner() {
     setShowDetails(false); setProducts([]); setVariantMap({}); setConfirmed({})
     setStaffMemo(''); setSavedId(null)
     setLinkedResId(null); setLinkedLineUserId(null)
+    setLinkedQueueId(null); setQueueBanner(null)
   }
 
   // ── カテゴリ別グループ ────────────────────────────────────
@@ -635,6 +707,36 @@ function FittingPageInner() {
                 </div>
               )}
             </div>
+
+            {/* 順番待ちバナー（queueId経由で起動した場合） */}
+            {queueBanner && (
+              <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl px-4 py-3 flex items-start gap-3">
+                <div className="w-10 h-10 bg-amber-400 rounded-xl flex items-center justify-center shrink-0">
+                  <span className="text-white font-black text-sm">{String(queueBanner.ticketNumber).padStart(3, '0')}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-amber-700 flex items-center gap-1.5">
+                    <Hash size={11} />順番待ちから連携
+                  </p>
+                  <p className="font-black text-gray-900 text-sm mt-0.5">
+                    {queueBanner.childName ?? queueBanner.customerName}
+                    {queueBanner.childName && <span className="text-gray-500 font-normal text-xs ml-1.5">保護者: {queueBanner.customerName}</span>}
+                  </p>
+                  {queueBanner.schoolName && (
+                    <p className="text-xs text-amber-700 font-bold mt-0.5">{queueBanner.schoolName}</p>
+                  )}
+                  {(heightCm || weightKg) && (
+                    <div className="flex gap-2 mt-1">
+                      {heightCm && <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-lg font-bold">{heightCm}cm</span>}
+                      {weightKg && <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-lg font-bold">{weightKg}kg</span>}
+                    </div>
+                  )}
+                </div>
+                <button onClick={() => setQueueBanner(null)} className="text-amber-400 hover:text-amber-600">
+                  <X size={14} />
+                </button>
+              </div>
+            )}
 
             {/* 検索 */}
             <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
