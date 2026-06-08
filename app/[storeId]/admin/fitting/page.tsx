@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import {
   Search, User, GraduationCap, Ruler, ChevronLeft, ChevronRight,
   Plus, Minus, Check, Loader2, X, AlertCircle, ChevronDown, ChevronUp,
-  Phone, RotateCcw,
+  Phone, RotateCcw, CalendarClock, Send, Bell,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../_components/BottomNav'
@@ -34,6 +34,18 @@ interface ConfirmedSize {
   variant_id: string; size_label: string; qty: number; memo: string
 }
 type ConfirmedSizes = Record<string, ConfirmedSize>
+
+interface ReservationRow {
+  id:          string
+  reserved_at: string
+  status:      string
+  purpose:     string | null
+  line_user_id: string | null
+  customer_id: string | null
+  child_id:    string | null
+  customers:   { id: string; name: string; kana: string | null; tel: string | null; line_user_id: string | null } | null
+  children:    { id: string; name: string; school_id: string | null; school_name: string | null; gender: string | null; grade: string | null } | null
+}
 
 // ── サイズ自動推奨 ────────────────────────────────────────────
 function recommendVariant(heightCm: number, variants: VariantRow[]): VariantRow | null {
@@ -109,6 +121,14 @@ function FittingPageInner() {
   const showToast = useCallback((type: 'ok' | 'err', msg: string) =>
     setToast({ type, msg }), [])
 
+  // ── 予約連動 ──────────────────────────────────────────────
+  const [reservations,    setReservations]    = useState<ReservationRow[]>([])
+  const [loadingRes,      setLoadingRes]      = useState(true)
+  const [showResPanel,    setShowResPanel]    = useState(true)
+  const [linkedResId,     setLinkedResId]     = useState<string | null>(null)
+  const [linkedLineUserId, setLinkedLineUserId] = useState<string | null>(null)
+  const [notifySending,   setNotifySending]   = useState(false)
+
   // ── ステップ1+2: お客様・お子様 ──────────────────────────
   const [schools,        setSchools]        = useState<SchoolRow[]>([])
   const [query,          setQuery]          = useState('')
@@ -153,6 +173,26 @@ function FittingPageInner() {
       .eq('store_id', storeId).eq('active', true).order('sort_order')
       .then(({ data }) => setSchools(data ?? []))
   }, [storeId])
+
+  // 今日の予約を読み込む
+  const loadReservations = useCallback(async () => {
+    if (!storeId) return
+    setLoadingRes(true)
+    const jstNow  = new Date(Date.now() + 9 * 3600000)
+    const today   = jstNow.toISOString().slice(0, 10)
+    const { data } = await (supabase as any)
+      .from('reservations')
+      .select('id, reserved_at, status, purpose, line_user_id, customer_id, child_id, customers(id, name, kana, tel, line_user_id), children(id, name, school_id, school_name, gender, grade)')
+      .eq('store_id', storeId)
+      .gte('reserved_at', `${today}T00:00:00+09:00`)
+      .lte('reserved_at', `${today}T23:59:59+09:00`)
+      .in('status', ['confirmed', 'arrived'])
+      .order('reserved_at')
+    setReservations(data ?? [])
+    setLoadingRes(false)
+  }, [storeId])
+
+  useEffect(() => { loadReservations() }, [loadReservations])
 
   // お客様検索
   const searchCustomers = useCallback(async (q: string) => {
@@ -200,6 +240,79 @@ function FittingPageInner() {
     setShowAddChild(false)
     setNcName(''); setNcKana(''); setNcSchoolId(''); setNcGrade(''); setNcGender('')
   }
+
+  // 予約カードから採寸を開始
+  const startFromReservation = useCallback(async (r: ReservationRow) => {
+    const c = r.customers
+    if (!c) { showToast('err', '顧客情報が紐付いていません'); return }
+
+    // 顧客・LINE ID を設定
+    setCustomer({ id: c.id, name: c.name, kana: c.kana, tel: c.tel })
+    const lineId = c.line_user_id ?? r.line_user_id ?? null
+    setLinkedLineUserId(lineId)
+    setLinkedResId(r.id)
+
+    // お子様を設定
+    const resChild = r.children
+    const { data: kids } = await supabase.from('children').select('*').eq('customer_id', c.id)
+    setChildren((kids ?? []) as ChildRow[])
+
+    const targetChild = resChild
+      ? ((kids ?? []) as ChildRow[]).find(k => k.id === resChild.id) ?? (resChild as ChildRow)
+      : (kids?.[0] as ChildRow | undefined) ?? null
+
+    setChild(targetChild ?? null)
+
+    // 予約ステータスを「来店済み」に更新
+    await (supabase as any).from('reservations').update({ status: 'arrived' }).eq('id', r.id)
+    setReservations(prev => prev.map(rv => rv.id === r.id ? { ...rv, status: 'arrived' } : rv))
+
+    if (targetChild) {
+      await goToMeasureWithChild(targetChild)
+    } else {
+      showToast('err', 'お子様情報が取得できませんでした。手動で選択してください')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showToast])
+
+  // 採寸ステップへ移行（child直接渡し版）
+  const goToMeasureWithChild = useCallback(async (c: ChildRow) => {
+    const schoolId = c.school_id
+    if (!schoolId) { showToast('err', '学校が設定されていません'); return }
+
+    setLoadingProd(true)
+    const { data: prods } = await supabase.from('school_products')
+      .select('id, item_name, category, gender, maker_code, sort_order')
+      .eq('school_id', schoolId).eq('active', true)
+      .order('sort_order').order('item_name')
+
+    const filteredProds = (prods ?? []).filter((p: ProductRow) => {
+      if (!p.gender || p.gender === '男女共通') return true
+      if (c.gender === 'male'   && p.gender === '男子用') return true
+      if (c.gender === 'female' && p.gender === '女子用') return true
+      return !c.gender
+    })
+
+    if (filteredProds.length) {
+      const ids = filteredProds.map((p: ProductRow) => p.id)
+      const { data: vars } = await supabase.from('school_product_variants')
+        .select('id, product_id, size_label, price, sort_order')
+        .in('product_id', ids).eq('active', true).order('sort_order')
+      const map: Record<string, VariantRow[]> = {}
+      for (const v of (vars ?? []) as VariantRow[]) {
+        if (!map[v.product_id]) map[v.product_id] = []
+        map[v.product_id].push(v)
+      }
+      setVariantMap(map)
+      const init: ConfirmedSizes = {}
+      for (const p of filteredProds) init[p.id] = { variant_id: '', size_label: '', qty: 1, memo: '' }
+      setConfirmed(init)
+    }
+
+    setProducts(filteredProds)
+    setLoadingProd(false)
+    setStep('measure')
+  }, [showToast])
 
   // 採寸ステップへ移行
   const goToMeasure = useCallback(async () => {
@@ -318,6 +431,10 @@ function FittingPageInner() {
     }
 
     if (!createOrder) {
+      if (linkedResId) {
+        await (supabase as any).from('reservations').update({ status: 'completed' }).eq('id', linkedResId)
+        setReservations(prev => prev.map(rv => rv.id === linkedResId ? { ...rv, status: 'completed' } : rv))
+      }
       setSaving(false)
       setSavedId(meas.id)
       setStep('done')
@@ -357,9 +474,13 @@ function FittingPageInner() {
     // measurement に order_id を紐付け
     await supabase.from('measurements').update({ order_id: order.id }).eq('id', meas.id)
 
-    setSaving(false)
-    if (itemsErr) { showToast('err', `明細保存失敗: ${itemsErr.message}`); return }
+    if (itemsErr) { setSaving(false); showToast('err', `明細保存失敗: ${itemsErr.message}`); return }
 
+    if (linkedResId) {
+      await (supabase as any).from('reservations').update({ status: 'completed' }).eq('id', linkedResId)
+      setReservations(prev => prev.map(rv => rv.id === linkedResId ? { ...rv, status: 'completed' } : rv))
+    }
+    setSaving(false)
     setSavedId(meas.id)
     setStep('done')
   }
@@ -372,6 +493,7 @@ function FittingPageInner() {
     setHeightCm(''); setWeightKg(''); setChestCm(''); setWaistCm(''); setInseamCm('')
     setShowDetails(false); setProducts([]); setVariantMap({}); setConfirmed({})
     setStaffMemo(''); setSavedId(null)
+    setLinkedResId(null); setLinkedLineUserId(null)
   }
 
   // ── カテゴリ別グループ ────────────────────────────────────
@@ -424,6 +546,96 @@ function FittingPageInner() {
         ══════════════════════════════════════ */}
         {step === 'customer' && (
           <>
+            {/* 今日の予約パネル */}
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <button
+                onClick={() => setShowResPanel(p => !p)}
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <CalendarClock size={16} className="text-indigo-500" />
+                  <span className="text-sm font-black text-gray-800">今日の予約</span>
+                  {!loadingRes && (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      reservations.filter(r => r.status === 'confirmed').length > 0
+                        ? 'bg-indigo-100 text-indigo-700'
+                        : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {reservations.filter(r => r.status === 'confirmed').length}件待ち
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={e => { e.stopPropagation(); loadReservations() }}
+                    className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-100"
+                  >
+                    更新
+                  </button>
+                  {showResPanel ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                </div>
+              </button>
+
+              {showResPanel && (
+                <div className="border-t border-gray-100">
+                  {loadingRes ? (
+                    <div className="flex justify-center py-5">
+                      <Loader2 size={18} className="animate-spin text-indigo-400" />
+                    </div>
+                  ) : reservations.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-5">今日の予約はありません</p>
+                  ) : (
+                    <div className="divide-y divide-gray-50">
+                      {reservations.map(r => {
+                        const timeStr = r.reserved_at
+                          ? new Date(r.reserved_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
+                          : ''
+                        const resChild = r.children
+                        const resCust  = r.customers
+                        const isArrived = r.status === 'arrived'
+                        return (
+                          <button
+                            key={r.id}
+                            onClick={() => startFromReservation(r)}
+                            disabled={isArrived}
+                            className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
+                              isArrived
+                                ? 'opacity-50 cursor-not-allowed bg-gray-50'
+                                : 'hover:bg-indigo-50 active:bg-indigo-100'
+                            }`}
+                          >
+                            <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center shrink-0">
+                              <span className="text-xs font-black text-indigo-700">{timeStr}</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-gray-900 truncate">
+                                {resCust?.name ?? '(顧客未紐付け)'}
+                              </p>
+                              {resChild && (
+                                <p className="text-xs text-gray-500 truncate">
+                                  {resChild.name}
+                                  {resChild.school_name && ` · ${resChild.school_name}`}
+                                  {resChild.grade && ` · ${resChild.grade}`}
+                                </p>
+                              )}
+                            </div>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                              isArrived
+                                ? 'bg-teal-100 text-teal-700'
+                                : 'bg-indigo-100 text-indigo-700'
+                            }`}>
+                              {isArrived ? '来店済' : '予約済'}
+                            </span>
+                            {!isArrived && <ChevronRight size={14} className="text-gray-400 shrink-0" />}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* 検索 */}
             <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">お客様検索</p>
@@ -838,6 +1050,49 @@ function FittingPageInner() {
                 </div>
               )}
             </div>
+
+            {linkedLineUserId && (
+              <button
+                onClick={async () => {
+                  setNotifySending(true)
+                  try {
+                    const fullSchoolName = child.school_id
+                      ? (schools.find(s => s.id === child.school_id)?.name ?? child.school_name ?? '')
+                      : (child.school_name ?? '')
+                    await fetch('/api/notify-fitting', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        storeId,
+                        lineUserId: linkedLineUserId,
+                        childName:  child.name,
+                        schoolName: fullSchoolName,
+                        items: orderItems.map(({ product, cs, variant }) => ({
+                          item_name:  product?.item_name ?? '',
+                          size_label: cs.size_label,
+                          qty:        cs.qty,
+                          price:      variant?.price ?? 0,
+                        })),
+                        totalAmount: total,
+                      }),
+                    })
+                    showToast('ok', 'LINE通知を送りました')
+                  } catch {
+                    showToast('err', 'LINE通知の送信に失敗しました')
+                  } finally {
+                    setNotifySending(false)
+                  }
+                }}
+                disabled={notifySending}
+                className="w-full py-3.5 rounded-2xl font-black text-base bg-green-500 text-white shadow active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+              >
+                {notifySending
+                  ? <Loader2 size={18} className="animate-spin" />
+                  : <Send size={18} />
+                }
+                LINE通知を送る
+              </button>
+            )}
 
             <button onClick={reset}
               className="w-full py-4 rounded-2xl font-black text-base bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">

@@ -5,8 +5,15 @@ import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import {
   CalendarDays, Clock, User, FileText, Check,
-  Loader2, ChevronLeft, ChevronRight,
+  Loader2, ChevronLeft, ChevronRight, GraduationCap, Plus, X,
 } from 'lucide-react'
+
+// 採寸サービスかどうかの判定
+function isFittingService(serviceType: string, label: string) {
+  return label.includes('採寸') || serviceType.includes('fitting') || serviceType.includes('uniform')
+}
+
+const GRADE_OPTIONS = ['中学1年', '中学2年', '中学3年', '高校1年', '高校2年', '高校3年']
 
 // ============================================================
 // ユーティリティ
@@ -165,8 +172,8 @@ export default function ReservePage() {
   const [settings, setSettings] = useState<ReservationSetting[]>([])
 
   // ステップ内の状態
-  // step: 'service' | 'datetime' | 'info' | 'confirm'
-  const [step, setStep] = useState<'service' | 'datetime' | 'info' | 'confirm'>('service')
+  // step: 'service' | 'child' | 'datetime' | 'info'
+  const [step, setStep] = useState<'service' | 'child' | 'datetime' | 'info'>('service')
 
   // フォーム値
   const [selectedService, setSelectedService] = useState<ReservationSetting | null>(null)
@@ -176,6 +183,22 @@ export default function ReservePage() {
   const [note, setNote]                       = useState('')
   const [submitting, setSubmitting]           = useState(false)
   const [errorMsg, setErrorMsg]               = useState('')
+
+  // お子様選択（採寸サービス専用）
+  type ChildRow = { id: string; name: string; school_name: string | null; school_id: string | null; grade: string | null; gender: string | null }
+  type SchoolRow = { id: string; name: string }
+  const [customerId,      setCustomerId]      = useState<string | null>(null)
+  const [children,        setChildren]        = useState<ChildRow[]>([])
+  const [selectedChild,   setSelectedChild]   = useState<ChildRow | null>(null)
+  const [loadingChildren, setLoadingChildren] = useState(false)
+  const [showAddChild,    setShowAddChild]    = useState(false)
+  const [schools,         setSchools]         = useState<SchoolRow[]>([])
+  // 新規お子様フォーム
+  const [ncName,     setNcName]     = useState('')
+  const [ncSchoolId, setNcSchoolId] = useState('')
+  const [ncGrade,    setNcGrade]    = useState('')
+  const [ncGender,   setNcGender]   = useState('')
+  const [ncSaving,   setNcSaving]   = useState(false)
 
   // スロット可用性
   const [slots, setSlots]           = useState<SlotInfo[]>([])
@@ -238,6 +261,28 @@ export default function ReservePage() {
       setPageState('slot')
     }
     init()
+  }, [storeId])
+
+  // ============================================================
+  // お子様ロード（採寸サービス選択時）
+  // ============================================================
+  const loadChildren = useCallback(async (lUserId: string) => {
+    setLoadingChildren(true)
+    // LINE IDから顧客を検索
+    const { data: cust } = await (supabase as any)
+      .from('customers').select('id, name').eq('store_id', storeId)
+      .eq('line_user_id', lUserId).maybeSingle()
+    if (cust) {
+      setCustomerId(cust.id)
+      const { data: kids } = await supabase.from('children').select('id, name, school_name, school_id, grade, gender')
+        .eq('customer_id', cust.id).order('created_at')
+      setChildren((kids ?? []) as ChildRow[])
+    }
+    // 学校マスターを取得
+    const { data: sc } = await supabase.from('schools').select('id, name')
+      .eq('store_id', storeId).eq('active', true).order('sort_order')
+    setSchools((sc ?? []) as SchoolRow[])
+    setLoadingChildren(false)
   }, [storeId])
 
   // ============================================================
@@ -364,6 +409,7 @@ export default function ReservePage() {
     const { error } = await (supabase as any).from('reservations').insert({
       store_id:     storeId,
       customer_id:  customerId,
+      child_id:     selectedChild?.id ?? null,
       line_user_id: lineUserId,
       reserved_at:  reservedAt,
       service_type: selectedService.service_type,
@@ -455,7 +501,13 @@ export default function ReservePage() {
                 onClick={() => {
                   setSelectedService(s)
                   setSelectedTime(null)
-                  setStep('datetime')
+                  setSelectedChild(null)
+                  if (isFittingService(s.service_type, s.label) && lineUserId) {
+                    loadChildren(lineUserId)
+                    setStep('child')
+                  } else {
+                    setStep('datetime')
+                  }
                 }}
                 className={`w-full text-left rounded-2xl border px-4 py-4 transition-all ${
                   selectedService?.id === s.id
@@ -470,8 +522,118 @@ export default function ReservePage() {
           </div>
         </section>
 
+        {/* ============ STEP 1.5: お子様選択（採寸サービスのみ） ============ */}
+        {(step === 'child' || step === 'datetime' || step === 'info') && selectedService && isFittingService(selectedService.service_type, selectedService.label) && (
+          <section>
+            <label className="flex items-center gap-2 text-xs font-bold text-zinc-400 mb-3">
+              <GraduationCap size={13} className="text-indigo-400" />採寸するお子様を選択
+            </label>
+
+            {loadingChildren ? (
+              <div className="flex justify-center py-6">
+                <Loader2 size={22} className="animate-spin text-indigo-400" />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {children.map(c => {
+                  const isSelected = selectedChild?.id === c.id
+                  const schoolLabel = c.school_name ?? ''
+                  return (
+                    <button key={c.id} onClick={() => {
+                      setSelectedChild(c)
+                      if (step === 'child') setStep('datetime')
+                    }}
+                      className={`w-full text-left rounded-2xl border px-4 py-3.5 transition-all ${
+                        isSelected
+                          ? 'bg-indigo-600/20 border-indigo-500 ring-1 ring-indigo-500/40'
+                          : 'bg-zinc-900 border-zinc-700 hover:border-zinc-500'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isSelected ? 'bg-indigo-600' : 'bg-zinc-700'}`}>
+                          {isSelected ? <Check size={15} className="text-white" /> : <GraduationCap size={15} className="text-zinc-400" />}
+                        </div>
+                        <div>
+                          <p className="font-black text-white text-sm">{c.name}</p>
+                          <p className="text-zinc-500 text-xs mt-0.5">{[schoolLabel, c.grade, c.gender === 'male' ? '男子' : c.gender === 'female' ? '女子' : null].filter(Boolean).join(' · ')}</p>
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+
+                {/* 新規お子様追加 */}
+                {showAddChild ? (
+                  <div className="bg-zinc-900 border border-indigo-500/40 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-bold text-indigo-300 flex items-center gap-1.5"><GraduationCap size={13} />お子様を追加</p>
+                      <button onClick={() => setShowAddChild(false)} className="text-zinc-500 hover:text-zinc-300"><X size={15} /></button>
+                    </div>
+                    <input type="text" value={ncName} onChange={e => setNcName(e.target.value)}
+                      placeholder="お名前（例：山田 太郎）"
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white placeholder-zinc-600 focus:border-indigo-500 focus:outline-none text-sm" />
+                    <select value={ncSchoolId} onChange={e => setNcSchoolId(e.target.value)}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm focus:border-indigo-500 focus:outline-none text-white">
+                      <option value="">学校を選択</option>
+                      {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                    <div className="grid grid-cols-2 gap-2">
+                      <select value={ncGrade} onChange={e => setNcGrade(e.target.value)}
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-3 text-sm focus:border-indigo-500 focus:outline-none text-white">
+                        <option value="">学年</option>
+                        {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                      </select>
+                      <select value={ncGender} onChange={e => setNcGender(e.target.value)}
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-3 text-sm focus:border-indigo-500 focus:outline-none text-white">
+                        <option value="">性別</option>
+                        <option value="male">男子</option>
+                        <option value="female">女子</option>
+                      </select>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!ncName.trim() || !customerId) return
+                        setNcSaving(true)
+                        const schoolName = schools.find(s => s.id === ncSchoolId)?.name ?? null
+                        const { data } = await supabase.from('children').insert({
+                          customer_id: customerId, store_id: storeId,
+                          name: ncName.trim(), school_id: ncSchoolId || null,
+                          school_name: schoolName, grade: ncGrade || null, gender: ncGender || null,
+                        }).select().single()
+                        setNcSaving(false)
+                        if (data) {
+                          const newChild = data as ChildRow
+                          setChildren(prev => [...prev, newChild])
+                          setSelectedChild(newChild)
+                          setShowAddChild(false)
+                          setStep('datetime')
+                        }
+                      }}
+                      disabled={!ncName.trim() || ncSaving}
+                      className="w-full py-3 rounded-xl font-bold text-sm bg-indigo-600 text-white disabled:opacity-40 flex items-center justify-center gap-2">
+                      {ncSaving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}追加する
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => setShowAddChild(true)}
+                    className="w-full py-3 rounded-2xl border-2 border-dashed border-zinc-600 text-zinc-500 text-sm hover:border-indigo-500 hover:text-indigo-400 transition-colors flex items-center justify-center gap-2">
+                    <Plus size={14} />別のお子様を追加
+                  </button>
+                )}
+
+                {selectedChild && step === 'child' && (
+                  <button onClick={() => setStep('datetime')}
+                    className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-black text-base flex items-center justify-center gap-2">
+                    <CalendarDays size={18} />日時を選ぶ
+                  </button>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
         {/* ============ STEP 2: 日付・時間帯選択 ============ */}
-        {(step === 'datetime' || step === 'info' || step === 'confirm') && selectedService && (
+        {(step === 'datetime' || step === 'info') && selectedService && (
           <section>
             <label className="flex items-center gap-2 text-xs font-bold text-zinc-400 mb-3">
               <CalendarDays size={13} className="text-indigo-400" />日付を選択
@@ -573,13 +735,18 @@ export default function ReservePage() {
         )}
 
         {/* ============ STEP 3: お名前・備考 ============ */}
-        {(step === 'info' || step === 'confirm') && selectedTime && (
+        {step === 'info' && selectedTime && (
           <section>
-            <div className="bg-indigo-950/40 border border-indigo-500/20 rounded-2xl px-4 py-3 mb-4">
+            <div className="bg-indigo-950/40 border border-indigo-500/20 rounded-2xl px-4 py-3 mb-4 space-y-1">
               <p className="text-indigo-300 text-xs font-bold">選択中</p>
-              <p className="text-white font-black text-sm mt-0.5">
+              <p className="text-white font-black text-sm">
                 {selectedService?.label} / {fmtDateJp(selectedDate)} {selectedTime}〜
               </p>
+              {selectedChild && (
+                <p className="text-indigo-200 text-xs flex items-center gap-1">
+                  <GraduationCap size={11} />{selectedChild.name}{selectedChild.school_name ? `（${selectedChild.school_name}）` : ''}
+                </p>
+              )}
             </div>
 
             {/* お名前 */}
