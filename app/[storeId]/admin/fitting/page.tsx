@@ -845,7 +845,7 @@ function FittingPageInner() {
                             {c.grade && <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-lg">{c.grade}</span>}
                             {c.gender && <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-lg">{c.gender === 'male' ? '男子' : '女子'}</span>}
                           </div>
-                          {!c.school_id && (
+                          {!c.school_id && !c.school_name && (
                             <p className="text-[10px] text-amber-600 mt-0.5">学校未設定（採寸前に設定が必要）</p>
                           )}
                         </div>
@@ -916,7 +916,7 @@ function FittingPageInner() {
             {child && (
               <button
                 onClick={goToMeasure}
-                disabled={!child.school_id || loadingProd}
+                disabled={(!child.school_id && !child.school_name) || loadingProd}
                 className="w-full py-4 rounded-2xl font-black text-base bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-lg active:scale-95 disabled:opacity-40 transition-all flex items-center justify-center gap-2"
               >
                 {loadingProd

@@ -473,6 +473,7 @@ export default function CustomerPage() {
   const [storeSchoolOptions, setStoreSchoolOptions] = useState<string[]>([])
   const [schools, setSchools] = useState<{ id: string; name: string }[]>([])
 
+  const allowRemoteRef = useRef(false)
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const ticketRef  = useRef<Queue | null>(null)
   const ticketKey  = `queue_ticket_id_${storeId}`
@@ -487,12 +488,13 @@ export default function CustomerPage() {
     if (!storeId) return
     ;(async () => { try {
       const { data: sd } = await (supabase.from('stores') as any)
-        .select('is_open, wait_thresholds, notification_plan, active_fittings, business_type, school_names').eq('id', storeId).single()
+        .select('is_open, wait_thresholds, notification_plan, active_fittings, business_type, school_names, allow_remote').eq('id', storeId).single()
       if (sd?.business_type === 'takeout') { router.replace(`/${storeId}/order`); return }
       if (sd && Array.isArray(sd.wait_thresholds) && sd.wait_thresholds.length > 0)
         setWaitThresholds(sd.wait_thresholds as WaitThreshold[])
       if (sd?.notification_plan) notificationPlanRef.current = sd.notification_plan
       if (sd?.active_fittings != null) setActiveFittings(sd.active_fittings)
+      if (sd?.allow_remote != null) allowRemoteRef.current = !!sd.allow_remote
       if (Array.isArray(sd?.school_names) && sd.school_names.length > 0) setStoreSchoolOptions(sd.school_names)
 
       // schoolsテーブルから学校マスターを取得（UIドロップダウン用）
@@ -849,7 +851,8 @@ export default function CustomerPage() {
         category:      'fitting',
         gender:        'other',
         line_user_id:  lineProfile?.userId ?? null,
-        checked_in:    true,
+        is_remote:     allowRemoteRef.current,
+        checked_in:    !allowRemoteRef.current,
         customer_id:   customer?.id ?? null,
         child_id:      selectedChild?.id ?? null,
       }).select().single()
@@ -1420,6 +1423,20 @@ export default function CustomerPage() {
                 </div>
               )}
             </div>
+
+            {/* 遠隔受付の到着チェックインボタン */}
+            {ticket.is_remote && !ticket.checked_in && (
+              <button
+                onClick={async () => {
+                  await supabase.from('queues').update({ checked_in: true }).eq('id', ticket.id)
+                  setTicket(prev => prev ? { ...prev, checked_in: true } : prev)
+                }}
+                className="mt-4 w-full py-4 rounded-2xl font-black text-lg text-white flex items-center justify-center gap-2 active:scale-95 transition-all"
+                style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})` }}
+              >
+                🏪 店舗に到着しました
+              </button>
+            )}
 
             <div className="flex items-center justify-between mt-5 px-1">
               <div className={`flex items-center gap-1.5 text-xs ${ct.bottom}`}>

@@ -57,6 +57,13 @@ export default function LineHomePage() {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [refreshStatus])
 
+  // 30秒ごとに受付状況を自動更新（店一覧表示中のみ）
+  useEffect(() => {
+    if (status !== 'select') return
+    const id = setInterval(refreshStatus, 30000)
+    return () => clearInterval(id)
+  }, [status, refreshStatus])
+
   useEffect(() => {
     if (initializedRef.current) return
     initializedRef.current = true
