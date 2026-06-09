@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { assertSuperAdmin } from '@/lib/auth/verifyAdmin'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -10,6 +11,8 @@ function getSupabase() {
 }
 
 export async function POST(req: Request) {
+  const denied = assertSuperAdmin(req)
+  if (denied) return denied
   try {
     const { storeName, storePin, businessType, groupId, newGroupName, newGroupCode, newGroupPin } = await req.json()
 

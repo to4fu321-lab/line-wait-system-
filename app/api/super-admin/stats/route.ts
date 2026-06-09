@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { assertSuperAdmin } from '@/lib/auth/verifyAdmin'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -20,7 +21,9 @@ function getTodayStart() {
   return midnight.toISOString()
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const denied = assertSuperAdmin(req)
+  if (denied) return denied
   try {
     const supabase = getSupabase()
 

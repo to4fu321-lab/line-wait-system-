@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { assertSuperAdmin } from '@/lib/auth/verifyAdmin'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -10,6 +11,8 @@ function getSupabase() {
 }
 
 export async function PUT(req: Request, { params }: { params: { storeId: string } }) {
+  const denied = assertSuperAdmin(req)
+  if (denied) return denied
   try {
     const { storeId } = params
     const body = await req.json()
@@ -34,7 +37,9 @@ export async function PUT(req: Request, { params }: { params: { storeId: string 
   }
 }
 
-export async function DELETE(_req: Request, { params }: { params: { storeId: string } }) {
+export async function DELETE(req: Request, { params }: { params: { storeId: string } }) {
+  const denied = assertSuperAdmin(req)
+  if (denied) return denied
   try {
     const { storeId } = params
     const supabase = getSupabase()
