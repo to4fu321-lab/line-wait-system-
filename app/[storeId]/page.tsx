@@ -360,8 +360,14 @@ export default function CustomerPage() {
   const [detailNote,    setDetailNote]    = useState('')
   const [detailSaving,  setDetailSaving]  = useState(false)
   const [detailSaved,   setDetailSaved]   = useState(false)
+  const [detailSchoolId, setDetailSchoolId] = useState('')
+  const [detailGrade,    setDetailGrade]    = useState('')
+  const [detailGender,   setDetailGender]   = useState('')
+  const [autoSaving,     setAutoSaving]     = useState(false)
+  const [autoSaved,      setAutoSaved]      = useState(false)
   const [activeFittings, setActiveFittings] = useState(1)
   const [storeSchoolOptions, setStoreSchoolOptions] = useState<string[]>([])
+  const [schools, setSchools] = useState<{ id: string; name: string }[]>([])
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const ticketRef  = useRef<Queue | null>(null)
@@ -384,6 +390,14 @@ export default function CustomerPage() {
       if (sd?.notification_plan) notificationPlanRef.current = sd.notification_plan
       if (sd?.active_fittings != null) setActiveFittings(sd.active_fittings)
       if (Array.isArray(sd?.school_names) && sd.school_names.length > 0) setStoreSchoolOptions(sd.school_names)
+
+      // schoolsテーブルから学校マスターを取得（UIドロップダウン用）
+      const { data: schoolRows } = await supabase.from('schools')
+        .select('id, name').eq('store_id', storeId).eq('active', true).order('sort_order')
+      if (schoolRows && schoolRows.length > 0) {
+        setSchools(schoolRows as { id: string; name: string }[])
+        setStoreSchoolOptions(schoolRows.map((s: { name: string }) => s.name))
+      }
 
       await initLiff()
       const profile = await getLineProfile()
@@ -511,15 +525,58 @@ export default function CustomerPage() {
 
   useEffect(() => { ticketRef.current = ticket }, [ticket])
 
-  // チケット復元時に既存detailsをフォームに反映
+  // チケット復元時・お子様変更時にフォームを初期化
   useEffect(() => {
-    if (!ticket?.details) return
-    const d = ticket.details as Record<string, string>
+    const d = (ticket?.details ?? {}) as Record<string, string>
     setDetailHeight(d.height ?? '')
     setDetailWeight(d.weight ?? '')
     setDetailNote(d.note ?? '')
-    if (d.height || d.weight || d.note) setDetailSaved(true)
-  }, [ticket?.id])
+    if (selectedChild?.school_id) setDetailSchoolId(selectedChild.school_id)
+    if (selectedChild?.grade)     setDetailGrade(selectedChild.grade)
+    if (selectedChild?.gender && selectedChild.gender !== 'other') setDetailGender(selectedChild.gender)
+    if (d.height || d.weight || d.note) setAutoSaved(true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticket?.id, selectedChild?.id])
+
+  // 採寸情報の自動保存（800ms debounce）
+  useEffect(() => {
+    if (!ticket?.id) return
+    setAutoSaved(false)
+    const tId      = ticket.id
+    const child    = selectedChild
+    const schoolList = schools
+
+    const timer = setTimeout(async () => {
+      setAutoSaving(true)
+      try {
+        const details: Record<string, string> = {}
+        if (detailHeight.trim()) details.height = detailHeight.trim()
+        if (detailWeight.trim()) details.weight = detailWeight.trim()
+        if (detailNote.trim())   details.note   = detailNote.trim()
+
+        const school = schoolList.find(s => s.id === detailSchoolId)
+        const queueUpdate: Record<string, unknown> = { details }
+        if (school) queueUpdate.school_name = school.name
+        if (detailGender && detailGender !== 'other') queueUpdate.gender = detailGender
+
+        await supabase.from('queues').update(queueUpdate).eq('id', tId)
+
+        if (child?.id) {
+          const childUpdate: Record<string, unknown> = {}
+          if (school) { childUpdate.school_id = school.id; childUpdate.school_name = school.name }
+          if (detailGrade)  childUpdate.grade  = detailGrade
+          if (detailGender) childUpdate.gender = detailGender
+          if (Object.keys(childUpdate).length > 0) {
+            await (supabase as any).from('children').update(childUpdate).eq('id', child.id)
+          }
+        }
+        setAutoSaved(true)
+      } catch { /* ignore */ }
+      setAutoSaving(false)
+    }, 800)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailHeight, detailWeight, detailNote, detailSchoolId, detailGrade, detailGender])
 
   useEffect(() => {
     if (!ticket || !['queue_waiting', 'queue_calling'].includes(view)) return
@@ -737,7 +794,7 @@ export default function CustomerPage() {
         customer_name: customer?.name ?? lineProfile?.displayName ?? '未登録',
         child_name:    selectedChild?.name ?? null,
         school_name:   selectedChild?.school_name ?? null,
-        category:      'other',
+        category:      'fitting',
         gender:        'other',
         line_user_id:  lineProfile?.userId ?? null,
         checked_in:    true,
@@ -1179,60 +1236,131 @@ export default function CustomerPage() {
                   </div>
               }
             </div>
-            {/* 入力のお願い / 顧客情報 */}
-            <div className="mt-4">
+            {/* 入力のお願い / 顧客情報 + 採寸情報統合フォーム */}
+            <div className="mt-4 space-y-3">
               {customer ? (
-                <div className="bg-white rounded-2xl shadow-sm border border-zinc-100 overflow-hidden">
-                  <div className="flex items-center gap-3 p-4">
-                    <CheckCircle2 size={18} style={{ color: theme.colors.primary }} className="shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-zinc-800 text-sm">{customer.name} 様</p>
-                      {selectedChild && (
-                        <p className="text-xs text-zinc-400 mt-0.5">
-                          {selectedChild.name}{selectedChild.grade ? ` · ${selectedChild.grade}` : ''}
-                        </p>
-                      )}
-                    </div>
-                    <button onClick={() => { setShowWaitingEdit(v => !v); setWaitingEditMode(null) }}
-                      className="shrink-0 flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-zinc-100 text-zinc-500 font-bold active:scale-95 transition-transform">
-                      <Pencil size={11} />{showWaitingEdit ? '閉じる' : '編集'}
-                    </button>
-                  </div>
-                  {showWaitingEdit && (
-                    <div className="px-4 pb-4 border-t border-zinc-100">
-                      <div className="flex gap-2 pt-3 mb-3">
-                        <button onClick={() => setWaitingEditMode(m => m === 'child' ? null : 'child')}
-                          className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition-all ${waitingEditMode === 'child' ? 'border-transparent text-white' : 'border-zinc-200 text-zinc-500'}`}
-                          style={waitingEditMode === 'child' ? { background: theme.colors.primary } : {}}>
-                          お子様を追加
-                        </button>
-                        <button onClick={() => setWaitingEditMode(m => m === 'info' ? null : 'info')}
-                          className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition-all ${waitingEditMode === 'info' ? 'border-transparent text-white' : 'border-zinc-200 text-zinc-500'}`}
-                          style={waitingEditMode === 'info' ? { background: theme.colors.primary } : {}}>
-                          情報を変更
-                        </button>
+                <>
+                  {/* お客様表示 + 編集ボタン */}
+                  <div className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
+                    <div className="flex items-center gap-3 px-4 py-3">
+                      <CheckCircle2 size={16} style={{ color: theme.colors.primary }} className="shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-zinc-800 text-sm">{customer.name} 様</p>
+                        {selectedChild && (
+                          <p className="text-xs text-zinc-400 mt-0.5">
+                            {selectedChild.name}{selectedChild.grade ? ` · ${selectedChild.grade}` : ''}
+                          </p>
+                        )}
                       </div>
-                      {waitingEditMode === 'child' && (
-                        <AddChildForm
-                          onSubmit={handleAddChild}
-                          onCancel={() => setWaitingEditMode(null)}
-                          submitting={submitting}
-                          schoolOptions={storeSchoolOptions}
-                        />
-                      )}
-                      {waitingEditMode === 'info' && (
-                        <WaitingCustomerEditForm
-                          customer={customer}
-                          selectedChild={selectedChild}
-                          schoolOptions={storeSchoolOptions}
-                          onSaved={updated => setCustomer(updated)}
-                          onChildSaved={updated => setSelectedChild(updated)}
-                          onClose={() => setWaitingEditMode(null)}
-                        />
-                      )}
+                      <button onClick={() => { setShowWaitingEdit(v => !v); setWaitingEditMode(null) }}
+                        className="shrink-0 flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-zinc-100 text-zinc-500 font-bold active:scale-95 transition-transform">
+                        <Pencil size={11} />{showWaitingEdit ? '閉じる' : '編集'}
+                      </button>
                     </div>
-                  )}
-                </div>
+                    {showWaitingEdit && (
+                      <div className="px-4 pb-4 border-t border-zinc-100">
+                        <div className="flex gap-2 pt-3 mb-3">
+                          <button onClick={() => setWaitingEditMode(m => m === 'child' ? null : 'child')}
+                            className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition-all ${waitingEditMode === 'child' ? 'border-transparent text-white' : 'border-zinc-200 text-zinc-500'}`}
+                            style={waitingEditMode === 'child' ? { background: theme.colors.primary } : {}}>
+                            お子様を追加
+                          </button>
+                          <button onClick={() => setWaitingEditMode(m => m === 'info' ? null : 'info')}
+                            className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition-all ${waitingEditMode === 'info' ? 'border-transparent text-white' : 'border-zinc-200 text-zinc-500'}`}
+                            style={waitingEditMode === 'info' ? { background: theme.colors.primary } : {}}>
+                            保護者情報を変更
+                          </button>
+                        </div>
+                        {waitingEditMode === 'child' && (
+                          <AddChildForm onSubmit={handleAddChild} onCancel={() => setWaitingEditMode(null)} submitting={submitting} schoolOptions={storeSchoolOptions} />
+                        )}
+                        {waitingEditMode === 'info' && (
+                          <WaitingCustomerEditForm customer={customer} selectedChild={selectedChild} schoolOptions={storeSchoolOptions} onSaved={updated => setCustomer(updated)} onChildSaved={updated => setSelectedChild(updated)} onClose={() => setWaitingEditMode(null)} />
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── 採寸情報統合フォーム ── */}
+                  <div className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-zinc-100 flex items-center justify-between">
+                      <div>
+                        <p className="font-bold text-zinc-800 text-sm">📋 採寸情報（待ち時間中にどうぞ）</p>
+                        <p className="text-xs text-zinc-400 mt-0.5">入力するとスタッフにすぐ届きます</p>
+                      </div>
+                      <div className="text-[10px] font-bold shrink-0 ml-2">
+                        {autoSaving
+                          ? <span className="text-zinc-400 flex items-center gap-1"><Loader2 size={10} className="animate-spin" />保存中</span>
+                          : autoSaved
+                            ? <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 size={10} />保存済</span>
+                            : null
+                        }
+                      </div>
+                    </div>
+                    <div className="px-4 pt-3 pb-4 space-y-3">
+                      <div>
+                        <label className="block text-xs font-bold text-zinc-400 mb-1.5">学校名</label>
+                        <select value={detailSchoolId}
+                          onChange={e => { setDetailSchoolId(e.target.value); setAutoSaved(false) }}
+                          className="w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all">
+                          <option value="">選択してください</option>
+                          {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-zinc-400 mb-1.5">学年</label>
+                          <select value={detailGrade}
+                            onChange={e => { setDetailGrade(e.target.value); setAutoSaved(false) }}
+                            className="w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all">
+                            <option value="">選択</option>
+                            {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-zinc-400 mb-1.5">性別</label>
+                          <select value={detailGender}
+                            onChange={e => { setDetailGender(e.target.value); setAutoSaved(false) }}
+                            className="w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all">
+                            <option value="">選択</option>
+                            <option value="male">男子</option>
+                            <option value="female">女子</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-zinc-400 mb-1.5">身長</label>
+                          <div className="flex items-center gap-1.5">
+                            <input type="number" inputMode="numeric" value={detailHeight}
+                              onChange={e => { setDetailHeight(e.target.value); setAutoSaved(false) }}
+                              placeholder="165"
+                              className="w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all" />
+                            <span className="text-xs text-zinc-400 shrink-0">cm</span>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-zinc-400 mb-1.5">体重</label>
+                          <div className="flex items-center gap-1.5">
+                            <input type="number" inputMode="numeric" value={detailWeight}
+                              onChange={e => { setDetailWeight(e.target.value); setAutoSaved(false) }}
+                              placeholder="52"
+                              className="w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all" />
+                            <span className="text-xs text-zinc-400 shrink-0">kg</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-zinc-400 mb-1.5">ご相談・お伝えしたいこと（任意）</label>
+                        <textarea value={detailNote}
+                          onChange={e => { setDetailNote(e.target.value); setAutoSaved(false) }}
+                          placeholder={'例：去年165Aを購入。今年サイズアップ検討中です'}
+                          rows={2}
+                          className="w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all resize-none" />
+                      </div>
+                    </div>
+                  </div>
+                </>
               ) : (
                 <div className="rounded-2xl overflow-hidden border-2 border-red-400"
                   style={{ background: 'linear-gradient(135deg, #fff1f2 0%, #fff5f5 100%)', boxShadow: '0 8px 32px -8px rgba(239,68,68,0.35)' }}>
@@ -1279,60 +1407,6 @@ export default function CustomerPage() {
                   )}
                 </div>
               )}
-            </div>
-
-            {/* スタッフへの伝達事項 */}
-            <div className="mt-4">
-              <div className="bg-white rounded-2xl shadow-sm border border-zinc-100 overflow-hidden">
-                <div className="px-4 py-3.5 border-b border-zinc-100">
-                  <p className="font-bold text-zinc-800 text-sm">📝 スタッフへの伝達事項（任意）</p>
-                  <p className="text-xs text-zinc-400 mt-0.5">待ち時間にご記入ください。お呼びした際にスタッフが確認します</p>
-                </div>
-                <div className="px-4 pt-3 pb-4 space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-zinc-400 mb-1.5">身長</label>
-                      <div className="flex items-center gap-1.5">
-                        <input type="number" inputMode="numeric" value={detailHeight}
-                          onChange={e => { setDetailHeight(e.target.value); setDetailSaved(false) }}
-                          placeholder="165"
-                          className="w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all" />
-                        <span className="text-xs text-zinc-400 shrink-0">cm</span>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-zinc-400 mb-1.5">体重</label>
-                      <div className="flex items-center gap-1.5">
-                        <input type="number" inputMode="numeric" value={detailWeight}
-                          onChange={e => { setDetailWeight(e.target.value); setDetailSaved(false) }}
-                          placeholder="52"
-                          className="w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all" />
-                        <span className="text-xs text-zinc-400 shrink-0">kg</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-zinc-400 mb-1.5">ご相談・お伝えしたいこと</label>
-                    <textarea value={detailNote}
-                      onChange={e => { setDetailNote(e.target.value); setDetailSaved(false) }}
-                      placeholder={'例：去年165Aを購入しました。\n今年サイズアップを検討中です'}
-                      rows={3}
-                      className="w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all resize-none" />
-                  </div>
-                  {detailSaved ? (
-                    <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold bg-emerald-50 rounded-xl px-3 py-2.5">
-                      <CheckCircle2 size={14} />保存しました！スタッフが確認します
-                    </div>
-                  ) : (
-                    <button onClick={handleSaveDetails}
-                      disabled={detailSaving || (!detailHeight.trim() && !detailWeight.trim() && !detailNote.trim())}
-                      className="w-full py-3 rounded-xl text-white font-bold text-sm disabled:opacity-40 flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
-                      style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})` }}>
-                      {detailSaving ? <><Loader2 size={14} className="animate-spin" />保存中...</> : '保存する'}
-                    </button>
-                  )}
-                </div>
-              </div>
             </div>
 
             <div className="flex items-center justify-between mt-5 px-1">
