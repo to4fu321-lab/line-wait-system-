@@ -836,7 +836,7 @@ export default function CustomerPage() {
   }
 
   // ── 整理券発行（パターンA）────────────────────────────
-  const handleIssueTicket = async () => {
+  const handleIssueTicket = async (isRemote = false) => {
     if (issuing) return
     setIssuing(true)
     try {
@@ -851,8 +851,8 @@ export default function CustomerPage() {
         category:      'fitting',
         gender:        'other',
         line_user_id:  lineProfile?.userId ?? null,
-        is_remote:     allowRemoteRef.current,
-        checked_in:    !allowRemoteRef.current,
+        is_remote:     isRemote,
+        checked_in:    !isRemote,
         customer_id:   customer?.id ?? null,
         child_id:      selectedChild?.id ?? null,
       }).select().single()
@@ -1201,9 +1201,9 @@ export default function CustomerPage() {
         <p className="text-zinc-500 text-sm">順番待ちリストに追加します</p>
       </div>
 
-      <div className="bg-white/75 backdrop-blur-2xl rounded-3xl p-6 w-full border border-white/60 text-center" style={cardStyle}>
+      <div className="bg-white/75 backdrop-blur-2xl rounded-3xl p-6 w-full border border-white/60" style={cardStyle}>
         {waitingCount !== null && (
-          <div className="mb-4">
+          <div className="mb-5 text-center">
             <p className="text-zinc-400 text-xs font-bold mb-1">現在の待ち人数</p>
             <div className="flex items-baseline justify-center gap-1">
               <span className="text-6xl font-black" style={{ color: theme.colors.primary }}>{waitingCount}</span>
@@ -1211,12 +1211,38 @@ export default function CustomerPage() {
             </div>
           </div>
         )}
-        <button onClick={handleIssueTicket} disabled={issuing}
-          className="w-full py-5 rounded-2xl text-white font-black text-lg flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
-          style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`,
-            boxShadow: `0 8px 24px -6px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
-          {issuing ? <><Loader2 size={20} className="animate-spin" />発行中...</> : '今すぐ並ぶ →'}
-        </button>
+
+        {allowRemoteRef.current ? (
+          <div className="space-y-3">
+            {/* 遠隔受付の説明 */}
+            <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4">
+              <p className="font-black text-indigo-800 text-sm mb-1.5">🏠 遠隔チェックイン対応</p>
+              <p className="text-indigo-700 text-xs leading-relaxed">
+                自宅から順番を取っておいて、あなたの番が近づいてからご来店いただけます。
+                到着したら画面の「到着しました」ボタンを押してください。
+              </p>
+            </div>
+            {/* 来店ボタン */}
+            <button onClick={() => handleIssueTicket(false)} disabled={issuing}
+              className="w-full py-4 rounded-2xl text-white font-black text-base flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
+              style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`,
+                boxShadow: `0 8px 24px -6px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
+              {issuing ? <><Loader2 size={18} className="animate-spin" />発行中...</> : <><span>🏪</span>今すぐ来店して並ぶ</>}
+            </button>
+            {/* 遠隔ボタン */}
+            <button onClick={() => handleIssueTicket(true)} disabled={issuing}
+              className="w-full py-4 rounded-2xl font-black text-base flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60 border-2 border-indigo-400 text-indigo-700 bg-white">
+              {issuing ? <><Loader2 size={18} className="animate-spin" />発行中...</> : <><span>🏠</span>遠隔で並ぶ（後でご来店）</>}
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => handleIssueTicket(false)} disabled={issuing}
+            className="w-full py-5 rounded-2xl text-white font-black text-lg flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
+            style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`,
+              boxShadow: `0 8px 24px -6px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
+            {issuing ? <><Loader2 size={20} className="animate-spin" />発行中...</> : '今すぐ並ぶ →'}
+          </button>
+        )}
       </div>
 
       <button onClick={() => setView('purpose')} className="text-zinc-400 text-sm underline active:opacity-60">
