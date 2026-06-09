@@ -748,7 +748,7 @@ export default function StoreAdminPage() {
     </>
   )
   if (view === 'pin' && selectedStore) return (
-    <PinScreen storeName={selectedStore.name} storePin={selectedStore.pin} onAuth={handleAuth} onBack={() => setView('select_store')} />
+    <PinScreen storeName={selectedStore.name} storePin={selectedStore.pin} storeId={selectedStore.id} onAuth={handleAuth} onBack={() => setView('select_store')} />
   )
   if (view === 'dashboard' && selectedStore) return (
     <AdminDashboard store={selectedStore} groupCode={groupCode} onLogout={handleLogout} />

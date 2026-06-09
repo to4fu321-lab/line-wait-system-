@@ -113,10 +113,11 @@ export function InquiryModal({
   const handleOcr = async (file: File) => {
     setOcrLoading(true)
     try {
-      const base64 = await compressImage(file)
+      const base64   = await compressImage(file)
+      const storePin = sessionStorage.getItem(`admin_pin_${storeId}`) ?? ''
       const res = await fetch('/api/slip-ocr', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64, mimeType: 'image/jpeg', slipType: 'inquiry' }),
+        body: JSON.stringify({ imageBase64: base64, mimeType: 'image/jpeg', slipType: 'inquiry', storeId, storePin }),
       })
       const { ok, data } = await res.json()
       if (ok && data) {

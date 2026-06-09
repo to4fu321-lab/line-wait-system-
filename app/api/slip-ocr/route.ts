@@ -1,7 +1,23 @@
 export const dynamic = 'force-dynamic'
 
+import { timingSafeEqual } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { createClient } from '@supabase/supabase-js'
+
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
+}
+
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a)
+  const bufB = Buffer.from(b)
+  if (bufA.length !== bufB.length) { timingSafeEqual(bufA, bufA); return false }
+  return timingSafeEqual(bufA, bufB)
+}
 
 // ── お直し伝票の抽出スキーマ ────────────────────────────────────
 const REPAIR_SCHEMA = `
@@ -81,13 +97,35 @@ ${schema}
 }
 
 export async function POST(req: NextRequest) {
+  // TODO: レート制限を追加（例: 同一storeIdで1分あたり10回以内）
+  // 推奨: Upstash Redis + @upstash/ratelimit を使用
   try {
     const body = await req.json()
-    const { imageBase64, mimeType, slipType = 'repair' } = body as {
+    const { imageBase64, mimeType, slipType = 'repair', storeId, storePin } = body as {
       imageBase64: string
       mimeType?: string
       slipType?: 'repair' | 'order' | 'inquiry'
+      storeId?: string
+      storePin?: string
     }
+
+    // ── 認証: storeId + storePin の照合 ──────────────────────────
+    if (!storeId || !storePin) {
+      return NextResponse.json({ ok: false, error: '認証情報が必要です (storeId + storePin)' }, { status: 401 })
+    }
+    const supabase = getSupabase()
+    const { data: store } = await supabase
+      .from('stores')
+      .select('pin')
+      .eq('id', storeId)
+      .single()
+    if (!store) {
+      return NextResponse.json({ ok: false, error: '店舗が見つかりません' }, { status: 401 })
+    }
+    if (!safeEqual(String(storePin), String(store.pin ?? ''))) {
+      return NextResponse.json({ ok: false, error: '認証に失敗しました' }, { status: 401 })
+    }
+    // ─────────────────────────────────────────────────────────────
 
     if (!imageBase64) {
       return NextResponse.json({ ok: false, error: '画像データが必要です' }, { status: 400 })

@@ -56,11 +56,12 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast, showOcr = tr
   const handleOcrRepair = async (file: File) => {
     setOcrLoading(true); setOcrWarnings([])
     try {
-      const base64 = await compressImage(file)
+      const base64    = await compressImage(file)
+      const storePin  = sessionStorage.getItem(`admin_pin_${storeId}`) ?? ''
       const res = await fetch('/api/slip-ocr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64, mimeType: 'image/jpeg', slipType: 'repair' }),
+        body: JSON.stringify({ imageBase64: base64, mimeType: 'image/jpeg', slipType: 'repair', storeId, storePin }),
       })
       const { ok, data, error } = await res.json()
       if (!ok || !data) { onToast('err', `OCR失敗: ${error ?? '不明なエラー'}`); return }

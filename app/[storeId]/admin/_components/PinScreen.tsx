@@ -5,8 +5,8 @@ import { useState } from 'react'
 // ============================================================
 // PIN認証画面
 // ============================================================
-export function PinScreen({ storeName, storePin, onAuth, onBack }: {
-  storeName: string; storePin: string; onAuth: () => void; onBack: () => void
+export function PinScreen({ storeName, storePin, storeId, onAuth, onBack }: {
+  storeName: string; storePin: string; storeId: string; onAuth: () => void; onBack: () => void
 }) {
   const [pin, setPin]     = useState('')
   const [error, setError] = useState(false)
@@ -15,8 +15,14 @@ export function PinScreen({ storeName, storePin, onAuth, onBack }: {
     if (pin.length >= 4) return
     const next = pin + d; setPin(next); setError(false)
     if (next.length === 4) {
-      if (next === storePin) { sessionStorage.setItem('admin_auth', '1'); onAuth() }
-      else setTimeout(() => { setPin(''); setError(true) }, 400)
+      if (next === storePin) {
+        sessionStorage.setItem('admin_auth', '1')
+        // slip-ocr API のリクエスト認証用に一時保存（同一オリジン・タブのみ）
+        sessionStorage.setItem(`admin_pin_${storeId}`, next)
+        onAuth()
+      } else {
+        setTimeout(() => { setPin(''); setError(true) }, 400)
+      }
     }
   }
 
