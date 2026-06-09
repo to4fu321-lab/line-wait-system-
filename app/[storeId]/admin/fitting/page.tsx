@@ -250,7 +250,7 @@ function FittingPageInner() {
       gender:       q.gender ?? '',
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showToast, goToMeasureWithChild])
+  }, [showToast])
 
   // URLパラメータ queueId があれば自動起動
   useEffect(() => {

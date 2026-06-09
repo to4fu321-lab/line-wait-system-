@@ -531,10 +531,14 @@ export default function CustomerPage() {
     setDetailHeight(d.height ?? '')
     setDetailWeight(d.weight ?? '')
     setDetailNote(d.note ?? '')
-    if (selectedChild?.school_id) setDetailSchoolId(selectedChild.school_id)
-    if (selectedChild?.grade)     setDetailGrade(selectedChild.grade)
-    if (selectedChild?.gender && selectedChild.gender !== 'other') setDetailGender(selectedChild.gender)
+    // school_id 未設定の場合は school_name でマスターとマッチング（旧データ対応）
+    const schoolId = selectedChild?.school_id
+      ?? (selectedChild?.school_name ? schools.find(s => s.name === selectedChild.school_name)?.id ?? '' : '')
+    setDetailSchoolId(schoolId)
+    setDetailGrade(selectedChild?.grade ?? '')
+    setDetailGender(selectedChild?.gender && selectedChild.gender !== 'other' ? selectedChild.gender : '')
     if (d.height || d.weight || d.note) setAutoSaved(true)
+    else setAutoSaved(false)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticket?.id, selectedChild?.id])
 
