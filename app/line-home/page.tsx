@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Loader2, QrCode, Store, ChevronRight, ShoppingBag } from 'lucide-react'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { Loader2, QrCode, Store, ChevronRight, ShoppingBag, RefreshCw } from 'lucide-react'
 
 type StoreType = 'uniform' | 'takeout'
 interface StoreInfo { id: string; name: string; is_open: boolean; type: StoreType }
@@ -25,6 +25,41 @@ export default function LineHomePage() {
   const [status, setStatus] = useState<'loading' | 'select' | 'not_registered' | 'error'>('loading')
   const [stores, setStores] = useState<StoreInfo[]>([])
   const [action, setAction] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const userIdRef = useRef<string | null>(null)
+
+  const loadStores = useCallback(async (userId: string, urlAction: string | null) => {
+    const res = await fetch(`/api/line-store-lookup?userId=${encodeURIComponent(userId)}`)
+    const { stores: found } = await res.json()
+    if (!found || found.length === 0) {
+      setStatus('not_registered')
+      return
+    }
+    if (found.length === 1 && status !== 'select') {
+      window.location.href = buildStoreUrl(found[0].id, found[0].type, urlAction)
+      return
+    }
+    if (urlAction === 'order') {
+      const takeoutStores = found.filter((s: StoreInfo) => s.type === 'takeout')
+      if (takeoutStores.length === 1 && status !== 'select') {
+        window.location.href = `/${takeoutStores[0].id}/order`
+        return
+      }
+    }
+    setStores(found)
+    setStatus('select')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleRefresh = useCallback(async () => {
+    if (!userIdRef.current) return
+    setRefreshing(true)
+    try {
+      await loadStores(userIdRef.current, action)
+    } finally {
+      setRefreshing(false)
+    }
+  }, [loadStores, action])
 
   useEffect(() => {
     const run = async () => {
@@ -41,34 +76,18 @@ export default function LineHomePage() {
         if (!liff.isLoggedIn()) { liff.login(); return }
 
         const profile = await liff.getProfile()
-        const res = await fetch(`/api/line-store-lookup?userId=${encodeURIComponent(profile.userId)}`)
-        const { stores: found } = await res.json()
+        userIdRef.current = profile.userId
 
         const urlAction = new URLSearchParams(window.location.search).get('action')
         setAction(urlAction)
 
-        if (!found || found.length === 0) {
-          setStatus('not_registered')
-        } else if (found.length === 1) {
-          window.location.href = buildStoreUrl(found[0].id, found[0].type, urlAction)
-        } else {
-          // action=order の場合はテイクアウト店が1件だけなら直行
-          if (urlAction === 'order') {
-            const takeoutStores = found.filter((s: StoreInfo) => s.type === 'takeout')
-            if (takeoutStores.length === 1) {
-              window.location.href = `/${takeoutStores[0].id}/order`
-              return
-            }
-          }
-          setStores(found)
-          setStatus('select')
-        }
+        await loadStores(profile.userId, urlAction)
       } catch {
         setStatus('error')
       }
     }
     run()
-  }, [])
+  }, [loadStores])
 
   if (status === 'loading') {
     return (
@@ -96,6 +115,11 @@ export default function LineHomePage() {
             )}
             <h1 className="text-xl font-black text-white">ご利用の店舗を選択</h1>
             <p className="text-zinc-500 text-sm mt-1">どちらをご利用ですか？</p>
+            <button onClick={handleRefresh} disabled={refreshing}
+              className="mt-3 flex items-center gap-1.5 mx-auto text-xs text-zinc-500 px-3 py-1.5 rounded-full border border-zinc-700 active:scale-95 transition-all disabled:opacity-50">
+              <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
+              {refreshing ? '更新中...' : '受付状況を更新'}
+            </button>
           </div>
 
           <div className="space-y-6">
