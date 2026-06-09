@@ -323,6 +323,79 @@ function WaitingCustomerEditForm({
   )
 }
 
+// ── お子様情報インライン編集 ───────────────────────────────
+function ChildEditInline({ child, schools, gradeOptions, onSaved, onClose }: {
+  child: Child
+  schools: { id: string; name: string }[]
+  gradeOptions: string[]
+  onSaved: (c: Child) => void
+  onClose: () => void
+}) {
+  const theme = useStoreTheme()
+  const [name,     setName]     = useState(child.name)
+  const [schoolId, setSchoolId] = useState(
+    child.school_id ?? schools.find(s => s.name === child.school_name)?.id ?? ''
+  )
+  const [grade,    setGrade]    = useState(child.grade ?? '')
+  const [gender,   setGender]   = useState(child.gender && child.gender !== 'other' ? child.gender : '')
+  const [saving,   setSaving]   = useState(false)
+  const base = 'w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:outline-none transition-all'
+
+  const handleSave = async () => {
+    if (!name.trim()) return
+    setSaving(true)
+    const school = schools.find(s => s.id === schoolId)
+    const { data, error } = await (supabase.from('children') as any)
+      .update({ name: name.trim(), school_id: school?.id ?? null, school_name: school?.name ?? null, grade: grade || null, gender: gender || null })
+      .eq('id', child.id).select().single()
+    setSaving(false)
+    if (!error && data) { onSaved(data as Child); onClose() }
+  }
+
+  return (
+    <div className="space-y-3 pt-3 border-t border-zinc-100">
+      <div>
+        <label className="block text-xs font-bold text-zinc-500 mb-1">お名前</label>
+        <input type="text" value={name} onChange={e => setName(e.target.value)} className={base} />
+      </div>
+      {schools.length > 0 && (
+        <div>
+          <label className="block text-xs font-bold text-zinc-500 mb-1">学校名</label>
+          <select value={schoolId} onChange={e => setSchoolId(e.target.value)} className={base}>
+            <option value="">選択してください</option>
+            {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-bold text-zinc-500 mb-1">学年</label>
+          <select value={grade} onChange={e => setGrade(e.target.value)} className={base}>
+            <option value="">選択</option>
+            {gradeOptions.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-zinc-500 mb-1">性別</label>
+          <select value={gender} onChange={e => setGender(e.target.value)} className={base}>
+            <option value="">選択</option>
+            <option value="male">男子</option>
+            <option value="female">女子</option>
+          </select>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-zinc-200 text-zinc-500 text-sm font-bold active:scale-95 transition-transform">キャンセル</button>
+        <button onClick={handleSave} disabled={saving || !name.trim()}
+          className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-50 active:scale-95 transition-transform"
+          style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})` }}>
+          {saving ? '保存中...' : '保存する'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── メインコンポーネント ────────────────────────────────────
 export default function CustomerPage() {
   const { storeId } = useParams<{ storeId: string }>()
@@ -353,18 +426,7 @@ export default function CustomerPage() {
   const [showQueueRegister, setShowQueueRegister] = useState(false)
   const [queueRegDone,      setQueueRegDone]      = useState(false)
   const [regExpanded,       setRegExpanded]        = useState(true)
-  const [showWaitingEdit,   setShowWaitingEdit]   = useState(false)
-  const [waitingEditMode,   setWaitingEditMode]   = useState<'child' | 'info' | null>(null)
-  const [detailHeight,  setDetailHeight]  = useState('')
-  const [detailWeight,  setDetailWeight]  = useState('')
-  const [detailNote,    setDetailNote]    = useState('')
-  const [detailSaving,  setDetailSaving]  = useState(false)
-  const [detailSaved,   setDetailSaved]   = useState(false)
-  const [detailSchoolId, setDetailSchoolId] = useState('')
-  const [detailGrade,    setDetailGrade]    = useState('')
-  const [detailGender,   setDetailGender]   = useState('')
-  const [autoSaving,     setAutoSaving]     = useState(false)
-  const [autoSaved,      setAutoSaved]      = useState(false)
+  const [waitingEditMode,   setWaitingEditMode]   = useState<string | null>(null)
   const [activeFittings, setActiveFittings] = useState(1)
   const [storeSchoolOptions, setStoreSchoolOptions] = useState<string[]>([])
   const [schools, setSchools] = useState<{ id: string; name: string }[]>([])
@@ -496,7 +558,7 @@ export default function CustomerPage() {
         }
       } catch { /* 顧客情報が取れなくても続行 */ }
 
-      if (sd && !sd.is_open) { setView('closed'); return }
+      if (sd?.is_open === false) { setView('closed'); return }
       const { count } = await supabase.from('queues')
         .select('*', { count: 'exact', head: true })
         .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
@@ -525,62 +587,6 @@ export default function CustomerPage() {
 
   useEffect(() => { ticketRef.current = ticket }, [ticket])
 
-  // チケット復元時・お子様変更時にフォームを初期化
-  useEffect(() => {
-    const d = (ticket?.details ?? {}) as Record<string, string>
-    setDetailHeight(d.height ?? '')
-    setDetailWeight(d.weight ?? '')
-    setDetailNote(d.note ?? '')
-    // school_id 未設定の場合は school_name でマスターとマッチング（旧データ対応）
-    const schoolId = selectedChild?.school_id
-      ?? (selectedChild?.school_name ? schools.find(s => s.name === selectedChild.school_name)?.id ?? '' : '')
-    setDetailSchoolId(schoolId)
-    setDetailGrade(selectedChild?.grade ?? '')
-    setDetailGender(selectedChild?.gender && selectedChild.gender !== 'other' ? selectedChild.gender : '')
-    if (d.height || d.weight || d.note) setAutoSaved(true)
-    else setAutoSaved(false)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ticket?.id, selectedChild?.id])
-
-  // 採寸情報の自動保存（800ms debounce）
-  useEffect(() => {
-    if (!ticket?.id) return
-    setAutoSaved(false)
-    const tId      = ticket.id
-    const child    = selectedChild
-    const schoolList = schools
-
-    const timer = setTimeout(async () => {
-      setAutoSaving(true)
-      try {
-        const details: Record<string, string> = {}
-        if (detailHeight.trim()) details.height = detailHeight.trim()
-        if (detailWeight.trim()) details.weight = detailWeight.trim()
-        if (detailNote.trim())   details.note   = detailNote.trim()
-
-        const school = schoolList.find(s => s.id === detailSchoolId)
-        const queueUpdate: Record<string, unknown> = { details }
-        if (school) queueUpdate.school_name = school.name
-        if (detailGender && detailGender !== 'other') queueUpdate.gender = detailGender
-
-        await supabase.from('queues').update(queueUpdate).eq('id', tId)
-
-        if (child?.id) {
-          const childUpdate: Record<string, unknown> = {}
-          if (school) { childUpdate.school_id = school.id; childUpdate.school_name = school.name }
-          if (detailGrade)  childUpdate.grade  = detailGrade
-          if (detailGender) childUpdate.gender = detailGender
-          if (Object.keys(childUpdate).length > 0) {
-            await (supabase as any).from('children').update(childUpdate).eq('id', child.id)
-          }
-        }
-        setAutoSaved(true)
-      } catch { /* ignore */ }
-      setAutoSaving(false)
-    }, 800)
-    return () => clearTimeout(timer)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detailHeight, detailWeight, detailNote, detailSchoolId, detailGrade, detailGender])
 
   useEffect(() => {
     if (!ticket || !['queue_waiting', 'queue_calling'].includes(view)) return
@@ -831,9 +837,9 @@ export default function CustomerPage() {
       }).catch(console.error)
       setView('queue_waiting')
 
-      // queue_waiting 移行時に customer が未設定なら再検索（初期ロード失敗のリトライ）
-      if (!customer && lineProfile?.userId) {
-        try {
+      // queue_waiting 移行時に顧客・お子様を同期（未設定時の取得 + 既存顧客の再同期）
+      try {
+        if (!customer && lineProfile?.userId) {
           const { data: rows } = await supabase.from('customers')
             .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId)
             .order('created_at', { ascending: false }).limit(1)
@@ -844,10 +850,17 @@ export default function CustomerPage() {
               .select('*').eq('customer_id', found.id).order('created_at', { ascending: true })
             const kids = (childList ?? []) as Child[]
             setChildren(kids)
-            if (kids.length === 1) setSelectedChild(kids[0])
+            if (!selectedChild && kids.length >= 1) setSelectedChild(kids[0])
           }
-        } catch { /* 取得失敗は無視 */ }
-      }
+        } else if (customer?.id) {
+          // 既存顧客のお子様リストを再取得（追加・変更を反映）
+          const { data: childList } = await supabase.from('children')
+            .select('*').eq('customer_id', customer.id).order('created_at', { ascending: true })
+          const kids = (childList ?? []) as Child[]
+          setChildren(kids)
+          if (!selectedChild && kids.length >= 1) setSelectedChild(kids[0])
+        }
+      } catch { /* 取得失敗は無視 */ }
     } catch (e) { console.error(e) }
     setIssuing(false)
   }
@@ -858,19 +871,6 @@ export default function CustomerPage() {
     // 顧客は登録済みのはず（welcome/register経由）
     setRepairLoading(false)
     setView('repair_speak')
-  }
-
-  // ── 伝達事項保存 ──────────────────────────────────────
-  const handleSaveDetails = async () => {
-    if (!ticket) return
-    setDetailSaving(true)
-    const details: Record<string, string> = {}
-    if (detailHeight.trim()) details.height = detailHeight.trim()
-    if (detailWeight.trim()) details.weight = detailWeight.trim()
-    if (detailNote.trim())   details.note   = detailNote.trim()
-    await supabase.from('queues').update({ details }).eq('id', ticket.id)
-    setDetailSaving(false)
-    setDetailSaved(true)
   }
 
   // ── キャンセル ────────────────────────────────────────
@@ -885,10 +885,10 @@ export default function CustomerPage() {
 
   const handleReset = async () => {
     localStorage.removeItem(ticketKey); localStorage.removeItem(dateKey)
-    setTicket(null); setWaitingAhead(0); setIssuing(false); setSelectedChild(null)
+    setTicket(null); setWaitingAhead(0); setIssuing(false)
     if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null }
     const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
-    if (sd && !sd.is_open) { setView('closed'); return }
+    if (sd?.is_open === false) { setView('closed'); return }
     const { count } = await supabase.from('queues')
       .select('*', { count: 'exact', head: true })
       .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
@@ -1240,130 +1240,83 @@ export default function CustomerPage() {
                   </div>
               }
             </div>
-            {/* 入力のお願い / 顧客情報 + 採寸情報統合フォーム */}
-            <div className="mt-4 space-y-3">
+            {/* 顧客情報カード */}
+            <div className="mt-4 space-y-2">
               {customer ? (
                 <>
-                  {/* お客様表示 + 編集ボタン */}
+                  {/* 保護者 */}
                   <div className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
                     <div className="flex items-center gap-3 px-4 py-3">
                       <CheckCircle2 size={16} style={{ color: theme.colors.primary }} className="shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-zinc-800 text-sm">{customer.name} 様</p>
-                        {selectedChild && (
-                          <p className="text-xs text-zinc-400 mt-0.5">
-                            {selectedChild.name}{selectedChild.grade ? ` · ${selectedChild.grade}` : ''}
-                          </p>
-                        )}
-                      </div>
-                      <button onClick={() => { setShowWaitingEdit(v => !v); setWaitingEditMode(null) }}
+                      <p className="font-bold text-zinc-800 text-sm flex-1">{customer.name} 様</p>
+                      <button onClick={() => setWaitingEditMode(m => m === 'parentinfo' ? null : 'parentinfo')}
                         className="shrink-0 flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-zinc-100 text-zinc-500 font-bold active:scale-95 transition-transform">
-                        <Pencil size={11} />{showWaitingEdit ? '閉じる' : '編集'}
+                        <Pencil size={11} />{waitingEditMode === 'parentinfo' ? '閉じる' : '編集'}
                       </button>
                     </div>
-                    {showWaitingEdit && (
+                    {waitingEditMode === 'parentinfo' && (
                       <div className="px-4 pb-4 border-t border-zinc-100">
-                        <div className="flex gap-2 pt-3 mb-3">
-                          <button onClick={() => setWaitingEditMode(m => m === 'child' ? null : 'child')}
-                            className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition-all ${waitingEditMode === 'child' ? 'border-transparent text-white' : 'border-zinc-200 text-zinc-500'}`}
-                            style={waitingEditMode === 'child' ? { background: theme.colors.primary } : {}}>
-                            お子様を追加
-                          </button>
-                          <button onClick={() => setWaitingEditMode(m => m === 'info' ? null : 'info')}
-                            className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition-all ${waitingEditMode === 'info' ? 'border-transparent text-white' : 'border-zinc-200 text-zinc-500'}`}
-                            style={waitingEditMode === 'info' ? { background: theme.colors.primary } : {}}>
-                            保護者情報を変更
-                          </button>
-                        </div>
-                        {waitingEditMode === 'child' && (
-                          <AddChildForm onSubmit={handleAddChild} onCancel={() => setWaitingEditMode(null)} submitting={submitting} schoolOptions={storeSchoolOptions} />
-                        )}
-                        {waitingEditMode === 'info' && (
-                          <WaitingCustomerEditForm customer={customer} selectedChild={selectedChild} schoolOptions={storeSchoolOptions} onSaved={updated => setCustomer(updated)} onChildSaved={updated => setSelectedChild(updated)} onClose={() => setWaitingEditMode(null)} />
-                        )}
+                        <WaitingCustomerEditForm customer={customer} schoolOptions={storeSchoolOptions} onSaved={updated => setCustomer(updated)} onClose={() => setWaitingEditMode(null)} />
                       </div>
                     )}
                   </div>
 
-                  {/* ── 採寸情報統合フォーム ── */}
-                  <div className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
-                    <div className="px-4 py-3 border-b border-zinc-100 flex items-center justify-between">
-                      <div>
-                        <p className="font-bold text-zinc-800 text-sm">📋 採寸情報（待ち時間中にどうぞ）</p>
-                        <p className="text-xs text-zinc-400 mt-0.5">入力するとスタッフにすぐ届きます</p>
-                      </div>
-                      <div className="text-[10px] font-bold shrink-0 ml-2">
-                        {autoSaving
-                          ? <span className="text-zinc-400 flex items-center gap-1"><Loader2 size={10} className="animate-spin" />保存中</span>
-                          : autoSaved
-                            ? <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 size={10} />保存済</span>
-                            : null
-                        }
-                      </div>
-                    </div>
-                    <div className="px-4 pt-3 pb-4 space-y-3">
-                      <div>
-                        <label className="block text-xs font-bold text-zinc-400 mb-1.5">学校名</label>
-                        <select value={detailSchoolId}
-                          onChange={e => { setDetailSchoolId(e.target.value); setAutoSaved(false) }}
-                          className="w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all">
-                          <option value="">選択してください</option>
-                          {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-bold text-zinc-400 mb-1.5">学年</label>
-                          <select value={detailGrade}
-                            onChange={e => { setDetailGrade(e.target.value); setAutoSaved(false) }}
-                            className="w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all">
-                            <option value="">選択</option>
-                            {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-zinc-400 mb-1.5">性別</label>
-                          <select value={detailGender}
-                            onChange={e => { setDetailGender(e.target.value); setAutoSaved(false) }}
-                            className="w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all">
-                            <option value="">選択</option>
-                            <option value="male">男子</option>
-                            <option value="female">女子</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-bold text-zinc-400 mb-1.5">身長</label>
-                          <div className="flex items-center gap-1.5">
-                            <input type="number" inputMode="numeric" value={detailHeight}
-                              onChange={e => { setDetailHeight(e.target.value); setAutoSaved(false) }}
-                              placeholder="165"
-                              className="w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all" />
-                            <span className="text-xs text-zinc-400 shrink-0">cm</span>
+                  {/* お子様リスト */}
+                  {children.map(child => {
+                    const isSelected = selectedChild?.id === child.id
+                    const isEditing  = waitingEditMode === child.id
+                    const gLabel = child.gender === 'male' ? '男子' : child.gender === 'female' ? '女子' : ''
+                    const info   = [child.school_name, child.grade, gLabel].filter(Boolean).join(' · ')
+                    return (
+                      <div key={child.id}
+                        className={`bg-white rounded-2xl border overflow-hidden transition-all ${isSelected ? 'border-indigo-300' : 'border-zinc-100'}`}>
+                        <button className="w-full flex items-center gap-3 px-4 py-3 active:bg-zinc-50 transition-colors text-left"
+                          onClick={async () => {
+                            setSelectedChild(child)
+                            if (ticket?.id) {
+                              await supabase.from('queues').update({ child_name: child.name, child_id: child.id, school_name: child.school_name ?? null, gender: child.gender ?? 'other' }).eq('id', ticket.id)
+                            }
+                          }}>
+                          <GraduationCap size={16} className={`shrink-0 ${isSelected ? 'text-indigo-500' : 'text-zinc-400'}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className={`font-bold text-sm ${isSelected ? 'text-zinc-900' : 'text-zinc-600'}`}>{child.name}</p>
+                            <p className="text-xs text-zinc-400 mt-0.5">{info || '学校・学年 未登録'}</p>
                           </div>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-zinc-400 mb-1.5">体重</label>
-                          <div className="flex items-center gap-1.5">
-                            <input type="number" inputMode="numeric" value={detailWeight}
-                              onChange={e => { setDetailWeight(e.target.value); setAutoSaved(false) }}
-                              placeholder="52"
-                              className="w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all" />
-                            <span className="text-xs text-zinc-400 shrink-0">kg</span>
+                          {isSelected && (
+                            <button
+                              onClick={e => { e.stopPropagation(); setWaitingEditMode(m => m === child.id ? null : child.id) }}
+                              className="shrink-0 flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-zinc-100 text-zinc-500 font-bold active:scale-95 transition-transform">
+                              <Pencil size={11} />{isEditing ? '閉じる' : '編集'}
+                            </button>
+                          )}
+                        </button>
+                        {isEditing && (
+                          <div className="px-4 pb-4">
+                            <ChildEditInline child={child} schools={schools} gradeOptions={GRADE_OPTIONS}
+                              onSaved={async updated => {
+                                setSelectedChild(updated)
+                                setChildren(prev => prev.map(c => c.id === updated.id ? updated : c))
+                                if (ticket?.id) {
+                                  await supabase.from('queues').update({ school_name: updated.school_name ?? null, child_name: updated.name, gender: updated.gender ?? 'other' }).eq('id', ticket.id)
+                                }
+                              }}
+                              onClose={() => setWaitingEditMode(null)} />
                           </div>
-                        </div>
+                        )}
                       </div>
-                      <div>
-                        <label className="block text-xs font-bold text-zinc-400 mb-1.5">ご相談・お伝えしたいこと（任意）</label>
-                        <textarea value={detailNote}
-                          onChange={e => { setDetailNote(e.target.value); setAutoSaved(false) }}
-                          placeholder={'例：去年165Aを購入。今年サイズアップ検討中です'}
-                          rows={2}
-                          className="w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:border-indigo-400 focus:bg-white focus:outline-none transition-all resize-none" />
-                      </div>
+                    )
+                  })}
+
+                  {/* お子様を追加 */}
+                  <button onClick={() => setWaitingEditMode(m => m === 'addchild' ? null : 'addchild')}
+                    className="w-full py-2.5 flex items-center justify-center gap-1.5 text-sm font-bold border-2 border-dashed border-zinc-200 text-zinc-400 rounded-2xl active:scale-95 transition-transform">
+                    <Plus size={14} />{waitingEditMode === 'addchild' ? 'キャンセル' : 'お子様を追加'}
+                  </button>
+                  {waitingEditMode === 'addchild' && (
+                    <div className="bg-white rounded-2xl border border-zinc-100 p-4">
+                      <AddChildForm onSubmit={handleAddChild} onCancel={() => setWaitingEditMode(null)} submitting={submitting} schoolOptions={storeSchoolOptions} />
                     </div>
-                  </div>
+                  )}
                 </>
               ) : (
                 <div className="rounded-2xl overflow-hidden border-2 border-red-400"
