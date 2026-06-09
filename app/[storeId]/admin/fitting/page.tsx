@@ -342,7 +342,14 @@ function FittingPageInner() {
 
   // 採寸ステップへ移行（child直接渡し版）
   const goToMeasureWithChild = useCallback(async (c: ChildRow) => {
-    const schoolId = c.school_id
+    let schoolId = c.school_id
+    if (!schoolId && c.school_name) {
+      const matched = schools.find(s => s.name === c.school_name)
+      if (matched) {
+        schoolId = matched.id
+        await (supabase as any).from('children').update({ school_id: matched.id }).eq('id', c.id)
+      }
+    }
     if (!schoolId) { showToast('err', '学校が設定されていません'); return }
 
     setLoadingProd(true)
@@ -377,12 +384,20 @@ function FittingPageInner() {
     setProducts(filteredProds)
     setLoadingProd(false)
     setStep('measure')
-  }, [showToast])
+  }, [showToast, schools])
 
   // 採寸ステップへ移行
   const goToMeasure = useCallback(async () => {
     if (!child) return
-    const schoolId = child.school_id
+    let schoolId = child.school_id
+    if (!schoolId && child.school_name) {
+      const matched = schools.find(s => s.name === child.school_name)
+      if (matched) {
+        schoolId = matched.id
+        await (supabase as any).from('children').update({ school_id: matched.id }).eq('id', child.id)
+        setChild(prev => prev ? { ...prev, school_id: matched.id } : prev)
+      }
+    }
     if (!schoolId) { showToast('err', '学校が設定されていません。お子様情報を編集してください'); return }
 
     setLoadingProd(true)
@@ -419,7 +434,7 @@ function FittingPageInner() {
     setProducts(filteredProds)
     setLoadingProd(false)
     setStep('measure')
-  }, [child, showToast])
+  }, [child, showToast, schools])
 
   // 身長変更でサイズ自動推奨
   useEffect(() => {

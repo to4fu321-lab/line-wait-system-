@@ -84,45 +84,51 @@ function InitialRegistrationForm({
   const blur  = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = '')
 
   return (
-    <div className="space-y-5">
-      <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider pt-1">保護者情報</div>
-      <div>
-        <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
-        <input type="text" {...parent.nameProps} placeholder="例：山田 太郎" className={base} onFocus={focus} onBlur={blur} />
-      </div>
-      <div>
-        <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
-        <input type="text" {...parent.kanaProps} placeholder="ヤマダ タロウ" className={base} onFocus={focus} onBlur={blur} />
-      </div>
-      <div>
-        <label className="block text-xs font-bold text-zinc-500 mb-1.5">電話番号</label>
-        <input type="tel" inputMode="tel" value={tel} placeholder="例：090-1234-5678" className={base}
-          onChange={e => setTel(e.target.value)} onFocus={focus} onBlur={blur} />
-      </div>
-
-      <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider pt-2 border-t border-zinc-100">お子様情報</div>
-      <div>
-        <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
-        <input type="text" {...child.nameProps} placeholder="例：山田 花子" className={base} onFocus={focus} onBlur={blur} />
-      </div>
-      <div>
-        <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
-        <input type="text" {...child.kanaProps} placeholder="ヤマダ ハナコ" className={base} onFocus={focus} onBlur={blur} />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
+    <div className="space-y-4">
+      {/* 保護者情報 */}
+      <div className="bg-zinc-50 rounded-2xl p-4 space-y-3">
+        <p className="text-xs font-black tracking-wider" style={{ color: theme.colors.primary }}>保護者情報</p>
         <div>
-          <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名</label>
-          <select value={schoolName} onChange={e => setSchoolName(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
-            <option value="">選択してください</option>
-            {effectiveSchoolOptions.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
-          </select>
+          <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
+          <input type="text" {...parent.nameProps} placeholder="例：山田 太郎" className={base} onFocus={focus} onBlur={blur} />
         </div>
         <div>
-          <label className="block text-xs font-bold text-zinc-500 mb-1.5">学年</label>
-          <select value={grade} onChange={e => setGrade(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
-            <option value="">選択</option>
-            {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
-          </select>
+          <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
+          <input type="text" {...parent.kanaProps} placeholder="ヤマダ タロウ" className={base} onFocus={focus} onBlur={blur} />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-zinc-500 mb-1.5">電話番号</label>
+          <input type="tel" inputMode="tel" value={tel} placeholder="例：090-1234-5678" className={base}
+            onChange={e => setTel(e.target.value)} onFocus={focus} onBlur={blur} />
+        </div>
+      </div>
+
+      {/* お子様情報 */}
+      <div className="bg-zinc-50 rounded-2xl p-4 space-y-3">
+        <p className="text-xs font-black tracking-wider" style={{ color: theme.colors.primary }}>お子様情報</p>
+        <div>
+          <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
+          <input type="text" {...child.nameProps} placeholder="例：山田 花子" className={base} onFocus={focus} onBlur={blur} />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
+          <input type="text" {...child.kanaProps} placeholder="ヤマダ ハナコ" className={base} onFocus={focus} onBlur={blur} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名</label>
+            <select value={schoolName} onChange={e => setSchoolName(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
+              <option value="">選択してください</option>
+              {effectiveSchoolOptions.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-zinc-500 mb-1.5">学年</label>
+            <select value={grade} onChange={e => setGrade(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
+              <option value="">選択</option>
+              {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -392,6 +398,41 @@ function ChildEditInline({ child, schools, gradeOptions, onSaved, onClose }: {
           {saving ? '保存中...' : '保存する'}
         </button>
       </div>
+    </div>
+  )
+}
+
+// ── 受付停止中ビュー（自動再チェック付き） ──────────────────
+function ClosedView({ storeId, onOpen }: { storeId: string; onOpen: () => void }) {
+  const [checking, setChecking] = useState(false)
+
+  const checkNow = useCallback(async () => {
+    setChecking(true)
+    try {
+      const { data } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
+      if (data?.is_open === true) { onOpen(); return }
+    } finally {
+      setChecking(false)
+    }
+  }, [storeId, onOpen])
+
+  useEffect(() => {
+    const id = setInterval(checkNow, 30000)
+    return () => clearInterval(id)
+  }, [checkNow])
+
+  return (
+    <div className="min-h-[100dvh] bg-zinc-950 flex flex-col items-center justify-center px-6 text-center">
+      <div className="text-7xl mb-5">🚪</div>
+      <h1 className="text-3xl font-black text-white mb-2">現在受付を停止しています</h1>
+      <p className="text-zinc-400 text-lg mb-8">店頭スタッフにお声がけください</p>
+      <button
+        onClick={checkNow}
+        disabled={checking}
+        className="flex items-center gap-2 text-zinc-400 border border-zinc-700 rounded-full px-5 py-2.5 text-sm active:scale-95 transition-all disabled:opacity-50">
+        {checking ? <Loader2 size={15} className="animate-spin" /> : null}
+        {checking ? '確認中...' : '受付状況を再確認する'}
+      </button>
     </div>
   )
 }
@@ -1519,11 +1560,7 @@ export default function CustomerPage() {
   )
 
   if (view === 'closed') return (
-    <div className="min-h-[100dvh] bg-zinc-950 flex flex-col items-center justify-center px-6 text-center">
-      <div className="text-7xl mb-5">🚪</div>
-      <h1 className="text-3xl font-black text-white mb-2">現在受付を停止しています</h1>
-      <p className="text-zinc-400 text-lg">店頭スタッフにお声がけください</p>
-    </div>
+    <ClosedView storeId={storeId} onOpen={() => setView('purpose')} />
   )
 
   if (view === 'purchase_ec') return (
