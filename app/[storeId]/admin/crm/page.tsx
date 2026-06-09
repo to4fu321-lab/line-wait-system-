@@ -1025,7 +1025,7 @@ export default function CRMPage() {
 
       {/* 削除確認モーダル */}
       {deleteTarget && !deleteMode && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-[100]">
           <div className="bg-white border border-gray-200 rounded-t-3xl p-6 w-full max-w-md">
             <h3 className="text-gray-900 font-black text-lg mb-1">顧客を削除しますか？</h3>
             <p className="text-gray-700 text-sm font-bold mb-2">{deleteTarget.name} 様</p>
@@ -1069,7 +1069,7 @@ export default function CRMPage() {
 
       {/* 削除最終確認 */}
       {deleteTarget && deleteMode && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-[100]">
           <div className="bg-white border border-gray-200 rounded-t-3xl p-6 w-full max-w-md">
             <h3 className="text-gray-900 font-black text-lg mb-1">
               {deleteMode === 'soft' ? '通常削除しますか？' : '完全削除しますか？'}
@@ -1105,7 +1105,7 @@ export default function CRMPage() {
 
       {/* お子様削除確認モーダル */}
       {deleteChildTarget && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-[100]">
           <div className="bg-white border border-gray-200 rounded-t-3xl p-6 w-full max-w-md">
             <h3 className="text-gray-900 font-black text-lg mb-1">お子様を削除しますか？</h3>
             <p className="text-gray-600 text-sm mb-1">{deleteChildTarget.name} さん</p>
