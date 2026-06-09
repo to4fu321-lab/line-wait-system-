@@ -9,8 +9,6 @@ import ColorPicker from '@/app/_components/ColorPicker'
 import type { Store, BusinessType } from '@/types/database'
 import { PLAN_DEFS, type Plan, type FeatureKey } from '@/lib/features'
 
-const SUPER_ADMIN_PIN = process.env.NEXT_PUBLIC_SUPER_ADMIN_PIN || '9999'
-
 // ── 細粒度フラグ（プランに加えて個別 on/off できる項目） ────────
 const GRANULAR_FEATURES: { key: FeatureKey; label: string; icon: string }[] = [
   { key: 'tab_queue',            label: '受付タブ',         icon: '🔢' },
@@ -55,23 +53,37 @@ interface StoreStats {
 interface GroupInfo { id: string; name: string; code?: string | null; pin?: string | null }
 
 // ============================================================
-// PIN認証画面
+// PIN認証画面（PIN照合はサーバー側で行う）
 // ============================================================
 function PinScreen({ onAuth }: { onAuth: () => void }) {
-  const [pin, setPin] = useState('')
-  const [error, setError] = useState(false)
+  const [pin,     setPin]     = useState('')
+  const [error,   setError]   = useState(false)
+  const [loading, setLoading] = useState(false)
 
-  const handleDigit = (d: string) => {
-    if (pin.length >= 4) return
+  const handleDigit = async (d: string) => {
+    if (pin.length >= 4 || loading) return
     const next = pin + d
     setPin(next)
     setError(false)
     if (next.length === 4) {
-      if (next === SUPER_ADMIN_PIN) {
-        sessionStorage.setItem('super_admin_auth', '1')
-        onAuth()
-      } else {
+      setLoading(true)
+      try {
+        const res = await fetch('/api/super-admin/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin: next }),
+        })
+        if (res.ok) {
+          // HttpOnly cookie が自動セットされる。UI 用のフラグのみ sessionStorage に保存
+          sessionStorage.setItem('super_admin_auth', '1')
+          onAuth()
+        } else {
+          setTimeout(() => { setPin(''); setError(true) }, 400)
+        }
+      } catch {
         setTimeout(() => { setPin(''); setError(true) }, 400)
+      } finally {
+        setLoading(false)
       }
     }
   }
@@ -90,10 +102,11 @@ function PinScreen({ onAuth }: { onAuth: () => void }) {
           }`} />
         ))}
       </div>
-      {error && <p className="text-red-400 text-sm mb-4 font-medium">PINが違います</p>}
+      {loading && <p className="text-blue-400 text-sm mb-4 font-medium flex items-center gap-2"><Loader2 size={14} className="animate-spin" />確認中...</p>}
+      {error   && <p className="text-red-400 text-sm mb-4 font-medium">PINが違います</p>}
       <div className="grid grid-cols-3 gap-4 w-64">
         {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((d, i) => (
-          <button key={i}
+          <button key={i} disabled={loading}
             onClick={() => d === '⌫' ? setPin(p => p.slice(0,-1)) : d && handleDigit(d)}
             className={`h-16 rounded-2xl text-2xl font-bold transition-all active:scale-90 ${
               d === '' ? 'invisible' :
