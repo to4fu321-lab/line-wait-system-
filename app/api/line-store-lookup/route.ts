@@ -66,5 +66,8 @@ export async function GET(req: Request) {
     .map(id => storeMap[id]).filter(Boolean)
     .map(s => ({ id: s.id, name: s.name, is_open: s.is_open ?? false, type: 'takeout' as const }))
 
-  return NextResponse.json({ stores: [...uniformStores, ...takeoutStores] })
+  return NextResponse.json(
+    { stores: [...uniformStores, ...takeoutStores] },
+    { headers: { 'Cache-Control': 'no-store' } }
+  )
 }
