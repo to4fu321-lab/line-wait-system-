@@ -1118,7 +1118,7 @@ export default function CustomerPage() {
         child_name:    selectedChild?.name ?? null,
         school_name:   selectedChild?.school_name ?? null,
         category:      'fitting',
-        gender:        selectedChild?.gender ?? null,
+        gender:        selectedChild?.gender ?? 'other',
         line_user_id:  lineProfile?.userId ?? null,
         is_remote:     isRemote,
         checked_in:    !isRemote,
