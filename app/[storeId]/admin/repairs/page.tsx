@@ -20,8 +20,7 @@ import { Toast } from './_components/Toast'
 import { NewRepairModal } from './_components/NewRepairModal'
 import { NewOrderModal } from './_components/NewOrderModal'
 import { RepairCard } from './_components/RepairCard'
-import { UniformOrderCard } from './_components/PurchaseCard'
-import { MakerOrderPanel } from './_components/PurchaseOrderPanel'
+import { MakerOrderPanel, UniformMakerOrderPanel } from './_components/PurchaseOrderPanel'
 import { WaitingCard, CompletedCard } from './_components/DeliveryCards'
 import { EditModal } from './_components/EditModal'
 import { ArrivalCard } from './_components/ArrivalCard'
@@ -193,7 +192,7 @@ export default function RepairsPage() {
         .eq('store_id', storeId).eq('status', 'arrived')
         .order('arrived_date', { ascending: true }),
       (supabase as any).from('uniform_orders')
-        .select('*, customer:customers(id,name,tel), child:children(name,school_name), items:uniform_order_items(item_name,size_label,quantity,unit_price)')
+        .select('id,store_id,customer_id,child_id,maker,status,payment_status,total_amount,notes,expected_delivery_date,created_at,updated_at,customer:customers(id,name,tel),child:children(name,school_name),items:uniform_order_items(item_name,size_label,quantity,unit_price)')
         .eq('store_id', storeId).not('status', 'in', '("delivered")')
         .order('created_at', { ascending: true }),
       (supabase as any).from('inquiries')
@@ -511,9 +510,9 @@ export default function RepairsPage() {
     matchSearch([i.item_name, i.sub_label, i.child?.name, i.customer?.name, i.child?.school_name, i.slip_number])
   )
 
-  const filteredUniformOrders = uniformOrders.filter(o =>
-    matchSearch([o.customer?.name, o.child?.name, o.child?.school_name, ...(o.items?.map(i => i.item_name) ?? [])])
-  )
+  const filteredUniformOrders = uniformOrders
+    .filter(o => o.status === 'confirmed')
+    .filter(o => matchSearch([o.maker, o.customer?.name, o.child?.name, o.child?.school_name, ...(o.items?.map(i => i.item_name) ?? [])]))
 
   const pendingInqAll = inquiries
     .filter(i => i.status === 'pending')
@@ -916,19 +915,19 @@ export default function RepairsPage() {
               </div>
             ) : (
               <>
-                {/* 制服注文 */}
+                {/* 制服注文: メーカー別発注パネル */}
                 {filteredUniformOrders.length > 0 && (
                   <section>
                     <div className="flex items-center gap-2.5 mb-3 px-1">
                       <div className="w-2 h-6 rounded-full bg-indigo-500 shrink-0" />
-                      <p className="text-sm font-black text-gray-800 flex-1">制服注文</p>
+                      <p className="text-sm font-black text-gray-800 flex-1">制服注文（未発注）</p>
                       <span className="text-xs font-black bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full">{filteredUniformOrders.length}件</span>
                     </div>
-                    <div className="space-y-2.5">
-                      {filteredUniformOrders.map(o => (
-                        <UniformOrderCard key={o.id} item={o} storeId={storeId} onRefresh={fetchAll} onToast={showToast} />
-                      ))}
-                    </div>
+                    <UniformMakerOrderPanel
+                      orders={filteredUniformOrders}
+                      onRefresh={fetchAll}
+                      onToast={showToast}
+                    />
                   </section>
                 )}
 
@@ -937,7 +936,7 @@ export default function RepairsPage() {
                   <section>
                     <div className="flex items-center gap-2.5 mb-3 px-1">
                       <div className="w-2 h-6 rounded-full bg-orange-500 shrink-0" />
-                      <p className="text-sm font-black text-gray-800 flex-1">未発注</p>
+                      <p className="text-sm font-black text-gray-800 flex-1">追加購入（未発注）</p>
                       <span className="text-xs font-black bg-orange-100 text-orange-700 px-2.5 py-1 rounded-full">{filteredPurchaseUnordered.length}件</span>
                     </div>
                     <MakerOrderPanel

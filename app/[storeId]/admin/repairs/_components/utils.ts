@@ -49,6 +49,33 @@ export function getCatIcon(name: string): string {
   return '✂️'
 }
 
+export function buildUniformMakerHierarchy(orders: import('./types').UniformOrderRow[]): import('./types').UniformMakerEntry[] {
+  const makerMap = new Map<string, import('./types').UniformMakerEntry>()
+  for (const order of orders) {
+    const mk  = order.maker?.trim() || '（メーカー未設定）'
+    const sch = order.child?.school_name ?? '（学校未設定）'
+    if (!makerMap.has(mk)) makerMap.set(mk, { maker: mk, schools: [], totalCount: 0, allOrders: [] })
+    const me = makerMap.get(mk)!
+    me.allOrders.push(order)
+    let se = me.schools.find(s => s.school_name === sch)
+    if (!se) { se = { school_name: sch, items: [], totalCount: 0 }; me.schools.push(se) }
+    for (const item of (order.items ?? [])) {
+      const itm = item.item_name.trim()
+      const sz  = item.size_label?.trim() ?? ''
+      const qty = item.quantity ?? 1
+      me.totalCount += qty
+      se.totalCount += qty
+      let ie = se.items.find(i => i.item_name === itm)
+      if (!ie) { ie = { item_name: itm, sizes: [], totalCount: 0 }; se.items.push(ie) }
+      ie.totalCount += qty
+      let ze = ie.sizes.find(z => (z.size ?? '') === sz)
+      if (!ze) { ze = { size: item.size_label, count: 0, orders: [] }; ie.sizes.push(ze) }
+      ze.count += qty; if (!ze.orders.includes(order)) ze.orders.push(order)
+    }
+  }
+  return Array.from(makerMap.values()).sort((a, b) => a.maker.localeCompare(b.maker, 'ja'))
+}
+
 export function buildMakerHierarchy(orders: import('./types').PurchaseRow[]): import('./types').MakerEntry[] {
   const makerMap = new Map<string, import('./types').MakerEntry>()
   for (const order of orders) {

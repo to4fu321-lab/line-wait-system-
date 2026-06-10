@@ -39,6 +39,7 @@ export interface PurchaseRow {
 
 export interface UniformOrderRow {
   id: string; store_id: string; customer_id: string; child_id: string | null
+  maker: string | null
   status: string; payment_status: string; total_amount: number | null
   notes: string | null; expected_delivery_date: string | null
   created_at: string; updated_at: string
@@ -46,6 +47,11 @@ export interface UniformOrderRow {
   child?: { name: string; school_name: string | null } | null
   items?: { item_name: string; size_label: string | null; quantity: number; unit_price: number | null }[]
 }
+
+export interface UniformSizeEntry  { size: string | null; count: number; orders: UniformOrderRow[] }
+export interface UniformItemEntry  { item_name: string; sizes: UniformSizeEntry[]; totalCount: number }
+export interface UniformSchoolEntry{ school_name: string; items: UniformItemEntry[]; totalCount: number }
+export interface UniformMakerEntry { maker: string; schools: UniformSchoolEntry[]; totalCount: number; allOrders: UniformOrderRow[] }
 
 export interface DeliveryItem {
   id:             string
