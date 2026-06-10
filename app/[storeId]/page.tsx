@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   CheckCircle2, MessageCircle, Loader2, Clock,
-  ChevronRight, ChevronDown, ChevronUp, Users, AlertCircle, Plus, GraduationCap, Pencil,
+  ChevronRight, Users, AlertCircle, Plus, GraduationCap, Pencil,
 } from 'lucide-react'
 import ECShopView from './ECShopView'
 import { supabase, getTodayStart } from '@/lib/supabase'
@@ -88,67 +88,53 @@ function InitialRegistrationForm({
   const blur  = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = '')
 
   return (
-    <div className="space-y-4">
-      {/* 保護者情報 */}
-      <div className="bg-zinc-50 rounded-2xl p-4 space-y-3">
-        <p className="text-xs font-black tracking-wider" style={{ color: theme.colors.primary }}>保護者情報</p>
-        <div>
-          <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
-          <input type="text" {...parent.nameProps} placeholder="例：山田 太郎" className={base} onFocus={focus} onBlur={blur} />
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
-          <input type="text" {...parent.kanaProps} placeholder="ヤマダ タロウ" className={base} onFocus={focus} onBlur={blur} />
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-zinc-500 mb-1.5">電話番号</label>
-          <input type="tel" inputMode="tel" value={tel} placeholder="例：090-1234-5678" className={base}
-            onChange={e => setTel(e.target.value)} onFocus={focus} onBlur={blur} />
-        </div>
+    <div className="space-y-3">
+      {/* 保護者名・電話番号 */}
+      <div>
+        <label className="block text-xs font-bold text-zinc-500 mb-1.5">保護者のお名前 <span className="text-red-500">*</span></label>
+        <input type="text" {...parent.nameProps} placeholder="例：山田 太郎" className={base} onFocus={focus} onBlur={blur} />
+      </div>
+      <div>
+        <label className="block text-xs font-bold text-zinc-500 mb-1.5">電話番号</label>
+        <input type="tel" inputMode="tel" value={tel} placeholder="例：090-1234-5678" className={base}
+          onChange={e => setTel(e.target.value)} onFocus={focus} onBlur={blur} />
       </div>
 
       {/* お子様情報 */}
-      <div className="bg-zinc-50 rounded-2xl p-4 space-y-3">
-        <p className="text-xs font-black tracking-wider" style={{ color: theme.colors.primary }}>お子様情報</p>
-        <div>
-          <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
-          <input type="text" {...child.nameProps} placeholder="例：山田 花子" className={base} onFocus={focus} onBlur={blur} />
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-zinc-500 mb-1.5">フリガナ</label>
-          <input type="text" {...child.kanaProps} placeholder="ヤマダ ハナコ" className={base} onFocus={focus} onBlur={blur} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
+      <div className="border-t border-zinc-200 pt-3 mt-1">
+        <p className="text-xs font-bold text-zinc-400 mb-2.5">お子様情報</p>
+        <div className="space-y-3">
           <div>
-            <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名 <span className="text-red-500">*</span></label>
-            <select value={schoolName} onChange={e => setSchoolName(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
-              <option value="">選択してください</option>
-              {effectiveSchoolOptions.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
-            </select>
+            <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
+            <input type="text" {...child.nameProps} placeholder="例：山田 花子" className={base} onFocus={focus} onBlur={blur} />
           </div>
-          <div>
-            <label className="block text-xs font-bold text-zinc-500 mb-1.5">学年 <span className="text-red-500">*</span></label>
-            <select value={grade} onChange={e => setGrade(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
-              <option value="">選択</option>
-              {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名 <span className="text-red-500">*</span></label>
+              <select value={schoolName} onChange={e => setSchoolName(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
+                <option value="">選択してください</option>
+                {effectiveSchoolOptions.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-zinc-500 mb-1.5">学年 <span className="text-red-500">*</span></label>
+              <select value={grade} onChange={e => setGrade(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
+                <option value="">選択</option>
+                {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
           </div>
-        </div>
-      </div>
-
-      {/* 体型情報 */}
-      <div className="bg-zinc-50 rounded-2xl p-4 space-y-3">
-        <p className="text-xs font-black tracking-wider" style={{ color: theme.colors.primary }}>体型情報</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-bold text-zinc-500 mb-1.5">身長 (cm) <span className="text-red-500">*</span></label>
-            <input type="number" inputMode="decimal" value={heightCm} onChange={e => setHeightCm(e.target.value)}
-              placeholder="例：158" className={base} onFocus={focus} onBlur={blur} />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-zinc-500 mb-1.5">体重 (kg)</label>
-            <input type="number" inputMode="decimal" value={weightKg} onChange={e => setWeightKg(e.target.value)}
-              placeholder="例：48" className={base} onFocus={focus} onBlur={blur} />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-zinc-500 mb-1.5">身長 (cm) <span className="text-red-500">*</span></label>
+              <input type="number" inputMode="decimal" value={heightCm} onChange={e => setHeightCm(e.target.value)}
+                placeholder="例：158" className={base} onFocus={focus} onBlur={blur} />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-zinc-500 mb-1.5">体重 (kg)</label>
+              <input type="number" inputMode="decimal" value={weightKg} onChange={e => setWeightKg(e.target.value)}
+                placeholder="例：48" className={base} onFocus={focus} onBlur={blur} />
+            </div>
           </div>
         </div>
       </div>
@@ -489,11 +475,11 @@ export default function CustomerPage() {
   const [friendNotYet,     setFriendNotYet]     = useState(false)
   const [showQueueRegister, setShowQueueRegister] = useState(false)
   const [queueRegDone,      setQueueRegDone]      = useState(false)
-  const [regExpanded,       setRegExpanded]        = useState(true)
   const [waitingEditMode,   setWaitingEditMode]   = useState<string | null>(null)
   const [activeFittings, setActiveFittings] = useState(1)
   const [storeSchoolOptions, setStoreSchoolOptions] = useState<string[]>([])
   const [schools, setSchools] = useState<{ id: string; name: string }[]>([])
+  const [allowRemote, setAllowRemote] = useState(false)
 
   const allowRemoteRef = useRef(false)
   const pendingHeightWeightRef = useRef<{ height: string; weight: string } | null>(null)
@@ -517,7 +503,7 @@ export default function CustomerPage() {
         setWaitThresholds(sd.wait_thresholds as WaitThreshold[])
       if (sd?.notification_plan) notificationPlanRef.current = sd.notification_plan
       if (sd?.active_fittings != null) setActiveFittings(sd.active_fittings)
-      if (sd?.allow_remote != null) allowRemoteRef.current = !!sd.allow_remote
+      if (sd?.allow_remote != null) { allowRemoteRef.current = !!sd.allow_remote; setAllowRemote(!!sd.allow_remote) }
       if (Array.isArray(sd?.school_names) && sd.school_names.length > 0) setStoreSchoolOptions(sd.school_names)
 
       // schoolsテーブルから学校マスターを取得（UIドロップダウン用）
@@ -1249,7 +1235,7 @@ export default function CustomerPage() {
           </div>
         )}
 
-        {allowRemoteRef.current ? (
+        {allowRemote ? (
           <div className="space-y-3">
             {/* 遠隔受付の説明 */}
             <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4">
@@ -1442,9 +1428,7 @@ export default function CustomerPage() {
               ) : (
                 <div className="rounded-2xl overflow-hidden border-2 border-red-400"
                   style={{ background: 'linear-gradient(135deg, #fff1f2 0%, #fff5f5 100%)', boxShadow: '0 8px 32px -8px rgba(239,68,68,0.35)' }}>
-                  <button
-                    onClick={() => setRegExpanded(v => !v)}
-                    className="w-full px-4 pt-4 pb-3 flex items-center gap-3 active:scale-[0.99] transition-transform">
+                  <div className="px-4 pt-4 pb-1 flex items-center gap-3">
                     <div className="w-11 h-11 rounded-xl bg-red-500 flex items-center justify-center shrink-0 shadow-sm">
                       <span className="text-white text-xl">📋</span>
                     </div>
@@ -1455,34 +1439,31 @@ export default function CustomerPage() {
                       </div>
                       <p className="text-red-600/80 text-xs">お名前でお呼びするためにご登録ください</p>
                     </div>
-                    <ChevronDown size={20} className={`text-red-400 transition-transform shrink-0 ${regExpanded ? 'rotate-180' : ''}`} />
-                  </button>
-                  {regExpanded && (
-                    <div className="px-4 pb-5 border-t border-red-200/60">
-                      {queueRegDone ? (
-                        <div className="flex items-center justify-center gap-2 text-emerald-600 text-sm font-bold py-5">
-                          <CheckCircle2 size={16} />ご登録ありがとうございます！
-                        </div>
-                      ) : (
-                        <>
-                          {registerError && (
-                            <div className="flex items-start gap-2 text-red-600 text-xs bg-red-50 rounded-xl px-3 py-2 mt-3 mb-1">
-                              <AlertCircle size={13} className="shrink-0 mt-0.5" />
-                              <div><p className="font-bold">登録エラー</p><p className="mt-0.5">{registerError}</p></div>
-                            </div>
-                          )}
-                          <div className="mt-3">
-                            <InitialRegistrationForm
-                              lineDisplayName={lineProfile?.displayName ?? ''}
-                              onSubmit={handleInitialRegister}
-                              submitting={submitting}
-                              schoolOptions={storeSchoolOptions}
-                            />
+                  </div>
+                  <div className="px-4 pb-5 border-t border-red-200/60 mt-3">
+                    {queueRegDone ? (
+                      <div className="flex items-center justify-center gap-2 text-emerald-600 text-sm font-bold py-5">
+                        <CheckCircle2 size={16} />ご登録ありがとうございます！
+                      </div>
+                    ) : (
+                      <>
+                        {registerError && (
+                          <div className="flex items-start gap-2 text-red-600 text-xs bg-red-50 rounded-xl px-3 py-2 mt-3 mb-1">
+                            <AlertCircle size={13} className="shrink-0 mt-0.5" />
+                            <div><p className="font-bold">登録エラー</p><p className="mt-0.5">{registerError}</p></div>
                           </div>
-                        </>
-                      )}
-                    </div>
-                  )}
+                        )}
+                        <div className="mt-3">
+                          <InitialRegistrationForm
+                            lineDisplayName={lineProfile?.displayName ?? ''}
+                            onSubmit={handleInitialRegister}
+                            submitting={submitting}
+                            schoolOptions={storeSchoolOptions}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
