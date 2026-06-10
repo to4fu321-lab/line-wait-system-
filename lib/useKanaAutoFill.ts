@@ -22,22 +22,22 @@ function isHiragana(s: string) {
  *
  * フリガナ欄を手動編集した瞬間に自動変換は止まる。
  */
-export function useKanaAutoFill(initialName = '') {
+export function useKanaAutoFill(initialName = '', initialKana?: string) {
   const [name, _setName] = useState(initialName)
-  const [kana, _setKana] = useState('')
+  const [kana, _setKana] = useState(initialKana ?? '')
 
-  const kanaRef      = useRef('')           // stale closure を避けるための kana 鏡
-  const edited       = useRef(false)        // ユーザーが kana 欄を手動編集済み
-  const composing    = useRef(false)        // IME 変換中フラグ
-  const kanaSnap     = useRef('')           // compositionStart 時点の kana
-  const prevName     = useRef(initialName)  // 差分計算用の前回 name 値
-  const lastHiragana = useRef('')           // compositionUpdate で保持した最後のひらがな読み
+  const kanaRef      = useRef(initialKana ?? '')  // stale closure を避けるための kana 鏡
+  const edited       = useRef(!!initialKana)       // 初期カナがある場合は手動設定済み扱い
+  const composing    = useRef(false)               // IME 変換中フラグ
+  const kanaSnap     = useRef(initialKana ?? '')   // compositionStart 時点の kana
+  const prevName     = useRef(initialName)         // 差分計算用の前回 name 値
+  const lastHiragana = useRef('')                  // compositionUpdate で保持した最後のひらがな読み
 
   const setKana = (v: string) => { _setKana(v); kanaRef.current = v }
 
-  // マウント時: 初期名からフリガナを自動設定（LINE 表示名など）
+  // マウント時: 初期カナ未指定の場合のみ、初期名からフリガナを自動設定
   useEffect(() => {
-    if (initialName && !edited.current) setKana(toKatakana(initialName))
+    if (!initialKana && initialName && !edited.current) setKana(toKatakana(initialName))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
