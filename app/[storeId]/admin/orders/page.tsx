@@ -93,20 +93,18 @@ function EditOrderModal({
     }).eq('id', order.id)
     if (orderErr) { setSaving(false); return }
 
-    const existingIds = items.map(i => i.id).filter(Boolean)
-    if (existingIds.length > 0) {
-      await (supabase as any).from('uniform_order_items')
-        .delete().eq('order_id', order.id)
-        .not('id', 'in', `(${existingIds.map(id => `"${id}"`).join(',')})`)
-    } else {
-      await (supabase as any).from('uniform_order_items').delete().eq('order_id', order.id)
-    }
-    for (const item of items) {
-      await (supabase as any).from('uniform_order_items').upsert({
-        id: item.id, order_id: order.id,
-        item_name: item.item_name, size_label: item.size_label || null,
-        quantity: item.quantity, unit_price: item.unit_price,
-      })
+    // 全削除→再挿入
+    await (supabase as any).from('uniform_order_items').delete().eq('order_id', order.id)
+    if (items.length > 0) {
+      await (supabase as any).from('uniform_order_items').insert(
+        items.map(item => ({
+          order_id: order.id,
+          item_name: item.item_name,
+          size_label: item.size_label || null,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+        }))
+      )
     }
     setSaving(false)
     onSaved({ ...order, notes: notes.trim() || null, expected_delivery_date: dueDate || null,

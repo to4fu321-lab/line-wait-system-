@@ -39,7 +39,7 @@ interface MeasurementLocal {
   measured_date: string | null
   height_cm: number | null
   weight_kg: number | null
-  confirmed_sizes: Record<string, string> | null
+  confirmed_sizes: Record<string, unknown> | null
   staff_memo: string | null
   status: string | null
 }
@@ -82,20 +82,18 @@ function EditUniformOrderModal({
     }).eq('id', order.id)
     if (orderErr) { setSaving(false); return }
 
-    // delete removed items, upsert existing
-    const existingIds = items.map(i => i.id).filter(Boolean)
-    await (supabase as any).from('uniform_order_items')
-      .delete().eq('order_id', order.id).not('id', 'in', `(${existingIds.map(id => `"${id}"`).join(',')})`)
-
-    for (const item of items) {
-      await (supabase as any).from('uniform_order_items').upsert({
-        id: item.id,
-        order_id: order.id,
-        item_name: item.item_name,
-        size_label: item.size_label || null,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-      })
+    // 全削除→再挿入
+    await (supabase as any).from('uniform_order_items').delete().eq('order_id', order.id)
+    if (items.length > 0) {
+      await (supabase as any).from('uniform_order_items').insert(
+        items.map(item => ({
+          order_id: order.id,
+          item_name: item.item_name,
+          size_label: item.size_label || null,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+        }))
+      )
     }
     setSaving(false)
     onSaved({
@@ -423,11 +421,16 @@ export function ChildCard({
                           </div>
                           {m.confirmed_sizes && Object.keys(m.confirmed_sizes).length > 0 && (
                             <div className="flex gap-2 flex-wrap mt-1">
-                              {Object.entries(m.confirmed_sizes).map(([k, v]) => (
-                                <span key={k} className="text-[10px] bg-white border border-gray-200 rounded-full px-2 py-0.5">
-                                  {k}: {v}
-                                </span>
-                              ))}
+                              {Object.entries(m.confirmed_sizes).map(([k, v]) => {
+                                const label = typeof v === 'object' && v !== null
+                                  ? ((v as Record<string, unknown>).size_label as string ?? JSON.stringify(v))
+                                  : String(v)
+                                return (
+                                  <span key={k} className="text-[10px] bg-white border border-gray-200 rounded-full px-2 py-0.5">
+                                    {k}: {label}
+                                  </span>
+                                )
+                              })}
                             </div>
                           )}
                           {m.staff_memo && <p className="text-[10px] text-gray-500 mt-1">{m.staff_memo}</p>}
