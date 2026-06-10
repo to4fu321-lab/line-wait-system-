@@ -164,7 +164,7 @@ function AddChildForm({
   submitting,
   schoolOptions,
 }: {
-  onSubmit: (d: { childName: string; childKana: string; schoolName: string; grade: string }) => Promise<void>
+  onSubmit: (d: { childName: string; childKana: string; schoolName: string; grade: string; heightCm: string; weightKg: string }) => Promise<void>
   onCancel?: () => void
   submitting: boolean
   schoolOptions?: string[]
@@ -173,14 +173,18 @@ function AddChildForm({
   const child = useKanaAutoFill('')
   const [schoolName, setSchoolName] = useState('')
   const [grade,      setGrade]      = useState('')
+  const [heightCm,   setHeightCm]   = useState('')
+  const [weightKg,   setWeightKg]   = useState('')
   const [error,      setError]      = useState('')
 
   const effectiveSchoolOptions = schoolOptions && schoolOptions.length > 0 ? schoolOptions : SCHOOL_OPTIONS
 
   const handleSubmit = async () => {
     if (!child.name.trim()) { setError('お名前を入力してください'); return }
+    if (!schoolName)        { setError('学校名を選択してください'); return }
+    if (!grade)             { setError('学年を選択してください'); return }
     setError('')
-    await onSubmit({ childName: child.name.trim(), childKana: child.kana.trim(), schoolName: schoolName.trim(), grade })
+    await onSubmit({ childName: child.name.trim(), childKana: child.kana.trim(), schoolName: schoolName.trim(), grade, heightCm, weightKg })
   }
 
   const base  = 'w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50/80 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all'
@@ -199,18 +203,30 @@ function AddChildForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名</label>
+          <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名 <span className="text-red-500">*</span></label>
           <select value={schoolName} onChange={e => setSchoolName(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
             <option value="">選択してください</option>
             {effectiveSchoolOptions.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-bold text-zinc-500 mb-1.5">学年</label>
+          <label className="block text-xs font-bold text-zinc-500 mb-1.5">学年 <span className="text-red-500">*</span></label>
           <select value={grade} onChange={e => setGrade(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
             <option value="">選択</option>
             {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
           </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-bold text-zinc-500 mb-1.5">身長 (cm) <span className="text-red-500">*</span></label>
+          <input type="number" inputMode="decimal" value={heightCm} onChange={e => setHeightCm(e.target.value)}
+            placeholder="例：158" className={base} onFocus={focus} onBlur={blur} />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-zinc-500 mb-1.5">体重 (kg)</label>
+          <input type="number" inputMode="decimal" value={weightKg} onChange={e => setWeightKg(e.target.value)}
+            placeholder="例：48" className={base} onFocus={focus} onBlur={blur} />
         </div>
       </div>
       {error && (
@@ -824,7 +840,7 @@ export default function CustomerPage() {
   }
 
   // ── お子様追加 ────────────────────────────────────────
-  const handleAddChild = async (d: { childName: string; childKana: string; schoolName: string; grade: string }) => {
+  const handleAddChild = async (d: { childName: string; childKana: string; schoolName: string; grade: string; heightCm?: string; weightKg?: string }) => {
     if (!customer) return
     setSubmitting(true)
     try {
@@ -839,7 +855,15 @@ export default function CustomerPage() {
         setShowAddChild(false)
         setShowWaitingEdit(false)
         setWaitingEditMode(null)
-        if (ticketRef.current) return   // 待ち中なら画面移動しない
+        // 待ち中なら身長体重をキューに保存して画面移動しない
+        if (ticketRef.current) {
+          if (d.heightCm) {
+            await supabase.from('queues').update({
+              details: { height: d.heightCm, ...(d.weightKg ? { weight: d.weightKg } : {}) },
+            }).eq('id', ticketRef.current.id)
+          }
+          return
+        }
         const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
         const { count } = await supabase.from('queues')
           .select('*', { count: 'exact', head: true })
