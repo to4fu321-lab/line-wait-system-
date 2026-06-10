@@ -655,10 +655,16 @@ export default function CRMPage() {
             </h1>
             {storeName && <p className="text-gray-500 text-xs">{storeName}</p>}
           </div>
-          <button onClick={() => { resetQi(); setShowQuickIntake(true) }}
-            className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold rounded-xl transition-all">
-            <Plus size={13} />先に内容入力
-          </button>
+          <div className="flex items-center gap-2">
+            <a href={`/${storeId}/admin/orders`}
+              className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold rounded-xl hover:bg-indigo-100 transition-all">
+              <Package size={13} />注文管理
+            </a>
+            <button onClick={() => { resetQi(); setShowQuickIntake(true) }}
+              className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold rounded-xl transition-all">
+              <Plus size={13} />先に内容入力
+            </button>
+          </div>
         </div>
       </div>
 
