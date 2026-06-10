@@ -853,7 +853,6 @@ export default function CustomerPage() {
         setChildren(prev => [...prev, newChild])
         setSelectedChild(newChild)
         setShowAddChild(false)
-        setShowWaitingEdit(false)
         setWaitingEditMode(null)
         // 待ち中なら身長体重をキューに保存して画面移動しない
         if (ticketRef.current) {
