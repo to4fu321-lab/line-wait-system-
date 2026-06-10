@@ -7,6 +7,9 @@ import {
   Ruler, RotateCcw, Trash2,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { checkNewStudentConflicts } from '@/lib/uniformAllocation'
+import type { ConflictItem } from '@/lib/uniformAllocation'
+import { AllocationWarningModal } from '../../repairs/_components/AllocationWarningModal'
 import type { Child, RepairHistory, PurchaseOrder } from '@/types/crm'
 import type { IntakeFormType } from './types'
 import { RepairItem } from './RepairItem'
@@ -25,6 +28,7 @@ interface UniformOrderItem {
 interface UniformOrderLocal {
   id: string
   status: string
+  priority: 'new_student' | 'normal'
   payment_status: string
   total_amount: number | null
   notes: string | null
@@ -288,7 +292,7 @@ export function ChildCard({
       supabase.from('repair_histories').select('*').eq('child_id', child.id).order('received_date', { ascending: false }),
       supabase.from('purchase_orders').select('*').eq('child_id', child.id).order('ordered_date', { ascending: false }),
       (supabase as any).from('uniform_orders')
-        .select('*, items:uniform_order_items(id,item_name,size_label,quantity,unit_price)')
+        .select('*, items:uniform_order_items(id,item_name,size_label,quantity,unit_price), priority')
         .eq('child_id', child.id)
         .order('created_at', { ascending: false }),
       (supabase as any).from('measurements')
@@ -407,6 +411,7 @@ export function ChildCard({
                         <UniformOrderInlineCard
                           key={o.id}
                           order={o}
+                          storeId={storeId}
                           onStatusChange={updateOrderStatus}
                           onEdit={() => setEditOrder(o)}
                           onDelete={() => deleteOrder(o.id)}
@@ -510,9 +515,10 @@ export function ChildCard({
 
 // ── インライン注文カード ──────────────────────────────────────
 function UniformOrderInlineCard({
-  order, onStatusChange, onEdit, onDelete,
+  order, storeId, onStatusChange, onEdit, onDelete,
 }: {
   order: UniformOrderLocal
+  storeId: string
   onStatusChange: (id: string, status: string, msg: string) => void
   onEdit: () => void
   onDelete: () => void
@@ -520,9 +526,11 @@ function UniformOrderInlineCard({
   const [open,          setOpen]          = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [loading,       setLoading]       = useState(false)
+  const [conflicts,     setConflicts]     = useState<ConflictItem[] | null>(null)
 
   const statusLabel = STATUS_LABELS[order.status] ?? order.status
   const badgeColor  = STATUS_COLORS[order.status]  ?? 'bg-gray-100 text-gray-500 border-gray-200'
+  const isNew = order.priority === 'new_student'
 
   const itemsSummary = order.items.length > 0
     ? order.items.map(i => `${i.item_name}${i.size_label ? ` (${i.size_label})` : ''}×${i.quantity}`).join(' / ')
@@ -534,12 +542,31 @@ function UniformOrderInlineCard({
     setLoading(false)
   }
 
+  async function handleArrived() {
+    if (!isNew) {
+      setLoading(true)
+      const found = await checkNewStudentConflicts(order.id, storeId)
+      setLoading(false)
+      if (found.length > 0) { setConflicts(found); return }
+    }
+    await doStatus('arrived', '入荷完了にしました')
+  }
+
   return (
-    <div className="border border-indigo-100 rounded-xl overflow-hidden bg-white">
+    <>
+      {conflicts && (
+        <AllocationWarningModal
+          conflicts={conflicts}
+          onProceed={async () => { setConflicts(null); await doStatus('arrived', '入荷完了にしました') }}
+          onCancel={() => setConflicts(null)}
+        />
+      )}
+    <div className={`border rounded-xl overflow-hidden bg-white ${isNew ? 'border-orange-300' : 'border-indigo-100'}`}>
       <button onClick={() => setOpen(v => !v)} className="w-full text-left px-3 py-2.5 flex items-start gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-1">
             <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold">制服</span>
+            {isNew && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-300 font-black">🌸 新入生</span>}
             <span className={`text-[9px] px-1.5 py-0.5 rounded-full border font-bold ${badgeColor}`}>{statusLabel}</span>
             {order.payment_status === 'paid' && (
               <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 font-bold">支払済</span>
@@ -580,7 +607,7 @@ function UniformOrderInlineCard({
           {/* Status progression — 発注は案件ページの発注タブで行うためボタンなし */}
           <div className="flex gap-1.5 flex-wrap">
             {order.status === 'ordered' && (
-              <button onClick={() => doStatus('arrived', '入荷完了にしました')} disabled={loading}
+              <button onClick={handleArrived} disabled={loading}
                 className="flex-1 py-2 rounded-lg text-xs font-bold bg-emerald-600 text-white flex items-center justify-center gap-1 disabled:opacity-50">
                 {loading ? <Loader2 size={11} className="animate-spin" /> : '📦 入荷完了'}
               </button>
@@ -621,5 +648,6 @@ function UniformOrderInlineCard({
         </div>
       )}
     </div>
+    </>
   )
 }

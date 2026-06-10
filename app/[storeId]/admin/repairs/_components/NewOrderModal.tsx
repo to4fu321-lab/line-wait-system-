@@ -30,6 +30,7 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   const [selectedChild, setSelectedChild] = useState<{ id: string; name: string; school_name: string | null } | null>(null)
   const [showReg,       setShowReg]       = useState(false)
 
+  const [priority,     setPriority]     = useState<'normal' | 'new_student'>('normal')
   const [maker,        setMaker]        = useState('')
   const [notes,        setNotes]        = useState('')
   const [expectedDate, setExpectedDate] = useState('')
@@ -137,6 +138,7 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
       id: orderId, store_id: storeId,
       customer_id: selectedCust.id, child_id: selectedChild?.id ?? null,
       maker: maker.trim() || null,
+      priority,
       status: 'confirmed', payment_status: prepaid ? 'paid' : 'unpaid',
       total_amount: cartTotal, notes: notes.trim() || null,
       expected_delivery_date: expectedDate || null,
@@ -420,6 +422,25 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                 <div>
                   <p className="text-sm font-bold text-gray-900">{selectedCust?.name}</p>
                   {selectedChild && <p className="text-xs text-gray-500">お子様: {selectedChild.name}</p>}
+                </div>
+              </div>
+
+              {/* 優先区分 */}
+              <div>
+                <label className="text-xs font-bold text-gray-600 block mb-1.5">注文区分</label>
+                <div className="flex gap-2">
+                  {([['normal', '在校生・追加', '🎒'], ['new_student', '新入生（納期優先）', '🌸']] as const).map(([val, label, icon]) => (
+                    <button key={val} type="button" onClick={() => setPriority(val)}
+                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold border-2 transition-all ${
+                        priority === val
+                          ? val === 'new_student'
+                            ? 'bg-orange-50 border-orange-400 text-orange-700'
+                            : 'bg-indigo-50 border-indigo-400 text-indigo-700'
+                          : 'bg-gray-50 border-gray-200 text-gray-500'
+                      }`}>
+                      {icon} {label}
+                    </button>
+                  ))}
                 </div>
               </div>
 

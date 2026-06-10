@@ -8,6 +8,9 @@ import {
   Phone, User, Filter,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { checkNewStudentConflicts } from '@/lib/uniformAllocation'
+import type { ConflictItem } from '@/lib/uniformAllocation'
+import { AllocationWarningModal } from '../repairs/_components/AllocationWarningModal'
 import { BottomNav } from '../_components/BottomNav'
 
 // ── 型定義 ──────────────────────────────────────────────────
@@ -24,6 +27,7 @@ interface UniformOrder {
   store_id: string
   customer_id: string
   child_id: string | null
+  priority: 'new_student' | 'normal'
   status: string
   payment_status: string
   total_amount: number | null
@@ -252,8 +256,10 @@ function OrderCard({
   const [open,          setOpen]          = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [loading,       setLoading]       = useState(false)
+  const [conflicts,     setConflicts]     = useState<ConflictItem[] | null>(null)
 
   const name = order.child?.name ?? order.customer?.name ?? '（顧客不明）'
+  const isNew = order.priority === 'new_student'
 
   async function doStatus(newStatus: string, msg: string) {
     setLoading(true)
@@ -261,13 +267,32 @@ function OrderCard({
     setLoading(false)
   }
 
+  async function handleArrived() {
+    if (!isNew) {
+      setLoading(true)
+      const found = await checkNewStudentConflicts(order.id, storeId)
+      setLoading(false)
+      if (found.length > 0) { setConflicts(found); return }
+    }
+    await doStatus('arrived', '入荷完了にしました')
+  }
+
   return (
-    <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm">
-      <div className={`h-1 w-full ${STATUS_ACCENTS[order.status] ?? 'bg-gray-200'}`} />
+    <>
+      {conflicts && (
+        <AllocationWarningModal
+          conflicts={conflicts}
+          onProceed={async () => { setConflicts(null); await doStatus('arrived', '入荷完了にしました') }}
+          onCancel={() => setConflicts(null)}
+        />
+      )}
+    <div className={`border rounded-2xl overflow-hidden bg-white shadow-sm ${isNew ? 'border-orange-300' : 'border-gray-200'}`}>
+      <div className={`h-1 w-full ${isNew ? 'bg-orange-500' : STATUS_ACCENTS[order.status] ?? 'bg-gray-200'}`} />
       <button className="w-full text-left px-4 pt-3 pb-3 flex items-start gap-3" onClick={() => setOpen(v => !v)}>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold">制服注文</span>
+            {isNew && <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-300 font-black">🌸 新入生</span>}
             <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${STATUS_COLORS[order.status] ?? ''}`}>
               {STATUS_LABELS[order.status] ?? order.status}
             </span>
@@ -313,7 +338,7 @@ function OrderCard({
           </button>
         )}
         {order.status === 'ordered' && (
-          <button onClick={() => doStatus('arrived', '入荷完了にしました')} disabled={loading}
+          <button onClick={handleArrived} disabled={loading}
             className="w-full py-3.5 rounded-xl font-black text-sm text-white bg-emerald-600 hover:bg-emerald-500 flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-emerald-200 active:scale-[0.98] transition-all">
             {loading ? <Loader2 size={16} className="animate-spin" /> : '📦 入荷完了（お渡し待ちへ）'}
           </button>
@@ -399,6 +424,7 @@ function OrderCard({
         </div>
       )}
     </div>
+    </>
   )
 }
 
@@ -426,7 +452,7 @@ export default function OrdersPage() {
     setLoading(true)
     const { data, error } = await (supabase as any)
       .from('uniform_orders')
-      .select('*, customer:customers(id,name,tel), child:children(name,school_name), items:uniform_order_items(id,item_name,size_label,quantity,unit_price)')
+      .select('*, priority, customer:customers(id,name,tel), child:children(name,school_name), items:uniform_order_items(id,item_name,size_label,quantity,unit_price)')
       .eq('store_id', storeId)
       .order('created_at', { ascending: false })
     if (error) { showToast('err', `読み込みに失敗: ${error.message}`); setLoading(false); return }

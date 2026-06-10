@@ -40,6 +40,7 @@ export interface PurchaseRow {
 export interface UniformOrderRow {
   id: string; store_id: string; customer_id: string; child_id: string | null
   maker: string | null
+  priority: 'new_student' | 'normal'
   status: string; payment_status: string; total_amount: number | null
   notes: string | null; expected_delivery_date: string | null
   created_at: string; updated_at: string
