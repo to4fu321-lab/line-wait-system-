@@ -54,7 +54,7 @@ function InitialRegistrationForm({
   schoolOptions,
 }: {
   lineDisplayName: string
-  onSubmit: (d: { parentName: string; parentKana: string; tel: string; childName: string; childKana: string; schoolName: string; grade: string }) => Promise<void>
+  onSubmit: (d: { parentName: string; parentKana: string; tel: string; childName: string; childKana: string; schoolName: string; grade: string; heightCm: string; weightKg: string }) => Promise<void>
   submitting: boolean
   schoolOptions?: string[]
 }) {
@@ -64,6 +64,8 @@ function InitialRegistrationForm({
   const [tel,        setTel]        = useState('')
   const [schoolName, setSchoolName] = useState('')
   const [grade,      setGrade]      = useState('')
+  const [heightCm,   setHeightCm]   = useState('')
+  const [weightKg,   setWeightKg]   = useState('')
   const [error,      setError]      = useState('')
 
   const effectiveSchoolOptions = schoolOptions && schoolOptions.length > 0 ? schoolOptions : SCHOOL_OPTIONS
@@ -71,11 +73,13 @@ function InitialRegistrationForm({
   const handleSubmit = async () => {
     if (!parent.name.trim()) { setError('保護者のお名前を入力してください'); return }
     if (!child.name.trim())  { setError('お子様のお名前を入力してください'); return }
+    if (!schoolName)         { setError('学校名を選択してください'); return }
+    if (!grade)              { setError('学年を選択してください'); return }
     setError('')
     await onSubmit({
       parentName: parent.name.trim(), parentKana: parent.kana.trim(),
       tel: tel.trim(), childName: child.name.trim(), childKana: child.kana.trim(),
-      schoolName: schoolName.trim(), grade,
+      schoolName: schoolName.trim(), grade, heightCm, weightKg,
     })
   }
 
@@ -116,18 +120,35 @@ function InitialRegistrationForm({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名</label>
+            <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名 <span className="text-red-500">*</span></label>
             <select value={schoolName} onChange={e => setSchoolName(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
               <option value="">選択してください</option>
               {effectiveSchoolOptions.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-bold text-zinc-500 mb-1.5">学年</label>
+            <label className="block text-xs font-bold text-zinc-500 mb-1.5">学年 <span className="text-red-500">*</span></label>
             <select value={grade} onChange={e => setGrade(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
               <option value="">選択</option>
               {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
             </select>
+          </div>
+        </div>
+      </div>
+
+      {/* 体型情報 */}
+      <div className="bg-zinc-50 rounded-2xl p-4 space-y-3">
+        <p className="text-xs font-black tracking-wider" style={{ color: theme.colors.primary }}>体型情報</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-bold text-zinc-500 mb-1.5">身長 (cm) <span className="text-red-500">*</span></label>
+            <input type="number" inputMode="decimal" value={heightCm} onChange={e => setHeightCm(e.target.value)}
+              placeholder="例：158" className={base} onFocus={focus} onBlur={blur} />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-zinc-500 mb-1.5">体重 (kg)</label>
+            <input type="number" inputMode="decimal" value={weightKg} onChange={e => setWeightKg(e.target.value)}
+              placeholder="例：48" className={base} onFocus={focus} onBlur={blur} />
           </div>
         </div>
       </div>
@@ -475,6 +496,7 @@ export default function CustomerPage() {
   const [schools, setSchools] = useState<{ id: string; name: string }[]>([])
 
   const allowRemoteRef = useRef(false)
+  const pendingHeightWeightRef = useRef<{ height: string; weight: string } | null>(null)
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const ticketRef  = useRef<Queue | null>(null)
   const ticketKey  = `queue_ticket_id_${storeId}`
@@ -722,6 +744,7 @@ export default function CustomerPage() {
   const handleInitialRegister = async (d: {
     parentName: string; parentKana: string; tel: string
     childName: string; childKana: string; schoolName: string; grade: string
+    heightCm: string; weightKg: string
   }) => {
     // LIFFプロフィールを確保（初期化時に取れなかった場合は再取得）
     let userId = lineProfile?.userId
@@ -776,8 +799,9 @@ export default function CustomerPage() {
       const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
       if (sd?.is_open === false) { setView('closed'); return }
 
-      // 順番待ち登録から来た場合は待ち人数確認画面へ
+      // 順番待ち登録から来た場合は待ち人数確認画面へ（身長体重は発券時に付与）
       if (pendingAction === 'queue') {
+        if (d.heightCm) pendingHeightWeightRef.current = { height: d.heightCm, weight: d.weightKg }
         setPendingAction(null)
         const { count: qCount } = await supabase.from('queues')
           .select('*', { count: 'exact', head: true })
@@ -788,8 +812,13 @@ export default function CustomerPage() {
         return
       }
 
-      // 既に待ち画面にいる場合（待ちながら登録）は画面移動しない
+      // 既に待ち画面にいる場合（待ちながら登録）は詳細を更新して画面移動しない
       if (ticketRef.current) {
+        if (d.heightCm) {
+          await supabase.from('queues').update({
+            details: { height: d.heightCm, ...(d.weightKg ? { weight: d.weightKg } : {}) },
+          }).eq('id', ticketRef.current.id)
+        }
         setQueueRegDone(true)
         return
       }
@@ -842,6 +871,8 @@ export default function CustomerPage() {
     setIssuing(true)
     try {
       const { data: nextNum } = await supabase.rpc('get_next_ticket_number', { p_store_id: storeId })
+      const hw = pendingHeightWeightRef.current
+      pendingHeightWeightRef.current = null
       const { data: t, error } = await supabase.from('queues').insert({
         store_id:      storeId,
         ticket_number: nextNum as number,
@@ -856,6 +887,7 @@ export default function CustomerPage() {
         checked_in:    !isRemote,
         customer_id:   customer?.id ?? null,
         child_id:      selectedChild?.id ?? null,
+        ...(hw ? { details: { height: hw.height, ...(hw.weight ? { weight: hw.weight } : {}) } } : {}),
       }).select().single()
       if (error || !t) throw error
       localStorage.setItem(ticketKey, t.id)
