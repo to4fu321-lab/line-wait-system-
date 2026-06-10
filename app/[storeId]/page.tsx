@@ -457,6 +457,7 @@ export default function CustomerPage() {
   const notificationPlanRef = useRef<'calling_only' | 'full'>('calling_only')
   const [submitting,     setSubmitting]     = useState(false)
   const [issuing,        setIssuing]        = useState(false)
+  const [issueError,     setIssueError]     = useState('')
   const [repairLoading,  setRepairLoading]  = useState(false)
   const [friendChecking, setFriendChecking] = useState(false)
   const [urlAction,      setUrlAction]      = useState<'queue' | 'repair' | 'purchase' | null>(null)
@@ -906,7 +907,10 @@ export default function CustomerPage() {
           if (!selectedChild && kids.length >= 1) setSelectedChild(kids[0])
         }
       } catch { /* 取得失敗は無視 */ }
-    } catch (e) { console.error(e) }
+    } catch (e) {
+      console.error(e)
+      setIssueError('受付に失敗しました。もう一度お試しください。')
+    }
     setIssuing(false)
   }
 
@@ -1112,9 +1116,8 @@ export default function CustomerPage() {
 
       <div className="space-y-4">
         <button
-          onClick={handleIssueTicket}
-          disabled={issuing}
-          className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all disabled:opacity-80"
+          onClick={() => { setIssueError(''); setView('confirm_queue') }}
+          className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all"
           style={cardStyle}>
           <div className="flex items-start gap-4">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0"
@@ -1132,12 +1135,8 @@ export default function CustomerPage() {
               )}
             </div>
             <div className="pt-1 shrink-0">
-              {issuing ? <Loader2 size={20} className="animate-spin text-zinc-400" /> : <ChevronRight size={20} className="text-zinc-300" />}
+              <ChevronRight size={20} className="text-zinc-300" />
             </div>
-          </div>
-          <div className="mt-4 py-2 rounded-xl text-center text-xs font-bold"
-            style={{ background: `rgb(${theme.colors.primaryRgb} / 0.08)`, color: theme.colors.primary }}>
-            {issuing ? '発行中...' : 'タップした瞬間、整理券を発行します'}
           </div>
         </button>
 
@@ -1209,6 +1208,12 @@ export default function CustomerPage() {
               <span className="text-6xl font-black" style={{ color: theme.colors.primary }}>{waitingCount}</span>
               <span className="text-lg font-bold text-zinc-500">組</span>
             </div>
+          </div>
+        )}
+
+        {issueError && (
+          <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-700 font-bold">
+            <AlertCircle size={16} className="shrink-0" />{issueError}
           </div>
         )}
 
