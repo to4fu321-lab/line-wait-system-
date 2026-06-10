@@ -7,6 +7,9 @@ import {
   Pencil, Trash2,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { checkNewStudentConflicts } from '@/lib/uniformAllocation'
+import type { ConflictItem } from '@/lib/uniformAllocation'
+import { AllocationWarningModal } from './AllocationWarningModal'
 import {
   PURCHASE_STATUS_LABELS, PURCHASE_STATUS_COLORS,
 } from '@/types/crm'
@@ -220,8 +223,9 @@ export function UniformOrderCard({ item, storeId, onRefresh, onToast }: {
   item: UniformOrderRow; storeId: string; onRefresh: () => void
   onToast: (t: 'ok' | 'err', m: string) => void
 }) {
-  const [open,    setOpen]    = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [open,      setOpen]      = useState(false)
+  const [loading,   setLoading]   = useState(false)
+  const [conflicts, setConflicts] = useState<ConflictItem[] | null>(null)
 
   async function update(patch: Record<string, unknown>, msg: string) {
     setLoading(true)
@@ -235,7 +239,16 @@ export function UniformOrderCard({ item, storeId, onRefresh, onToast }: {
     onToast('ok', msg)
   }
 
+  async function handleArrived() {
+    if (item.priority !== 'new_student') {
+      const found = await checkNewStudentConflicts(item.id, storeId)
+      if (found.length > 0) { setConflicts(found); return }
+    }
+    await update({ status: 'arrived' }, '入荷完了にしました')
+  }
+
   const name = item.child?.name ?? item.customer?.name ?? '（顧客不明）'
+  const isNew = item.priority === 'new_student'
 
   const statusLabel =
     item.status === 'confirmed' ? '受注済み' :
@@ -243,6 +256,7 @@ export function UniformOrderCard({ item, storeId, onRefresh, onToast }: {
     item.status === 'arrived'   ? '入荷済み' : item.status
 
   const accent =
+    isNew                       ? 'bg-orange-500' :
     item.status === 'confirmed' ? 'bg-orange-400' :
     item.status === 'ordered'   ? 'bg-blue-400' :
     item.status === 'arrived'   ? 'bg-emerald-400' : 'bg-gray-300'
@@ -253,12 +267,21 @@ export function UniformOrderCard({ item, storeId, onRefresh, onToast }: {
     item.status === 'arrived'   ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-gray-100 text-gray-500 border-gray-200'
 
   return (
-    <div className="border border-indigo-100 rounded-2xl overflow-hidden shadow-sm bg-white">
+    <>
+      {conflicts && (
+        <AllocationWarningModal
+          conflicts={conflicts}
+          onProceed={async () => { setConflicts(null); await update({ status: 'arrived' }, '入荷完了にしました') }}
+          onCancel={() => setConflicts(null)}
+        />
+      )}
+    <div className={`border rounded-2xl overflow-hidden shadow-sm bg-white ${isNew ? 'border-orange-300' : 'border-indigo-100'}`}>
       <div className={`h-1 w-full ${accent}`} />
       <button className="w-full text-left px-4 pt-3 pb-3 flex items-start gap-3" onClick={() => setOpen(v => !v)}>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap mb-2">
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold">制服注文</span>
+            {isNew && <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-300 font-black">🌸 新入生</span>}
             <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${badgeColor}`}>{statusLabel}</span>
           </div>
           <p className="text-base font-black text-gray-900 leading-snug mb-1">
@@ -296,7 +319,7 @@ export function UniformOrderCard({ item, storeId, onRefresh, onToast }: {
           </button>
         )}
         {item.status === 'ordered' && (
-          <button onClick={() => update({ status: 'arrived' }, '入荷完了・連絡しました')} disabled={loading}
+          <button onClick={handleArrived} disabled={loading}
             className="w-full py-4 rounded-xl font-black text-sm text-white bg-emerald-600 hover:bg-emerald-500 flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-emerald-200 active:scale-[0.98] transition-all">
             {loading ? <Loader2 size={16} className="animate-spin" /> : '📦 入荷完了（お渡し待ちへ）'}
           </button>
@@ -335,5 +358,6 @@ export function UniformOrderCard({ item, storeId, onRefresh, onToast }: {
         </div>
       )}
     </div>
+    </>
   )
 }

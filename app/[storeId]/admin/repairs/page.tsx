@@ -192,7 +192,7 @@ export default function RepairsPage() {
         .eq('store_id', storeId).eq('status', 'arrived')
         .order('arrived_date', { ascending: true }),
       (supabase as any).from('uniform_orders')
-        .select('id,store_id,customer_id,child_id,maker,status,payment_status,total_amount,notes,expected_delivery_date,created_at,updated_at,customer:customers(id,name,tel),child:children(name,school_name),items:uniform_order_items(item_name,size_label,quantity,unit_price)')
+        .select('id,store_id,customer_id,child_id,maker,priority,status,payment_status,total_amount,notes,expected_delivery_date,created_at,updated_at,customer:customers(id,name,tel),child:children(name,school_name),items:uniform_order_items(item_name,size_label,quantity,unit_price)')
         .eq('store_id', storeId).not('status', 'in', '("delivered")')
         .order('created_at', { ascending: true }),
       (supabase as any).from('inquiries')
