@@ -168,9 +168,10 @@ function FittingPageInner() {
   const [loadingProd, setLoadingProd] = useState(false)
 
   // ── ステップ4: 確定後 ────────────────────────────────────
-  const [saving,    setSaving]    = useState(false)
-  const [savedId,   setSavedId]   = useState<string | null>(null)
-  const [withOrder, setWithOrder] = useState(false)
+  const [saving,           setSaving]           = useState(false)
+  const [savedId,          setSavedId]          = useState<string | null>(null)
+  const [withOrder,        setWithOrder]        = useState(false)
+  const [showOtherGender,  setShowOtherGender]  = useState(false)
 
   // 学校マスター読み込み
   useEffect(() => {
@@ -344,7 +345,12 @@ function FittingPageInner() {
   const goToMeasureWithChild = useCallback(async (c: ChildRow) => {
     let schoolId = c.school_id
     if (!schoolId && c.school_name) {
-      const matched = schools.find(s => s.name === c.school_name)
+      const sn = c.school_name.toLowerCase()
+      const matched = schools.find(s =>
+        s.name === c.school_name ||
+        (s.short_name && s.short_name === c.school_name) ||
+        s.name.toLowerCase() === sn
+      )
       if (matched) {
         schoolId = matched.id
         await (supabase as any).from('children').update({ school_id: matched.id }).eq('id', c.id)
@@ -358,15 +364,9 @@ function FittingPageInner() {
       .eq('school_id', schoolId).eq('active', true)
       .order('sort_order').order('item_name')
 
-    const filteredProds = (prods ?? []).filter((p: ProductRow) => {
-      if (!p.gender || p.gender === '男女共通') return true
-      if (c.gender === 'male'   && p.gender === '男子用') return true
-      if (c.gender === 'female' && p.gender === '女子用') return true
-      return !c.gender
-    })
-
-    if (filteredProds.length) {
-      const ids = filteredProds.map((p: ProductRow) => p.id)
+    const allProds = (prods ?? []) as ProductRow[]
+    if (allProds.length) {
+      const ids = allProds.map((p: ProductRow) => p.id)
       const { data: vars } = await supabase.from('school_product_variants')
         .select('id, product_id, size_label, price, sort_order')
         .in('product_id', ids).eq('active', true).order('sort_order')
@@ -377,11 +377,12 @@ function FittingPageInner() {
       }
       setVariantMap(map)
       const init: ConfirmedSizes = {}
-      for (const p of filteredProds) init[p.id] = { variant_id: '', size_label: '', qty: 1, memo: '' }
+      for (const p of allProds) init[p.id] = { variant_id: '', size_label: '', qty: 1, memo: '' }
       setConfirmed(init)
     }
 
-    setProducts(filteredProds)
+    setProducts(allProds)
+    setShowOtherGender(false)
     setLoadingProd(false)
     setStep('measure')
   }, [showToast, schools])
@@ -391,7 +392,12 @@ function FittingPageInner() {
     if (!child) return
     let schoolId = child.school_id
     if (!schoolId && child.school_name) {
-      const matched = schools.find(s => s.name === child.school_name)
+      const sn = child.school_name.toLowerCase()
+      const matched = schools.find(s =>
+        s.name === child.school_name ||
+        (s.short_name && s.short_name === child.school_name) ||
+        s.name.toLowerCase() === sn
+      )
       if (matched) {
         schoolId = matched.id
         await (supabase as any).from('children').update({ school_id: matched.id }).eq('id', child.id)
@@ -406,15 +412,9 @@ function FittingPageInner() {
       .eq('school_id', schoolId).eq('active', true)
       .order('sort_order').order('item_name')
 
-    const filteredProds = (prods ?? []).filter((p: ProductRow) => {
-      if (!p.gender || p.gender === '男女共通') return true
-      if (child.gender === 'male'   && p.gender === '男子用') return true
-      if (child.gender === 'female' && p.gender === '女子用') return true
-      return !child.gender
-    })
-
-    if (filteredProds.length) {
-      const ids = filteredProds.map((p: ProductRow) => p.id)
+    const allProds = (prods ?? []) as ProductRow[]
+    if (allProds.length) {
+      const ids = allProds.map((p: ProductRow) => p.id)
       const { data: vars } = await supabase.from('school_product_variants')
         .select('id, product_id, size_label, price, sort_order')
         .in('product_id', ids).eq('active', true).order('sort_order')
@@ -425,13 +425,12 @@ function FittingPageInner() {
       }
       setVariantMap(map)
       const init: ConfirmedSizes = {}
-      for (const p of filteredProds) {
-        init[p.id] = { variant_id: '', size_label: '', qty: 1, memo: '' }
-      }
+      for (const p of allProds) init[p.id] = { variant_id: '', size_label: '', qty: 1, memo: '' }
       setConfirmed(init)
     }
 
-    setProducts(filteredProds)
+    setProducts(allProds)
+    setShowOtherGender(false)
     setLoadingProd(false)
     setStep('measure')
   }, [child, showToast, schools])
@@ -578,21 +577,28 @@ function FittingPageInner() {
     setShowAddChild(false)
     setHeightCm(''); setWeightKg(''); setChestCm(''); setWaistCm(''); setInseamCm('')
     setShowDetails(false); setProducts([]); setVariantMap({}); setConfirmed({})
-    setStaffMemo(''); setSavedId(null)
+    setStaffMemo(''); setSavedId(null); setShowOtherGender(false)
     setLinkedResId(null); setLinkedLineUserId(null)
     setLinkedQueueId(null); setQueueBanner(null)
   }
 
-  // ── カテゴリ別グループ ────────────────────────────────────
+  // ── カテゴリ別グループ（性別フィルタ適用済み） ────────────
   const productsByCategory = useMemo(() => {
+    const filtered = products.filter((p: ProductRow) => {
+      if (!p.gender || p.gender === '男女共通') return true
+      if (child?.gender === 'male'   && p.gender === '男子用') return true
+      if (child?.gender === 'female' && p.gender === '女子用') return true
+      if (showOtherGender) return true
+      return !child?.gender
+    })
     const map: Record<string, ProductRow[]> = {}
-    for (const p of products) {
+    for (const p of filtered) {
       const cat = p.category ?? 'その他'
       if (!map[cat]) map[cat] = []
       map[cat].push(p)
     }
     return Object.entries(map)
-  }, [products])
+  }, [products, child, showOtherGender])
 
   // ============================================================
   // レンダリング
@@ -945,6 +951,13 @@ function FittingPageInner() {
                   {child.grade && <span className="text-[10px] bg-white text-gray-600 border border-gray-200 px-1.5 py-0.5 rounded-lg">{child.grade}</span>}
                   {child.gender && <span className="text-[10px] bg-white text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded-lg">{child.gender === 'male' ? '男子' : '女子'}</span>}
                 </div>
+                {child.gender && (
+                  <button
+                    onClick={() => setShowOtherGender(p => !p)}
+                    className={`mt-1.5 text-[10px] font-medium underline ${showOtherGender ? 'text-violet-600' : 'text-gray-400 hover:text-gray-600'}`}>
+                    {showOtherGender ? '▲ 性別別表示に戻す' : '他の性別のアイテムも表示'}
+                  </button>
+                )}
               </div>
               <button onClick={() => setStep('customer')}
                 className="text-xs text-teal-600 hover:text-teal-800 font-bold flex items-center gap-1">

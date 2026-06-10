@@ -52,34 +52,43 @@ function InitialRegistrationForm({
   onSubmit,
   submitting,
   schoolOptions,
+  schools,
 }: {
   lineDisplayName: string
-  onSubmit: (d: { parentName: string; parentKana: string; tel: string; childName: string; childKana: string; schoolName: string; grade: string; heightCm: string; weightKg: string }) => Promise<void>
+  onSubmit: (d: { parentName: string; parentKana: string; tel: string; childName: string; childKana: string; schoolName: string; schoolId: string; grade: string; heightCm: string; weightKg: string; gender: string }) => Promise<void>
   submitting: boolean
   schoolOptions?: string[]
+  schools?: { id: string; name: string }[]
 }) {
   const theme  = useStoreTheme()
   const parent = useKanaAutoFill(lineDisplayName)
   const child  = useKanaAutoFill('')
   const [tel,        setTel]        = useState('')
+  const [schoolId,   setSchoolId]   = useState('')
   const [schoolName, setSchoolName] = useState('')
   const [grade,      setGrade]      = useState('')
   const [heightCm,   setHeightCm]   = useState('')
   const [weightKg,   setWeightKg]   = useState('')
+  const [gender,     setGender]     = useState('')
   const [error,      setError]      = useState('')
 
-  const effectiveSchoolOptions = schoolOptions && schoolOptions.length > 0 ? schoolOptions : SCHOOL_OPTIONS
+  const useSchoolPicker = !!(schools && schools.length > 0)
+  const effectiveSchoolOptions = !useSchoolPicker && schoolOptions && schoolOptions.length > 0 ? schoolOptions : SCHOOL_OPTIONS
+  const resolvedSchoolName = useSchoolPicker ? (schools!.find(s => s.id === schoolId)?.name ?? '') : schoolName
+  const resolvedSchoolId   = useSchoolPicker ? schoolId : ''
 
   const handleSubmit = async () => {
     if (!parent.name.trim()) { setError('保護者のお名前を入力してください'); return }
     if (!child.name.trim())  { setError('お子様のお名前を入力してください'); return }
-    if (!schoolName)         { setError('学校名を選択してください'); return }
+    if (!(useSchoolPicker ? schoolId : schoolName)) { setError('学校名を選択してください'); return }
     if (!grade)              { setError('学年を選択してください'); return }
+    if (!gender)             { setError('性別を選択してください'); return }
     setError('')
     await onSubmit({
       parentName: parent.name.trim(), parentKana: parent.kana.trim(),
       tel: tel.trim(), childName: child.name.trim(), childKana: child.kana.trim(),
-      schoolName: schoolName.trim(), grade, heightCm, weightKg,
+      schoolName: resolvedSchoolName.trim(), schoolId: resolvedSchoolId,
+      grade, heightCm, weightKg, gender,
     })
   }
 
@@ -111,10 +120,17 @@ function InitialRegistrationForm({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名 <span className="text-red-500">*</span></label>
-              <select value={schoolName} onChange={e => setSchoolName(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
-                <option value="">選択してください</option>
-                {effectiveSchoolOptions.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
-              </select>
+              {useSchoolPicker ? (
+                <select value={schoolId} onChange={e => setSchoolId(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
+                  <option value="">選択してください</option>
+                  {schools!.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              ) : (
+                <select value={schoolName} onChange={e => setSchoolName(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
+                  <option value="">選択してください</option>
+                  {effectiveSchoolOptions.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
+                </select>
+              )}
             </div>
             <div>
               <label className="block text-xs font-bold text-zinc-500 mb-1.5">学年 <span className="text-red-500">*</span></label>
@@ -122,6 +138,19 @@ function InitialRegistrationForm({
                 <option value="">選択</option>
                 {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
               </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-zinc-500 mb-1.5">性別 <span className="text-red-500">*</span></label>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setGender('male')}
+                className={`py-2 rounded-xl border-2 text-sm font-bold transition-all ${gender === 'male' ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-zinc-100 bg-zinc-50/80 text-zinc-500'}`}>
+                男子
+              </button>
+              <button type="button" onClick={() => setGender('female')}
+                className={`py-2 rounded-xl border-2 text-sm font-bold transition-all ${gender === 'female' ? 'border-pink-400 bg-pink-50 text-pink-700' : 'border-zinc-100 bg-zinc-50/80 text-zinc-500'}`}>
+                女子
+              </button>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -163,28 +192,36 @@ function AddChildForm({
   onCancel,
   submitting,
   schoolOptions,
+  schools,
 }: {
-  onSubmit: (d: { childName: string; childKana: string; schoolName: string; grade: string; heightCm: string; weightKg: string }) => Promise<void>
+  onSubmit: (d: { childName: string; childKana: string; schoolName: string; schoolId: string; grade: string; heightCm: string; weightKg: string; gender: string }) => Promise<void>
   onCancel?: () => void
   submitting: boolean
   schoolOptions?: string[]
+  schools?: { id: string; name: string }[]
 }) {
   const theme = useStoreTheme()
   const child = useKanaAutoFill('')
+  const [schoolId,   setSchoolId]   = useState('')
   const [schoolName, setSchoolName] = useState('')
   const [grade,      setGrade]      = useState('')
   const [heightCm,   setHeightCm]   = useState('')
   const [weightKg,   setWeightKg]   = useState('')
+  const [gender,     setGender]     = useState('')
   const [error,      setError]      = useState('')
 
-  const effectiveSchoolOptions = schoolOptions && schoolOptions.length > 0 ? schoolOptions : SCHOOL_OPTIONS
+  const useSchoolPicker = !!(schools && schools.length > 0)
+  const effectiveSchoolOptions = !useSchoolPicker && schoolOptions && schoolOptions.length > 0 ? schoolOptions : SCHOOL_OPTIONS
+  const resolvedSchoolName = useSchoolPicker ? (schools!.find(s => s.id === schoolId)?.name ?? '') : schoolName
+  const resolvedSchoolId   = useSchoolPicker ? schoolId : ''
 
   const handleSubmit = async () => {
     if (!child.name.trim()) { setError('お名前を入力してください'); return }
-    if (!schoolName)        { setError('学校名を選択してください'); return }
+    if (!(useSchoolPicker ? schoolId : schoolName)) { setError('学校名を選択してください'); return }
     if (!grade)             { setError('学年を選択してください'); return }
+    if (!gender)            { setError('性別を選択してください'); return }
     setError('')
-    await onSubmit({ childName: child.name.trim(), childKana: child.kana.trim(), schoolName: schoolName.trim(), grade, heightCm, weightKg })
+    await onSubmit({ childName: child.name.trim(), childKana: child.kana.trim(), schoolName: resolvedSchoolName.trim(), schoolId: resolvedSchoolId, grade, heightCm, weightKg, gender })
   }
 
   const base  = 'w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50/80 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all'
@@ -204,10 +241,17 @@ function AddChildForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名 <span className="text-red-500">*</span></label>
-          <select value={schoolName} onChange={e => setSchoolName(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
-            <option value="">選択してください</option>
-            {effectiveSchoolOptions.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
-          </select>
+          {useSchoolPicker ? (
+            <select value={schoolId} onChange={e => setSchoolId(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
+              <option value="">選択してください</option>
+              {schools!.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          ) : (
+            <select value={schoolName} onChange={e => setSchoolName(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
+              <option value="">選択してください</option>
+              {effectiveSchoolOptions.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
+            </select>
+          )}
         </div>
         <div>
           <label className="block text-xs font-bold text-zinc-500 mb-1.5">学年 <span className="text-red-500">*</span></label>
@@ -215,6 +259,19 @@ function AddChildForm({
             <option value="">選択</option>
             {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
           </select>
+        </div>
+      </div>
+      <div>
+        <label className="block text-xs font-bold text-zinc-500 mb-1.5">性別 <span className="text-red-500">*</span></label>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => setGender('male')}
+            className={`py-2 rounded-xl border-2 text-sm font-bold transition-all ${gender === 'male' ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-zinc-100 bg-zinc-50/80 text-zinc-500'}`}>
+            男子
+          </button>
+          <button type="button" onClick={() => setGender('female')}
+            className={`py-2 rounded-xl border-2 text-sm font-bold transition-all ${gender === 'female' ? 'border-pink-400 bg-pink-50 text-pink-700' : 'border-zinc-100 bg-zinc-50/80 text-zinc-500'}`}>
+            女子
+          </button>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -428,26 +485,32 @@ function ChildEditInline({ child, schools, gradeOptions, onSaved, onClose }: {
 
 // ── 待ち中：保護者＋お子様 一括登録フォーム ──────────────
 function WaitingFirstChildForm({
-  customer, schoolOptions, storeId, ticketId, onSaved,
+  customer, schools: schoolsList, storeId, ticketId, onSaved,
 }: {
   customer: Customer
-  schoolOptions: string[]
+  schools: { id: string; name: string }[]
   storeId: string
   ticketId: string | null
   onSaved: (c: Customer, ch: Child) => void
 }) {
   const theme = useStoreTheme()
   const parent = useKanaAutoFill(customer.name, customer.kana ?? undefined)
-  const [tel,        setTel]        = useState(customer.tel ?? '')
+  const [tel,      setTel]      = useState(customer.tel ?? '')
   const child = useKanaAutoFill('')
+  const [schoolId,   setSchoolId]   = useState('')
   const [schoolName, setSchoolName] = useState('')
   const [grade,      setGrade]      = useState('')
   const [heightCm,   setHeightCm]   = useState('')
   const [weightKg,   setWeightKg]   = useState('')
+  const [gender,     setGender]     = useState('')
   const [error,      setError]      = useState('')
   const [saving,     setSaving]     = useState(false)
 
-  const effectiveSchoolOptions = schoolOptions.length > 0 ? schoolOptions : SCHOOL_OPTIONS
+  const useSchoolPicker = schoolsList.length > 0
+  const effectiveSchoolOptions = useSchoolPicker ? [] : SCHOOL_OPTIONS
+  const resolvedSchoolName = useSchoolPicker ? (schoolsList.find(s => s.id === schoolId)?.name ?? '') : schoolName
+  const resolvedSchoolId   = useSchoolPicker ? schoolId : ''
+
   const base  = 'w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all'
   const focus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = theme.colors.primary)
   const blur  = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = '')
@@ -455,8 +518,9 @@ function WaitingFirstChildForm({
   const handleSave = async () => {
     if (!parent.name.trim()) { setError('保護者のお名前を入力してください'); return }
     if (!child.name.trim())  { setError('お子様のお名前を入力してください'); return }
-    if (!schoolName)          { setError('学校名を選択してください'); return }
+    if (!(useSchoolPicker ? schoolId : schoolName)) { setError('学校名を選択してください'); return }
     if (!grade)               { setError('学年を選択してください'); return }
+    if (!gender)              { setError('性別を選択してください'); return }
     setSaving(true); setError('')
     try {
       const [custResult, childResult] = await Promise.all([
@@ -466,7 +530,8 @@ function WaitingFirstChildForm({
         supabase.from('children').insert({
           customer_id: customer.id, store_id: storeId,
           name: child.name.trim(), kana: child.kana.trim() || null,
-          school_name: schoolName.trim() || null, grade: grade || null,
+          school_id: resolvedSchoolId || null, school_name: resolvedSchoolName.trim() || null,
+          grade: grade || null, gender: gender || null,
         }).select().single(),
       ])
       if (custResult.error) throw new Error(custResult.error.message)
@@ -479,7 +544,8 @@ function WaitingFirstChildForm({
           customer_id:   customer.id,
           child_name:    child.name.trim() || null,
           child_id:      newChild.id,
-          school_name:   schoolName.trim() || null,
+          school_name:   resolvedSchoolName.trim() || null,
+          gender:        gender || null,
         }
         if (heightCm) qUpdate.details = { height: heightCm, ...(weightKg ? { weight: weightKg } : {}) }
         await supabase.from('queues').update(qUpdate).eq('id', ticketId)
@@ -519,10 +585,17 @@ function WaitingFirstChildForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-bold text-zinc-500 mb-1">学校名 <span className="text-red-500">*</span></label>
-          <select value={schoolName} onChange={e => setSchoolName(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
-            <option value="">選択してください</option>
-            {effectiveSchoolOptions.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
-          </select>
+          {useSchoolPicker ? (
+            <select value={schoolId} onChange={e => setSchoolId(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
+              <option value="">選択してください</option>
+              {schoolsList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          ) : (
+            <select value={schoolName} onChange={e => setSchoolName(e.target.value)} className={base} onFocus={focus} onBlur={blur}>
+              <option value="">選択してください</option>
+              {effectiveSchoolOptions.map(s => <option key={s} value={s === 'その他' ? '' : s}>{s}</option>)}
+            </select>
+          )}
         </div>
         <div>
           <label className="block text-xs font-bold text-zinc-500 mb-1">学年 <span className="text-red-500">*</span></label>
@@ -532,9 +605,22 @@ function WaitingFirstChildForm({
           </select>
         </div>
       </div>
+      <div>
+        <label className="block text-xs font-bold text-zinc-500 mb-1">性別 <span className="text-red-500">*</span></label>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => setGender('male')}
+            className={`py-2 rounded-xl border-2 text-sm font-bold transition-all ${gender === 'male' ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-zinc-100 bg-zinc-50 text-zinc-500'}`}>
+            男子
+          </button>
+          <button type="button" onClick={() => setGender('female')}
+            className={`py-2 rounded-xl border-2 text-sm font-bold transition-all ${gender === 'female' ? 'border-pink-400 bg-pink-50 text-pink-700' : 'border-zinc-100 bg-zinc-50 text-zinc-500'}`}>
+            女子
+          </button>
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-bold text-zinc-500 mb-1">身長 (cm) <span className="text-red-500">*</span></label>
+          <label className="block text-xs font-bold text-zinc-500 mb-1">身長 (cm)</label>
           <input type="number" inputMode="decimal" value={heightCm} onChange={e => setHeightCm(e.target.value)} placeholder="例：158" className={base} onFocus={focus} onBlur={blur} />
         </div>
         <div>
@@ -877,8 +963,8 @@ export default function CustomerPage() {
   // ── 初回登録（保護者 + お子様）────────────────────────
   const handleInitialRegister = async (d: {
     parentName: string; parentKana: string; tel: string
-    childName: string; childKana: string; schoolName: string; grade: string
-    heightCm: string; weightKg: string
+    childName: string; childKana: string; schoolName: string; schoolId: string; grade: string
+    heightCm: string; weightKg: string; gender: string
   }) => {
     // LIFFプロフィールを確保（初期化時に取れなかった場合は再取得）
     let userId = lineProfile?.userId
@@ -922,7 +1008,8 @@ export default function CustomerPage() {
       const { data: newChild, error: childErr } = await supabase.from('children').insert({
         customer_id: cust.id, store_id: storeId,
         name: d.childName, kana: d.childKana || null,
-        school_name: d.schoolName || null, grade: d.grade || null,
+        school_id: d.schoolId || null, school_name: d.schoolName || null,
+        grade: d.grade || null, gender: d.gender || null,
       }).select().single()
       if (childErr) throw new Error(childErr.message)
 
@@ -977,14 +1064,15 @@ export default function CustomerPage() {
   }
 
   // ── お子様追加 ────────────────────────────────────────
-  const handleAddChild = async (d: { childName: string; childKana: string; schoolName: string; grade: string; heightCm?: string; weightKg?: string }) => {
+  const handleAddChild = async (d: { childName: string; childKana: string; schoolName: string; schoolId?: string; grade: string; heightCm?: string; weightKg?: string; gender?: string }) => {
     if (!customer) return
     setSubmitting(true)
     try {
       const { data: newChild } = await supabase.from('children').insert({
         customer_id: customer.id, store_id: storeId,
         name: d.childName, kana: d.childKana || null,
-        school_name: d.schoolName || null, grade: d.grade || null,
+        school_id: d.schoolId || null, school_name: d.schoolName || null,
+        grade: d.grade || null, gender: d.gender || null,
       }).select().single()
       if (newChild) {
         setChildren(prev => [...prev, newChild])
@@ -1030,7 +1118,7 @@ export default function CustomerPage() {
         child_name:    selectedChild?.name ?? null,
         school_name:   selectedChild?.school_name ?? null,
         category:      'fitting',
-        gender:        'other',
+        gender:        selectedChild?.gender ?? null,
         line_user_id:  lineProfile?.userId ?? null,
         is_remote:     isRemote,
         checked_in:    !isRemote,
@@ -1230,6 +1318,7 @@ export default function CustomerPage() {
               onCancel={() => setShowAddChild(false)}
               submitting={submitting}
               schoolOptions={storeSchoolOptions}
+              schools={schools}
             />
           </div>
         ) : (
@@ -1270,6 +1359,7 @@ export default function CustomerPage() {
           onSubmit={handleInitialRegister}
           submitting={submitting}
           schoolOptions={storeSchoolOptions}
+          schools={schools}
         />
       </div>
     </main>
@@ -1517,7 +1607,7 @@ export default function CustomerPage() {
                     <div className="px-4 pb-4 border-t border-zinc-100">
                       <WaitingFirstChildForm
                         customer={customer}
-                        schoolOptions={storeSchoolOptions}
+                        schools={schools}
                         storeId={storeId}
                         ticketId={ticket.id}
                         onSaved={(updatedCust, newChild) => {
@@ -1604,7 +1694,8 @@ export default function CustomerPage() {
                               onSubmit={handleAddChild}
                               onCancel={() => setWaitingEditMode(null)}
                               submitting={submitting}
-                              schoolOptions={storeSchoolOptions} />
+                              schoolOptions={storeSchoolOptions}
+                              schools={schools} />
                           </div>
                         )}
                       </div>
@@ -1645,6 +1736,7 @@ export default function CustomerPage() {
                             onSubmit={handleInitialRegister}
                             submitting={submitting}
                             schoolOptions={storeSchoolOptions}
+                            schools={schools}
                           />
                         </div>
                       </>
