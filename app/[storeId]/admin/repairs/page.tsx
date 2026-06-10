@@ -891,14 +891,20 @@ export default function RepairsPage() {
         ) : tab === 'purchase' ? (
           /* ── ②発注タブ ───────────────────────────────────── */
           <div className="space-y-4">
-            {/* Search */}
-            <div className="relative">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text" value={searchText} onChange={e => setSearchText(e.target.value)}
-                placeholder="名前・品名・メーカーで絞り込み"
-                className="w-full pl-9 pr-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:border-indigo-500 focus:outline-none shadow-sm"
-              />
+            {/* Search + 注文管理リンク */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text" value={searchText} onChange={e => setSearchText(e.target.value)}
+                  placeholder="名前・品名・メーカーで絞り込み"
+                  className="w-full pl-9 pr-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:border-indigo-500 focus:outline-none shadow-sm"
+                />
+              </div>
+              <a href={`/${storeId}/admin/orders`}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold rounded-xl hover:bg-indigo-100 transition-colors whitespace-nowrap">
+                <Database size={12} />注文管理
+              </a>
             </div>
 
             {filteredPurchaseUnordered.length === 0 && filteredUniformOrders.length === 0 ? (
