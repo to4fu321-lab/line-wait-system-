@@ -1365,12 +1365,14 @@ export default function CustomerPage() {
                   <div className="flex items-center gap-3 px-4 py-3">
                     <CheckCircle2 size={16} style={{ color: theme.colors.primary }} className="shrink-0" />
                     <p className="font-bold text-zinc-800 text-sm flex-1">{customer.name} 様</p>
-                    <button onClick={() => setWaitingEditMode(m => m === 'parentinfo' ? null : 'parentinfo')}
-                      className="shrink-0 flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-zinc-100 text-zinc-500 font-bold active:scale-95 transition-transform">
-                      <Pencil size={11} />{waitingEditMode === 'parentinfo' ? '閉じる' : '編集'}
-                    </button>
+                    {children.length > 0 && (
+                      <button onClick={() => setWaitingEditMode(m => m === 'parentinfo' ? null : 'parentinfo')}
+                        className="shrink-0 flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-zinc-100 text-zinc-500 font-bold active:scale-95 transition-transform">
+                        <Pencil size={11} />{waitingEditMode === 'parentinfo' ? '閉じる' : '編集'}
+                      </button>
+                    )}
                   </div>
-                  {waitingEditMode === 'parentinfo' && (
+                  {(waitingEditMode === 'parentinfo' || children.length === 0) && (
                     <div className="px-4 pb-4 border-t border-zinc-100">
                       <WaitingCustomerEditForm customer={customer} schoolOptions={storeSchoolOptions} onSaved={updated => setCustomer(updated)} onClose={() => setWaitingEditMode(null)} />
                     </div>
