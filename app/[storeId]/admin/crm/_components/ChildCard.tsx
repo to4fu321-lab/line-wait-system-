@@ -577,14 +577,8 @@ function UniformOrderInlineCard({
             <p className="text-[10px] text-gray-500">希望日: {order.expected_delivery_date}</p>
           )}
 
-          {/* Status progression */}
+          {/* Status progression — 発注は案件ページの発注タブで行うためボタンなし */}
           <div className="flex gap-1.5 flex-wrap">
-            {order.status === 'confirmed' && (
-              <button onClick={() => doStatus('ordered', '発注済みにしました')} disabled={loading}
-                className="flex-1 py-2 rounded-lg text-xs font-bold bg-orange-600 text-white flex items-center justify-center gap-1 disabled:opacity-50">
-                {loading ? <Loader2 size={11} className="animate-spin" /> : '🚚 発注する'}
-              </button>
-            )}
             {order.status === 'ordered' && (
               <button onClick={() => doStatus('arrived', '入荷完了にしました')} disabled={loading}
                 className="flex-1 py-2 rounded-lg text-xs font-bold bg-emerald-600 text-white flex items-center justify-center gap-1 disabled:opacity-50">
