@@ -1331,10 +1331,22 @@ function MasterPageInner() {
               <Field label="商品名" required>
                 <input type="text" value={pName} onChange={e => setPName(e.target.value)} placeholder="例：男子夏用スラックス" autoFocus className={INPUT} />
               </Field>
-              <Field label="メーカー区分">
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-2">メーカー区分</label>
+                <div className="grid grid-cols-3 gap-1.5 mb-2">
+                  {['トンボ', 'カンコー', 'スクールフォーラム', '明石スクール', '富士ヨット', 'テイコク'].map(m => (
+                    <button key={m} type="button"
+                      onClick={() => setPMakerName(pMakerName === m ? '' : m)}
+                      className={`py-2.5 rounded-xl text-sm font-bold border transition-all active:scale-95 ${
+                        pMakerName === m
+                          ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
+                          : 'bg-white border-gray-300 text-gray-700 hover:border-indigo-400 hover:text-indigo-700'
+                      }`}>{m}</button>
+                  ))}
+                </div>
                 <input type="text" value={pMakerName} onChange={e => setPMakerName(e.target.value)}
-                  placeholder="例：トンボ、スクールフォーラム、明石スクールユニフォーム" className={INPUT} />
-              </Field>
+                  placeholder="上記以外は直接入力" className={INPUT} />
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Field label="メーカー品番">
