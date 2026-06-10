@@ -277,6 +277,7 @@ export function ChildCard({
   const [purchases,     setPurchases]     = useState<PurchaseOrder[]>([])
   const [uniformOrders, setUniformOrders] = useState<UniformOrderLocal[]>([])
   const [measurements,  setMeasurements]  = useState<MeasurementLocal[]>([])
+  const [productNames,  setProductNames]  = useState<Record<string, string>>({})
   const [loading,       setLoading]       = useState(false)
   const [showNewIntake, setShowNewIntake] = useState(false)
   const [editOrder,     setEditOrder]     = useState<UniformOrderLocal | null>(null)
@@ -299,6 +300,21 @@ export function ChildCard({
     setPurchases(p ?? [])
     setUniformOrders(u ?? [])
     setMeasurements(m ?? [])
+
+    // confirmed_sizes のキー（school_products.id）→ 商品名 を解決
+    const productIds = new Set<string>()
+    for (const meas of (m ?? []) as MeasurementLocal[]) {
+      if (meas.confirmed_sizes) {
+        for (const pid of Object.keys(meas.confirmed_sizes)) productIds.add(pid)
+      }
+    }
+    if (productIds.size > 0) {
+      const { data: prods } = await (supabase as any).from('school_products')
+        .select('id,item_name').in('id', Array.from(productIds))
+      const nameMap: Record<string, string> = {}
+      for (const p of (prods ?? []) as { id: string; item_name: string }[]) nameMap[p.id] = p.item_name
+      setProductNames(nameMap)
+    }
     setLoading(false)
   }, [child.id])
 
@@ -419,20 +435,29 @@ export function ChildCard({
                               }`}>{m.status === 'ordered' ? '注文済み' : m.status === 'measured' ? '採寸済み' : m.status}</span>
                             )}
                           </div>
-                          {m.confirmed_sizes && Object.keys(m.confirmed_sizes).length > 0 && (
-                            <div className="flex gap-2 flex-wrap mt-1">
-                              {Object.entries(m.confirmed_sizes).map(([k, v]) => {
-                                const label = typeof v === 'object' && v !== null
-                                  ? ((v as Record<string, unknown>).size_label as string ?? JSON.stringify(v))
-                                  : String(v)
-                                return (
-                                  <span key={k} className="text-[10px] bg-white border border-gray-200 rounded-full px-2 py-0.5">
-                                    {k}: {label}
+                          {(() => {
+                            if (!m.confirmed_sizes) return null
+                            const entries = Object.entries(m.confirmed_sizes)
+                              .map(([pid, v]) => {
+                                const obj = typeof v === 'object' && v !== null ? v as Record<string, unknown> : null
+                                const sizeLabel = obj ? (obj.size_label as string ?? '') : String(v ?? '')
+                                const qty = obj ? Number(obj.qty ?? 0) : 0
+                                return { pid, sizeLabel, qty, name: productNames[pid] ?? '商品' }
+                              })
+                              // サイズ未選択（採寸ページが全商品を空で初期化するため）を除外
+                              .filter(e => e.sizeLabel && (e.qty == null || e.qty > 0))
+                            if (entries.length === 0) return null
+                            return (
+                              <div className="flex gap-2 flex-wrap mt-1">
+                                {entries.map(e => (
+                                  <span key={e.pid} className="text-[10px] bg-white border border-gray-200 rounded-full px-2 py-0.5 text-gray-700">
+                                    {e.name} <span className="font-bold text-indigo-600">{e.sizeLabel}</span>
+                                    {e.qty > 1 && <span className="text-gray-400"> ×{e.qty}</span>}
                                   </span>
-                                )
-                              })}
-                            </div>
-                          )}
+                                ))}
+                              </div>
+                            )
+                          })()}
                           {m.staff_memo && <p className="text-[10px] text-gray-500 mt-1">{m.staff_memo}</p>}
                         </div>
                       ))}
