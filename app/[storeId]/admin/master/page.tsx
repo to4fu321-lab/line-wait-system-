@@ -135,6 +135,7 @@ function MasterPageInner() {
   const [productModal,         setProductModal]         = useState(false)
   const [editingProduct,       setEditingProduct]       = useState<SchoolProduct | null>(null)
   const [pName,                setPName]                = useState('')
+  const [pMakerName,           setPMakerName]           = useState('')
   const [pMaker,               setPMaker]               = useState('')
   const [pColor,               setPColor]               = useState('')
   const [pCategory,            setPCategory]            = useState('')
@@ -355,13 +356,13 @@ function MasterPageInner() {
   }
 
   // ── Product CRUD ──────────────────────────────────────────
-  const openProductAdd  = () => { setEditingProduct(null); setPName(''); setPMaker(''); setPColor(''); setPCategory(''); setPGender(''); setPNotes(''); setPBarcode(''); setProductModal(true) }
-  const openProductEdit = (p: SchoolProduct) => { setEditingProduct(p); setPName(p.item_name); setPMaker(p.maker_code ?? ''); setPColor(p.color_code ?? ''); setPCategory(p.category ?? ''); setPGender(p.gender ?? ''); setPNotes(p.notes ?? ''); setPBarcode(p.barcode ?? ''); setProductModal(true) }
+  const openProductAdd  = () => { setEditingProduct(null); setPName(''); setPMakerName(''); setPMaker(''); setPColor(''); setPCategory(''); setPGender(''); setPNotes(''); setPBarcode(''); setProductModal(true) }
+  const openProductEdit = (p: SchoolProduct) => { setEditingProduct(p); setPName(p.item_name); setPMakerName(p.maker ?? ''); setPMaker(p.maker_code ?? ''); setPColor(p.color_code ?? ''); setPCategory(p.category ?? ''); setPGender(p.gender ?? ''); setPNotes(p.notes ?? ''); setPBarcode(p.barcode ?? ''); setProductModal(true) }
 
   const handleProductSave = async () => {
     if (!pName.trim() || !selectedSchool) return
     setProductSaving(true)
-    const payload = { item_name: pName.trim(), maker_code: pMaker.trim() || null, color_code: pColor.trim() || null, category: pCategory || null, gender: pGender || null, notes: pNotes.trim() || null, barcode: pBarcode.trim() || null, updated_at: new Date().toISOString() }
+    const payload = { item_name: pName.trim(), maker: pMakerName.trim() || null, maker_code: pMaker.trim() || null, color_code: pColor.trim() || null, category: pCategory || null, gender: pGender || null, notes: pNotes.trim() || null, barcode: pBarcode.trim() || null, updated_at: new Date().toISOString() }
     if (editingProduct) {
       const { data, error } = await (supabase as any).from('school_products').update(payload).eq('id', editingProduct.id).select().single()
       setProductSaving(false)
@@ -418,6 +419,7 @@ function MasterPageInner() {
       if (ok && data) {
         if (data.barcode || detectedBarcode) setPBarcode(data.barcode ?? detectedBarcode)
         if (data.item_name)  setPName(data.item_name)
+        if (data.maker)      setPMakerName(data.maker)
         if (data.maker_code) setPMaker(data.maker_code)
         if (data.color_code) setPColor(data.color_code)
         if (data.category)   setPCategory(data.category)
@@ -1117,6 +1119,7 @@ function MasterPageInner() {
                       <div className="flex-1 min-w-0">
                         <p className="font-black text-gray-900 text-base leading-tight truncate">{product.item_name}</p>
                         <div className="flex flex-wrap gap-1 mt-1">
+                          {product.maker && <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded-lg font-bold">{product.maker}</span>}
                           {product.maker_code && <span className="text-[10px] font-mono bg-gray-100 text-gray-600 border border-gray-200 px-1.5 py-0.5 rounded-lg">品番: {product.maker_code}</span>}
                           {product.color_code && <span className="text-[10px] font-mono bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-lg">色: {product.color_code}</span>}
                           {product.category && <span className="text-[10px] bg-teal-50 text-teal-700 border border-teal-200 px-1.5 py-0.5 rounded-lg">{product.category}</span>}
@@ -1157,6 +1160,7 @@ function MasterPageInner() {
                 <div className="flex-1 min-w-0">
                   <p className="font-black text-amber-900 text-sm truncate">{selectedProduct?.item_name}</p>
                   <div className="flex gap-2 mt-0.5 flex-wrap">
+                    {selectedProduct?.maker && <span className="text-[10px] text-amber-800 font-bold">{selectedProduct.maker}</span>}
                     {selectedProduct?.maker_code && <span className="text-[10px] text-amber-700 font-mono">品番: {selectedProduct.maker_code}</span>}
                     {selectedProduct?.color_code && <span className="text-[10px] text-amber-700">色: {selectedProduct.color_code}</span>}
                     {selectedProduct?.category && <span className="text-[10px] text-amber-600">{selectedProduct.category}</span>}
@@ -1326,6 +1330,10 @@ function MasterPageInner() {
             <div className="space-y-3">
               <Field label="商品名" required>
                 <input type="text" value={pName} onChange={e => setPName(e.target.value)} placeholder="例：男子夏用スラックス" autoFocus className={INPUT} />
+              </Field>
+              <Field label="メーカー区分">
+                <input type="text" value={pMakerName} onChange={e => setPMakerName(e.target.value)}
+                  placeholder="例：トンボ、スクールフォーラム、明石スクールユニフォーム" className={INPUT} />
               </Field>
               <div className="grid grid-cols-2 gap-2">
                 <div>

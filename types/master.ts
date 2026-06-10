@@ -21,6 +21,7 @@ export interface SchoolProduct {
   store_id:    string
   school_id:   string
   item_name:   string
+  maker:       string | null   // メーカー名（例：トンボ、スクールフォーラム）
   maker_code:  string | null   // メーカー品番（重複許可）
   color_code:  string | null   // 色番
   category:    string | null
