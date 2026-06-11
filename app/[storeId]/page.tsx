@@ -788,7 +788,9 @@ export default function CustomerPage() {
       const { data: sd } = await (supabase.from('stores') as any)
         .select('is_open, wait_thresholds, notification_plan, active_fittings, business_type, school_names, allow_remote, features').eq('id', storeId).single()
       if (sd?.business_type === 'takeout') { router.replace(`/${storeId}/order`); return }
-      if (sd?.features) setIsSimpleMode(!resolveFeature('tab_queue', sd.features as Record<string, unknown>))
+      const featuresData = (sd?.features ?? {}) as Record<string, unknown>
+      const isSimple = !resolveFeature('tab_queue', featuresData)
+      if (sd?.features) setIsSimpleMode(isSimple)
       if (sd && Array.isArray(sd.wait_thresholds) && sd.wait_thresholds.length > 0)
         setWaitThresholds(sd.wait_thresholds as WaitThreshold[])
       if (sd?.notification_plan) notificationPlanRef.current = sd.notification_plan
@@ -911,6 +913,7 @@ export default function CustomerPage() {
       if (action === 'queue') {
         setView('confirm_queue'); return
       }
+      if (isSimple && !cust) { setView('register'); return }
       setView('purpose')
     } catch (e) {
       console.error('[init] error:', e)
@@ -1008,6 +1011,7 @@ export default function CustomerPage() {
         .eq('store_id', storeId).in('status', ['waiting', 'calling'])
         .gte('created_at', getTodayStart())
       setWaitingCount(count ?? 0)
+      if (isSimpleMode && !customer) { setView('register'); return }
       setView('purpose')
     } catch (e) {
       console.error('[friendProceed]', e)
