@@ -18,6 +18,7 @@ import { useSimpleMode } from '@/lib/useSimpleMode'
 import type { RepairRow, PurchaseRow, UniformOrderRow, DeliveryItem } from './_components/types'
 import { Toast } from './_components/Toast'
 import { NewRepairModal } from './_components/NewRepairModal'
+import { SimpleReceiptModal } from './_components/SimpleReceiptModal'
 import { NewOrderModal } from './_components/NewOrderModal'
 import { RepairCard } from './_components/RepairCard'
 import { MakerOrderPanel, UniformMakerOrderPanel } from './_components/PurchaseOrderPanel'
@@ -62,7 +63,8 @@ export default function RepairsPage() {
   const [editKind,       setEditKind]       = useState<'repair' | 'purchase' | null>(null)
   const [searchText,     setSearchText]     = useState('')
   const [dummyLoading,   setDummyLoading]   = useState(false)
-  const [showNewRepair,   setShowNewRepair]   = useState(false)
+  const [showNewRepair,      setShowNewRepair]      = useState(false)
+  const [showSimpleReceipt,  setShowSimpleReceipt]  = useState(false)
   const [showNewOrder,    setShowNewOrder]    = useState(false)
   const [batchSelected,  setBatchSelected]  = useState<Set<string>>(new Set())
   const [batchUpdating,  setBatchUpdating]  = useState(false)
@@ -572,7 +574,7 @@ export default function RepairsPage() {
                 {isTablet && '制服注文'}
               </button>
             )}
-            <button onClick={() => setShowNewRepair(true)}
+            <button onClick={() => isSimpleMode ? setShowSimpleReceipt(true) : setShowNewRepair(true)}
               className={`flex items-center justify-center gap-1.5 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-indigo-600/20 ${isTablet ? 'px-3' : 'px-2.5'}`}>
               <Scissors size={13} />
               {isTablet && 'お直し'}
@@ -1230,6 +1232,13 @@ export default function RepairsPage() {
           onSave={fetchAll}
           onToast={showToast}
           showOcr={true}
+        />
+      )}
+      {showSimpleReceipt && (
+        <SimpleReceiptModal
+          storeId={storeId}
+          onClose={() => setShowSimpleReceipt(false)}
+          onCreated={() => { setShowSimpleReceipt(false); fetchAll() }}
         />
       )}
       {showNewOrder && (
