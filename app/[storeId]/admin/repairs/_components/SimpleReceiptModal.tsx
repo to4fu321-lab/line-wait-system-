@@ -42,8 +42,9 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
   const [custSearch,  setCustSearch]  = useState('')
   const [custResults, setCustResults] = useState<CustResult[]>([])
   const [searchDone,  setSearchDone]  = useState(false)
-  const [newCustMode, setNewCustMode] = useState<NewCustMode>(null)
-  const [newName,     setNewName]     = useState('')
+  const [newCustMode,      setNewCustMode]      = useState<NewCustMode>(null)
+  const [showChoicePanel, setShowChoicePanel] = useState(false)
+  const [newName,         setNewName]         = useState('')
   const [newTel,      setNewTel]      = useState('')
   const [nameError,   setNameError]   = useState('')
   const [telError,    setTelError]    = useState('')
@@ -209,7 +210,8 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
     setCustSearch('')
     setCustResults([])
     setSearchDone(false)
-    setNewCustMode('phone')
+    setNewCustMode(null)
+    setShowChoicePanel(true)
   }
 
   return (
@@ -278,7 +280,7 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
                       type="text" value={custSearch}
-                      onChange={e => { setCustSearch(e.target.value); setNewCustMode(null) }}
+                      onChange={e => { setCustSearch(e.target.value); setNewCustMode(null); setShowChoicePanel(false) }}
                       placeholder="名前・電話番号で検索"
                       className="w-full pl-9 pr-3 py-3 border-2 border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-indigo-400 transition-colors"
                     />
@@ -307,18 +309,21 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
                   </div>
                 )}
 
-                {/* 見つからない時 → 2択 */}
-                {noResults && newCustMode === null && (
+                {/* 見つからない時 or 新規ボタン → 2択 */}
+                {(noResults || showChoicePanel) && newCustMode === null && (
                   <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
-                    <p className="text-xs font-bold text-amber-800 mb-2">「{custSearch}」は見つかりませんでした</p>
+                    {noResults
+                      ? <p className="text-xs font-bold text-amber-800 mb-2">「{custSearch}」は見つかりませんでした</p>
+                      : <p className="text-xs font-bold text-amber-800 mb-2">新規お客様の登録方法を選んでください</p>
+                    }
                     <div className="grid grid-cols-2 gap-2">
-                      <button onClick={() => setNewCustMode('qr')}
+                      <button onClick={() => { setNewCustMode('qr'); setShowChoicePanel(false) }}
                         className="flex flex-col items-center gap-1.5 px-3 py-3 bg-white border-2 border-green-300 rounded-xl active:scale-95 transition-all">
                         <QrCode size={20} className="text-green-600" />
                         <span className="text-xs font-bold text-green-700">LINEで登録</span>
                         <span className="text-[10px] text-gray-400">QRコードを表示</span>
                       </button>
-                      <button onClick={() => { setNewCustMode('phone'); setNewName(custSearch) }}
+                      <button onClick={() => { setNewCustMode('phone'); setNewName(custSearch); setShowChoicePanel(false) }}
                         className="flex flex-col items-center gap-1.5 px-3 py-3 bg-white border-2 border-indigo-300 rounded-xl active:scale-95 transition-all">
                         <Phone size={20} className="text-indigo-600" />
                         <span className="text-xs font-bold text-indigo-700">電話で受付</span>
@@ -335,7 +340,7 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
                     <img src={qrSrc} alt="登録QR" width={180} height={180}
                       className="mx-auto rounded-xl bg-white p-1 shadow-sm border border-gray-100" />
                     <p className="text-[10px] text-gray-400 mt-2">登録後、名前または電話番号で検索してください</p>
-                    <button onClick={() => setNewCustMode(null)} className="mt-2 text-xs text-gray-500 underline">戻る</button>
+                    <button onClick={() => { setNewCustMode(null); setShowChoicePanel(false) }} className="mt-2 text-xs text-gray-500 underline">戻る</button>
                   </div>
                 )}
 
@@ -379,7 +384,7 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
                     </div>
 
                     <div className="flex gap-2 pt-1">
-                      <button onClick={() => { setNewCustMode(null); setNameError(''); setTelError('') }}
+                      <button onClick={() => { setNewCustMode(null); setShowChoicePanel(false); setNameError(''); setTelError('') }}
                         className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-bold active:scale-95">
                         戻る
                       </button>
