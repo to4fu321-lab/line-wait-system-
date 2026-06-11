@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X, Search, Check, Loader2, UserPlus } from 'lucide-react'
+import { X, Search, Check, Loader2, QrCode, Phone } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { todayJst } from './utils'
 
@@ -26,6 +26,9 @@ interface CustResult {
   line_user_id: string | null
 }
 
+// 未登録お客様の新規登録モード
+type NewCustMode = null | 'qr' | 'phone'
+
 interface Props {
   storeId: string
   onClose: () => void
@@ -33,26 +36,34 @@ interface Props {
 }
 
 export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
-  const [categories,      setCategories]      = useState<Category[]>([])
-  const [presets,         setPresets]         = useState<Preset[]>([])
-  const [selectedIds,     setSelectedIds]     = useState<Set<string>>(new Set())
-  const [customer,        setCustomer]        = useState<CustResult | null>(null)
-  const [custSearch,      setCustSearch]      = useState('')
-  const [custResults,     setCustResults]     = useState<CustResult[]>([])
-  const [price,           setPrice]           = useState('')
-  const [priceManual,     setPriceManual]     = useState(false)
-  const [notes,           setNotes]           = useState('')
-  const [submitting,      setSubmitting]      = useState(false)
-  const [error,           setError]           = useState('')
+  const [categories,   setCategories]   = useState<Category[]>([])
+  const [presets,      setPresets]      = useState<Preset[]>([])
+  const [selectedIds,  setSelectedIds]  = useState<Set<string>>(new Set())
+  const [customer,     setCustomer]     = useState<CustResult | null>(null)
+  const [custSearch,   setCustSearch]   = useState('')
+  const [custResults,  setCustResults]  = useState<CustResult[]>([])
+  const [searchDone,   setSearchDone]   = useState(false)
+  const [newCustMode,  setNewCustMode]  = useState<NewCustMode>(null)
+  const [newName,      setNewName]      = useState('')
+  const [newTel,       setNewTel]       = useState('')
+  const [regLoading,   setRegLoading]   = useState(false)
+  const [price,        setPrice]        = useState('')
+  const [priceManual,  setPriceManual]  = useState(false)
+  const [notes,        setNotes]        = useState('')
+  const [submitting,   setSubmitting]   = useState(false)
+  const [error,        setError]        = useState('')
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const liffId   = process.env.NEXT_PUBLIC_LIFF_ID ?? ''
+  const liffUrl  = `https://liff.line.me/${liffId}/${storeId}`
+  const qrSrc    = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(liffUrl)}`
 
   // Load presets + categories
   useEffect(() => {
     async function load() {
       const [{ data: cats }, { data: pres }] = await Promise.all([
         (supabase as any).from('repair_item_categories')
-          .select('id, name')
-          .eq('store_id', storeId).eq('is_active', true).order('sort_order'),
+          .select('id, name').eq('store_id', storeId).eq('is_active', true).order('sort_order'),
         (supabase as any).from('repair_price_presets')
           .select('id, item_name, repair_type, default_price, category_id, sort_order')
           .eq('store_id', storeId).eq('is_active', true).order('sort_order'),
@@ -63,17 +74,17 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
     load()
   }, [storeId])
 
-  // Auto-update price when presets change (unless user has manually edited)
+  // Auto-update price from selected presets (unless manually edited)
   useEffect(() => {
     if (priceManual) return
-    const selected = presets.filter(p => selectedIds.has(p.id))
-    const sum = selected.reduce((s, p) => s + (p.default_price ?? 0), 0)
+    const sum = presets.filter(p => selectedIds.has(p.id)).reduce((s, p) => s + (p.default_price ?? 0), 0)
     setPrice(sum > 0 ? String(sum) : '')
   }, [selectedIds, presets, priceManual])
 
-  // Customer search debounced
+  // Customer search with debounce
   useEffect(() => {
-    if (!custSearch.trim()) { setCustResults([]); return }
+    if (!custSearch.trim()) { setCustResults([]); setSearchDone(false); return }
+    setSearchDone(false)
     if (searchTimer.current) clearTimeout(searchTimer.current)
     searchTimer.current = setTimeout(async () => {
       const { data } = await (supabase as any).from('customers')
@@ -82,34 +93,46 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
         .or(`name.ilike.%${custSearch}%,tel.ilike.%${custSearch}%`)
         .order('created_at', { ascending: false }).limit(8)
       setCustResults(data ?? [])
-    }, 300)
+      setSearchDone(true)
+    }, 350)
   }, [custSearch, storeId])
 
-  const togglePreset = (id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+  const togglePreset = (id: string) =>
+    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+
+  // 電話番号で新規顧客登録
+  const handleRegisterPhone = async () => {
+    if (!newName.trim()) return
+    setRegLoading(true)
+    try {
+      const { data: c, error: err } = await (supabase as any).from('customers').insert({
+        store_id: storeId,
+        name: newName.trim(),
+        tel:  newTel.trim() || null,
+      }).select('id, name, tel, line_user_id').single()
+      if (err) throw new Error(err.message)
+      setCustomer(c as CustResult)
+      setNewCustMode(null)
+      setNewName(''); setNewTel('')
+      setCustSearch('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '登録に失敗しました')
+    } finally {
+      setRegLoading(false)
+    }
   }
 
-  const handlePriceChange = (v: string) => {
-    setPriceManual(true)
-    setPrice(v)
-  }
-
+  // 受付登録
   const handleSubmit = async () => {
     if (!customer)          { setError('お客様を選択してください'); return }
     if (selectedIds.size === 0) { setError('お直し内容を選択してください'); return }
     setError('')
     setSubmitting(true)
     try {
-      const selected = presets.filter(p => selectedIds.has(p.id))
-      const itemName  = selected.map(p => p.item_name).join(' / ')
+      const selected   = presets.filter(p => selectedIds.has(p.id))
+      const itemName   = selected.map(p => p.item_name).join(' / ')
       const repairType = selected[0]?.repair_type ?? 'other'
       const finalPrice = price ? parseInt(price, 10) : null
-
       const { error: insertErr } = await (supabase as any).from('repair_histories').insert({
         store_id:      storeId,
         customer_id:   customer.id,
@@ -129,7 +152,7 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
     }
   }
 
-  // Group presets by category
+  // Preset grouping
   const groups: { cat: Category | null; items: Preset[] }[] = []
   categories.forEach(cat => {
     const items = presets.filter(p => p.category_id === cat.id)
@@ -140,6 +163,7 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
 
   const selectedList = presets.filter(p => selectedIds.has(p.id))
   const autoSum = selectedList.reduce((s, p) => s + (p.default_price ?? 0), 0)
+  const noResults = searchDone && custSearch.trim().length > 0 && custResults.length === 0
 
   return (
     <div
@@ -154,8 +178,7 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
             <h2 className="text-lg font-black text-gray-900">✂️ お直し受付</h2>
             {selectedIds.size > 0 && (
               <p className="text-xs text-indigo-600 font-medium mt-0.5">
-                {selectedIds.size}項目選択中
-                {autoSum > 0 && ` · 合計 ¥${autoSum.toLocaleString()}`}
+                {selectedIds.size}項目 · 合計 ¥{autoSum.toLocaleString()}
               </p>
             )}
           </div>
@@ -164,13 +187,14 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
           </button>
         </div>
 
-        {/* Scrollable body */}
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
 
           {/* ── お客様 ── */}
           <section>
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">お客様</p>
+
             {customer ? (
+              /* 選択済み */
               <div className="flex items-center justify-between bg-indigo-50 border-2 border-indigo-200 rounded-2xl px-4 py-3">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center shrink-0">
@@ -179,31 +203,38 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
                   <div>
                     <p className="font-bold text-gray-900">{customer.name}</p>
                     {customer.tel && <p className="text-xs text-gray-500">{customer.tel}</p>}
-                    {customer.line_user_id && <p className="text-[10px] text-indigo-500 font-medium">LINE連携済み</p>}
+                    <p className="text-[10px] font-medium mt-0.5">
+                      {customer.line_user_id
+                        ? <span className="text-green-600">LINE連携済み</span>
+                        : <span className="text-gray-400">電話受付</span>}
+                    </p>
                   </div>
                 </div>
-                <button onClick={() => setCustomer(null)} className="text-xs text-indigo-600 font-bold px-2 py-1 rounded-lg hover:bg-indigo-100 active:scale-95 transition-all">変更</button>
+                <button onClick={() => { setCustomer(null); setNewCustMode(null) }}
+                  className="text-xs text-indigo-600 font-bold px-2 py-1 rounded-lg hover:bg-indigo-100 active:scale-95">
+                  変更
+                </button>
               </div>
             ) : (
-              <div>
+              /* 検索 */
+              <div className="space-y-2">
                 <div className="relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
-                    type="text"
-                    value={custSearch}
-                    onChange={e => setCustSearch(e.target.value)}
+                    type="text" value={custSearch}
+                    onChange={e => { setCustSearch(e.target.value); setNewCustMode(null) }}
                     placeholder="お客様名・電話番号で検索"
                     className="w-full pl-9 pr-3 py-3 border-2 border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-indigo-400 transition-colors"
                   />
                 </div>
+
+                {/* 検索結果 */}
                 {custResults.length > 0 && (
-                  <div className="mt-1.5 border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                  <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                     {custResults.map(c => (
-                      <button
-                        key={c.id}
+                      <button key={c.id}
                         onClick={() => { setCustomer(c); setCustSearch(''); setCustResults([]) }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-indigo-50 active:bg-indigo-100 border-b border-gray-100 last:border-0 text-left transition-colors"
-                      >
+                        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-indigo-50 active:bg-indigo-100 border-b border-gray-100 last:border-0 text-left transition-colors">
                         <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
                           <span className="text-sm font-bold text-gray-600">{c.name[0]}</span>
                         </div>
@@ -211,15 +242,74 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
                           <p className="text-sm font-bold text-gray-900 truncate">{c.name}</p>
                           {c.tel && <p className="text-xs text-gray-400">{c.tel}</p>}
                         </div>
-                        {c.line_user_id && <span className="text-[10px] text-green-600 font-bold bg-green-50 px-1.5 py-0.5 rounded-full shrink-0">LINE</span>}
+                        {c.line_user_id
+                          ? <span className="text-[10px] text-green-600 font-bold bg-green-50 px-1.5 py-0.5 rounded-full shrink-0">LINE</span>
+                          : <span className="text-[10px] text-gray-400 font-bold bg-gray-100 px-1.5 py-0.5 rounded-full shrink-0">電話</span>}
                       </button>
                     ))}
                   </div>
                 )}
-                {custSearch.trim().length > 0 && custResults.length === 0 && (
-                  <div className="mt-2 flex items-center gap-2 text-xs text-gray-400 px-1">
-                    <UserPlus size={13} />
-                    <span>見つかりません。顧客管理から先に登録してください。</span>
+
+                {/* 見つからない時 → 2択 */}
+                {noResults && newCustMode === null && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+                    <p className="text-xs font-bold text-amber-800 mb-2">「{custSearch}」は見つかりませんでした</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button onClick={() => setNewCustMode('qr')}
+                        className="flex flex-col items-center gap-1.5 px-3 py-3 bg-white border-2 border-green-300 rounded-xl active:scale-95 transition-all">
+                        <QrCode size={20} className="text-green-600" />
+                        <span className="text-xs font-bold text-green-700">LINEで登録</span>
+                        <span className="text-[10px] text-gray-400">QRコードを表示</span>
+                      </button>
+                      <button onClick={() => { setNewCustMode('phone'); setNewName(custSearch) }}
+                        className="flex flex-col items-center gap-1.5 px-3 py-3 bg-white border-2 border-indigo-300 rounded-xl active:scale-95 transition-all">
+                        <Phone size={20} className="text-indigo-600" />
+                        <span className="text-xs font-bold text-indigo-700">電話で受付</span>
+                        <span className="text-[10px] text-gray-400">LINE不要</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* QRコード表示 */}
+                {newCustMode === 'qr' && (
+                  <div className="bg-white border-2 border-green-200 rounded-2xl px-4 py-4 text-center">
+                    <p className="text-xs font-bold text-gray-700 mb-3">お客様のスマホでQRコードを読み取ってもらい、LINEで友達登録＋会員登録を完了させてください</p>
+                    <img src={qrSrc} alt="登録QR" width={180} height={180}
+                      className="mx-auto rounded-xl bg-white p-1 shadow-sm border border-gray-100" />
+                    <p className="text-[10px] text-gray-400 mt-2">登録後、名前または電話番号で検索してください</p>
+                    <button onClick={() => setNewCustMode(null)}
+                      className="mt-2 text-xs text-gray-500 underline">戻る</button>
+                  </div>
+                )}
+
+                {/* 電話受付フォーム */}
+                {newCustMode === 'phone' && (
+                  <div className="bg-white border-2 border-indigo-200 rounded-2xl px-4 py-4 space-y-3">
+                    <p className="text-xs font-bold text-gray-700">お名前と電話番号を入力して仮登録します</p>
+                    <div>
+                      <label className="text-xs font-bold text-gray-500 mb-1 block">お名前 <span className="text-red-500">*</span></label>
+                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)}
+                        placeholder="例：山田 太郎"
+                        className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-gray-500 mb-1 block">電話番号（任意）</label>
+                      <input type="tel" inputMode="tel" value={newTel} onChange={e => setNewTel(e.target.value)}
+                        placeholder="例：090-1234-5678"
+                        className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400" />
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={() => setNewCustMode(null)}
+                        className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-bold active:scale-95">
+                        戻る
+                      </button>
+                      <button onClick={handleRegisterPhone} disabled={regLoading || !newName.trim()}
+                        className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-black disabled:opacity-40 flex items-center justify-center gap-1.5 active:scale-95">
+                        {regLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+                        登録して選択
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -231,7 +321,6 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
               お直し内容 <span className="text-gray-400 font-normal normal-case">複数選択できます</span>
             </p>
-
             {groups.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-6 bg-gray-50 rounded-xl">
                 設定 → お直し料金 からプリセットを追加してください
@@ -250,15 +339,10 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
                       {items.map(p => {
                         const sel = selectedIds.has(p.id)
                         return (
-                          <button
-                            key={p.id}
-                            onClick={() => togglePreset(p.id)}
+                          <button key={p.id} onClick={() => togglePreset(p.id)}
                             className={`relative flex flex-col items-start px-3.5 py-3 rounded-2xl border-2 text-left transition-all active:scale-95 ${
-                              sel
-                                ? 'border-indigo-500 bg-indigo-50 shadow-sm shadow-indigo-200'
-                                : 'border-gray-200 bg-white'
-                            }`}
-                          >
+                              sel ? 'border-indigo-500 bg-indigo-50 shadow-sm shadow-indigo-200' : 'border-gray-200 bg-white'
+                            }`}>
                             {sel && (
                               <span className="absolute top-2.5 right-2.5 w-4 h-4 bg-indigo-600 rounded-full flex items-center justify-center">
                                 <Check size={9} className="text-white" strokeWidth={3} />
@@ -267,13 +351,9 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
                             <span className={`text-sm font-bold leading-snug pr-5 ${sel ? 'text-indigo-700' : 'text-gray-800'}`}>
                               {p.item_name}
                             </span>
-                            {p.default_price != null ? (
-                              <span className={`text-xs mt-1 font-semibold ${sel ? 'text-indigo-500' : 'text-gray-400'}`}>
-                                ¥{p.default_price.toLocaleString()}
-                              </span>
-                            ) : (
-                              <span className="text-xs mt-1 text-gray-300">価格未設定</span>
-                            )}
+                            {p.default_price != null
+                              ? <span className={`text-xs mt-1 font-semibold ${sel ? 'text-indigo-500' : 'text-gray-400'}`}>¥{p.default_price.toLocaleString()}</span>
+                              : <span className="text-xs mt-1 text-gray-300">価格未設定</span>}
                           </button>
                         )
                       })}
@@ -289,38 +369,28 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">金額</p>
             <div className="flex items-center gap-3 bg-gray-50 border-2 border-gray-200 rounded-2xl px-4 py-3 focus-within:border-indigo-400 transition-colors">
               <span className="text-lg font-black text-gray-400">¥</span>
-              <input
-                type="number"
-                inputMode="numeric"
-                value={price}
-                onChange={e => handlePriceChange(e.target.value)}
+              <input type="number" inputMode="numeric" value={price}
+                onChange={e => { setPriceManual(true); setPrice(e.target.value) }}
                 placeholder="0"
-                className="flex-1 text-xl font-black text-gray-900 bg-transparent focus:outline-none placeholder:text-gray-300"
-              />
+                className="flex-1 text-xl font-black text-gray-900 bg-transparent focus:outline-none placeholder:text-gray-300" />
               {priceManual && autoSum > 0 && price !== String(autoSum) && (
-                <button
-                  onClick={() => { setPriceManual(false); setPrice(String(autoSum)) }}
-                  className="text-[10px] text-indigo-500 font-bold bg-indigo-50 px-2 py-1 rounded-lg shrink-0"
-                >
+                <button onClick={() => { setPriceManual(false); setPrice(String(autoSum)) }}
+                  className="text-[10px] text-indigo-500 font-bold bg-indigo-50 px-2 py-1 rounded-lg shrink-0">
                   ¥{autoSum.toLocaleString()}に戻す
                 </button>
               )}
             </div>
             {selectedIds.size > 0 && autoSum > 0 && !priceManual && (
-              <p className="text-xs text-gray-400 mt-1 px-1">プリセットの合計金額が自動入力されました</p>
+              <p className="text-xs text-gray-400 mt-1 px-1">プリセットの合計が自動入力されました</p>
             )}
           </section>
 
           {/* ── メモ ── */}
           <section>
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">メモ（任意）</p>
-            <textarea
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="仕上がりの目安・特記事項など"
-              rows={2}
-              className="w-full px-3.5 py-3 border-2 border-gray-200 rounded-2xl text-sm resize-none focus:outline-none focus:border-indigo-400 transition-colors"
-            />
+            <textarea value={notes} onChange={e => setNotes(e.target.value)}
+              placeholder="仕上がりの目安・特記事項など" rows={2}
+              className="w-full px-3.5 py-3 border-2 border-gray-200 rounded-2xl text-sm resize-none focus:outline-none focus:border-indigo-400 transition-colors" />
           </section>
 
           {error && (
@@ -329,19 +399,12 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
         </div>
 
         {/* ── 受付ボタン ── */}
-        <div
-          className="px-5 pt-3 pb-5 border-t border-gray-100 shrink-0"
-          style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
-        >
-          <button
-            onClick={handleSubmit}
+        <div className="px-5 pt-3 pb-5 border-t border-gray-100 shrink-0"
+          style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}>
+          <button onClick={handleSubmit}
             disabled={submitting || !customer || selectedIds.size === 0}
-            className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-black text-base disabled:opacity-40 flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-indigo-600/30"
-          >
-            {submitting
-              ? <><Loader2 size={18} className="animate-spin" />受付中...</>
-              : <>受付する</>
-            }
+            className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-black text-base disabled:opacity-40 flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-indigo-600/30">
+            {submitting ? <><Loader2 size={18} className="animate-spin" />受付中...</> : '受付する'}
           </button>
         </div>
 
