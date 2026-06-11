@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 import { getLiffBaseUrl, getLineToken } from '@/lib/line-config'
 
 // お直しは制服販売店専用 → uniform アカウントで通知
@@ -53,10 +53,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'repairId is required' }, { status: 400 })
   }
 
-  const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '(unset)'
-  console.log('[notify-repair] supabase url:', sbUrl.slice(0, 40), 'repairId:', repairId)
+  const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+  const sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
+  console.log('[notify-repair] url:', sbUrl ? sbUrl.slice(8, 32) : 'MISSING', 'id:', repairId?.slice(0, 8))
 
-  const { data: repair, error: repairErr } = await supabase
+  const db = createClient(
+    sbUrl || 'https://placeholder.supabase.co',
+    sbKey || 'placeholder',
+  )
+
+  const { data: repair, error: repairErr } = await db
     .from('repair_histories')
     .select('id, item_name, content, slip_number, request_no, status, customer:customers(name,line_user_id,tel), store:stores(id,name)')
     .eq('id', repairId)
