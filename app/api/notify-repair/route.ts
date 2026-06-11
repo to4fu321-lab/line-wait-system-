@@ -53,18 +53,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'repairId is required' }, { status: 400 })
   }
 
+  const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '(unset)'
+  console.log('[notify-repair] supabase url:', sbUrl.slice(0, 40), 'repairId:', repairId)
+
   const { data: repair, error: repairErr } = await supabase
     .from('repair_histories')
-    .select(`
-      id, item_name, content, slip_number, request_no, status,
-      customer:customers ( name, line_user_id, tel ),
-      store:stores ( id, name )
-    `)
+    .select('id, item_name, content, slip_number, request_no, status, customer:customers(name,line_user_id,tel), store:stores(id,name)')
     .eq('id', repairId)
     .single()
 
   if (repairErr || !repair) {
-    console.error('[notify-repair] repair not found:', repairErr?.message, repairErr?.code)
+    console.error('[notify-repair] repair not found:', repairErr?.message, repairErr?.code, 'id:', repairId)
     return NextResponse.json({ ok: false, error: `repair not found: ${repairErr?.message}` }, { status: 404 })
   }
 
