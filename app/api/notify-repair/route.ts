@@ -55,13 +55,21 @@ export async function POST(req: NextRequest) {
 
   const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
   const sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
-  console.log('[notify-repair] url:', sbUrl ? sbUrl.slice(8, 32) : 'MISSING', 'id:', repairId?.slice(0, 8))
+  console.log('[nr] url:', sbUrl ? sbUrl.slice(8, 32) : 'MISSING', 'key:', sbKey ? sbKey.slice(-8) : 'MISSING')
 
-  const db = createClient(
-    sbUrl || 'https://placeholder.supabase.co',
-    sbKey || 'placeholder',
-  )
+  // REST API で直接確認（JSクライアントをバイパス）
+  const restRes = await fetch(
+    `${sbUrl}/rest/v1/repair_histories?id=eq.${repairId}&select=id,item_name,customer:customers(name,line_user_id,tel),store:stores(id,name)`,
+    { headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}`, Accept: 'application/json' } }
+  ).catch(e => null)
+  const restBody = restRes ? await restRes.text() : 'fetch failed'
+  console.log('[nr] rest status:', restRes?.status, 'body:', restBody.slice(0, 120))
 
+  if (!restRes?.ok || restBody === '[]') {
+    return NextResponse.json({ ok: false, error: `rest: ${restRes?.status} ${restBody.slice(0, 80)}` }, { status: 404 })
+  }
+
+  const db = createClient(sbUrl || 'https://placeholder.supabase.co', sbKey || 'placeholder')
   const { data: repair, error: repairErr } = await db
     .from('repair_histories')
     .select('id, item_name, content, slip_number, request_no, status, customer:customers(name,line_user_id,tel), store:stores(id,name)')
@@ -69,8 +77,8 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (repairErr || !repair) {
-    console.error('[notify-repair] repair not found:', repairErr?.message, repairErr?.code, 'id:', repairId)
-    return NextResponse.json({ ok: false, error: `repair not found: ${repairErr?.message}` }, { status: 404 })
+    console.error('[nr] sdk error:', repairErr?.code, repairErr?.message)
+    return NextResponse.json({ ok: false, error: `sdk: ${repairErr?.message}` }, { status: 404 })
   }
 
   const customer = repair.customer as { name: string; line_user_id: string | null; tel: string | null } | null
