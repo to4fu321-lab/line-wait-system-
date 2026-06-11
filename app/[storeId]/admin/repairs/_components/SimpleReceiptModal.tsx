@@ -122,20 +122,34 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
     }
   }
 
-  // 受付登録
+  // 受付登録（電話モード中の場合は先に顧客登録してから受付）
   const handleSubmit = async () => {
-    if (!customer)          { setError('お客様を選択してください'); return }
     if (selectedIds.size === 0) { setError('お直し内容を選択してください'); return }
     setError('')
     setSubmitting(true)
     try {
+      // 電話モードで未登録の場合はここで顧客を作成
+      let finalCustomer = customer
+      if (!finalCustomer && newCustMode === 'phone') {
+        if (!newName.trim()) { setError('お名前を入力してください'); setSubmitting(false); return }
+        const { data: c, error: regErr } = await (supabase as any).from('customers').insert({
+          store_id: storeId,
+          name: newName.trim(),
+          tel:  newTel.trim() || null,
+        }).select('id, name, tel, line_user_id').single()
+        if (regErr) throw new Error(regErr.message)
+        finalCustomer = c as CustResult
+        setCustomer(finalCustomer)
+      }
+      if (!finalCustomer) { setError('お客様を選択してください'); setSubmitting(false); return }
+
       const selected   = presets.filter(p => selectedIds.has(p.id))
       const itemName   = selected.map(p => p.item_name).join(' / ')
       const repairType = selected[0]?.repair_type ?? 'other'
       const finalPrice = price ? parseInt(price, 10) : null
       const { error: insertErr } = await (supabase as any).from('repair_histories').insert({
         store_id:      storeId,
-        customer_id:   customer.id,
+        customer_id:   finalCustomer.id,
         item_name:     itemName,
         content:       itemName,
         repair_type:   repairType,
@@ -401,11 +415,18 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
         {/* ── 受付ボタン ── */}
         <div className="px-5 pt-3 pb-5 border-t border-gray-100 shrink-0"
           style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}>
-          <button onClick={handleSubmit}
-            disabled={submitting || !customer || selectedIds.size === 0}
-            className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-black text-base disabled:opacity-40 flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-indigo-600/30">
-            {submitting ? <><Loader2 size={18} className="animate-spin" />受付中...</> : '受付する'}
-          </button>
+          {(() => {
+            const phoneReady = newCustMode === 'phone' && newName.trim().length > 0
+            const canSubmit  = (!!customer || phoneReady) && selectedIds.size > 0
+            return (
+              <button onClick={handleSubmit} disabled={submitting || !canSubmit}
+                className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-black text-base disabled:opacity-40 flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-indigo-600/30">
+                {submitting
+                  ? <><Loader2 size={18} className="animate-spin" />受付中...</>
+                  : phoneReady && !customer ? '登録して受付する' : '受付する'}
+              </button>
+            )
+          })()}
         </div>
 
       </div>
