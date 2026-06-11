@@ -419,6 +419,39 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
               <Phone size={16} />{item.customer.tel}
             </a>
           )}
+
+          {/* キャンセル（削除） */}
+          {confirmCancel ? (
+            <div className="rounded-2xl border-2 border-red-300 bg-red-50 px-4 py-4 space-y-3">
+              <p className="text-sm font-black text-red-700 text-center">本当に削除しますか？</p>
+              <p className="text-xs text-red-400 text-center">この操作は取り消せません</p>
+              <div className="flex gap-3">
+                <button onClick={() => setConfirmCancel(false)}
+                  style={{ touchAction: 'manipulation' }}
+                  className="flex-1 py-3.5 rounded-2xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-black active:scale-95 transition-all">
+                  戻る
+                </button>
+                <button onClick={async () => {
+                  setLoading(true)
+                  const { error } = await (supabase as any).from('repair_histories').delete().eq('id', item.id)
+                  setLoading(false)
+                  if (error) { onToast('err', '削除に失敗しました'); return }
+                  onToast('ok', 'キャンセルしました')
+                  onRefresh()
+                }} disabled={loading}
+                  style={{ touchAction: 'manipulation' }}
+                  className="flex-1 py-3.5 rounded-2xl bg-red-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50">
+                  {loading ? <Loader2 size={16} className="animate-spin" /> : <><Trash2 size={16} />削除する</>}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmCancel(true)} disabled={loading}
+              style={{ touchAction: 'manipulation' }}
+              className="w-full py-3.5 border-2 border-red-200 bg-red-50 text-red-500 font-black text-sm rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all">
+              <Trash2 size={15} />キャンセル（削除）
+            </button>
+          )}
         </div>
       </div>
     )

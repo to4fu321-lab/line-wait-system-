@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X, Search, Check, Loader2, QrCode, Phone, UserPlus } from 'lucide-react'
+import { X, Search, Check, Loader2, QrCode, Phone, UserPlus, Camera, CalendarDays } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { todayJst } from './utils'
 
@@ -35,33 +35,37 @@ interface Props {
 }
 
 export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
-  const [categories,  setCategories]  = useState<Category[]>([])
-  const [presets,     setPresets]     = useState<Preset[]>([])
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [customer,    setCustomer]    = useState<CustResult | null>(null)
-  const [custSearch,  setCustSearch]  = useState('')
-  const [custResults, setCustResults] = useState<CustResult[]>([])
-  const [searchDone,  setSearchDone]  = useState(false)
-  const [newCustMode,      setNewCustMode]      = useState<NewCustMode>(null)
+  const [categories,      setCategories]      = useState<Category[]>([])
+  const [presets,         setPresets]         = useState<Preset[]>([])
+  const [selectedIds,     setSelectedIds]     = useState<Set<string>>(new Set())
+  const [customer,        setCustomer]        = useState<CustResult | null>(null)
+  const [custSearch,      setCustSearch]      = useState('')
+  const [custResults,     setCustResults]     = useState<CustResult[]>([])
+  const [searchDone,      setSearchDone]      = useState(false)
+  const [newCustMode,     setNewCustMode]     = useState<NewCustMode>(null)
   const [showChoicePanel, setShowChoicePanel] = useState(false)
   const [newName,         setNewName]         = useState('')
-  const [newTel,      setNewTel]      = useState('')
-  const [nameError,   setNameError]   = useState('')
-  const [telError,    setTelError]    = useState('')
-  const [regLoading,  setRegLoading]  = useState(false)
-  const [price,       setPrice]       = useState('')
-  const [priceManual, setPriceManual] = useState(false)
-  const [prepaid,     setPrepaid]     = useState(false)
-  const [notes,       setNotes]       = useState('')
-  const [submitting,  setSubmitting]  = useState(false)
-  const [submitError, setSubmitError] = useState('')
+  const [newTel,          setNewTel]          = useState('')
+  const [nameError,       setNameError]       = useState('')
+  const [telError,        setTelError]        = useState('')
+  const [regLoading,      setRegLoading]      = useState(false)
+  const [price,           setPrice]           = useState('')
+  const [priceManual,     setPriceManual]     = useState(false)
+  const [prepaid,         setPrepaid]         = useState(false)
+  const [showOther,       setShowOther]       = useState(false)
+  const [otherText,       setOtherText]       = useState('')
+  const [desiredDate,     setDesiredDate]     = useState('')
+  const [ocrLoading,      setOcrLoading]      = useState(false)
+  const [notes,           setNotes]           = useState('')
+  const [submitting,      setSubmitting]      = useState(false)
+  const [submitError,     setSubmitError]     = useState('')
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cameraRef   = useRef<HTMLInputElement>(null)
 
   const liffId  = process.env.NEXT_PUBLIC_LIFF_ID ?? ''
   const liffUrl = `https://liff.line.me/${liffId}/${storeId}`
   const qrSrc   = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(liffUrl)}`
 
-  // プリセット＋カテゴリ読み込み
   useEffect(() => {
     async function load() {
       const [{ data: cats }, { data: pres }] = await Promise.all([
@@ -77,14 +81,12 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
     load()
   }, [storeId])
 
-  // プリセット選択時に金額自動計算
   useEffect(() => {
     if (priceManual) return
     const sum = presets.filter(p => selectedIds.has(p.id)).reduce((s, p) => s + (p.default_price ?? 0), 0)
     setPrice(sum > 0 ? String(sum) : '')
   }, [selectedIds, presets, priceManual])
 
-  // 顧客検索（デバウンス）
   useEffect(() => {
     if (!custSearch.trim()) { setCustResults([]); setSearchDone(false); return }
     setSearchDone(false)
@@ -103,7 +105,6 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
   const togglePreset = (id: string) =>
     setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
 
-  // 電話番号バリデーション
   const validateTel = (v: string): string | null => {
     if (!v.trim()) return '電話番号を入力してください'
     const digits = v.replace(/[-\s]/g, '')
@@ -111,7 +112,6 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
     return null
   }
 
-  // 同一電話番号の既存顧客を返す or 新規作成
   const resolvePhoneCustomer = async (): Promise<CustResult> => {
     const tel = newTel.trim()
     const { data: rows } = await (supabase as any).from('customers')
@@ -125,7 +125,6 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
     return c as CustResult
   }
 
-  // 「登録して選択」ボタン
   const handleRegisterPhone = async () => {
     let ok = true
     if (!newName.trim()) { setNameError('お名前を入力してください'); ok = false }
@@ -146,10 +145,63 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
     }
   }
 
-  // 受付ボタン
+  // OCR カメラ読み取り
+  async function handleOcrCapture(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setOcrLoading(true)
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      const res  = await fetch('/api/ocr-receipt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64 }),
+      })
+      const json = await res.json()
+      if (!json.ok) return
+
+      // お直し内容
+      if (Array.isArray(json.items) && json.items.length > 0) {
+        setOtherText(json.items.join(' / '))
+        setShowOther(true)
+      }
+      // 希望納期
+      if (json.desiredDate) setDesiredDate(json.desiredDate)
+
+      // 顧客：電話番号でDB検索
+      if (json.tel) {
+        const { data } = await (supabase as any).from('customers')
+          .select('id, name, tel, line_user_id')
+          .eq('store_id', storeId).is('deleted_at', null).eq('tel', json.tel).limit(1)
+        if (data?.[0]) {
+          setCustomer(data[0])
+          return
+        }
+      }
+      // 未登録 → 電話モードに切り替えて名前・TEL自動入力
+      setCustomer(null)
+      if (json.name) setNewName(json.name)
+      if (json.tel)  setNewTel(json.tel)
+      setNewCustMode('phone')
+      setShowChoicePanel(false)
+    } catch (err) {
+      console.error('[OCR]', err)
+    } finally {
+      setOcrLoading(false)
+    }
+  }
+
   const handleSubmit = async () => {
-    if (selectedIds.size === 0) { setSubmitError('お直し内容を選択してください'); return }
-    // 電話モード未登録の場合は先にバリデーション
+    if (selectedIds.size === 0 && !otherText.trim()) {
+      setSubmitError('お直し内容を選択するか、その他に内容を入力してください')
+      return
+    }
     if (!customer && newCustMode === 'phone') {
       let ok = true
       if (!newName.trim()) { setNameError('お名前を入力してください'); ok = false }
@@ -170,20 +222,25 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
       if (!finalCustomer) { setSubmitError('お客様を選択してください'); setSubmitting(false); return }
 
       const selected   = presets.filter(p => selectedIds.has(p.id))
-      const itemName   = selected.map(p => p.item_name).join(' / ')
+      const itemParts  = [
+        ...selected.map(p => p.item_name),
+        ...(otherText.trim() ? [otherText.trim()] : []),
+      ]
+      const itemName   = itemParts.join(' / ')
       const repairType = selected[0]?.repair_type ?? 'other'
       const finalPrice = price ? parseInt(price, 10) : null
       const { error: insertErr } = await (supabase as any).from('repair_histories').insert({
-        store_id:      storeId,
-        customer_id:   finalCustomer.id,
-        item_name:     itemName,
-        content:       itemName,
-        repair_type:   repairType,
-        price:         finalPrice && !isNaN(finalPrice) ? finalPrice : null,
-        prepaid:       prepaid,
-        notes:         notes.trim() || null,
-        status:        'received',
-        received_date: todayJst(),
+        store_id:               storeId,
+        customer_id:            finalCustomer.id,
+        item_name:              itemName,
+        content:                itemName,
+        repair_type:            repairType,
+        price:                  finalPrice && !isNaN(finalPrice) ? finalPrice : null,
+        prepaid:                prepaid,
+        desired_completion_date: desiredDate || null,
+        notes:                  notes.trim() || null,
+        status:                 'received',
+        received_date:          todayJst(),
       })
       if (insertErr) throw new Error(insertErr.message)
       onCreated()
@@ -193,7 +250,6 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
     }
   }
 
-  // プリセットをカテゴリ別にグループ化
   const groups: { cat: Category | null; items: Preset[] }[] = []
   categories.forEach(cat => {
     const items = presets.filter(p => p.category_id === cat.id)
@@ -206,7 +262,8 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
   const autoSum      = selectedList.reduce((s, p) => s + (p.default_price ?? 0), 0)
   const noResults    = searchDone && custSearch.trim().length > 0 && custResults.length === 0
   const phoneReady   = newCustMode === 'phone' && newName.trim().length > 0 && newTel.replace(/[-\s]/g, '').length >= 10
-  const canSubmit    = (!!customer || phoneReady) && selectedIds.size > 0
+  const hasContent   = selectedIds.size > 0 || otherText.trim().length > 0
+  const canSubmit    = (!!customer || phoneReady) && hasContent
 
   const openNewCust = () => {
     setCustSearch('')
@@ -217,7 +274,6 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
   }
 
   return (
-    /* ② z-[60] でBottomNav(z-50)より上に出す */
     <div
       className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
@@ -228,15 +284,36 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
         <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0 border-b border-gray-100">
           <div>
             <h2 className="text-lg font-black text-gray-900">✂️ お直し受付</h2>
-            {selectedIds.size > 0 && (
+            {hasContent && (
               <p className="text-xs text-indigo-600 font-medium mt-0.5">
-                {selectedIds.size}項目 · 合計 ¥{autoSum.toLocaleString()}
+                {selectedIds.size > 0 ? `${selectedIds.size}項目` : ''}
+                {showOther && otherText ? (selectedIds.size > 0 ? ' + その他' : 'その他') : ''}
+                {autoSum > 0 ? ` · 合計 ¥${autoSum.toLocaleString()}` : ''}
               </p>
             )}
           </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 active:scale-95">
-            <X size={16} className="text-gray-500" />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* OCR カメラボタン */}
+            <label className={`cursor-pointer ${ocrLoading ? 'pointer-events-none' : ''}`}>
+              <input
+                ref={cameraRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleOcrCapture}
+              />
+              <div className={`w-9 h-9 flex items-center justify-center rounded-full transition-all active:scale-95 ${
+                ocrLoading ? 'bg-violet-100' : 'bg-violet-100 hover:bg-violet-200'
+              }`}>
+                {ocrLoading
+                  ? <Loader2 size={16} className="text-violet-600 animate-spin" />
+                  : <Camera size={16} className="text-violet-600" />}
+              </div>
+            </label>
+            <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 active:scale-95">
+              <X size={16} className="text-gray-500" />
+            </button>
+          </div>
         </div>
 
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
@@ -268,8 +345,6 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
               </div>
             ) : (
               <div className="space-y-2">
-
-                {/* ③ 検索欄 + 左側に新規登録ボタン */}
                 <div className="flex items-center gap-2">
                   <button
                     onClick={openNewCust}
@@ -289,7 +364,6 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
                   </div>
                 </div>
 
-                {/* 検索結果 */}
                 {custResults.length > 0 && (
                   <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                     {custResults.map(c => (
@@ -311,7 +385,6 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
                   </div>
                 )}
 
-                {/* 見つからない時 or 新規ボタン → 2択 */}
                 {(noResults || showChoicePanel) && newCustMode === null && (
                   <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
                     {noResults
@@ -335,7 +408,6 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
                   </div>
                 )}
 
-                {/* QRコード */}
                 {newCustMode === 'qr' && (
                   <div className="bg-white border-2 border-green-200 rounded-2xl px-4 py-4 text-center">
                     <p className="text-xs font-bold text-gray-700 mb-3">お客様のスマホで読み取り、LINEで友達登録＋会員登録を完了してください</p>
@@ -346,11 +418,9 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
                   </div>
                 )}
 
-                {/* ① 電話受付フォーム — エラーは各入力欄の直下 */}
                 {newCustMode === 'phone' && (
                   <div className="bg-white border-2 border-indigo-200 rounded-2xl px-4 py-4 space-y-3">
                     <p className="text-xs font-bold text-gray-600">お名前と電話番号を入力してください</p>
-
                     <div>
                       <label className="text-xs font-bold text-gray-500 mb-1 block">
                         お名前 <span className="text-red-500">*</span>
@@ -366,7 +436,6 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
                         </p>
                       )}
                     </div>
-
                     <div>
                       <label className="text-xs font-bold text-gray-500 mb-1 block">
                         電話番号 <span className="text-red-500">*</span>
@@ -384,7 +453,6 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
                         <p className="text-[10px] text-gray-400 mt-1">10〜11桁（ハイフンあり・なし両方OK）</p>
                       )}
                     </div>
-
                     <div className="flex gap-2 pt-1">
                       <button onClick={() => { setNewCustMode(null); setShowChoicePanel(false); setNameError(''); setTelError('') }}
                         className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-bold active:scale-95">
@@ -448,6 +516,36 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
                 ))}
               </div>
             )}
+
+            {/* その他（自由記載） */}
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => { setShowOther(v => !v); if (showOther) setOtherText('') }}
+                style={{ touchAction: 'manipulation' }}
+                className={`w-full flex items-center gap-2 px-3.5 py-3 rounded-2xl border-2 text-left transition-all active:scale-95 ${
+                  showOther ? 'border-indigo-500 bg-indigo-50' : 'border-dashed border-gray-300 bg-white'
+                }`}>
+                {showOther && (
+                  <span className="w-4 h-4 bg-indigo-600 rounded-full flex items-center justify-center shrink-0">
+                    <Check size={9} className="text-white" strokeWidth={3} />
+                  </span>
+                )}
+                <span className={`text-sm font-bold ${showOther ? 'text-indigo-700' : 'text-gray-500'}`}>
+                  ✏️ その他（自由記載）
+                </span>
+              </button>
+              {showOther && (
+                <textarea
+                  value={otherText}
+                  onChange={e => setOtherText(e.target.value)}
+                  placeholder="例：ファスナー交換、穴修理、ほころび直し..."
+                  rows={2}
+                  autoFocus
+                  className="w-full mt-2 px-3.5 py-3 border-2 border-indigo-200 rounded-2xl text-sm resize-none focus:outline-none focus:border-indigo-400 transition-colors"
+                />
+              )}
+            </div>
           </section>
 
           {/* ── 金額 ── */}
@@ -485,6 +583,20 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
                 受付時にお支払いを受け取った
               </p>
             </button>
+          </section>
+
+          {/* ── 希望納期 ── */}
+          <section>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <CalendarDays size={12} className="text-gray-400" />希望納期（任意）
+            </p>
+            <input
+              type="date"
+              value={desiredDate}
+              onChange={e => setDesiredDate(e.target.value)}
+              min={todayJst()}
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-2xl text-sm focus:outline-none focus:border-indigo-400 transition-colors bg-gray-50 focus:bg-white"
+            />
           </section>
 
           {/* ── メモ ── */}
