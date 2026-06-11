@@ -68,9 +68,10 @@ function MasterPageInner() {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const { hasFeature, loaded: featLoaded } = useStoreFeatures(storeId)
+  const isSimpleMode = featLoaded && !hasFeature('repairs_tab_purchase') && !hasFeature('repairs_tab_arrival')
 
   // ── Tab ──────────────────────────────────────────────────
-  const initialTab = (searchParams?.get('tab') ?? 'schools') as MasterTab
+  const initialTab = (searchParams?.get('tab') ?? (isSimpleMode ? 'presets' : 'schools')) as MasterTab
   const [masterTab, setMasterTab] = useState<MasterTab>(initialTab)
 
   // ── School/Product/Variant state ──────────────────────────
@@ -626,27 +627,29 @@ function MasterPageInner() {
             </div>
           )}
         </div>
-        {/* タブ切替バー */}
-        <div className="flex gap-1 mx-4 mb-2.5 bg-white/10 rounded-xl p-1">
-          <button onClick={() => switchTab('schools')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
-              masterTab === 'schools' ? 'bg-white text-indigo-700 shadow-sm' : 'text-white/70 hover:text-white'
-            }`}>
-            <GraduationCap size={13} />学校・商品
-          </button>
-          <button onClick={() => switchTab('presets')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
-              masterTab === 'presets' ? 'bg-white text-amber-700 shadow-sm' : 'text-white/70 hover:text-white'
-            }`}>
-            <Scissors size={13} />お直し料金
-          </button>
-          <button onClick={() => switchTab('staff')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
-              masterTab === 'staff' ? 'bg-white text-emerald-700 shadow-sm' : 'text-white/70 hover:text-white'
-            }`}>
-            <Users size={13} />スタッフ
-          </button>
-        </div>
+        {/* タブ切替バー — simpleモードはお直し料金のみ */}
+        {!isSimpleMode && (
+          <div className="flex gap-1 mx-4 mb-2.5 bg-white/10 rounded-xl p-1">
+            <button onClick={() => switchTab('schools')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
+                masterTab === 'schools' ? 'bg-white text-indigo-700 shadow-sm' : 'text-white/70 hover:text-white'
+              }`}>
+              <GraduationCap size={13} />学校・商品
+            </button>
+            <button onClick={() => switchTab('presets')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
+                masterTab === 'presets' ? 'bg-white text-amber-700 shadow-sm' : 'text-white/70 hover:text-white'
+              }`}>
+              <Scissors size={13} />お直し料金
+            </button>
+            <button onClick={() => switchTab('staff')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
+                masterTab === 'staff' ? 'bg-white text-emerald-700 shadow-sm' : 'text-white/70 hover:text-white'
+              }`}>
+              <Users size={13} />スタッフ
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="px-4 py-4 max-w-lg mx-auto space-y-3">

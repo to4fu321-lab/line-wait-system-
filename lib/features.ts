@@ -76,7 +76,7 @@ export const PLAN_DEFS: Record<Plan, {
       repairs_tab_arrival:   false,
       repairs_tab_delivery:  true,
       repairs_ocr:           false,
-      repairs_master:        false,
+      repairs_master:        true,
       repairs_dummy:         false,
       queue:                 false,
       crm:                   true,
