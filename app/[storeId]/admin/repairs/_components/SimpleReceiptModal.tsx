@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X, Search, Check, Loader2, QrCode, Phone } from 'lucide-react'
+import { X, Search, Check, Loader2, QrCode, Phone, UserPlus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { todayJst } from './utils'
 
@@ -26,7 +26,6 @@ interface CustResult {
   line_user_id: string | null
 }
 
-// 未登録お客様の新規登録モード
 type NewCustMode = null | 'qr' | 'phone'
 
 interface Props {
@@ -36,29 +35,31 @@ interface Props {
 }
 
 export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
-  const [categories,   setCategories]   = useState<Category[]>([])
-  const [presets,      setPresets]      = useState<Preset[]>([])
-  const [selectedIds,  setSelectedIds]  = useState<Set<string>>(new Set())
-  const [customer,     setCustomer]     = useState<CustResult | null>(null)
-  const [custSearch,   setCustSearch]   = useState('')
-  const [custResults,  setCustResults]  = useState<CustResult[]>([])
-  const [searchDone,   setSearchDone]   = useState(false)
-  const [newCustMode,  setNewCustMode]  = useState<NewCustMode>(null)
-  const [newName,      setNewName]      = useState('')
-  const [newTel,       setNewTel]       = useState('')
-  const [regLoading,   setRegLoading]   = useState(false)
-  const [price,        setPrice]        = useState('')
-  const [priceManual,  setPriceManual]  = useState(false)
-  const [notes,        setNotes]        = useState('')
-  const [submitting,   setSubmitting]   = useState(false)
-  const [error,        setError]        = useState('')
+  const [categories,  setCategories]  = useState<Category[]>([])
+  const [presets,     setPresets]     = useState<Preset[]>([])
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [customer,    setCustomer]    = useState<CustResult | null>(null)
+  const [custSearch,  setCustSearch]  = useState('')
+  const [custResults, setCustResults] = useState<CustResult[]>([])
+  const [searchDone,  setSearchDone]  = useState(false)
+  const [newCustMode, setNewCustMode] = useState<NewCustMode>(null)
+  const [newName,     setNewName]     = useState('')
+  const [newTel,      setNewTel]      = useState('')
+  const [nameError,   setNameError]   = useState('')
+  const [telError,    setTelError]    = useState('')
+  const [regLoading,  setRegLoading]  = useState(false)
+  const [price,       setPrice]       = useState('')
+  const [priceManual, setPriceManual] = useState(false)
+  const [notes,       setNotes]       = useState('')
+  const [submitting,  setSubmitting]  = useState(false)
+  const [submitError, setSubmitError] = useState('')
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const liffId   = process.env.NEXT_PUBLIC_LIFF_ID ?? ''
-  const liffUrl  = `https://liff.line.me/${liffId}/${storeId}`
-  const qrSrc    = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(liffUrl)}`
+  const liffId  = process.env.NEXT_PUBLIC_LIFF_ID ?? ''
+  const liffUrl = `https://liff.line.me/${liffId}/${storeId}`
+  const qrSrc   = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(liffUrl)}`
 
-  // Load presets + categories
+  // プリセット＋カテゴリ読み込み
   useEffect(() => {
     async function load() {
       const [{ data: cats }, { data: pres }] = await Promise.all([
@@ -74,14 +75,14 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
     load()
   }, [storeId])
 
-  // Auto-update price from selected presets (unless manually edited)
+  // プリセット選択時に金額自動計算
   useEffect(() => {
     if (priceManual) return
     const sum = presets.filter(p => selectedIds.has(p.id)).reduce((s, p) => s + (p.default_price ?? 0), 0)
     setPrice(sum > 0 ? String(sum) : '')
   }, [selectedIds, presets, priceManual])
 
-  // Customer search with debounce
+  // 顧客検索（デバウンス）
   useEffect(() => {
     if (!custSearch.trim()) { setCustResults([]); setSearchDone(false); return }
     setSearchDone(false)
@@ -100,7 +101,7 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
   const togglePreset = (id: string) =>
     setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
 
-  // 電話番号バリデーション（10〜11桁）
+  // 電話番号バリデーション
   const validateTel = (v: string): string | null => {
     if (!v.trim()) return '電話番号を入力してください'
     const digits = v.replace(/[-\s]/g, '')
@@ -108,7 +109,7 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
     return null
   }
 
-  // 電話番号で顧客を取得（同番号が既存なら再利用、なければ新規作成）
+  // 同一電話番号の既存顧客を返す or 新規作成
   const resolvePhoneCustomer = async (): Promise<CustResult> => {
     const tel = newTel.trim()
     const { data: rows } = await (supabase as any).from('customers')
@@ -116,20 +117,19 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
       .eq('store_id', storeId).eq('tel', tel).is('deleted_at', null).limit(1)
     if (rows && rows.length > 0) return rows[0] as CustResult
     const { data: c, error: err } = await (supabase as any).from('customers').insert({
-      store_id: storeId,
-      name: newName.trim(),
-      tel,
+      store_id: storeId, name: newName.trim(), tel,
     }).select('id, name, tel, line_user_id').single()
     if (err) throw new Error(err.message)
     return c as CustResult
   }
 
-  // 電話番号で新規顧客登録（「登録して選択」ボタン用）
+  // 「登録して選択」ボタン
   const handleRegisterPhone = async () => {
-    if (!newName.trim()) return
-    const telErr = validateTel(newTel)
-    if (telErr) { setError(telErr); return }
-    setError('')
+    let ok = true
+    if (!newName.trim()) { setNameError('お名前を入力してください'); ok = false }
+    const tErr = validateTel(newTel)
+    if (tErr) { setTelError(tErr); ok = false }
+    if (!ok) return
     setRegLoading(true)
     try {
       const c = await resolvePhoneCustomer()
@@ -138,27 +138,34 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
       setNewName(''); setNewTel('')
       setCustSearch('')
     } catch (e) {
-      setError(e instanceof Error ? e.message : '登録に失敗しました')
+      setTelError(e instanceof Error ? e.message : '登録に失敗しました')
     } finally {
       setRegLoading(false)
     }
   }
 
-  // 受付登録（電話モード中の場合は先に顧客登録してから受付）
+  // 受付ボタン
   const handleSubmit = async () => {
-    if (selectedIds.size === 0) { setError('お直し内容を選択してください'); return }
-    setError('')
+    if (selectedIds.size === 0) { setSubmitError('お直し内容を選択してください'); return }
+    // 電話モード未登録の場合は先にバリデーション
+    if (!customer && newCustMode === 'phone') {
+      let ok = true
+      if (!newName.trim()) { setNameError('お名前を入力してください'); ok = false }
+      const tErr = validateTel(newTel)
+      if (tErr) { setTelError(tErr); ok = false }
+      if (!ok) return
+    }
+    if (!customer && newCustMode !== 'phone') { setSubmitError('お客様を選択してください'); return }
+
+    setSubmitError('')
     setSubmitting(true)
     try {
       let finalCustomer = customer
       if (!finalCustomer && newCustMode === 'phone') {
-        if (!newName.trim()) { setError('お名前を入力してください'); setSubmitting(false); return }
-        const telErr = validateTel(newTel)
-        if (telErr) { setError(telErr); setSubmitting(false); return }
         finalCustomer = await resolvePhoneCustomer()
         setCustomer(finalCustomer)
       }
-      if (!finalCustomer) { setError('お客様を選択してください'); setSubmitting(false); return }
+      if (!finalCustomer) { setSubmitError('お客様を選択してください'); setSubmitting(false); return }
 
       const selected   = presets.filter(p => selectedIds.has(p.id))
       const itemName   = selected.map(p => p.item_name).join(' / ')
@@ -178,12 +185,12 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
       if (insertErr) throw new Error(insertErr.message)
       onCreated()
     } catch (e) {
-      setError(e instanceof Error ? e.message : '登録に失敗しました')
+      setSubmitError(e instanceof Error ? e.message : '登録に失敗しました')
       setSubmitting(false)
     }
   }
 
-  // Preset grouping
+  // プリセットをカテゴリ別にグループ化
   const groups: { cat: Category | null; items: Preset[] }[] = []
   categories.forEach(cat => {
     const items = presets.filter(p => p.category_id === cat.id)
@@ -193,17 +200,27 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
   if (uncategorized.length > 0) groups.push({ cat: null, items: uncategorized })
 
   const selectedList = presets.filter(p => selectedIds.has(p.id))
-  const autoSum = selectedList.reduce((s, p) => s + (p.default_price ?? 0), 0)
-  const noResults = searchDone && custSearch.trim().length > 0 && custResults.length === 0
+  const autoSum      = selectedList.reduce((s, p) => s + (p.default_price ?? 0), 0)
+  const noResults    = searchDone && custSearch.trim().length > 0 && custResults.length === 0
+  const phoneReady   = newCustMode === 'phone' && newName.trim().length > 0 && newTel.replace(/[-\s]/g, '').length >= 10
+  const canSubmit    = (!!customer || phoneReady) && selectedIds.size > 0
+
+  const openNewCust = () => {
+    setCustSearch('')
+    setCustResults([])
+    setSearchDone(false)
+    setNewCustMode('phone')
+  }
 
   return (
+    /* ② z-[60] でBottomNav(z-50)より上に出す */
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50"
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div className="w-full max-w-lg bg-white rounded-t-3xl flex flex-col max-h-[92dvh]">
 
-        {/* Header */}
+        {/* ヘッダー */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0 border-b border-gray-100">
           <div>
             <h2 className="text-lg font-black text-gray-900">✂️ お直し受付</h2>
@@ -225,7 +242,6 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">お客様</p>
 
             {customer ? (
-              /* 選択済み */
               <div className="flex items-center justify-between bg-indigo-50 border-2 border-indigo-200 rounded-2xl px-4 py-3">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center shrink-0">
@@ -247,16 +263,26 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
                 </button>
               </div>
             ) : (
-              /* 検索 */
               <div className="space-y-2">
-                <div className="relative">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text" value={custSearch}
-                    onChange={e => { setCustSearch(e.target.value); setNewCustMode(null) }}
-                    placeholder="お客様名・電話番号で検索"
-                    className="w-full pl-9 pr-3 py-3 border-2 border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-indigo-400 transition-colors"
-                  />
+
+                {/* ③ 検索欄 + 左側に新規登録ボタン */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={openNewCust}
+                    className="flex items-center gap-1 px-3 py-3 bg-indigo-600 text-white text-xs font-black rounded-xl active:scale-95 shrink-0 shadow-sm shadow-indigo-600/30"
+                  >
+                    <UserPlus size={14} />
+                    <span>新規</span>
+                  </button>
+                  <div className="relative flex-1">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text" value={custSearch}
+                      onChange={e => { setCustSearch(e.target.value); setNewCustMode(null) }}
+                      placeholder="名前・電話番号で検索"
+                      className="w-full pl-9 pr-3 py-3 border-2 border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-indigo-400 transition-colors"
+                    />
+                  </div>
                 </div>
 
                 {/* 検索結果 */}
@@ -302,37 +328,58 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
                   </div>
                 )}
 
-                {/* QRコード表示 */}
+                {/* QRコード */}
                 {newCustMode === 'qr' && (
                   <div className="bg-white border-2 border-green-200 rounded-2xl px-4 py-4 text-center">
-                    <p className="text-xs font-bold text-gray-700 mb-3">お客様のスマホでQRコードを読み取ってもらい、LINEで友達登録＋会員登録を完了させてください</p>
+                    <p className="text-xs font-bold text-gray-700 mb-3">お客様のスマホで読み取り、LINEで友達登録＋会員登録を完了してください</p>
                     <img src={qrSrc} alt="登録QR" width={180} height={180}
                       className="mx-auto rounded-xl bg-white p-1 shadow-sm border border-gray-100" />
                     <p className="text-[10px] text-gray-400 mt-2">登録後、名前または電話番号で検索してください</p>
-                    <button onClick={() => setNewCustMode(null)}
-                      className="mt-2 text-xs text-gray-500 underline">戻る</button>
+                    <button onClick={() => setNewCustMode(null)} className="mt-2 text-xs text-gray-500 underline">戻る</button>
                   </div>
                 )}
 
-                {/* 電話受付フォーム */}
+                {/* ① 電話受付フォーム — エラーは各入力欄の直下 */}
                 {newCustMode === 'phone' && (
                   <div className="bg-white border-2 border-indigo-200 rounded-2xl px-4 py-4 space-y-3">
-                    <p className="text-xs font-bold text-gray-700">お名前と電話番号を入力して仮登録します</p>
+                    <p className="text-xs font-bold text-gray-600">お名前と電話番号を入力してください</p>
+
                     <div>
-                      <label className="text-xs font-bold text-gray-500 mb-1 block">お名前 <span className="text-red-500">*</span></label>
-                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)}
+                      <label className="text-xs font-bold text-gray-500 mb-1 block">
+                        お名前 <span className="text-red-500">*</span>
+                      </label>
+                      <input type="text" value={newName}
+                        onChange={e => { setNewName(e.target.value); setNameError('') }}
                         placeholder="例：山田 太郎"
-                        className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400" />
+                        className={`w-full px-3 py-2.5 border-2 rounded-xl text-sm focus:outline-none transition-colors ${nameError ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-indigo-400'}`} />
+                      {nameError && (
+                        <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                          <span className="w-3 h-3 rounded-full bg-red-500 text-white text-[8px] flex items-center justify-center shrink-0">!</span>
+                          {nameError}
+                        </p>
+                      )}
                     </div>
+
                     <div>
-                      <label className="text-xs font-bold text-gray-500 mb-1 block">電話番号 <span className="text-red-500">*</span></label>
-                      <input type="tel" inputMode="tel" value={newTel} onChange={e => { setNewTel(e.target.value); setError('') }}
+                      <label className="text-xs font-bold text-gray-500 mb-1 block">
+                        電話番号 <span className="text-red-500">*</span>
+                      </label>
+                      <input type="tel" inputMode="tel" value={newTel}
+                        onChange={e => { setNewTel(e.target.value); setTelError('') }}
                         placeholder="例：090-1234-5678"
-                        className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400" />
-                      <p className="text-[10px] text-gray-400 mt-1">10〜11桁（ハイフンあり・なし両方OK）</p>
+                        className={`w-full px-3 py-2.5 border-2 rounded-xl text-sm focus:outline-none transition-colors ${telError ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-indigo-400'}`} />
+                      {telError ? (
+                        <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                          <span className="w-3 h-3 rounded-full bg-red-500 text-white text-[8px] flex items-center justify-center shrink-0">!</span>
+                          {telError}
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-gray-400 mt-1">10〜11桁（ハイフンあり・なし両方OK）</p>
+                      )}
                     </div>
+
                     <div className="flex gap-2 pt-1">
-                      <button onClick={() => setNewCustMode(null)}
+                      <button onClick={() => { setNewCustMode(null); setNameError(''); setTelError('') }}
                         className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-bold active:scale-95">
                         戻る
                       </button>
@@ -425,26 +472,20 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
               className="w-full px-3.5 py-3 border-2 border-gray-200 rounded-2xl text-sm resize-none focus:outline-none focus:border-indigo-400 transition-colors" />
           </section>
 
-          {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">{error}</p>
+          {submitError && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">{submitError}</p>
           )}
         </div>
 
         {/* ── 受付ボタン ── */}
         <div className="px-5 pt-3 pb-5 border-t border-gray-100 shrink-0"
           style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}>
-          {(() => {
-            const phoneReady = newCustMode === 'phone' && newName.trim().length > 0 && newTel.replace(/[-\s]/g,'').length >= 10
-            const canSubmit  = (!!customer || phoneReady) && selectedIds.size > 0
-            return (
-              <button onClick={handleSubmit} disabled={submitting || !canSubmit}
-                className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-black text-base disabled:opacity-40 flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-indigo-600/30">
-                {submitting
-                  ? <><Loader2 size={18} className="animate-spin" />受付中...</>
-                  : phoneReady && !customer ? '登録して受付する' : '受付する'}
-              </button>
-            )
-          })()}
+          <button onClick={handleSubmit} disabled={submitting || !canSubmit}
+            className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-black text-base disabled:opacity-40 flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-indigo-600/30">
+            {submitting
+              ? <><Loader2 size={18} className="animate-spin" />受付中...</>
+              : phoneReady && !customer ? '登録して受付する' : '受付する'}
+          </button>
         </div>
 
       </div>
