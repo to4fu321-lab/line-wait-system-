@@ -85,6 +85,7 @@ export default function RepairsPage() {
   const [closingLoading,  setClosingLoading]  = useState(false)
   const [handoverNote,    setHandoverNote]    = useState('')
   const [confirmingOC,    setConfirmingOC]    = useState(false)
+  const [storeName, setStoreName] = useState('')
 
   const showToast = useCallback((type: 'ok' | 'err', msg: string, onUndo?: () => Promise<void>) => {
     setToast({ type, msg, onUndo })
@@ -93,9 +94,9 @@ export default function RepairsPage() {
   // is_open 取得
   useEffect(() => {
     if (!storeId) return
-    ;(supabase as any).from('stores').select('is_open').eq('id', storeId).single()
-      .then(({ data }: { data: { is_open: boolean } | null }) => {
-        if (data) setIsOpen(data.is_open)
+    ;(supabase as any).from('stores').select('is_open, name').eq('id', storeId).single()
+      .then(({ data }: { data: { is_open: boolean; name: string } | null }) => {
+        if (data) { setIsOpen(data.is_open); setStoreName(data.name ?? '') }
       })
   }, [storeId])
 
@@ -249,6 +250,13 @@ export default function RepairsPage() {
     if (isSimpleMode && (tab === 'purchase' || tab === 'arrival' || tab === 'inquiries')) setTab('repair')
   }, [isSimpleMode, tab])
 
+  // Reset sub-tab to a valid value when entering simple mode
+  useEffect(() => {
+    if (isSimpleMode && repairSubTab !== 'unstarted' && repairSubTab !== 'outsourced') {
+      setRepairSubTab('unstarted')
+    }
+  }, [isSimpleMode, repairSubTab])
+
   // ── Delivery actions ───────────────────────────────────────
   const handleDeliver = useCallback(async (item: DeliveryItem, paid: boolean, deliveredBy: string) => {
     const table = item.kind === 'repair' ? 'repair_histories' : 'purchase_orders'
@@ -401,11 +409,16 @@ export default function RepairsPage() {
   const subOutsourced = repairs.filter(r => r.request_type === 'repair' && !!r.sent_to_vendor_at && !r.work_started)
   const subOther      = repairs.filter(r => r.request_type !== 'repair')
 
-  const subTabRepairs =
-    repairSubTab === 'unstarted'  ? subUnstarted  :
-    repairSubTab === 'inprogress' ? subInProgress :
-    repairSubTab === 'outsourced' ? subOutsourced :
-    subOther
+  // Simple mode: merge all active (non-outsourced or returned) into one group
+  const simpleSubUnstarted  = repairs.filter(r => !r.sent_to_vendor_at || r.work_started)
+  const simpleSubOutsourced = repairs.filter(r => !!r.sent_to_vendor_at && !r.work_started)
+
+  const subTabRepairs = isSimpleMode
+    ? (repairSubTab === 'outsourced' ? simpleSubOutsourced : simpleSubUnstarted)
+    : repairSubTab === 'unstarted'  ? subUnstarted  :
+      repairSubTab === 'inprogress' ? subInProgress :
+      repairSubTab === 'outsourced' ? subOutsourced :
+      subOther
 
   const sortedSubTab: RepairRow[] = [...subTabRepairs].sort(sortFn)
 
@@ -581,30 +594,28 @@ export default function RepairsPage() {
             </button>
           </div>
 
-          {/* Dashboard card — simple mode: compact 2-tab selector */}
+          {/* Dashboard card — simple mode: two big tiles */}
           {isSimpleMode && (
-            <div className="bg-gradient-to-br from-indigo-700 to-indigo-800 rounded-2xl px-4 py-3 text-white shadow-lg shadow-indigo-600/25">
-              <div className="flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-black tabular-nums leading-none">{repairs.length}</span>
-                    <span className="text-sm font-bold opacity-60">件対応中</span>
-                  </div>
-                  {waiting.length > 0 && (
-                    <p className="text-xs text-indigo-200 mt-1 font-medium">🎁 お渡し待ち {waiting.length}件</p>
-                  )}
-                </div>
-                {hasFeature('repairs_tab_delivery') && waiting.length > 0 && (
-                  <div className="flex flex-col gap-1 shrink-0">
-                    <button onClick={() => { setTab('repair'); setSearchText('') }}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${tab !== 'delivery' ? 'bg-white/20 ring-1 ring-white/30' : 'opacity-50'}`}>
-                      ✂️ お直し
+            <div className="bg-gradient-to-br from-indigo-700 to-indigo-800 rounded-2xl overflow-hidden text-white shadow-lg shadow-indigo-600/25">
+              <div className="flex">
+                <button
+                  onClick={() => { setTab('repair'); setSearchText('') }}
+                  style={{ touchAction: 'manipulation' }}
+                  className={`flex-1 flex flex-col items-center justify-center py-4 px-3 transition-all active:scale-95 ${tab !== 'delivery' ? 'bg-white/15' : 'opacity-55 hover:opacity-75'}`}>
+                  <span className="text-5xl font-black tabular-nums leading-none">{repairs.length}</span>
+                  <span className="text-sm font-bold mt-2 opacity-90">✂️ お直し</span>
+                </button>
+                {hasFeature('repairs_tab_delivery') && (
+                  <>
+                    <div className="w-px bg-white/20 self-stretch" />
+                    <button
+                      onClick={() => { setTab('delivery'); setSearchText('') }}
+                      style={{ touchAction: 'manipulation' }}
+                      className={`flex-1 flex flex-col items-center justify-center py-4 px-3 transition-all active:scale-95 ${tab === 'delivery' ? 'bg-white/15' : 'opacity-55 hover:opacity-75'}`}>
+                      <span className="text-5xl font-black tabular-nums leading-none">{waiting.length}</span>
+                      <span className="text-sm font-bold mt-2 opacity-90">🎁 お渡し待ち</span>
                     </button>
-                    <button onClick={() => { setTab('delivery'); setSearchText('') }}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${tab === 'delivery' ? 'bg-white/20 ring-1 ring-white/30' : 'opacity-50'}`}>
-                      🎁 お渡し待ち
-                    </button>
-                  </div>
+                  </>
                 )}
               </div>
             </div>
@@ -789,7 +800,7 @@ export default function RepairsPage() {
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">✂️ お直し・案件 ({filteredRepairs.length})</p>
                 <div className={isTablet ? 'grid grid-cols-2 gap-2' : 'space-y-1.5'}>
                   {filteredRepairs.map(r => (
-                    <RepairCard key={r.id} item={r} storeId={storeId} onRefresh={fetchAll} onToast={showToast}
+                    <RepairCard key={r.id} item={r} storeId={storeId} storeName={storeName} onRefresh={fetchAll} onToast={showToast}
                       onEdit={item => { setEditItem(item); setEditKind('repair') }}
                       selected={false} onToggle={() => {}} isSimpleMode={isSimpleMode} />
                   ))}
@@ -839,11 +850,14 @@ export default function RepairsPage() {
             {/* サブタブ */}
             {!pendingFilter && (
             <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 no-scrollbar">
-              {([
-                { id: 'unstarted'  as const, label: '加工未',   count: subUnstarted.length,  color: 'bg-orange-500' },
-                { id: 'inprogress' as const, label: '加工中',   count: subInProgress.length, color: 'bg-amber-500'  },
-                { id: 'outsourced' as const, label: '外注待ち',  count: subOutsourced.length, color: 'bg-purple-500' },
-                { id: 'other'      as const, label: '問合せ等', count: subOther.length,      color: 'bg-gray-400'   },
+              {(isSimpleMode ? [
+                { id: 'unstarted'  as const, label: '加工未',  count: simpleSubUnstarted.length  },
+                { id: 'outsourced' as const, label: '外注待ち', count: simpleSubOutsourced.length },
+              ] : [
+                { id: 'unstarted'  as const, label: '加工未',   count: subUnstarted.length  },
+                { id: 'inprogress' as const, label: '加工中',   count: subInProgress.length },
+                { id: 'outsourced' as const, label: '外注待ち', count: subOutsourced.length },
+                { id: 'other'      as const, label: '問合せ等', count: subOther.length      },
               ]).map(st => (
                 <button key={st.id}
                   onClick={() => { setRepairSubTab(st.id); setBatchSelected(new Set()) }}
@@ -899,7 +913,7 @@ export default function RepairsPage() {
                 </div>
                 <div className={isTablet ? 'grid grid-cols-2 gap-2' : 'space-y-1.5'}>
                   {filteredRepairs.map(r => (
-                    <RepairCard key={r.id} item={r} storeId={storeId} onRefresh={fetchAll} onToast={showToast}
+                    <RepairCard key={r.id} item={r} storeId={storeId} storeName={storeName} onRefresh={fetchAll} onToast={showToast}
                       onEdit={item => { setEditItem(item); setEditKind('repair') }}
                       selected={batchSelected.has(r.id)}
                       isSimpleMode={isSimpleMode}

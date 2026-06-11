@@ -16,8 +16,8 @@ import type { RequestType } from '@/types/crm'
 import { fmtDate, fmtReqNo } from './utils'
 import type { RepairRow } from './types'
 
-export function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected, onToggle, isSimpleMode = false }: {
-  item: RepairRow; storeId: string; onRefresh: () => void
+export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, onEdit, selected, onToggle, isSimpleMode = false }: {
+  item: RepairRow; storeId: string; storeName?: string; onRefresh: () => void
   onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
   onEdit?: (item: RepairRow) => void
   selected?: boolean
@@ -29,6 +29,8 @@ export function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected
   const [confirmPrimary, setConfirmPrimary] = useState(false)
   const [confirmPay,    setConfirmPay]    = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
+  const [confirmVendor, setConfirmVendor] = useState(false)
+  const [vendorName,    setVendorName]    = useState('')
 
   const reqType = (item.request_type ?? 'repair') as RequestType
   const name    = item.child?.name ?? item.customer?.name ?? '（顧客不明）'
@@ -158,27 +160,69 @@ export function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected
       setLoading(true)
       const today = new Date().toISOString().slice(0, 10)
       const { error } = await (supabase as any).from('repair_histories')
-        .update({ status: 'completed', completed_date: today, work_started: true, notified: true, updated_at: new Date().toISOString() })
+        .update({ status: 'completed', completed_date: today, work_started: true, updated_at: new Date().toISOString() })
         .eq('id', item.id)
       if (error) { setLoading(false); onToast('err', '更新に失敗しました'); return }
       if (notifyMode !== 'none') {
-        fetch('/api/notify-repair', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            repairId:     item.id,
-            lineUserId:   item.customer?.line_user_id ?? null,
-            tel:          item.customer?.tel ?? null,
-            customerName: item.customer?.name ?? '',
-            itemName:     item.item_name,
-            storeName:    '',
-            reqNo,
-          }),
-        }).catch(() => {})
+        try {
+          const res = await fetch('/api/notify-repair', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              repairId:     item.id,
+              lineUserId:   item.customer?.line_user_id ?? null,
+              tel:          item.customer?.tel ?? null,
+              customerName: item.customer?.name ?? '',
+              itemName:     item.item_name,
+              storeName,
+              reqNo,
+            }),
+          })
+          const json = await res.json().catch(() => ({}))
+          if (!res.ok || !json.ok) {
+            setLoading(false)
+            onRefresh()
+            onToast('err', `通知送信に失敗しました: ${(json as any).error ?? '不明なエラー'}`)
+            return
+          }
+        } catch (e) {
+          setLoading(false)
+          onRefresh()
+          onToast('err', `通知エラー: ${String(e)}`)
+          return
+        }
       }
       setLoading(false)
       onRefresh()
       onToast('ok', completeToast)
+    }
+
+    async function handleSendToVendor() {
+      setLoading(true)
+      const { error } = await (supabase as any).from('repair_histories')
+        .update({
+          sent_to_vendor_at: new Date().toISOString().slice(0, 10),
+          vendor_name: vendorName.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', item.id)
+      setLoading(false)
+      setConfirmVendor(false)
+      setVendorName('')
+      if (error) { onToast('err', '外注登録に失敗しました'); return }
+      onRefresh()
+      onToast('ok', '📤 外注に出しました')
+    }
+
+    async function handleReturnFromVendor() {
+      setLoading(true)
+      const { error } = await (supabase as any).from('repair_histories')
+        .update({ work_started: true, updated_at: new Date().toISOString() })
+        .eq('id', item.id)
+      setLoading(false)
+      if (error) { onToast('err', '更新に失敗しました'); return }
+      onRefresh()
+      onToast('ok', '📥 外注品が戻りました')
     }
 
     async function handleSimpleRevert() {
@@ -234,6 +278,11 @@ export function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected
             {item.repair_type === 'embroidery' && item.embroidery_text && (
               <p className="text-base font-black text-pink-700">刺繍「{item.embroidery_text}」{item.embroidery_color} {item.embroidery_pos}</p>
             )}
+            {item.sent_to_vendor_at && (
+              <p className="text-sm font-black text-orange-600 mt-1">
+                📤 外注中{item.vendor_name ? `（${item.vendor_name}）` : ''}
+              </p>
+            )}
           </div>
 
           {/* 金額・期限 */}
@@ -275,6 +324,51 @@ export function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected
               className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-black text-lg rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50">
               {loading ? <Loader2 size={22} className="animate-spin" /> : '✅'}
               {completeBtnLabel}
+            </button>
+          )}
+
+          {/* 外注ボタン */}
+          {!item.sent_to_vendor_at && (
+            confirmVendor ? (
+              <div className="rounded-2xl border-2 border-orange-300 bg-orange-50 px-4 py-4 space-y-3">
+                <p className="text-sm font-black text-orange-800 text-center">外注に出しますか？</p>
+                <input
+                  value={vendorName}
+                  onChange={e => setVendorName(e.target.value)}
+                  placeholder="業者・仕立て屋名（任意）"
+                  className="w-full px-3 py-2.5 rounded-xl border border-orange-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
+                  style={{ touchAction: 'manipulation' }}
+                />
+                <div className="flex gap-3">
+                  <button onClick={() => { setConfirmVendor(false); setVendorName('') }}
+                    style={{ touchAction: 'manipulation' }}
+                    className="flex-1 py-3.5 rounded-2xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-black active:scale-95 transition-all">
+                    戻る
+                  </button>
+                  <button onClick={handleSendToVendor} disabled={loading}
+                    style={{ touchAction: 'manipulation' }}
+                    className="flex-1 py-3.5 rounded-2xl bg-orange-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50">
+                    {loading ? <Loader2 size={16} className="animate-spin" /> : '📤'}
+                    外注に出す
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmVendor(true)} disabled={loading}
+                style={{ touchAction: 'manipulation' }}
+                className="w-full py-3.5 border-2 border-orange-200 bg-orange-50 text-orange-700 font-black text-sm rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all">
+                📤 外注に出す
+              </button>
+            )
+          )}
+
+          {/* 外注中の場合: 戻りボタン */}
+          {item.sent_to_vendor_at && !item.work_started && (
+            <button onClick={handleReturnFromVendor} disabled={loading}
+              style={{ touchAction: 'manipulation' }}
+              className="w-full py-3.5 border-2 border-teal-200 bg-teal-50 text-teal-700 font-black text-sm rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50">
+              {loading ? <Loader2 size={16} className="animate-spin" /> : '📥'}
+              外注品が戻った → 作業へ
             </button>
           )}
 
