@@ -534,20 +534,22 @@ export default function RepairsPage() {
           {/* Title row */}
           <div className="flex items-center gap-2 mb-3">
             <h1 className="text-sm font-black text-gray-800 tracking-tight whitespace-nowrap">業務ダッシュボード</h1>
-            {/* 開店/閉店ボタン */}
-            <button
-              onClick={() => { if (isOpen === null) return; isOpen ? openClosingModal() : openOpenModal() }}
-              style={{ touchAction: 'manipulation' }}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl font-black text-xs active:opacity-60 transition-all ${
-                isOpen === null ? 'bg-gray-200 text-gray-500 opacity-60' :
-                isOpen ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-900/50' :
-                'bg-indigo-600 text-white shadow-sm shadow-indigo-900/50'
-              }`}>
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                isOpen === null ? 'bg-gray-400' : isOpen ? 'bg-white animate-pulse' : 'bg-indigo-200'
-              }`} />
-              {isOpen === null ? '...' : isOpen ? '営業中' : '開店する'}
-            </button>
+            {/* 開店/閉店ボタン — full mode only */}
+            {!isSimpleMode && (
+              <button
+                onClick={() => { if (isOpen === null) return; isOpen ? openClosingModal() : openOpenModal() }}
+                style={{ touchAction: 'manipulation' }}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl font-black text-xs active:opacity-60 transition-all ${
+                  isOpen === null ? 'bg-gray-200 text-gray-500 opacity-60' :
+                  isOpen ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-900/50' :
+                  'bg-indigo-600 text-white shadow-sm shadow-indigo-900/50'
+                }`}>
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                  isOpen === null ? 'bg-gray-400' : isOpen ? 'bg-white animate-pulse' : 'bg-indigo-200'
+                }`} />
+                {isOpen === null ? '...' : isOpen ? '営業中' : '開店する'}
+              </button>
+            )}
             <div className="flex-1" />
             {hasFeature('repairs_dummy') && (
               <button onClick={generateDummy} disabled={dummyLoading}

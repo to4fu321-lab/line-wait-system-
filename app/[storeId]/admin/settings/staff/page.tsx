@@ -3,10 +3,11 @@
 import React from 'react'
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { Bell, BellOff, Store, Clock, Loader2, Check, GraduationCap, Users, ChevronRight, Settings, ChevronDown } from 'lucide-react'
+import { Bell, BellOff, Store, Clock, Loader2, Check, GraduationCap, Users, ChevronRight, Settings, ChevronDown, Scissors } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../../_components/BottomNav'
+import { useStoreFeatures } from '@/lib/useStoreFeatures'
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BAmZx5b8ScrgrqWa822FdQhtfHV2CSyqvxNeQX-Ds1KsqztPPRtZRyBP_LaQZmCLejg8Ivd7Gu4cBxKtNwodb3o'
 
@@ -98,6 +99,9 @@ function Section({ emoji, title, open, onToggle, children }: {
 
 export default function StaffSettingsPage() {
   const { storeId } = useParams<{ storeId: string }>()
+
+  const { hasFeature } = useStoreFeatures(storeId)
+  const isSimpleMode = !hasFeature('repairs_tab_purchase') && !hasFeature('repairs_tab_arrival')
 
   const [storeName,     setStoreName]     = useState('')
   const [loading,       setLoading]       = useState(true)
@@ -194,6 +198,66 @@ export default function StaffSettingsPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Loader2 size={28} className="animate-spin text-gray-400" />
+      </div>
+    )
+  }
+
+  // ── シンプルモード用設定画面 ─────────────────────────────────
+  if (isSimpleMode) {
+    return (
+      <div className="min-h-screen bg-gray-50 text-gray-900">
+        <div className="sticky top-0 z-40 bg-gray-50/90 backdrop-blur border-b border-gray-100">
+          <div className="max-w-lg mx-auto px-4 py-4">
+            <h1 className="text-xl font-black text-gray-900">設定</h1>
+            {storeName && <p className="text-sm text-gray-500 mt-0.5">{storeName}</p>}
+          </div>
+        </div>
+
+        <div className="max-w-lg mx-auto px-4 py-5 space-y-4 pb-32">
+
+          {/* ✂️ お直し項目・料金 */}
+          <Link href={`/${storeId}/admin/master?tab=presets`}
+            className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-indigo-200 hover:border-indigo-400 active:scale-[0.98] transition-all shadow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center shrink-0">
+              <Scissors size={28} className="text-indigo-600" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-black text-lg text-indigo-700">お直し項目・料金</p>
+              <p className="text-sm text-gray-500 mt-0.5">お直しの種類・料金プリセットを管理</p>
+            </div>
+            <ChevronRight size={20} className="text-indigo-400 shrink-0" />
+          </Link>
+
+          {/* 🧪 練習モード */}
+          <BigToggle
+            on={isTestMode}
+            onToggle={handleTestModeToggle}
+            label="練習モード"
+            sub={isTestMode ? '練習中 — LINE・通知は送信されません' : 'オフ — 本番として動作します'}
+            emoji="🧪"
+            color="amber"
+          />
+
+          {/* 🏪 店舗を切り替え */}
+          <button
+            onClick={() => {
+              sessionStorage.removeItem('admin_auth')
+              sessionStorage.removeItem('admin_store_id')
+              window.location.href = `/${storeId}/admin`
+            }}
+            style={{ touchAction: 'manipulation' }}
+            className="w-full flex items-center gap-4 px-5 py-5 rounded-2xl border border-gray-200 bg-white hover:bg-gray-50 active:scale-[0.98] transition-all">
+            <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center shrink-0">
+              <Store size={28} className="text-gray-600" />
+            </div>
+            <div className="text-left flex-1">
+              <p className="font-black text-lg text-gray-700">店舗を切り替える</p>
+              <p className="text-gray-500 text-sm mt-1">別の店舗に切り替えます（再ログインが必要）</p>
+            </div>
+          </button>
+
+        </div>
+        <BottomNav />
       </div>
     )
   }
