@@ -664,6 +664,39 @@ export default function SettingsPage() {
           </div>
         </Section>
 
+        {/* ⑥ かんたんLINEモード */}
+        <Section id="kantan" emoji="🍀" title="かんたんLINEモード" open={openSections.has('kantan')} onToggle={() => toggle('kantan')}>
+          <p className="text-xs text-gray-400">管理画面を開かず、LINEの返信と置くだけスキャンでお店を回す機能です</p>
+          <div className="grid grid-cols-2 gap-2">
+            <Link href={`/${storeId}/admin/settings/kantan`}
+              className="flex flex-col gap-2 px-3 py-3.5 rounded-xl bg-teal-50 border border-teal-200 hover:bg-teal-100 active:opacity-70 transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-8 h-8 rounded-lg bg-teal-100 border border-teal-200 flex items-center justify-center">
+                  <Users size={15} className="text-teal-600" />
+                </div>
+                <ChevronRight size={13} className="text-teal-400" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-teal-700">LINE返信で運用</p>
+                <p className="text-[10px] text-teal-500 mt-0.5 leading-relaxed">スタッフ登録・やることリスト配信</p>
+              </div>
+            </Link>
+            <Link href={`/${storeId}/admin/tray-scan`}
+              className="flex flex-col gap-2 px-3 py-3.5 rounded-xl bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 active:opacity-70 transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 border border-emerald-200 flex items-center justify-center">
+                  <PackageSearch size={15} className="text-emerald-600" />
+                </div>
+                <ChevronRight size={13} className="text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-emerald-700">置くだけスキャン</p>
+                <p className="text-[10px] text-emerald-500 mt-0.5 leading-relaxed">伝票を置くと自動で読み取り・振り分け</p>
+              </div>
+            </Link>
+          </div>
+        </Section>
+
         {/* 保存エラー */}
         {saveError && (
           <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs text-red-600">

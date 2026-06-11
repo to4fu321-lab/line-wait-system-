@@ -70,7 +70,37 @@ const INQUIRY_SCHEMA = `
   "warnings": ["読み取り不確かな箇所を日本語で列挙"]
 }`
 
-function buildPrompt(slipType: 'repair' | 'order' | 'inquiry'): string {
+// ── 種別自動判定（置くだけスキャン用） ──────────────────────────
+const AUTO_PROMPT = `この画像は制服販売店で接客後に書かれた紙（承り書・伝票・メモ）です。
+まず内容から種別を判定し、種別に応じたスキーマで情報を抽出してください。
+
+【種別の判定基準】
+- repair  = お直し・加工の依頼（裾上げ・袖丈・ウエスト・刺繍・ボタン・補修・校章・サイズ交換）
+- order   = 商品の注文・追加購入・取り寄せ（品名×サイズ×数量が主体）
+- inquiry = 問合せ・伝言・相談・その他のメモ（上記2つに当てはまらないもの全般）
+
+【抽出ルール】
+- 読み取れない・書かれていない項目は null にする
+- 日付は必ず YYYY-MM-DD 形式に変換する（例: R7.6.15 → 2025-06-15）
+- 金額は数値のみ（¥マーク・円・カンマは除く）
+- mm数値は数値のみ（単位を除く）
+- 手書きで判読が難しい場合は最善を尽くし、不確かな部分は warnings に記述する
+
+出力形式: {"slip_type": "repair|order|inquiry", "data": <種別に応じた以下のスキーマ>}
+
+repair の data スキーマ:
+${REPAIR_SCHEMA}
+
+order の data スキーマ:
+${ORDER_SCHEMA}
+
+inquiry の data スキーマ:
+${INQUIRY_SCHEMA}
+
+重要: JSON のみを返してください。コードブロック（\`\`\`）は不要です。`
+
+function buildPrompt(slipType: 'repair' | 'order' | 'inquiry' | 'auto'): string {
+  if (slipType === 'auto') return AUTO_PROMPT
   const schema =
     slipType === 'order'   ? ORDER_SCHEMA :
     slipType === 'inquiry' ? INQUIRY_SCHEMA :
@@ -104,7 +134,7 @@ export async function POST(req: NextRequest) {
     const { imageBase64, mimeType, slipType = 'repair', storeId, storePin } = body as {
       imageBase64: string
       mimeType?: string
-      slipType?: 'repair' | 'order' | 'inquiry'
+      slipType?: 'repair' | 'order' | 'inquiry' | 'auto'
       storeId?: string
       storePin?: string
     }
@@ -144,7 +174,7 @@ export async function POST(req: NextRequest) {
 
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 512,
+      max_tokens: slipType === 'auto' ? 1024 : 512,
       messages: [{
         role: 'user',
         content: [
@@ -170,6 +200,15 @@ export async function POST(req: NextRequest) {
       data = JSON.parse(jsonText)
     } catch {
       return NextResponse.json({ ok: false, error: 'JSONパースに失敗しました', raw: rawText }, { status: 500 })
+    }
+
+    // auto の場合は {slip_type, data} 形式を展開して判定種別を返す
+    if (slipType === 'auto') {
+      const auto = data as { slip_type?: string; data?: unknown }
+      const detected = ['repair', 'order', 'inquiry'].includes(auto.slip_type ?? '')
+        ? auto.slip_type as 'repair' | 'order' | 'inquiry'
+        : 'inquiry'
+      return NextResponse.json({ ok: true, data: auto.data ?? data, slipType: detected })
     }
 
     return NextResponse.json({ ok: true, data, slipType })
