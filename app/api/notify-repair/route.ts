@@ -49,6 +49,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: `body parse error: ${String(e)}` }, { status: 400 })
   }
 
+  console.log('[notify-repair] called repairId:', repairId)
+
   if (!repairId) {
     return NextResponse.json({ ok: false, error: 'repairId is required' }, { status: 400 })
   }
@@ -62,6 +64,8 @@ export async function POST(req: NextRequest) {
     `)
     .eq('id', repairId)
     .single()
+
+  console.log('[notify-repair] fetch result:', repair ? 'found' : 'null', 'error:', repairErr?.message ?? 'none', 'code:', repairErr?.code)
 
   if (repairErr || !repair) {
     return NextResponse.json({ ok: false, error: `repair not found: ${repairErr?.message}` }, { status: 404 })
