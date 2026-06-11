@@ -100,18 +100,40 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
   const togglePreset = (id: string) =>
     setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
 
-  // 電話番号で新規顧客登録
+  // 電話番号バリデーション（10〜11桁）
+  const validateTel = (v: string): string | null => {
+    if (!v.trim()) return '電話番号を入力してください'
+    const digits = v.replace(/[-\s]/g, '')
+    if (!/^\d{10,11}$/.test(digits)) return '電話番号は10〜11桁で入力してください'
+    return null
+  }
+
+  // 電話番号で顧客を取得（同番号が既存なら再利用、なければ新規作成）
+  const resolvePhoneCustomer = async (): Promise<CustResult> => {
+    const tel = newTel.trim()
+    const { data: rows } = await (supabase as any).from('customers')
+      .select('id, name, tel, line_user_id')
+      .eq('store_id', storeId).eq('tel', tel).is('deleted_at', null).limit(1)
+    if (rows && rows.length > 0) return rows[0] as CustResult
+    const { data: c, error: err } = await (supabase as any).from('customers').insert({
+      store_id: storeId,
+      name: newName.trim(),
+      tel,
+    }).select('id, name, tel, line_user_id').single()
+    if (err) throw new Error(err.message)
+    return c as CustResult
+  }
+
+  // 電話番号で新規顧客登録（「登録して選択」ボタン用）
   const handleRegisterPhone = async () => {
     if (!newName.trim()) return
+    const telErr = validateTel(newTel)
+    if (telErr) { setError(telErr); return }
+    setError('')
     setRegLoading(true)
     try {
-      const { data: c, error: err } = await (supabase as any).from('customers').insert({
-        store_id: storeId,
-        name: newName.trim(),
-        tel:  newTel.trim() || null,
-      }).select('id, name, tel, line_user_id').single()
-      if (err) throw new Error(err.message)
-      setCustomer(c as CustResult)
+      const c = await resolvePhoneCustomer()
+      setCustomer(c)
       setNewCustMode(null)
       setNewName(''); setNewTel('')
       setCustSearch('')
@@ -128,17 +150,12 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
     setError('')
     setSubmitting(true)
     try {
-      // 電話モードで未登録の場合はここで顧客を作成
       let finalCustomer = customer
       if (!finalCustomer && newCustMode === 'phone') {
         if (!newName.trim()) { setError('お名前を入力してください'); setSubmitting(false); return }
-        const { data: c, error: regErr } = await (supabase as any).from('customers').insert({
-          store_id: storeId,
-          name: newName.trim(),
-          tel:  newTel.trim() || null,
-        }).select('id, name, tel, line_user_id').single()
-        if (regErr) throw new Error(regErr.message)
-        finalCustomer = c as CustResult
+        const telErr = validateTel(newTel)
+        if (telErr) { setError(telErr); setSubmitting(false); return }
+        finalCustomer = await resolvePhoneCustomer()
         setCustomer(finalCustomer)
       }
       if (!finalCustomer) { setError('お客様を選択してください'); setSubmitting(false); return }
@@ -308,10 +325,11 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
                         className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400" />
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-gray-500 mb-1 block">電話番号（任意）</label>
-                      <input type="tel" inputMode="tel" value={newTel} onChange={e => setNewTel(e.target.value)}
+                      <label className="text-xs font-bold text-gray-500 mb-1 block">電話番号 <span className="text-red-500">*</span></label>
+                      <input type="tel" inputMode="tel" value={newTel} onChange={e => { setNewTel(e.target.value); setError('') }}
                         placeholder="例：090-1234-5678"
                         className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400" />
+                      <p className="text-[10px] text-gray-400 mt-1">10〜11桁（ハイフンあり・なし両方OK）</p>
                     </div>
                     <div className="flex gap-2 pt-1">
                       <button onClick={() => setNewCustMode(null)}
@@ -416,7 +434,7 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
         <div className="px-5 pt-3 pb-5 border-t border-gray-100 shrink-0"
           style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}>
           {(() => {
-            const phoneReady = newCustMode === 'phone' && newName.trim().length > 0
+            const phoneReady = newCustMode === 'phone' && newName.trim().length > 0 && newTel.replace(/[-\s]/g,'').length >= 10
             const canSubmit  = (!!customer || phoneReady) && selectedIds.size > 0
             return (
               <button onClick={handleSubmit} disabled={submitting || !canSubmit}

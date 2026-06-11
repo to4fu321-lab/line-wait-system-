@@ -92,7 +92,12 @@ export function EditCustomerForm({ customer, onSaved, onCancel }: {
       .update({ name: name.trim(), kana: kana.trim() || null, tel: tel.trim() || null, notes: notes.trim() || null })
       .eq('id', customer.id).select().single()
     setLoading(false)
-    if (err) { setError(`保存失敗: ${err.message}`); return }
+    if (err) {
+      setError(err.message.includes('idx_customers_store_tel')
+        ? 'この電話番号は他のお客様に登録されています'
+        : `保存失敗: ${err.message}`)
+      return
+    }
     if (data) onSaved(data as Customer)
   }
 
