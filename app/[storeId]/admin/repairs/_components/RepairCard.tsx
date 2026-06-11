@@ -249,7 +249,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
     async function handleSimpleRevert() {
       setLoading(true)
       const { error } = await (supabase as any).from('repair_histories')
-        .update({ status: 'received', work_started: false, completed_date: null, notified: false, updated_at: new Date().toISOString() })
+        .update({ status: 'received', work_started: false, completed_date: null, notified: false, sent_to_vendor_at: null, vendor_name: null, updated_at: new Date().toISOString() })
         .eq('id', item.id)
       setLoading(false)
       if (error) { onToast('err', '更新に失敗しました'); return }
@@ -257,50 +257,52 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       onToast('ok', '受付中に戻しました')
     }
 
+    const canRevert = item.work_started || !!item.sent_to_vendor_at
+
     return (
       <div className={`rounded-2xl overflow-hidden shadow-sm ${
         isOverdue ? 'border-2 border-red-400' : isDueSoon ? 'border-2 border-amber-400' : 'border border-gray-200'
       } bg-white`}>
         {/* 受付番号ヘッダー */}
-        <div className={`px-4 py-2.5 flex items-center justify-between ${isOverdue ? 'bg-red-600' : 'bg-indigo-600'}`}>
-          <span className="text-indigo-200 text-xs font-bold">受付番号</span>
-          <span className="text-white text-2xl font-black font-mono tracking-wider">{reqNo}</span>
+        <div className={`px-3 py-1.5 flex items-center justify-between ${isOverdue ? 'bg-red-600' : 'bg-indigo-600'}`}>
+          <span className="text-indigo-200 text-[10px] font-bold">受付番号</span>
+          <span className="text-white text-xl font-black font-mono tracking-wider">{reqNo}</span>
         </div>
 
-        <div className="p-4 space-y-3">
-          {/* お客様情報（大きく） */}
+        <div className="px-3 py-2 space-y-2">
+          {/* お客様情報 */}
           <div>
             {item.child?.school_name && (
-              <p className="text-base font-black text-amber-600 leading-tight">{item.child.school_name}</p>
+              <p className="text-sm font-black text-amber-600 leading-tight">{item.child.school_name}</p>
             )}
-            <p className="text-2xl font-black text-gray-900 leading-tight">{name}</p>
+            <p className="text-xl font-black text-gray-900 leading-tight">{name}</p>
             {item.child?.name && item.customer?.name && (
-              <p className="text-sm text-gray-400 font-medium mt-0.5">保護者: {item.customer.name}</p>
+              <p className="text-xs text-gray-400 font-medium">保護者: {item.customer.name}</p>
             )}
           </div>
 
-          {/* アイテム・内容（大きく） */}
-          <div className="bg-gray-50 rounded-2xl px-4 py-3 space-y-1">
+          {/* アイテム・内容 */}
+          <div className="bg-gray-50 rounded-xl px-3 py-2 space-y-0.5">
             {item.item_name && item.content && item.item_name !== item.content && (
-              <p className="text-sm text-gray-500 font-bold">{item.item_name}</p>
+              <p className="text-xs text-gray-500 font-bold">{item.item_name}</p>
             )}
-            <p className="text-lg font-black text-gray-900 leading-snug">
+            <p className="text-base font-black text-gray-900 leading-snug">
               {item.content || item.item_name || '内容未記入'}
             </p>
             {item.repair_type === 'hem' && item.hem_length_mm != null && item.hem_length_mm !== 0 && (
-              <p className="text-base font-black text-amber-700">裾上げ {item.hem_length_mm > 0 ? '+' : ''}{item.hem_length_mm}mm</p>
+              <p className="text-sm font-black text-amber-700">裾上げ {item.hem_length_mm > 0 ? '+' : ''}{item.hem_length_mm}mm</p>
             )}
             {item.repair_type === 'sleeve' && item.sleeve_adjust_mm != null && item.sleeve_adjust_mm !== 0 && (
-              <p className="text-base font-black text-blue-700">袖丈 {item.sleeve_adjust_mm > 0 ? '+' : ''}{item.sleeve_adjust_mm}mm</p>
+              <p className="text-sm font-black text-blue-700">袖丈 {item.sleeve_adjust_mm > 0 ? '+' : ''}{item.sleeve_adjust_mm}mm</p>
             )}
             {item.repair_type === 'waist' && item.waist_adjust_mm != null && item.waist_adjust_mm !== 0 && (
-              <p className="text-base font-black text-purple-700">ウエスト {item.waist_adjust_mm > 0 ? '+' : ''}{item.waist_adjust_mm}mm</p>
+              <p className="text-sm font-black text-purple-700">ウエスト {item.waist_adjust_mm > 0 ? '+' : ''}{item.waist_adjust_mm}mm</p>
             )}
             {item.repair_type === 'embroidery' && item.embroidery_text && (
-              <p className="text-base font-black text-pink-700">刺繍「{item.embroidery_text}」{item.embroidery_color} {item.embroidery_pos}</p>
+              <p className="text-sm font-black text-pink-700">刺繍「{item.embroidery_text}」{item.embroidery_color} {item.embroidery_pos}</p>
             )}
             {item.sent_to_vendor_at && (
-              <p className="text-sm font-black text-orange-600 mt-1">
+              <p className="text-xs font-black text-orange-600">
                 📤 外注中{item.vendor_name ? `（${item.vendor_name}）` : ''}
               </p>
             )}
@@ -310,23 +312,23 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
           {item.price != null && (
             <button onClick={handlePaymentToggle} disabled={loading}
               style={{ touchAction: 'manipulation' }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 font-black transition-all active:scale-[0.98] disabled:opacity-50 ${
+              className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl border-2 font-black transition-all active:scale-[0.98] disabled:opacity-50 ${
                 item.prepaid
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
                   : 'bg-red-50 border-red-300 text-red-700'
               }`}>
-              <Banknote size={18} className="shrink-0" />
-              <span className="flex-1 text-left text-base">¥{item.price.toLocaleString()}</span>
-              <span className={`text-sm px-2.5 py-1 rounded-xl font-black ${
+              <Banknote size={16} className="shrink-0" />
+              <span className="flex-1 text-left text-sm">¥{item.price.toLocaleString()}</span>
+              <span className={`text-xs px-2 py-0.5 rounded-lg font-black ${
                 item.prepaid ? 'bg-emerald-200/60 text-emerald-800' : 'bg-red-200/60 text-red-800'
               }`}>
                 {item.prepaid ? '支払済' : '未払い'}
               </span>
             </button>
           )}
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             {item.desired_completion_date && (
-              <span className={`text-sm font-black ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-gray-500'}`}>
+              <span className={`text-xs font-black ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-gray-500'}`}>
                 {isOverdue ? '🚨' : isDueSoon ? '⚠️' : ''}希望日 {new Date(item.desired_completion_date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })}
               </span>
             )}
@@ -335,18 +337,18 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
 
           {/* メインアクション */}
           {confirmPrimary ? (
-            <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 px-4 py-4 space-y-3">
-              <p className="text-base text-center text-emerald-800 font-black">{confirmText}</p>
-              <div className="flex gap-3">
+            <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 px-3 py-3 space-y-2">
+              <p className="text-sm text-center text-emerald-800 font-black">{confirmText}</p>
+              <div className="flex gap-2">
                 <button onClick={() => setConfirmPrimary(false)}
-                  className="flex-1 py-4 rounded-2xl bg-white border-2 border-gray-200 text-gray-600 text-base font-black active:scale-95 transition-all"
+                  className="flex-1 py-2.5 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-black active:scale-95 transition-all"
                   style={{ touchAction: 'manipulation' }}>
                   戻る
                 </button>
                 <button onClick={() => { setConfirmPrimary(false); handleSimpleComplete() }} disabled={loading}
-                  className="flex-1 py-4 rounded-2xl bg-emerald-600 text-white text-base font-black flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md disabled:opacity-50"
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md disabled:opacity-50"
                   style={{ touchAction: 'manipulation' }}>
-                  {loading ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+                  {loading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                   {notifyMode === 'none' ? '完了にする' : '完了・通知する'}
                 </button>
               </div>
@@ -354,8 +356,8 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
           ) : (
             <button onClick={() => setConfirmPrimary(true)} disabled={loading}
               style={{ touchAction: 'manipulation' }}
-              className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-black text-lg rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50">
-              {loading ? <Loader2 size={22} className="animate-spin" /> : '✅'}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-black text-base rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50">
+              {loading ? <Loader2 size={18} className="animate-spin" /> : '✅'}
               {completeBtnLabel}
             </button>
           )}
@@ -363,24 +365,24 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
           {/* 外注ボタン */}
           {!item.sent_to_vendor_at && (
             confirmVendor ? (
-              <div className="rounded-2xl border-2 border-orange-300 bg-orange-50 px-4 py-4 space-y-3">
+              <div className="rounded-xl border-2 border-orange-300 bg-orange-50 px-3 py-3 space-y-2">
                 <p className="text-sm font-black text-orange-800 text-center">外注に出しますか？</p>
                 <input
                   value={vendorName}
                   onChange={e => setVendorName(e.target.value)}
                   placeholder="業者・仕立て屋名（任意）"
-                  className="w-full px-3 py-2.5 rounded-xl border border-orange-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
+                  className="w-full px-3 py-2 rounded-xl border border-orange-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
                   style={{ touchAction: 'manipulation' }}
                 />
-                <div className="flex gap-3">
+                <div className="flex gap-2">
                   <button onClick={() => { setConfirmVendor(false); setVendorName('') }}
                     style={{ touchAction: 'manipulation' }}
-                    className="flex-1 py-3.5 rounded-2xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-black active:scale-95 transition-all">
+                    className="flex-1 py-2.5 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-black active:scale-95 transition-all">
                     戻る
                   </button>
                   <button onClick={handleSendToVendor} disabled={loading}
                     style={{ touchAction: 'manipulation' }}
-                    className="flex-1 py-3.5 rounded-2xl bg-orange-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50">
+                    className="flex-1 py-2.5 rounded-xl bg-orange-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50">
                     {loading ? <Loader2 size={16} className="animate-spin" /> : '📤'}
                     外注に出す
                   </button>
@@ -389,7 +391,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             ) : (
               <button onClick={() => setConfirmVendor(true)} disabled={loading}
                 style={{ touchAction: 'manipulation' }}
-                className="w-full py-3.5 border-2 border-orange-200 bg-orange-50 text-orange-700 font-black text-sm rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all">
+                className="w-full py-2.5 border-2 border-orange-200 bg-orange-50 text-orange-700 font-black text-sm rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all">
                 📤 外注に出す
               </button>
             )
@@ -399,36 +401,38 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
           {item.sent_to_vendor_at && !item.work_started && (
             <button onClick={handleReturnFromVendor} disabled={loading}
               style={{ touchAction: 'manipulation' }}
-              className="w-full py-3.5 border-2 border-teal-200 bg-teal-50 text-teal-700 font-black text-sm rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50">
+              className="w-full py-2.5 border-2 border-teal-200 bg-teal-50 text-teal-700 font-black text-sm rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50">
               {loading ? <Loader2 size={16} className="animate-spin" /> : '📥'}
               外注品が戻った → 作業へ
             </button>
           )}
 
-          {/* 戻すボタン */}
-          <button onClick={handleSimpleRevert} disabled={loading}
-            style={{ touchAction: 'manipulation' }}
-            className="w-full py-3.5 border-2 border-gray-200 bg-white text-gray-500 font-black text-sm rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all">
-            <RotateCcw size={15} />受付中に戻す
-          </button>
+          {/* 戻すボタン — 受付直後（何も操作していない状態）は非表示 */}
+          {canRevert && (
+            <button onClick={handleSimpleRevert} disabled={loading}
+              style={{ touchAction: 'manipulation' }}
+              className="w-full py-2.5 border-2 border-gray-200 bg-white text-gray-500 font-black text-sm rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all">
+              <RotateCcw size={14} />受付中に戻す
+            </button>
+          )}
 
           {/* 電話 */}
           {item.customer?.tel && (
             <a href={`tel:${item.customer.tel}`}
-              className="flex items-center justify-center gap-2 py-3 text-indigo-600 font-bold text-base">
-              <Phone size={16} />{item.customer.tel}
+              className="flex items-center justify-center gap-2 py-1.5 text-indigo-600 font-bold text-sm">
+              <Phone size={15} />{item.customer.tel}
             </a>
           )}
 
           {/* キャンセル（削除） */}
           {confirmCancel ? (
-            <div className="rounded-2xl border-2 border-red-300 bg-red-50 px-4 py-4 space-y-3">
+            <div className="rounded-xl border-2 border-red-300 bg-red-50 px-3 py-3 space-y-2">
               <p className="text-sm font-black text-red-700 text-center">本当に削除しますか？</p>
               <p className="text-xs text-red-400 text-center">この操作は取り消せません</p>
-              <div className="flex gap-3">
+              <div className="flex gap-2">
                 <button onClick={() => setConfirmCancel(false)}
                   style={{ touchAction: 'manipulation' }}
-                  className="flex-1 py-3.5 rounded-2xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-black active:scale-95 transition-all">
+                  className="flex-1 py-2.5 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-black active:scale-95 transition-all">
                   戻る
                 </button>
                 <button onClick={async () => {
@@ -440,16 +444,16 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                   onRefresh()
                 }} disabled={loading}
                   style={{ touchAction: 'manipulation' }}
-                  className="flex-1 py-3.5 rounded-2xl bg-red-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50">
-                  {loading ? <Loader2 size={16} className="animate-spin" /> : <><Trash2 size={16} />削除する</>}
+                  className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50">
+                  {loading ? <Loader2 size={16} className="animate-spin" /> : <><Trash2 size={15} />削除する</>}
                 </button>
               </div>
             </div>
           ) : (
             <button onClick={() => setConfirmCancel(true)} disabled={loading}
               style={{ touchAction: 'manipulation' }}
-              className="w-full py-3.5 border-2 border-red-200 bg-red-50 text-red-500 font-black text-sm rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all">
-              <Trash2 size={15} />キャンセル（削除）
+              className="w-full py-2.5 border-2 border-red-200 bg-red-50 text-red-500 font-black text-sm rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all">
+              <Trash2 size={14} />キャンセル（削除）
             </button>
           )}
         </div>
