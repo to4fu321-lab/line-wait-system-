@@ -165,7 +165,15 @@ export function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected
         fetch('/api/notify-repair', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ repairId: item.id }),
+          body: JSON.stringify({
+            repairId:     item.id,
+            lineUserId:   item.customer?.line_user_id ?? null,
+            tel:          item.customer?.tel ?? null,
+            customerName: item.customer?.name ?? '',
+            itemName:     item.item_name,
+            storeName:    '',
+            reqNo,
+          }),
         }).catch(() => {})
       }
       setLoading(false)

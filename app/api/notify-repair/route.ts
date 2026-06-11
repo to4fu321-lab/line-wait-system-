@@ -1,14 +1,10 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { getLiffBaseUrl, getLineToken } from '@/lib/line-config'
+import { supabase } from '@/lib/supabase'
+import { getLineToken } from '@/lib/line-config'
 
-// お直しは制服販売店専用 → uniform アカウントで通知
-const TOKEN    = getLineToken('uniform')
-const LIFF_URL = getLiffBaseUrl('uniform')
-
-// Twilio SMS（LINE未連携顧客向け）
+const TOKEN      = getLineToken('uniform')
 const TWILIO_SID   = process.env.TWILIO_ACCOUNT_SID  ?? ''
 const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN   ?? ''
 const TWILIO_FROM  = process.env.TWILIO_FROM_NUMBER  ?? ''
@@ -38,111 +34,74 @@ async function sendSms(to: string, body: string): Promise<void> {
 }
 
 export async function POST(req: NextRequest) {
-  let repairId: string | undefined
-  let type: string = 'completed'
-
+  let body: Record<string, unknown>
   try {
-    const body = await req.json()
-    repairId = body.repairId
-    type     = body.type ?? 'completed'
-  } catch (e) {
-    return NextResponse.json({ ok: false, error: `body parse error: ${String(e)}` }, { status: 400 })
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ ok: false, error: 'body parse error' }, { status: 400 })
   }
+
+  const repairId    = body.repairId     as string | undefined
+  const lineUserId  = body.lineUserId   as string | null | undefined
+  const tel         = body.tel          as string | null | undefined
+  const customerName = body.customerName as string | undefined ?? ''
+  const itemName    = body.itemName     as string | undefined ?? ''
+  const storeName   = body.storeName    as string | undefined ?? ''
+  const reqNo       = body.reqNo        as string | undefined
 
   if (!repairId) {
-    return NextResponse.json({ ok: false, error: 'repairId is required' }, { status: 400 })
+    return NextResponse.json({ ok: false, error: 'repairId required' }, { status: 400 })
   }
 
-  const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
-  const sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
-  console.log('[nr] url:', sbUrl ? sbUrl.slice(8, 32) : 'MISSING', 'key:', sbKey ? sbKey.slice(-8) : 'MISSING')
-
-  // REST API で直接確認（JSクライアントをバイパス）
-  const restRes = await fetch(
-    `${sbUrl}/rest/v1/repair_histories?id=eq.${repairId}&select=id,item_name,customer:customers(name,line_user_id,tel),store:stores(id,name)`,
-    { headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}`, Accept: 'application/json' } }
-  ).catch(e => null)
-  const restBody = restRes ? await restRes.text() : 'fetch failed'
-  console.log('[nr] rest status:', restRes?.status, 'body:', restBody.slice(0, 120))
-
-  if (!restRes?.ok || restBody === '[]') {
-    return NextResponse.json({ ok: false, error: `rest: ${restRes?.status} ${restBody.slice(0, 80)}` }, { status: 404 })
-  }
-
-  const db = createClient(sbUrl || 'https://placeholder.supabase.co', sbKey || 'placeholder')
-  const { data: repair, error: repairErr } = await db
-    .from('repair_histories')
-    .select('id, item_name, content, slip_number, request_no, status, customer:customers(name,line_user_id,tel), store:stores(id,name)')
-    .eq('id', repairId)
-    .single()
-
-  if (repairErr || !repair) {
-    console.error('[nr] sdk error:', repairErr?.code, repairErr?.message)
-    return NextResponse.json({ ok: false, error: `sdk: ${repairErr?.message}` }, { status: 404 })
-  }
-
-  const customer = repair.customer as { name: string; line_user_id: string | null; tel: string | null } | null
-  const store    = repair.store    as { id: string; name: string } | null
-
-  const storeName  = store?.name  ?? ''
   const storeLabel = storeName ? `【${storeName}】` : ''
-  const reqNo      = (repair as any).request_no != null
-    ? `R-${String((repair as any).request_no).padStart(4, '0')}`
-    : repair.slip_number ?? null
   const reqText    = reqNo ? `\n依頼番号：${reqNo}` : ''
-  const storeUrl   = store?.id ? `\n\n▼ 待ち状況\n${LIFF_URL}/${store.id}` : ''
 
-  // ── LINE通知（LINE連携済み） ─────────────────────────────────
-  if (customer?.line_user_id) {
-    const messageText =
-      `✂️ お直しが完了しました！\n\n${storeLabel}\n${customer.name} 様\n\n` +
-      `${repair.item_name}\n${repair.content}${reqText}\n\n` +
-      `お控えの依頼番号をお伝えください。\n` +
-      `スタッフがお渡しの準備をしてお待ちしております。${storeUrl}`
-
+  // ── LINE通知 ────────────────────────────────────────────────
+  if (lineUserId) {
+    const msgText =
+      `✂️ お直しが完了しました！\n\n${storeLabel}\n${customerName} 様\n\n` +
+      `${itemName}${reqText}\n\n` +
+      `お控えの依頼番号をお伝えください。\nスタッフがお渡しの準備をしてお待ちしております。`
     try {
       const res = await fetch('https://api.line.me/v2/bot/message/push', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
-        body: JSON.stringify({ to: customer.line_user_id, messages: [{ type: 'text', text: messageText }] }),
+        body: JSON.stringify({ to: lineUserId, messages: [{ type: 'text', text: msgText }] }),
       })
       if (!res.ok) {
         const err = await res.text()
-        console.error('[notify-repair] LINE API Error:', err)
-        return NextResponse.json({ ok: false, error: `LINE API ${res.status}: ${err}` }, { status: 500 })
+        console.error('[notify-repair] LINE error:', err)
+        return NextResponse.json({ ok: false, error: `LINE ${res.status}` }, { status: 500 })
       }
       await supabase.from('repair_histories').update({ notified: true }).eq('id', repairId)
-      console.log(`[notify-repair] LINE通知送信 repair=${repairId} customer=${customer.name}`)
-      return NextResponse.json({ ok: true, notified: true, channel: 'line' })
+      console.log('[notify-repair] LINE sent:', repairId)
+      return NextResponse.json({ ok: true, channel: 'line' })
     } catch (e) {
-      console.error('[notify-repair] LINE fetch error:', e)
-      return NextResponse.json({ ok: false, error: `LINE fetch error: ${String(e)}` }, { status: 500 })
+      console.error('[notify-repair] LINE exception:', e)
+      return NextResponse.json({ ok: false, error: String(e) }, { status: 500 })
     }
   }
 
-  // ── SMS通知（LINE未連携・電話番号あり） ─────────────────────
-  if (customer?.tel) {
+  // ── SMS通知 ─────────────────────────────────────────────────
+  if (tel) {
     if (!TWILIO_SID || !TWILIO_TOKEN || !TWILIO_FROM) {
-      console.log(`[notify-repair] Twilio未設定 → skip (repair: ${repairId})`)
+      console.log('[notify-repair] Twilio未設定 skip')
       return NextResponse.json({ ok: true, skipped: true, reason: 'no_twilio_config' })
     }
     const smsText =
       `${storeLabel}✂️お直し完了のお知らせ\n\n` +
-      `${customer.name} 様\n${repair.item_name}のお直しが完了しました。` +
+      `${customerName} 様\n${itemName}のお直しが完了しました。` +
       `${reqText}\nお受け取りにお越しください。`
-
     try {
-      await sendSms(customer.tel, smsText)
+      await sendSms(tel, smsText)
       await supabase.from('repair_histories').update({ notified: true }).eq('id', repairId)
-      console.log(`[notify-repair] SMS送信 repair=${repairId} tel=${customer.tel}`)
-      return NextResponse.json({ ok: true, notified: true, channel: 'sms' })
+      console.log('[notify-repair] SMS sent:', repairId, toE164Japan(tel))
+      return NextResponse.json({ ok: true, channel: 'sms' })
     } catch (e) {
       console.error('[notify-repair] SMS error:', e)
-      return NextResponse.json({ ok: false, error: `SMS error: ${String(e)}` }, { status: 500 })
+      return NextResponse.json({ ok: false, error: String(e) }, { status: 500 })
     }
   }
 
-  // 連絡手段なし
-  console.log(`[notify-repair] 連絡手段なし → skip (repair: ${repairId})`)
   return NextResponse.json({ ok: true, skipped: true, reason: 'no_contact' })
 }
