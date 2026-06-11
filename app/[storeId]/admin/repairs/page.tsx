@@ -39,7 +39,7 @@ export default function RepairsPage() {
   const router = useRouter()
   const { hasFeature } = useStoreFeatures(storeId)
   const { isTablet } = useDeviceMode()
-  const { isSimpleMode: localSimpleMode } = useSimpleMode(storeId)
+  const { isSimpleMode: localSimpleMode, isLoaded: simpleModeLoaded } = useSimpleMode(storeId)
   // Auto-enable simple mode when purchase & arrival tabs are disabled by plan
   const isSimpleMode = localSimpleMode || (!hasFeature('repairs_tab_purchase') && !hasFeature('repairs_tab_arrival'))
 
@@ -595,7 +595,7 @@ export default function RepairsPage() {
           </div>
 
           {/* Dashboard card — simple mode: two big tiles */}
-          {isSimpleMode && (
+          {simpleModeLoaded && isSimpleMode && (
             <div className="bg-gradient-to-br from-indigo-700 to-indigo-800 rounded-2xl overflow-hidden text-white shadow-lg shadow-indigo-600/25">
               <div className="flex">
                 <button
@@ -622,7 +622,7 @@ export default function RepairsPage() {
           )}
 
           {/* Dashboard card — full mode */}
-          {!isSimpleMode && (
+          {simpleModeLoaded && !isSimpleMode && (
           <div className="bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-600 rounded-2xl px-4 pt-3 pb-0 text-white shadow-lg shadow-indigo-600/25">
             {(() => {
               const pendingInquiries = pendingInquiriesCount

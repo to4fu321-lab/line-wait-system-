@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react'
 
 export function useSimpleMode(storeId: string) {
   const [isSimpleMode, setIsSimpleMode] = useState(false)
+  const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined' || !storeId) return
     setIsSimpleMode(localStorage.getItem(`simple-mode-${storeId}`) === 'true')
+    setIsLoaded(true)
   }, [storeId])
 
   function toggle() {
@@ -20,5 +22,5 @@ export function useSimpleMode(storeId: string) {
     }
   }
 
-  return { isSimpleMode, toggle }
+  return { isSimpleMode, isLoaded, toggle }
 }
