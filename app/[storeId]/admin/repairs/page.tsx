@@ -38,7 +38,9 @@ export default function RepairsPage() {
   const router = useRouter()
   const { hasFeature } = useStoreFeatures(storeId)
   const { isTablet } = useDeviceMode()
-  const { isSimpleMode } = useSimpleMode(storeId)
+  const { isSimpleMode: localSimpleMode } = useSimpleMode(storeId)
+  // Auto-enable simple mode when purchase & arrival tabs are disabled by plan
+  const isSimpleMode = localSimpleMode || (!hasFeature('repairs_tab_purchase') && !hasFeature('repairs_tab_arrival'))
 
   const [tab,            setTab]            = useState<ActiveTab>('repair')
   const [deliverySubTab, setDeliverySubTab] = useState<DeliverySubTab>('waiting')
@@ -240,6 +242,10 @@ export default function RepairsPage() {
   useEffect(() => {
     if (tab === 'delivery' && deliverySubTab === 'history' && !histFetched) fetchHistory()
   }, [tab, deliverySubTab, histFetched, fetchHistory])
+  // Reset to repair tab if current tab is unavailable in simple mode
+  useEffect(() => {
+    if (isSimpleMode && (tab === 'purchase' || tab === 'arrival' || tab === 'inquiries')) setTab('repair')
+  }, [isSimpleMode, tab])
 
   // ── Delivery actions ───────────────────────────────────────
   const handleDeliver = useCallback(async (item: DeliveryItem, paid: boolean, deliveredBy: string) => {
@@ -550,16 +556,20 @@ export default function RepairsPage() {
                 {dummyLoading ? <Loader2 size={11} className="animate-spin" /> : <Database size={11} />}
               </button>
             )}
-            <button onClick={() => { setEditInquiry(null); setShowInqModal(true) }}
-              className={`flex items-center justify-center gap-1.5 py-2 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-violet-600/20 ${isTablet ? 'px-3' : 'px-2.5'}`}>
-              <MessageSquarePlus size={13} />
-              {isTablet && '問合せ'}
-            </button>
-            <button onClick={() => setShowNewOrder(true)}
-              className={`flex items-center justify-center gap-1.5 py-2 bg-teal-600 hover:bg-teal-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-teal-600/20 ${isTablet ? 'px-3' : 'px-2.5'}`}>
-              <ShoppingCart size={13} />
-              {isTablet && '制服注文'}
-            </button>
+            {!isSimpleMode && (
+              <button onClick={() => { setEditInquiry(null); setShowInqModal(true) }}
+                className={`flex items-center justify-center gap-1.5 py-2 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-violet-600/20 ${isTablet ? 'px-3' : 'px-2.5'}`}>
+                <MessageSquarePlus size={13} />
+                {isTablet && '問合せ'}
+              </button>
+            )}
+            {!isSimpleMode && (
+              <button onClick={() => setShowNewOrder(true)}
+                className={`flex items-center justify-center gap-1.5 py-2 bg-teal-600 hover:bg-teal-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-teal-600/20 ${isTablet ? 'px-3' : 'px-2.5'}`}>
+                <ShoppingCart size={13} />
+                {isTablet && '制服注文'}
+              </button>
+            )}
             <button onClick={() => setShowNewRepair(true)}
               className={`flex items-center justify-center gap-1.5 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-indigo-600/20 ${isTablet ? 'px-3' : 'px-2.5'}`}>
               <Scissors size={13} />
@@ -567,18 +577,48 @@ export default function RepairsPage() {
             </button>
           </div>
 
-          {/* Dashboard card */}
+          {/* Dashboard card — simple mode: compact 2-tab selector */}
+          {isSimpleMode && (
+            <div className="bg-gradient-to-br from-indigo-700 to-indigo-800 rounded-2xl px-4 py-3 text-white shadow-lg shadow-indigo-600/25">
+              <div className="flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-4xl font-black tabular-nums leading-none">{repairs.length}</span>
+                    <span className="text-sm font-bold opacity-60">件対応中</span>
+                  </div>
+                  {waiting.length > 0 && (
+                    <p className="text-xs text-indigo-200 mt-1 font-medium">🎁 お渡し待ち {waiting.length}件</p>
+                  )}
+                </div>
+                {hasFeature('repairs_tab_delivery') && waiting.length > 0 && (
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <button onClick={() => { setTab('repair'); setSearchText('') }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${tab !== 'delivery' ? 'bg-white/20 ring-1 ring-white/30' : 'opacity-50'}`}>
+                      ✂️ お直し
+                    </button>
+                    <button onClick={() => { setTab('delivery'); setSearchText('') }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${tab === 'delivery' ? 'bg-white/20 ring-1 ring-white/30' : 'opacity-50'}`}>
+                      🎁 お渡し待ち
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Dashboard card — full mode */}
+          {!isSimpleMode && (
           <div className="bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-600 rounded-2xl px-4 pt-3 pb-0 text-white shadow-lg shadow-indigo-600/25">
             {(() => {
               const pendingInquiries = pendingInquiriesCount
               const urgentInquiries  = urgentInquiriesCount
               const dashTabs = [
                 { id: 'repair'    as const, emoji: '✂️', label: 'お直し',   count: repairs.length,                                     urgent: 0 },
-                { id: 'purchase'  as const, emoji: '📦', label: '発注',     count: purchaseUnordered.length + uniformOrders.length,    urgent: 0 },
-                { id: 'arrival'   as const, emoji: '🚚', label: '入荷待ち', count: purchaseOnOrder.length + purchaseStocked.length,     urgent: 0 },
-                { id: 'delivery'  as const, emoji: '🎁', label: 'お渡し',   count: waiting.length,                                     urgent: 0 },
+                hasFeature('repairs_tab_purchase') && { id: 'purchase'  as const, emoji: '📦', label: '発注',     count: purchaseUnordered.length + uniformOrders.length,    urgent: 0 },
+                hasFeature('repairs_tab_arrival')  && { id: 'arrival'   as const, emoji: '🚚', label: '入荷待ち', count: purchaseOnOrder.length + purchaseStocked.length,     urgent: 0 },
+                hasFeature('repairs_tab_delivery') && { id: 'delivery'  as const, emoji: '🎁', label: 'お渡し',   count: waiting.length,                                     urgent: 0 },
                 { id: 'inquiries' as const, emoji: '💬', label: '問合せ',   count: pendingInquiries,                                   urgent: urgentInquiries },
-              ]
+              ].filter(Boolean) as { id: ActiveTab; emoji: string; label: string; count: number; urgent: number }[]
               const togglePending = () => setPendingFilter(prev => !prev)
               if (!isTablet) {
                 return (
@@ -677,6 +717,8 @@ export default function RepairsPage() {
               )
             })()}
           </div>
+          )}
+
         </div>
       </div>
 
