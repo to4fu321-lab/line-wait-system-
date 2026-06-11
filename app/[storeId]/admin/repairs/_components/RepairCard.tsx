@@ -137,6 +137,22 @@ export function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected
   // ── シンプルモード ───────────────────────────────────────────────
   if (isSimpleMode) {
     const reqNo = fmtReqNo('repair', item.request_no, item.id)
+    const hasLine = !!item.customer?.line_user_id
+    const hasTel  = !!item.customer?.tel
+    const notifyMode: 'line' | 'sms' | 'none' =
+      hasLine ? 'line' : hasTel ? 'sms' : 'none'
+    const completeBtnLabel =
+      notifyMode === 'line' ? '✅ お直し完了・LINE通知する' :
+      notifyMode === 'sms'  ? '✅ お直し完了・SMS通知する' :
+                              '✅ お直し完了'
+    const confirmText =
+      notifyMode === 'line' ? 'LINEで通知して完了にしますか？' :
+      notifyMode === 'sms'  ? 'SMSで通知して完了にしますか？' :
+                              '完了にしますか？（通知なし）'
+    const completeToast =
+      notifyMode === 'line' ? '✅ お直し完了・LINEで通知しました' :
+      notifyMode === 'sms'  ? '✅ お直し完了・SMSで通知しました' :
+                              '✅ お直し完了にしました'
 
     async function handleSimpleComplete() {
       setLoading(true)
@@ -145,14 +161,16 @@ export function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected
         .update({ status: 'completed', completed_date: today, work_started: true, notified: true, updated_at: new Date().toISOString() })
         .eq('id', item.id)
       if (error) { setLoading(false); onToast('err', '更新に失敗しました'); return }
-      fetch('/api/notify-repair', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repairId: item.id }),
-      }).catch(() => {})
+      if (notifyMode !== 'none') {
+        fetch('/api/notify-repair', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ repairId: item.id }),
+        }).catch(() => {})
+      }
       setLoading(false)
       onRefresh()
-      onToast('ok', '✅ お直し完了・LINEで通知しました')
+      onToast('ok', completeToast)
     }
 
     async function handleSimpleRevert() {
@@ -228,7 +246,7 @@ export function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected
           {/* メインアクション */}
           {confirmPrimary ? (
             <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 px-4 py-4 space-y-3">
-              <p className="text-base text-center text-emerald-800 font-black">LINEで通知して完了にしますか？</p>
+              <p className="text-base text-center text-emerald-800 font-black">{confirmText}</p>
               <div className="flex gap-3">
                 <button onClick={() => setConfirmPrimary(false)}
                   className="flex-1 py-4 rounded-2xl bg-white border-2 border-gray-200 text-gray-600 text-base font-black active:scale-95 transition-all"
@@ -238,7 +256,8 @@ export function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected
                 <button onClick={() => { setConfirmPrimary(false); handleSimpleComplete() }} disabled={loading}
                   className="flex-1 py-4 rounded-2xl bg-emerald-600 text-white text-base font-black flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md disabled:opacity-50"
                   style={{ touchAction: 'manipulation' }}>
-                  {loading ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}完了・通知する
+                  {loading ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+                  {notifyMode === 'none' ? '完了にする' : '完了・通知する'}
                 </button>
               </div>
             </div>
@@ -247,7 +266,7 @@ export function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected
               style={{ touchAction: 'manipulation' }}
               className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-black text-lg rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50">
               {loading ? <Loader2 size={22} className="animate-spin" /> : '✅'}
-              お直し完了・LINE通知する
+              {completeBtnLabel}
             </button>
           )}
 

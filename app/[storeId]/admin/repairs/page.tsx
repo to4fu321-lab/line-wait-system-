@@ -180,7 +180,7 @@ export default function RepairsPage() {
       { data: inquiryData  },
     ] = await Promise.all([
       (supabase as any).from('repair_histories')
-        .select('*, desired_completion_date, work_started, customer:customers(id,name,tel), child:children(name,school_name)')
+        .select('*, desired_completion_date, work_started, customer:customers(id,name,tel,line_user_id), child:children(name,school_name)')
         .eq('store_id', storeId).eq('status', 'received')
         .order('received_date', { ascending: true }),
       (supabase as any).from('purchase_orders')

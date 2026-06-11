@@ -9,7 +9,7 @@ export interface RepairRow {
   desired_completion_date: string | null; work_started: boolean
   request_no: number | null
   created_at: string; updated_at: string
-  customer?: { id: string; name: string; tel: string | null }
+  customer?: { id: string; name: string; tel: string | null; line_user_id: string | null }
   child?: { name: string; school_name: string | null } | null
   // お直し詳細フィールド
   repair_type: RepairType | null
