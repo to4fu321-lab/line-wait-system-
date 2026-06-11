@@ -15,6 +15,7 @@ import { GRADE_OPTIONS, SCHOOL_OPTIONS } from '@/types/crm'
 import { initLiff, getLineProfile, openAddFriend, isInLineApp, checkFriendshipLiff, type LiffProfile } from '@/lib/liff'
 import { useStoreTheme } from '@/lib/theme-context'
 import { useKanaAutoFill } from '@/lib/useKanaAutoFill'
+import { resolveFeature } from '@/lib/features'
 
 const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
 
@@ -181,6 +182,59 @@ function InitialRegistrationForm({
           boxShadow:  `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.45)`,
         }}>
         {submitting ? <><Loader2 size={18} className="animate-spin" />登録中...</> : '登録して進む'}
+      </button>
+    </div>
+  )
+}
+
+// ── シンプルモード登録フォーム（名前 + 電話のみ）────────────
+function SimpleRegistrationForm({
+  lineDisplayName,
+  onSubmit,
+  submitting,
+}: {
+  lineDisplayName: string
+  onSubmit: (d: { name: string; tel: string }) => Promise<void>
+  submitting: boolean
+}) {
+  const theme = useStoreTheme()
+  const [name, setName] = useState(lineDisplayName)
+  const [tel,  setTel]  = useState('')
+  const [error, setError] = useState('')
+  const base  = 'w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50/80 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all'
+  const focus = (e: React.FocusEvent<HTMLInputElement>) => (e.currentTarget.style.borderColor = theme.colors.primary)
+  const blur  = (e: React.FocusEvent<HTMLInputElement>) => (e.currentTarget.style.borderColor = '')
+
+  const handleSubmit = async () => {
+    if (!name.trim()) { setError('お名前を入力してください'); return }
+    setError('')
+    await onSubmit({ name: name.trim(), tel: tel.trim() })
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-xs font-bold text-zinc-500 mb-1.5">お名前 <span className="text-red-500">*</span></label>
+        <input type="text" value={name} onChange={e => setName(e.target.value)}
+          placeholder="例：山田 太郎" className={base} onFocus={focus} onBlur={blur} />
+      </div>
+      <div>
+        <label className="block text-xs font-bold text-zinc-500 mb-1.5">電話番号</label>
+        <input type="tel" inputMode="tel" value={tel} onChange={e => setTel(e.target.value)}
+          placeholder="例：090-1234-5678" className={base} onFocus={focus} onBlur={blur} />
+      </div>
+      {error && (
+        <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 rounded-xl px-3 py-2">
+          <AlertCircle size={13} />{error}
+        </div>
+      )}
+      <button onClick={handleSubmit} disabled={submitting || !name.trim()}
+        className="w-full text-white text-base font-black py-4 rounded-2xl disabled:opacity-50 flex items-center justify-center gap-2 active:scale-95 transition-transform"
+        style={{
+          background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`,
+          boxShadow: `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.45)`,
+        }}>
+        {submitting ? <><Loader2 size={18} className="animate-spin" />登録中...</> : '登録して完了'}
       </button>
     </div>
   )
@@ -714,6 +768,7 @@ export default function CustomerPage() {
   const [schools, setSchools] = useState<{ id: string; name: string }[]>([])
   const [allowRemote, setAllowRemote] = useState(false)
   const [arrivalModal, setArrivalModal] = useState(false)
+  const [isSimpleMode, setIsSimpleMode] = useState(false)
 
   const allowRemoteRef = useRef(false)
   const pendingHeightWeightRef = useRef<{ height: string; weight: string } | null>(null)
@@ -731,8 +786,9 @@ export default function CustomerPage() {
     if (!storeId) return
     ;(async () => { try {
       const { data: sd } = await (supabase.from('stores') as any)
-        .select('is_open, wait_thresholds, notification_plan, active_fittings, business_type, school_names, allow_remote').eq('id', storeId).single()
+        .select('is_open, wait_thresholds, notification_plan, active_fittings, business_type, school_names, allow_remote, features').eq('id', storeId).single()
       if (sd?.business_type === 'takeout') { router.replace(`/${storeId}/order`); return }
+      if (sd?.features) setIsSimpleMode(!resolveFeature('tab_queue', sd.features as Record<string, unknown>))
       if (sd && Array.isArray(sd.wait_thresholds) && sd.wait_thresholds.length > 0)
         setWaitThresholds(sd.wait_thresholds as WaitThreshold[])
       if (sd?.notification_plan) notificationPlanRef.current = sd.notification_plan
@@ -957,6 +1013,43 @@ export default function CustomerPage() {
       console.error('[friendProceed]', e)
     } finally {
       setFriendChecking(false)
+    }
+  }
+
+  // ── シンプルモード登録（名前 + 電話のみ）─────────────
+  const handleSimpleRegister = async ({ name, tel }: { name: string; tel: string }) => {
+    let userId = lineProfile?.userId
+    if (!userId) {
+      const freshProfile = await getLineProfile()
+      if (freshProfile) { setLineProfile(freshProfile); userId = freshProfile.userId }
+    }
+    if (!userId) { setRegisterError('LINE認証に失敗しました。LINEアプリから開き直してください。'); return }
+    setSubmitting(true); setRegisterError('')
+    try {
+      const { data: existingRows } = await supabase.from('customers')
+        .select('*').eq('store_id', storeId).eq('line_user_id', userId)
+        .order('created_at', { ascending: false }).limit(1)
+      const existing = existingRows?.[0] && !existingRows[0].deleted_at ? existingRows[0] : null
+      let cust
+      if (existing) {
+        const { data: updated } = await (supabase.from('customers') as any)
+          .update({ name: name.trim(), tel: tel || null, deleted_at: null })
+          .eq('id', existing.id).select().single()
+        cust = updated ?? existing
+      } else {
+        const { data: newCust } = await (supabase.from('customers') as any).insert({
+          store_id: storeId, line_user_id: userId,
+          name: name.trim(), tel: tel || null,
+        }).select().single()
+        cust = newCust
+      }
+      if (!cust) throw new Error('登録に失敗しました')
+      setCustomer(cust)
+      setView('purpose')
+    } catch (e) {
+      setRegisterError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -1342,7 +1435,9 @@ export default function CustomerPage() {
         </div>
         <p className="text-xs font-bold mb-1" style={{ color: theme.colors.primary }}>{theme.storeName}</p>
         <h1 className="text-2xl font-black text-zinc-900">お客様情報の登録</h1>
-        <p className="text-zinc-500 text-xs mt-1">初回のみご入力ください。次回は自動で認識します</p>
+        <p className="text-zinc-500 text-xs mt-1">
+          {isSimpleMode ? 'お名前を登録するとお直しの完了をLINEでお知らせします' : '初回のみご入力ください。次回は自動で認識します'}
+        </p>
       </div>
       <div className="bg-white/75 backdrop-blur-2xl rounded-3xl border border-white/60 p-5" style={cardStyle}>
         {registerError && (
@@ -1354,13 +1449,54 @@ export default function CustomerPage() {
             </div>
           </div>
         )}
-        <InitialRegistrationForm
-          lineDisplayName={lineProfile?.displayName ?? ''}
-          onSubmit={handleInitialRegister}
-          submitting={submitting}
-          schoolOptions={storeSchoolOptions}
-          schools={schools}
-        />
+        {isSimpleMode ? (
+          <SimpleRegistrationForm
+            lineDisplayName={lineProfile?.displayName ?? ''}
+            onSubmit={handleSimpleRegister}
+            submitting={submitting}
+          />
+        ) : (
+          <InitialRegistrationForm
+            lineDisplayName={lineProfile?.displayName ?? ''}
+            onSubmit={handleInitialRegister}
+            submitting={submitting}
+            schoolOptions={storeSchoolOptions}
+            schools={schools}
+          />
+        )}
+      </div>
+    </main>
+  )
+
+  // ── シンプルモード: 登録済み完了画面 ─────────────────
+  if (view === 'purpose' && isSimpleMode) return (
+    <main className="min-h-[100dvh] flex flex-col items-center justify-center px-6 py-10 max-w-md mx-auto text-center">
+      <div className="w-20 h-20 mx-auto mb-5 rounded-3xl flex items-center justify-center text-4xl"
+        style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 16px 40px -10px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
+        ✂️
+      </div>
+      <p className="text-xs font-bold mb-2" style={{ color: theme.colors.primary }}>{theme.storeName}</p>
+      <h1 className="text-2xl font-black text-zinc-900 mb-2">
+        {customer ? `${customer.name} 様` : '登録完了'}
+      </h1>
+      <p className="text-zinc-500 text-sm leading-relaxed">
+        お直しの完了は<strong>LINEでお知らせ</strong>します。<br />
+        お気軽にお持ち込みください。
+      </p>
+      <div className="mt-8 w-full bg-white/75 backdrop-blur-2xl rounded-3xl border border-white/60 px-6 py-5 space-y-3"
+        style={{ boxShadow: `0 24px 60px -20px rgb(${theme.colors.primaryRgb} / 0.15)` }}>
+        <div className="flex items-center gap-3 text-left">
+          <CheckCircle2 size={20} style={{ color: theme.colors.primary }} className="shrink-0" />
+          <p className="text-sm text-zinc-700 font-bold">友達登録済み</p>
+        </div>
+        <div className="flex items-center gap-3 text-left">
+          <CheckCircle2 size={20} style={{ color: theme.colors.primary }} className="shrink-0" />
+          <p className="text-sm text-zinc-700 font-bold">会員情報登録済み</p>
+        </div>
+        <div className="flex items-center gap-3 text-left">
+          <MessageCircle size={20} style={{ color: theme.colors.primary }} className="shrink-0" />
+          <p className="text-sm text-zinc-700">完了時にLINEで通知を受け取れます</p>
+        </div>
       </div>
     </main>
   )
