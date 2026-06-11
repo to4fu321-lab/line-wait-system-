@@ -116,6 +116,20 @@ export function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRev
           {simpleConfirm ? (
             <div className="rounded-2xl border-2 border-indigo-400 bg-indigo-50 p-4 space-y-3">
               <p className="text-base font-black text-indigo-800 text-center">お渡しを確定しますか？</p>
+              <button onClick={() => setPayAtDeliver(v => !v)}
+                style={{ touchAction: 'manipulation' }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all active:scale-[0.98] ${
+                  payAtDeliver ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 bg-white'
+                }`}>
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                  payAtDeliver ? 'border-emerald-500 bg-emerald-500' : 'border-gray-300'
+                }`}>
+                  {payAtDeliver && <CheckCheck size={10} className="text-white" />}
+                </div>
+                <p className={`font-bold text-sm ${payAtDeliver ? 'text-emerald-700' : 'text-gray-500'}`}>
+                  代金を受け取った{item.price != null ? `（¥${item.price.toLocaleString()}）` : ''}
+                </p>
+              </button>
               <div className="flex gap-2">
                 <button onClick={() => setSimpleConfirm(false)}
                   className="flex-1 py-3 rounded-xl font-bold text-sm bg-white border-2 border-gray-200 text-gray-600">
@@ -124,7 +138,7 @@ export function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRev
                 <button
                   onClick={async () => {
                     setLoading('deliver')
-                    await onDeliver(item, item.payment_status === 'paid', '')
+                    await onDeliver(item, payAtDeliver, '')
                     setLoading(null)
                     setSimpleConfirm(false)
                   }}

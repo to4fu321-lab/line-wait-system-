@@ -156,6 +156,27 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       notifyMode === 'sms'  ? '✅ お直し完了・SMSで通知しました' :
                               '✅ お直し完了にしました'
 
+    async function handlePaymentToggle() {
+      const newPrepaid = !item.prepaid
+      setLoading(true)
+      const { error } = await (supabase as any).from('repair_histories')
+        .update({ prepaid: newPrepaid, updated_at: new Date().toISOString() })
+        .eq('id', item.id)
+      setLoading(false)
+      if (error) { onToast('err', '支払状態の更新に失敗しました'); return }
+      onRefresh()
+      onToast(
+        'ok',
+        newPrepaid ? '💰 支払い済みにしました' : '⚠️ 未払いに戻しました',
+        async () => {
+          await (supabase as any).from('repair_histories')
+            .update({ prepaid: !newPrepaid, updated_at: new Date().toISOString() })
+            .eq('id', item.id)
+          onRefresh()
+        }
+      )
+    }
+
     async function handleSimpleComplete() {
       setLoading(true)
       const today = new Date().toISOString().slice(0, 10)
@@ -286,12 +307,24 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
           </div>
 
           {/* 金額・期限 */}
-          <div className="flex items-center gap-3 flex-wrap">
-            {item.price != null && (
-              <span className={`text-lg font-black ${item.prepaid ? 'text-gray-500' : 'text-red-600'}`}>
-                ¥{item.price.toLocaleString()}{!item.prepaid && ' ⚠️未払い'}
+          {item.price != null && (
+            <button onClick={handlePaymentToggle} disabled={loading}
+              style={{ touchAction: 'manipulation' }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 font-black transition-all active:scale-[0.98] disabled:opacity-50 ${
+                item.prepaid
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                  : 'bg-red-50 border-red-300 text-red-700'
+              }`}>
+              <Banknote size={18} className="shrink-0" />
+              <span className="flex-1 text-left text-base">¥{item.price.toLocaleString()}</span>
+              <span className={`text-sm px-2.5 py-1 rounded-xl font-black ${
+                item.prepaid ? 'bg-emerald-200/60 text-emerald-800' : 'bg-red-200/60 text-red-800'
+              }`}>
+                {item.prepaid ? '支払済' : '未払い'}
               </span>
-            )}
+            </button>
+          )}
+          <div className="flex items-center gap-3 flex-wrap">
             {item.desired_completion_date && (
               <span className={`text-sm font-black ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-gray-500'}`}>
                 {isOverdue ? '🚨' : isDueSoon ? '⚠️' : ''}希望日 {new Date(item.desired_completion_date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })}

@@ -51,6 +51,7 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
   const [regLoading,  setRegLoading]  = useState(false)
   const [price,       setPrice]       = useState('')
   const [priceManual, setPriceManual] = useState(false)
+  const [prepaid,     setPrepaid]     = useState(false)
   const [notes,       setNotes]       = useState('')
   const [submitting,  setSubmitting]  = useState(false)
   const [submitError, setSubmitError] = useState('')
@@ -179,6 +180,7 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
         content:       itemName,
         repair_type:   repairType,
         price:         finalPrice && !isNaN(finalPrice) ? finalPrice : null,
+        prepaid:       prepaid,
         notes:         notes.trim() || null,
         status:        'received',
         received_date: todayJst(),
@@ -467,6 +469,22 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
             {selectedIds.size > 0 && autoSum > 0 && !priceManual && (
               <p className="text-xs text-gray-400 mt-1 px-1">プリセットの合計が自動入力されました</p>
             )}
+            <button
+              type="button"
+              onClick={() => setPrepaid(v => !v)}
+              style={{ touchAction: 'manipulation' }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all mt-2 active:scale-[0.98] ${
+                prepaid ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 bg-white'
+              }`}>
+              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                prepaid ? 'border-emerald-500 bg-emerald-500' : 'border-gray-300'
+              }`}>
+                {prepaid && <Check size={10} className="text-white" strokeWidth={3} />}
+              </div>
+              <p className={`font-bold text-sm ${prepaid ? 'text-emerald-700' : 'text-gray-500'}`}>
+                受付時にお支払いを受け取った
+              </p>
+            </button>
           </section>
 
           {/* ── メモ ── */}
