@@ -228,6 +228,36 @@ export default function StaffSettingsPage() {
             <ChevronRight size={20} className="text-indigo-400 shrink-0" />
           </Link>
 
+          {/* 🍀 かんたんLINEモード */}
+          {hasFeature('kantan_line') && (
+            <Link href={`/${storeId}/admin/settings/kantan`}
+              className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-teal-200 hover:border-teal-400 active:scale-[0.98] transition-all shadow-sm">
+              <div className="w-14 h-14 rounded-2xl bg-teal-100 flex items-center justify-center shrink-0 text-3xl">
+                🍀
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-black text-lg text-teal-700">かんたんLINEモード</p>
+                <p className="text-sm text-gray-500 mt-0.5">スタッフ登録コード・やることリスト配信</p>
+              </div>
+              <ChevronRight size={20} className="text-teal-400 shrink-0" />
+            </Link>
+          )}
+
+          {/* 📥 置くだけスキャン */}
+          {hasFeature('tray_scan') && (
+            <Link href={`/${storeId}/admin/tray-scan`}
+              className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-emerald-200 hover:border-emerald-400 active:scale-[0.98] transition-all shadow-sm">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center shrink-0 text-3xl">
+                📥
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-black text-lg text-emerald-700">置くだけスキャン</p>
+                <p className="text-sm text-gray-500 mt-0.5">伝票を置くと自動で読み取り・振り分け</p>
+              </div>
+              <ChevronRight size={20} className="text-emerald-400 shrink-0" />
+            </Link>
+          )}
+
           {/* 🧪 練習モード */}
           <BigToggle
             on={isTestMode}

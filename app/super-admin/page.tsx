@@ -21,6 +21,8 @@ const GRANULAR_FEATURES: { key: FeatureKey; label: string; icon: string }[] = [
   { key: 'repairs_ocr',          label: '伝票OCR',          icon: '📷' },
   { key: 'repairs_master',       label: '料金マスタ',       icon: '📐' },
   { key: 'repairs_dummy',        label: 'テストデータ生成', icon: '🗄️' },
+  { key: 'kantan_line',          label: 'かんたんLINE運用', icon: '🍀' },
+  { key: 'tray_scan',            label: '置くだけスキャン', icon: '📥' },
   { key: 'reservation',         label: '採寸予約',         icon: '📅' },
   { key: 'orders',              label: '注文管理',         icon: '🛒' },
   { key: 'takeout',             label: 'テイクアウト',     icon: '🥡' },

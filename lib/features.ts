@@ -3,7 +3,7 @@
 // features._plan でプリセット選択 → 個別フラグで上書き可能。
 // デフォルト（何も設定なし）= フル機能を想定。
 
-export type Plan = 'intro' | 'simple' | 'standard' | 'full'
+export type Plan = 'intro' | 'kantan' | 'simple' | 'standard' | 'full'
 
 export type FeatureKey =
   // ── ボトムナビタブ ─────────────────────
@@ -19,6 +19,9 @@ export type FeatureKey =
   | 'repairs_ocr'           // 伝票OCR読み取りボタン
   | 'repairs_master'        // 料金マスタページへのアクセス
   | 'repairs_dummy'         // テストデータ生成ボタン
+  // ── かんたんLINEモード ─────────────────
+  | 'kantan_line'           // LINE返信でタスク完了する運用
+  | 'tray_scan'             // 置くだけスキャン（自動撮影・自動振り分け）
   // ── 既存フラグ（後方互換）──────────────
   | 'queue'
   | 'crm'
@@ -60,6 +63,35 @@ export const PLAN_DEFS: Record<Plan, {
       orders:                false,
       products:              false,
       purchase_orders:       false,
+      kantan_line:           false,
+      tray_scan:             false,
+    },
+  },
+  kantan: {
+    label: 'かんたんLINE',
+    desc: '置くだけスキャン＋LINE返信だけで運用',
+    emoji: '🍀',
+    tailwind: 'bg-teal-900/40 border-teal-500/40 text-teal-300',
+    features: {
+      tab_queue:             false,
+      tab_repairs:           true,
+      tab_inquiries:         false,
+      tab_crm:               false,
+      repairs_tab_purchase:  false,
+      repairs_tab_arrival:   false,
+      repairs_tab_delivery:  true,
+      repairs_ocr:           false,
+      repairs_master:        false,
+      repairs_dummy:         false,
+      queue:                 false,
+      crm:                   true,
+      repairs:               true,
+      reservation:           false,
+      orders:                false,
+      products:              false,
+      purchase_orders:       true,
+      kantan_line:           true,
+      tray_scan:             true,
     },
   },
   simple: {
@@ -85,6 +117,8 @@ export const PLAN_DEFS: Record<Plan, {
       orders:                false,
       products:              false,
       purchase_orders:       false,
+      kantan_line:           false,
+      tray_scan:             false,
     },
   },
   standard: {
@@ -110,6 +144,8 @@ export const PLAN_DEFS: Record<Plan, {
       orders:                false,
       products:              false,
       purchase_orders:       true,
+      kantan_line:           false,
+      tray_scan:             false,
     },
   },
   full: {
@@ -135,6 +171,8 @@ export const PLAN_DEFS: Record<Plan, {
       orders:                true,
       products:              true,
       purchase_orders:       true,
+      kantan_line:           true,
+      tray_scan:             true,
     },
   },
 }
