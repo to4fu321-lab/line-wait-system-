@@ -50,13 +50,14 @@ function PaymentBadge({ status, onToggle, loading }: {
 }
 
 // ── Waiting Card (お渡し待ち) ─────────────────────────────────
-export function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRevertWaiting, onDelete }: {
+export function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRevertWaiting, onDelete, isSimpleMode }: {
   item: DeliveryItem
   alertDays: number
   onDeliver: (item: DeliveryItem, paid: boolean, deliveredBy: string) => Promise<void>
   onPaymentToggle: (item: DeliveryItem) => Promise<void>
   onRevertWaiting: (item: DeliveryItem) => Promise<void>
   onDelete: (item: DeliveryItem) => Promise<void>
+  isSimpleMode?: boolean
 }) {
   const [open,          setOpen]          = useState(false)
   const [confirmOpen,   setConfirmOpen]   = useState(false)
@@ -66,6 +67,7 @@ export function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRev
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [loading,       setLoading]       = useState<string | null>(null)
   const [staffName,     setStaffName]     = useState('')
+  const [simpleConfirm, setSimpleConfirm] = useState(false)
 
   const waitDays   = item.ready_date
     ? Math.floor((Date.now() - new Date(item.ready_date).getTime()) / 86400000)
@@ -73,6 +75,114 @@ export function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRev
   const alertLevel = waitDays >= 14 ? 3 : waitDays >= 7 ? 2 : waitDays >= 3 ? 1 : 0
   const reqNo      = fmtReqNo(item.kind, item.request_no, item.id)
   const studentName = item.child?.name ?? item.customer?.name ?? '（名前なし）'
+
+  // ── Simple mode card ──────────────────────────────────────────
+  if (isSimpleMode) {
+    return (
+      <div className="rounded-2xl overflow-hidden shadow-sm border-2 border-indigo-100 bg-white">
+        {/* 受付番号ヘッダー */}
+        <div className="px-4 py-2.5 flex items-center justify-between bg-indigo-600">
+          <span className="text-indigo-200 text-xs font-bold">受付番号</span>
+          <span className="text-white text-2xl font-black font-mono tracking-wider">{reqNo}</span>
+        </div>
+
+        <div className="p-4 space-y-3">
+          {/* 学校名 + お客様名 */}
+          <div>
+            {item.child?.school_name && (
+              <p className="text-amber-600 text-base font-black mb-0.5">{item.child.school_name}</p>
+            )}
+            <p className="text-gray-900 text-2xl font-black leading-tight">{studentName}</p>
+          </div>
+
+          {/* アイテム・内容 */}
+          {(item.item_name || item.sub_label) && (
+            <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-1">
+              {item.item_name && (
+                <p className="text-gray-800 text-lg font-bold leading-tight">{item.item_name}</p>
+              )}
+              {item.sub_label && (
+                <p className="text-gray-600 text-base leading-snug">{item.sub_label}</p>
+              )}
+            </div>
+          )}
+
+          {/* 金額 */}
+          {item.price != null && (
+            <p className="text-gray-700 text-base font-bold">¥{item.price.toLocaleString()}</p>
+          )}
+
+          {/* お渡しボタン / 確認ダイアログ */}
+          {simpleConfirm ? (
+            <div className="rounded-2xl border-2 border-indigo-400 bg-indigo-50 p-4 space-y-3">
+              <p className="text-base font-black text-indigo-800 text-center">お渡しを確定しますか？</p>
+              <div className="flex gap-2">
+                <button onClick={() => setSimpleConfirm(false)}
+                  className="flex-1 py-3 rounded-xl font-bold text-sm bg-white border-2 border-gray-200 text-gray-600">
+                  戻る
+                </button>
+                <button
+                  onClick={async () => {
+                    setLoading('deliver')
+                    await onDeliver(item, item.payment_status === 'paid', '')
+                    setLoading(null)
+                    setSimpleConfirm(false)
+                  }}
+                  disabled={loading === 'deliver'}
+                  className="flex-1 py-3 rounded-xl font-black text-sm bg-indigo-600 text-white disabled:opacity-50 flex items-center justify-center gap-2">
+                  {loading === 'deliver'
+                    ? <Loader2 size={16} className="animate-spin" />
+                    : <><Package size={16} />お渡し済みにする</>}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setSimpleConfirm(true)}
+              disabled={!!loading}
+              className="w-full py-4 rounded-2xl font-black text-base bg-gradient-to-r from-indigo-600 to-violet-600 text-white active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-md shadow-indigo-900/20 disabled:opacity-50">
+              <Package size={20} />📦 お渡し済みにする
+            </button>
+          )}
+
+          {/* 戻すボタン */}
+          {confirmRevert ? (
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmRevert(false)}
+                className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-white border-2 border-gray-200 text-gray-600">
+                キャンセル
+              </button>
+              <button
+                onClick={async () => {
+                  setLoading('revert')
+                  await onRevertWaiting(item)
+                  setLoading(null)
+                  setConfirmRevert(false)
+                }}
+                disabled={loading === 'revert'}
+                className="flex-1 py-2.5 rounded-xl font-black text-sm bg-amber-500 text-white disabled:opacity-50 flex items-center justify-center gap-1.5">
+                {loading === 'revert' ? <Loader2 size={14} className="animate-spin" /> : <><RotateCcw size={14} />戻す</>}
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmRevert(true)}
+              className="w-full py-3 rounded-xl font-bold text-sm border-2 border-amber-300 text-amber-700 bg-amber-50 flex items-center justify-center gap-1.5 active:scale-95 transition-all">
+              <RotateCcw size={14} />お直し中に戻す
+            </button>
+          )}
+
+          {/* 電話リンク */}
+          {item.customer?.tel && (
+            <a href={`tel:${item.customer.tel}`}
+              className="flex items-center justify-center gap-1.5 text-indigo-500 text-sm font-bold py-1">
+              <Phone size={14} />{item.customer.tel}
+            </a>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={`border rounded-2xl shadow-sm overflow-hidden transition-all ${

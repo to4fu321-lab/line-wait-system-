@@ -1102,7 +1102,8 @@ export default function RepairsPage() {
                   {filteredWaiting.map(item => (
                     <WaitingCard key={item.id} item={item} alertDays={alertDays}
                       onDeliver={handleDeliver} onPaymentToggle={handlePaymentToggle}
-                      onRevertWaiting={handleRevertWaiting} onDelete={handleDeleteWaiting} />
+                      onRevertWaiting={handleRevertWaiting} onDelete={handleDeleteWaiting}
+                      isSimpleMode={isSimpleMode} />
                   ))}
                 </div>
               )}

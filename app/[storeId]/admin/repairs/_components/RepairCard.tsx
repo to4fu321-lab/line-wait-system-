@@ -136,118 +136,134 @@ export function RepairCard({ item, storeId, onRefresh, onToast, onEdit, selected
 
   // ── シンプルモード ───────────────────────────────────────────────
   if (isSimpleMode) {
-    // 次のステップを文章で案内するテキスト
-    let nextStepText: string | null = null
-    if (reqType === 'repair') {
-      if (!item.work_started) {
-        nextStepText = `「${item.content || item.item_name || 'この商品'}」の作業を始めましょう`
-      } else {
-        nextStepText = `作業が終わったら完了ボタンを押してお客様に連絡しましょう`
-      }
-    } else if (reqType === 'walk_in') {
-      nextStepText = `お客様の対応が終わったら完了にしましょう`
-    } else if (reqType === 'hold_request') {
-      nextStepText = `商品を確保できたらお客様に連絡しましょう`
-    } else if (reqType === 'inquiry') {
-      nextStepText = `お問い合わせへの対応が完了したら記録しましょう`
-    } else if (reqType === 'repair_consult') {
-      nextStepText = `相談への対応が完了したら記録しましょう`
-    } else if (reqType === 'payment_pending') {
-      nextStepText = `入金を確認したら完了にしましょう`
+    const reqNo = fmtReqNo('repair', item.request_no, item.id)
+
+    async function handleSimpleComplete() {
+      setLoading(true)
+      const today = new Date().toISOString().slice(0, 10)
+      const { error } = await (supabase as any).from('repair_histories')
+        .update({ status: 'completed', completed_date: today, work_started: true, notified: true, updated_at: new Date().toISOString() })
+        .eq('id', item.id)
+      if (error) { setLoading(false); onToast('err', '更新に失敗しました'); return }
+      fetch('/api/notify-repair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repairId: item.id }),
+      }).catch(() => {})
+      setLoading(false)
+      onRefresh()
+      onToast('ok', '✅ お直し完了・LINEで通知しました')
+    }
+
+    async function handleSimpleRevert() {
+      setLoading(true)
+      const { error } = await (supabase as any).from('repair_histories')
+        .update({ status: 'received', work_started: false, completed_date: null, notified: false, updated_at: new Date().toISOString() })
+        .eq('id', item.id)
+      setLoading(false)
+      if (error) { onToast('err', '更新に失敗しました'); return }
+      onRefresh()
+      onToast('ok', '受付中に戻しました')
     }
 
     return (
-      <div className={`rounded-2xl overflow-hidden shadow-sm ${cardBg}`}>
-        {(isOverdue || isDueSoon) && (
-          <div className={`h-1.5 w-full ${isOverdue ? 'bg-red-500' : 'bg-amber-400'}`} />
-        )}
-        <div className="p-4">
-          {/* バッジ */}
-          <div className="flex items-center gap-2 flex-wrap mb-3">
-            <span className={`text-xs font-black px-2.5 py-1.5 rounded-lg border ${REQUEST_TYPE_COLORS[reqType]}`}>
-              {REQUEST_TYPE_LABELS[reqType]}
-            </span>
-            {isOverdue && (
-              <span className="text-xs font-black px-2.5 py-1.5 rounded-lg bg-red-600 text-white">🚨 {Math.abs(daysLeft!)}日超過</span>
+      <div className={`rounded-2xl overflow-hidden shadow-sm ${
+        isOverdue ? 'border-2 border-red-400' : isDueSoon ? 'border-2 border-amber-400' : 'border border-gray-200'
+      } bg-white`}>
+        {/* 受付番号ヘッダー */}
+        <div className={`px-4 py-2.5 flex items-center justify-between ${isOverdue ? 'bg-red-600' : 'bg-indigo-600'}`}>
+          <span className="text-indigo-200 text-xs font-bold">受付番号</span>
+          <span className="text-white text-2xl font-black font-mono tracking-wider">{reqNo}</span>
+        </div>
+
+        <div className="p-4 space-y-3">
+          {/* お客様情報（大きく） */}
+          <div>
+            {item.child?.school_name && (
+              <p className="text-base font-black text-amber-600 leading-tight">{item.child.school_name}</p>
             )}
-            {isDueSoon && !isOverdue && (
-              <span className="text-xs font-black px-2.5 py-1.5 rounded-lg bg-amber-500 text-white">⚠️ 期限間近</span>
-            )}
-            {!item.prepaid && (
-              <span className="text-xs font-black px-2.5 py-1.5 rounded-lg bg-red-600 text-white">未払い</span>
+            <p className="text-2xl font-black text-gray-900 leading-tight">{name}</p>
+            {item.child?.name && item.customer?.name && (
+              <p className="text-sm text-gray-400 font-medium mt-0.5">保護者: {item.customer.name}</p>
             )}
           </div>
 
-          {/* 内容 + 金額 */}
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <p className="text-xl font-black text-gray-900 leading-tight flex-1">
+          {/* アイテム・内容（大きく） */}
+          <div className="bg-gray-50 rounded-2xl px-4 py-3 space-y-1">
+            {item.item_name && item.content && item.item_name !== item.content && (
+              <p className="text-sm text-gray-500 font-bold">{item.item_name}</p>
+            )}
+            <p className="text-lg font-black text-gray-900 leading-snug">
               {item.content || item.item_name || '内容未記入'}
             </p>
+            {item.repair_type === 'hem' && item.hem_length_mm != null && item.hem_length_mm !== 0 && (
+              <p className="text-base font-black text-amber-700">裾上げ {item.hem_length_mm > 0 ? '+' : ''}{item.hem_length_mm}mm</p>
+            )}
+            {item.repair_type === 'sleeve' && item.sleeve_adjust_mm != null && item.sleeve_adjust_mm !== 0 && (
+              <p className="text-base font-black text-blue-700">袖丈 {item.sleeve_adjust_mm > 0 ? '+' : ''}{item.sleeve_adjust_mm}mm</p>
+            )}
+            {item.repair_type === 'waist' && item.waist_adjust_mm != null && item.waist_adjust_mm !== 0 && (
+              <p className="text-base font-black text-purple-700">ウエスト {item.waist_adjust_mm > 0 ? '+' : ''}{item.waist_adjust_mm}mm</p>
+            )}
+            {item.repair_type === 'embroidery' && item.embroidery_text && (
+              <p className="text-base font-black text-pink-700">刺繍「{item.embroidery_text}」{item.embroidery_color} {item.embroidery_pos}</p>
+            )}
+          </div>
+
+          {/* 金額・期限 */}
+          <div className="flex items-center gap-3 flex-wrap">
             {item.price != null && (
-              <span className={`text-lg font-black shrink-0 ${item.prepaid ? 'text-gray-400' : 'text-red-600'}`}>
-                ¥{item.price.toLocaleString()}
+              <span className={`text-lg font-black ${item.prepaid ? 'text-gray-500' : 'text-red-600'}`}>
+                ¥{item.price.toLocaleString()}{!item.prepaid && ' ⚠️未払い'}
               </span>
             )}
-          </div>
-
-          {/* 学校 + お名前 */}
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mb-1">
-            {item.child?.school_name && (
-              <span className="text-sm font-black text-amber-600">{item.child.school_name}</span>
+            {item.desired_completion_date && (
+              <span className={`text-sm font-black ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-gray-500'}`}>
+                {isOverdue ? '🚨' : isDueSoon ? '⚠️' : ''}希望日 {new Date(item.desired_completion_date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })}
+              </span>
             )}
-            <span className="text-base font-bold text-gray-700">{name}</span>
+            <span className="text-xs text-gray-400">受付 {fmtDate(item.received_date)}</span>
           </div>
-
-          {/* 希望日 */}
-          {item.desired_completion_date && (
-            <p className={`text-sm font-bold mb-3 ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-gray-500'}`}>
-              希望日：{new Date(item.desired_completion_date).toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
-            </p>
-          )}
-
-          {/* 次のステップ案内 */}
-          {nextStepText && (
-            <div className="bg-indigo-50 border border-indigo-100 rounded-2xl px-4 py-3 mb-4">
-              <p className="text-xs font-black text-indigo-500 mb-0.5">▶ 次のステップ</p>
-              <p className="text-sm font-bold text-indigo-800 leading-relaxed">{nextStepText}</p>
-            </div>
-          )}
 
           {/* メインアクション */}
-          {primaryBtn && (
-            confirmPrimary ? (
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4 space-y-3">
-                <p className="text-base text-center text-gray-600 font-bold">もう一度タップして確定します</p>
-                <div className="flex gap-3">
-                  <button onClick={() => setConfirmPrimary(false)}
-                    className="flex-1 py-4 rounded-xl bg-white border border-gray-200 text-gray-600 text-base font-bold">
-                    戻る
-                  </button>
-                  <button onClick={() => { setConfirmPrimary(false); primaryBtn!.onClick() }} disabled={loading}
-                    className={`flex-1 py-4 rounded-xl font-black text-base text-white flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm ${primaryBtn!.color}`}>
-                    {loading ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}確定する
-                  </button>
-                </div>
+          {confirmPrimary ? (
+            <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 px-4 py-4 space-y-3">
+              <p className="text-base text-center text-emerald-800 font-black">LINEで通知して完了にしますか？</p>
+              <div className="flex gap-3">
+                <button onClick={() => setConfirmPrimary(false)}
+                  className="flex-1 py-4 rounded-2xl bg-white border-2 border-gray-200 text-gray-600 text-base font-black active:scale-95 transition-all"
+                  style={{ touchAction: 'manipulation' }}>
+                  戻る
+                </button>
+                <button onClick={() => { setConfirmPrimary(false); handleSimpleComplete() }} disabled={loading}
+                  className="flex-1 py-4 rounded-2xl bg-emerald-600 text-white text-base font-black flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md disabled:opacity-50"
+                  style={{ touchAction: 'manipulation' }}>
+                  {loading ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}完了・通知する
+                </button>
               </div>
-            ) : (
-              <button onClick={() => setConfirmPrimary(true)} disabled={loading}
-                style={{ touchAction: 'manipulation' }}
-                className={`w-full py-5 rounded-2xl font-black text-base text-white flex items-center justify-center gap-2 shadow-md active:scale-[0.98] disabled:opacity-50 ${primaryBtn.color}`}>
-                {loading ? <Loader2 size={18} className="animate-spin" /> : primaryBtn.label}
-              </button>
-            )
+            </div>
+          ) : (
+            <button onClick={() => setConfirmPrimary(true)} disabled={loading}
+              style={{ touchAction: 'manipulation' }}
+              className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-black text-lg rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50">
+              {loading ? <Loader2 size={22} className="animate-spin" /> : '✅'}
+              お直し完了・LINE通知する
+            </button>
           )}
 
-          {/* 電話・顧客詳細 */}
-          {(item.customer?.tel || item.customer_id) && (
-            <div className="flex items-center gap-4 mt-3 flex-wrap">
-              {item.customer?.tel && (
-                <a href={`tel:${item.customer.tel}`} onClick={e => e.stopPropagation()}
-                  className="flex items-center gap-2 text-base text-indigo-600 font-bold">
-                  <Phone size={16} />{item.customer.tel}
-                </a>
-              )}
-            </div>
+          {/* 戻すボタン */}
+          <button onClick={handleSimpleRevert} disabled={loading}
+            style={{ touchAction: 'manipulation' }}
+            className="w-full py-3.5 border-2 border-gray-200 bg-white text-gray-500 font-black text-sm rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all">
+            <RotateCcw size={15} />受付中に戻す
+          </button>
+
+          {/* 電話 */}
+          {item.customer?.tel && (
+            <a href={`tel:${item.customer.tel}`}
+              className="flex items-center justify-center gap-2 py-3 text-indigo-600 font-bold text-base">
+              <Phone size={16} />{item.customer.tel}
+            </a>
           )}
         </div>
       </div>
