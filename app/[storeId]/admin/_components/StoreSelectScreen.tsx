@@ -2,7 +2,7 @@
 
 import { Store, ChevronRight, LayoutDashboard } from 'lucide-react'
 
-interface StoreInfo { id: string; name: string; pin: string; group_id?: string | null; business_type?: string }
+interface StoreInfo { id: string; name: string; pin: string; group_id?: string | null; business_type?: string; features?: Record<string, unknown> | null }
 
 // ============================================================
 // 店舗選択画面

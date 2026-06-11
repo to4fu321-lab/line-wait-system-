@@ -21,7 +21,7 @@ export function BottomNav() {
   const storeId  = params?.storeId ?? ''
   const [queueBadge,  setQueueBadge]  = useState(0)
   const [repairBadge, setRepairBadge] = useState(0)
-  const { hasFeature } = useStoreFeatures(storeId)
+  const { hasFeature, loaded: featLoaded } = useStoreFeatures(storeId)
   const { isTablet, setMode } = useDeviceMode()
 
   useEffect(() => {
@@ -49,8 +49,8 @@ export function BottomNav() {
     return () => clearInterval(t)
   }, [storeId])
 
-  // In tablet mode the SideNav handles navigation — hide BottomNav
-  if (isTablet) return null
+  // Hide until features loaded to prevent wrong-tab flash; tablet uses SideNav
+  if (!featLoaded || isTablet) return null
 
   const tabs = ALL_TABS.filter(t =>
     t.featureKey === null || hasFeature(t.featureKey as Parameters<typeof hasFeature>[0])

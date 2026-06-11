@@ -12,6 +12,7 @@ import { BottomNav } from './_components/BottomNav'
 import { QrRegistrationModal } from './_components/QrRegistrationModal'
 import { StoreSelectScreen } from './_components/StoreSelectScreen'
 import type { StoreInfo } from './_components/StoreSelectScreen'
+import { resolveFeature } from '@/lib/features'
 import { PinScreen } from './_components/PinScreen'
 import { WaitingCard, CallingCard, HistoryCard } from './_components/QueueCards'
 import { supabase, getTodayStart } from '@/lib/supabase'
@@ -684,7 +685,7 @@ export default function StoreAdminPage() {
   }, [])
 
   useEffect(() => {
-    supabase.from('stores').select('id, name, pin, group_id, business_type').order('name', { ascending: true })
+    supabase.from('stores').select('id, name, pin, group_id, business_type, features').order('name', { ascending: true })
       .then(({ data, error }) => {
         if (error || !data || data.length === 0) {
           setFetchError(error?.message ?? '店舗データが見つかりません'); setView('select_store'); return
@@ -699,6 +700,7 @@ export default function StoreAdminPage() {
             const gc = sessionStorage.getItem('admin_group_code')
             if (gc) setGroupCode(gc); else loadGroupCode(match)
             if (match.business_type === 'takeout') { router.replace(`/${match.id}/kitchen`); return }
+            if (!resolveFeature('tab_queue', match.features ?? {})) { router.replace(`/${match.id}/admin/repairs`); return }
             setView('dashboard'); return
           }
         }
@@ -722,6 +724,10 @@ export default function StoreAdminPage() {
       loadGroupCode(selectedStore)
       if (selectedStore.business_type === 'takeout') {
         router.replace(`/${selectedStore.id}/kitchen`)
+        return
+      }
+      if (!resolveFeature('tab_queue', selectedStore.features ?? {})) {
+        router.replace(`/${selectedStore.id}/admin/repairs`)
         return
       }
     }
