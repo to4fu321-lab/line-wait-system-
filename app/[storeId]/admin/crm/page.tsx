@@ -22,6 +22,9 @@ import {
   GRADE_OPTIONS, SCHOOL_OPTIONS,
 } from '@/types/crm'
 
+import { useStoreFeatures } from '@/lib/useStoreFeatures'
+import { SchoolInfoCard } from '@/app/_components/SchoolInfoCard'
+
 // ── 分割コンポーネント ────────────────────────────────────────
 import type { RepairWithCustomer, PurchaseWithCustomer, IntakeFormType, KanaRow } from './_components/types'
 import { INTAKE_OPTIONS, KANA_ROWS } from './_components/types'
@@ -71,6 +74,7 @@ export default function CRMPage() {
   const { storeId }  = useParams<{ storeId: string }>()
   const router       = useRouter()
   const searchParams = useSearchParams()
+  const { hasFeature } = useStoreFeatures(storeId)
   const defaultIntakeType = (searchParams?.get('type') ?? 'repair') as IntakeFormType
 
   const [storeName,        setStoreName]        = useState('')
@@ -947,6 +951,11 @@ export default function CRMPage() {
                               </p>
                             )}
                           </div>
+                        )}
+
+                        {/* 学校情報カード */}
+                        {!editingCustomer && hasFeature('school_crm_card') && selectedCustomer?.school_id && (
+                          <SchoolInfoCard schoolId={selectedCustomer.school_id} storeId={storeId} />
                         )}
 
                         {/* お子様一覧 */}

@@ -10,6 +10,8 @@ import {
 import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../_components/BottomNav'
 import { GRADE_OPTIONS } from '@/types/crm'
+import { useStoreFeatures } from '@/lib/useStoreFeatures'
+import { MeasurementSchoolPanel } from '@/app/_components/MeasurementSchoolPanel'
 
 // ── 型定義 ───────────────────────────────────────────────────
 type FittingStep = 'customer' | 'measure' | 'confirm' | 'done'
@@ -116,6 +118,7 @@ function FittingPageInner() {
   const params       = useParams<{ storeId: string }>()
   const storeId      = params?.storeId ?? ''
   const searchParams = useSearchParams()
+  const { hasFeature } = useStoreFeatures(storeId)
 
   const [step, setStep] = useState<FittingStep>('customer')
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
@@ -964,6 +967,11 @@ function FittingPageInner() {
                 <ChevronLeft size={13} />戻る
               </button>
             </div>
+
+            {/* 学校採寸パネル */}
+            {hasFeature('school_measurement') && child.school_id && child.school_name && (
+              <MeasurementSchoolPanel schoolId={child.school_id} schoolName={child.school_name} />
+            )}
 
             {/* 体型入力 */}
             <div className="bg-white rounded-2xl shadow-sm p-4 space-y-4">

@@ -26,6 +26,35 @@ const GRANULAR_FEATURES: { key: FeatureKey; label: string; icon: string }[] = [
   { key: 'reservation',         label: '採寸予約',         icon: '📅' },
   { key: 'orders',              label: '注文管理',         icon: '🛒' },
   { key: 'takeout',             label: 'テイクアウト',     icon: '🥡' },
+  { key: 'school_master',      label: '学校マスター管理',        icon: '🏫' },
+  { key: 'school_ocr',         label: '学校規定OCR取込',         icon: '📄' },
+  { key: 'school_crm_card',    label: 'CRM学校規定カード',        icon: '👤' },
+  { key: 'school_measurement', label: '採寸パネル（アイテム別）', icon: '📐' },
+  { key: 'school_waiting',     label: '顧客待機サイネージ',       icon: '🖥' },
+  { key: 'line_parent_info',   label: 'LINE保護者情報投稿',       icon: '💚' },
+  { key: 'line_coupon',        label: 'クーポン自動配布',         icon: '🎫' },
+  { key: 'line_parent_rsv',    label: 'LINE採寸予約（保護者）',   icon: '📅' },
+]
+
+const GRANULAR_FEATURE_GROUPS: { label: string; keys: FeatureKey[] }[] = [
+  {
+    label: 'タブ・ナビ',
+    keys: ['tab_queue', 'tab_repairs', 'tab_inquiries', 'tab_crm'],
+  },
+  {
+    label: '案件・修理',
+    keys: ['repairs_tab_purchase', 'repairs_tab_arrival', 'repairs_tab_delivery',
+           'repairs_ocr', 'repairs_master', 'repairs_dummy'],
+  },
+  {
+    label: 'LINE・スキャン',
+    keys: ['kantan_line', 'tray_scan', 'reservation', 'orders', 'takeout'],
+  },
+  {
+    label: '🏫 学校規定・採寸連携',
+    keys: ['school_master', 'school_ocr', 'school_crm_card', 'school_measurement',
+           'school_waiting', 'line_parent_info', 'line_coupon', 'line_parent_rsv'],
+  },
 ]
 
 const FEATURES: { key: string; label: string; icon: string }[] = [
@@ -299,43 +328,49 @@ function StoreCard({
           {/* ── 個別フラグ（プランからの上書き） ── */}
           <div>
             <p className="text-[10px] text-gray-400 mb-1.5 uppercase tracking-wider">個別オーバーライド（プランより優先）</p>
-            <div className="grid grid-cols-2 gap-1">
-              {GRANULAR_FEATURES.map(f => {
-                const currentPlan = (features._plan as Plan | undefined) ?? 'full'
-                const planDefault = PLAN_DEFS[currentPlan]?.features[f.key as FeatureKey]
-                const override = (features as Record<string, unknown>)[f.key]
-                const effective = override !== undefined ? (override as boolean) : (planDefault !== false)
-                const hasOverride = override !== undefined && override !== planDefault
-                return (
-                  <button key={f.key}
-                    onClick={() => setFeatures(prev => {
-                      const next = { ...prev }
-                      if (override === undefined) {
-                        // 未設定 → planDefault の反転
-                        next[f.key] = !effective
-                      } else if (override === planDefault) {
-                        // plan と同値 → 削除（override 解除）
-                        delete next[f.key]
-                      } else {
-                        // 逆値 → 削除（override 解除）
-                        delete next[f.key]
-                      }
-                      return next
+            <div className="">
+              {GRANULAR_FEATURE_GROUPS.map(group => (
+                <div key={group.label} className="mb-2">
+                  <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-1 px-1">{group.label}</p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {group.keys.map(key => {
+                      const f = GRANULAR_FEATURES.find(x => x.key === key)
+                      if (!f) return null
+                      const currentPlan = (features._plan as Plan | undefined) ?? 'full'
+                      const planDefault = PLAN_DEFS[currentPlan]?.features[f.key as FeatureKey]
+                      const override = (features as Record<string, unknown>)[f.key]
+                      const effective = override !== undefined ? (override as boolean) : (planDefault !== false)
+                      const hasOverride = override !== undefined && override !== planDefault
+                      return (
+                        <button key={f.key}
+                          onClick={() => setFeatures(prev => {
+                            const next = { ...prev }
+                            if (override === undefined) {
+                              next[f.key] = !effective
+                            } else if (override === planDefault) {
+                              delete next[f.key]
+                            } else {
+                              delete next[f.key]
+                            }
+                            return next
+                          })}
+                          className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl border text-left text-xs font-bold transition-all ${
+                            effective
+                              ? 'border-indigo-500/50 bg-indigo-500/10 text-indigo-300'
+                              : 'border-gray-700 bg-gray-700/50 text-gray-500'
+                          }`}>
+                          <span className="text-[12px]">{f.icon}</span>
+                          <span className="flex-1 text-[10px] leading-tight">{f.label}</span>
+                          {hasOverride && <span className="text-[8px] px-1 py-0.5 rounded bg-amber-500/30 text-amber-300 font-black shrink-0">上書</span>}
+                          <div className={`w-6 h-3.5 rounded-full shrink-0 transition-colors ${effective ? 'bg-indigo-500' : 'bg-gray-600'}`}>
+                            <div className={`w-2.5 h-2.5 bg-white rounded-full mt-0.5 transition-transform shadow ${effective ? 'translate-x-3' : 'translate-x-0.5'}`} />
+                          </div>
+                        </button>
+                      )
                     })}
-                    className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl border text-left text-xs font-bold transition-all ${
-                      effective
-                        ? 'border-indigo-500/50 bg-indigo-500/10 text-indigo-300'
-                        : 'border-gray-700 bg-gray-700/50 text-gray-500'
-                    }`}>
-                    <span className="text-[12px]">{f.icon}</span>
-                    <span className="flex-1 text-[10px] leading-tight">{f.label}</span>
-                    {hasOverride && <span className="text-[8px] px-1 py-0.5 rounded bg-amber-500/30 text-amber-300 font-black shrink-0">上書</span>}
-                    <div className={`w-6 h-3.5 rounded-full shrink-0 transition-colors ${effective ? 'bg-indigo-500' : 'bg-gray-600'}`}>
-                      <div className={`w-2.5 h-2.5 bg-white rounded-full mt-0.5 transition-transform shadow ${effective ? 'translate-x-3' : 'translate-x-0.5'}`} />
-                    </div>
-                  </button>
-                )
-              })}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 

@@ -254,7 +254,15 @@ export default function ReservePage() {
           if (!liff.isLoggedIn()) { liff.login(); return }
           const profile = await liff.getProfile()
           setLineUserId(profile.userId)
-          setName(profile.displayName ?? '')
+          // CRM登録名を優先、なければLINE表示名
+          try {
+            const { data: regCust } = await (supabase as any)
+              .from('customers').select('name').eq('store_id', storeId)
+              .eq('line_user_id', profile.userId).maybeSingle()
+            setName(regCust?.name || profile.displayName ?? '')
+          } catch {
+            setName(profile.displayName ?? '')
+          }
         }
       } catch { /* LIFF not available */ }
 
@@ -274,6 +282,7 @@ export default function ReservePage() {
       .eq('line_user_id', lUserId).maybeSingle()
     if (cust) {
       setCustomerId(cust.id)
+      if (cust.name) setName(cust.name) // 採寸サービス選択時も登録名で上書き
       const { data: kids } = await supabase.from('children').select('id, name, school_name, school_id, grade, gender')
         .eq('customer_id', cust.id).order('created_at')
       setChildren((kids ?? []) as ChildRow[])
@@ -699,33 +708,63 @@ export default function ReservePage() {
               <div className="grid grid-cols-2 gap-2">
                 {slots.map(slot => {
                   const isSelected = selectedTime === slot.time
+                  const isFull    = !slot.available
+                  const isLast    = slot.available && slot.remaining === 1
+                  const isFew     = slot.available && slot.remaining === 2
+                  const fillRatio = slot.maxSlots > 0 ? slot.booked / slot.maxSlots : 1
+
+                  const containerCls = isFull
+                    ? 'bg-zinc-900/50 border border-zinc-800 text-zinc-600 cursor-not-allowed'
+                    : isSelected
+                    ? 'bg-indigo-600 border border-indigo-500 text-white ring-1 ring-indigo-400/40'
+                    : isLast
+                    ? 'bg-orange-950/60 border-2 border-orange-500/80 text-white hover:border-orange-400 shadow-orange-900/40 shadow-md'
+                    : isFew
+                    ? 'bg-yellow-950/50 border border-yellow-600/60 text-white hover:border-yellow-500'
+                    : 'bg-zinc-800 border border-green-700/50 text-white hover:bg-zinc-700'
+
+                  const labelCls = isFull
+                    ? 'text-zinc-600'
+                    : isSelected
+                    ? 'text-indigo-200'
+                    : isLast
+                    ? 'text-orange-300 font-black'
+                    : isFew
+                    ? 'text-yellow-400 font-bold'
+                    : 'text-green-400'
+
+                  const barCls = isFull
+                    ? 'bg-zinc-700'
+                    : isLast
+                    ? 'bg-orange-500'
+                    : isFew
+                    ? 'bg-yellow-500'
+                    : 'bg-green-500'
+
                   return (
                     <button
                       key={slot.time}
-                      disabled={!slot.available}
+                      disabled={isFull}
                       onClick={() => {
-                        if (!slot.available) return
+                        if (isFull) return
                         setSelectedTime(slot.time)
                         setStep('info')
                       }}
-                      className={`py-3 px-3 rounded-xl text-sm font-bold transition-all text-left ${
-                        !slot.available
-                          ? 'bg-zinc-900/50 border border-zinc-800 text-zinc-600 cursor-not-allowed'
-                          : isSelected
-                          ? 'bg-indigo-600 border border-indigo-500 text-white ring-1 ring-indigo-400/40'
-                          : 'bg-zinc-800 border border-zinc-700 text-white hover:bg-zinc-700'
-                      }`}
+                      className={`relative py-3 px-3 rounded-xl text-sm font-bold transition-all text-left overflow-hidden ${containerCls}`}
                     >
-                      <span className="block">{slot.time}</span>
-                      <span className={`text-xs font-normal mt-0.5 block ${
-                        !slot.available ? 'text-zinc-600'
-                        : isSelected ? 'text-indigo-200'
-                        : 'text-zinc-400'
-                      }`}>
-                        {slot.available
-                          ? `残${slot.remaining}枠`
-                          : '× 満員'}
+                      <span className="block text-base">{slot.time}</span>
+                      <span className={`text-xs mt-0.5 block ${labelCls}`}>
+                        {isFull ? '✕ 満員' : isLast ? '⚡ あと1枠！' : `残${slot.remaining}枠`}
                       </span>
+                      {/* 予約埋まり具合バー */}
+                      {!isSelected && (
+                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-zinc-700/40 overflow-hidden rounded-b-xl">
+                          <div
+                            className={`h-full transition-all duration-500 ${barCls}`}
+                            style={{ width: `${Math.round(fillRatio * 100)}%` }}
+                          />
+                        </div>
+                      )}
                     </button>
                   )
                 })}
