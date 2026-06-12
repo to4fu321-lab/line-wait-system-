@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { School, SchoolProduct, SchoolProductVariant, Staff } from '@/types/master'
+import type { SchoolItem, SchoolGrade, SchoolParentTip, OcrResult, OcrResultItem } from '@/types/school'
 import {
   PRODUCT_CATEGORY_OPTIONS, PRODUCT_GENDER_OPTIONS,
   STAFF_ROLE_OPTIONS, STAFF_COLOR_OPTIONS,
@@ -17,8 +18,9 @@ import { REPAIR_TYPE_LABELS, REPAIR_TYPE_ICONS } from '@/types/crm'
 import type { RepairType } from '@/types/crm'
 
 // ── 型 ────────────────────────────────────────────────────────
-type MasterTab  = 'schools' | 'staff' | 'presets'
-type SchoolView = 'schools' | 'products' | 'variants'
+type MasterTab      = 'schools' | 'staff' | 'presets'
+type SchoolView     = 'schools' | 'school_detail' | 'products' | 'variants'
+type SchoolDetailTab = 'catalog' | 'regulations' | 'grades' | 'tips' | 'ocr'
 
 interface RepairItemCategory {
   id: string; store_id: string; name: string; sort_order: number; is_active: boolean
@@ -131,6 +133,20 @@ function MasterPageInner() {
   const [schoolSaving,         setSchoolSaving]         = useState(false)
   const [deleteSchoolTarget,   setDeleteSchoolTarget]   = useState<School | null>(null)
   const [deleteSchoolLoading,  setDeleteSchoolLoading]  = useState(false)
+
+  // ── School detail / regulations state ────────────────────
+  const [schoolDetailTab, setSchoolDetailTab] = useState<SchoolDetailTab>('catalog')
+  const [regItems,   setRegItems]   = useState<SchoolItem[]>([])
+  const [regGrades,  setRegGrades]  = useState<SchoolGrade[]>([])
+  const [regTips,    setRegTips]    = useState<SchoolParentTip[]>([])
+  const [regSaving,  setRegSaving]  = useState(false)
+  // OCR state
+  const [ocrFiles,    setOcrFiles]    = useState<File[]>([])
+  const [ocrPreviews, setOcrPreviews] = useState<string[]>([])
+  const [ocrResult,   setOcrResult]   = useState<OcrResult | null>(null)
+  const [ocrEditItems, setOcrEditItems] = useState<OcrResultItem[]>([])
+  const [ocrLoading,  setOcrLoading]  = useState(false)
+  const ocrFileRef = useRef<HTMLInputElement | null>(null)
 
   // ── Product form state ────────────────────────────────────
   const [productModal,         setProductModal]         = useState(false)
@@ -292,14 +308,23 @@ function MasterPageInner() {
   // ── Tab 切替 ──────────────────────────────────────────────
   const switchTab = (tab: MasterTab) => {
     setMasterTab(tab)
-    if (tab === 'schools') { setSchoolView('schools'); setSelectedSchool(null); setSelectedProduct(null) }
+    if (tab === 'schools') { setSchoolView('schools'); setSelectedSchool(null); setSelectedProduct(null); setSchoolDetailTab('catalog') }
     if (tab === 'presets') { fetchPresets(); fetchCategories() }
   }
 
   // ── Navigation (school drill-down) ───────────────────────
-  const goToProducts = async (school: School) => {
-    setSelectedSchool(school); setProducts([]); setSchoolView('products')
-    await fetchProducts(school.id)
+  const goToSchoolDetail = async (school: School) => {
+    setSelectedSchool(school)
+    setSchoolView('school_detail')
+    setSchoolDetailTab('catalog')
+    const [itemsRes, gradesRes, tipsRes] = await Promise.all([
+      fetch(`/api/schools/${school.id}/items`).then(r => r.json()),
+      fetch(`/api/schools/${school.id}/grades`).then(r => r.json()),
+      fetch(`/api/schools/${school.id}/tips`).then(r => r.json()),
+    ])
+    setRegItems(Array.isArray(itemsRes) ? itemsRes : [])
+    setRegGrades(Array.isArray(gradesRes) ? gradesRes : [])
+    setRegTips(Array.isArray(tipsRes) ? tipsRes : [])
   }
   const goToVariants = async (product: SchoolProduct) => {
     setSelectedProduct(product); setVariants([]); setSchoolView('variants')
@@ -308,8 +333,82 @@ function MasterPageInner() {
   const goBack = () => {
     if (masterTab === 'staff') { router.back() }
     else if (schoolView === 'variants') { setSchoolView('products'); setSelectedProduct(null) }
-    else if (schoolView === 'products') { setSchoolView('schools'); setSelectedSchool(null) }
+    else if (schoolView === 'products') { setSchoolView('school_detail') }
+    else if (schoolView === 'school_detail') { setSchoolView('schools'); setSelectedSchool(null) }
     else router.back()
+  }
+
+  // ── Regulation save functions ─────────────────────────────
+  const saveRegItems = async () => {
+    if (!selectedSchool) return
+    setRegSaving(true)
+    await fetch(`/api/schools/${selectedSchool.id}/items`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: regItems, updated_by: 'staff' }),
+    })
+    setRegSaving(false)
+    showToast('ok', '規定品を保存しました')
+  }
+
+  const saveRegGrades = async () => {
+    if (!selectedSchool) return
+    setRegSaving(true)
+    await fetch(`/api/schools/${selectedSchool.id}/grades`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ grades: regGrades, updated_by: 'staff' }),
+    })
+    setRegSaving(false)
+    showToast('ok', '学年色を保存しました')
+  }
+
+  const approveTip = async (tipId: string, approved: boolean) => {
+    await fetch(`/api/schools/tips/${tipId}/approve`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ approved, updated_by: 'staff' }),
+    })
+    setRegTips(prev => prev.map(t => t.id === tipId ? { ...t, approved } : t))
+  }
+
+  const handleOcr = async () => {
+    if (ocrFiles.length === 0) return
+    setOcrLoading(true)
+    try {
+      const form = new FormData()
+      ocrFiles.forEach(f => form.append('images', f))
+      const res = await fetch('/api/schools/ocr', { method: 'POST', body: form })
+      const data: OcrResult = await res.json()
+      setOcrResult(data)
+      setOcrEditItems(data.items ?? [])
+    } catch { showToast('err', 'OCRに失敗しました') }
+    setOcrLoading(false)
+  }
+
+  const saveOcrItems = async () => {
+    if (!selectedSchool) return
+    setRegSaving(true)
+    await fetch(`/api/schools/${selectedSchool.id}/items`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: ocrEditItems, updated_by: 'staff' }),
+    })
+    setRegItems(ocrEditItems.map((it, idx) => ({
+      id: '', school_id: selectedSchool.id, name: it.name, required: it.required,
+      price_tax_in: it.price_tax_in, price_tax_out: it.price_tax_out,
+      size_spec: it.size_spec, product_code: it.product_code,
+      growth_adjust: it.growth_adjust, washable: it.washable,
+      avg_qty: it.avg_qty, uses_grade_color: it.uses_grade_color,
+      grade_color_note: it.grade_color_note, item_notes: it.item_notes,
+      sort_order: idx, created_at: '', updated_at: '', updated_by: '',
+    })))
+    setOcrResult(null)
+    setOcrFiles([])
+    setOcrPreviews([])
+    setRegSaving(false)
+    setSchoolDetailTab('regulations')
+    showToast('ok', `${ocrEditItems.length}アイテムを保存しました`)
   }
 
   // ── School CRUD ───────────────────────────────────────────
@@ -560,6 +659,7 @@ function MasterPageInner() {
   // ── Header gradient ───────────────────────────────────────
   const headerGrad = masterTab === 'staff' ? 'from-emerald-700 to-teal-700'
     : masterTab === 'presets' ? 'from-amber-600 to-orange-600'
+    : schoolView === 'school_detail' ? 'from-violet-700 to-indigo-700'
     : schoolView === 'products' ? 'from-teal-700 to-emerald-700'
     : schoolView === 'variants' ? 'from-amber-600 to-orange-600'
     : 'from-indigo-700 to-violet-700'
@@ -593,6 +693,12 @@ function MasterPageInner() {
             {masterTab === 'staff' && <h1 className="text-white font-black text-base">スタッフマスタ</h1>}
             {masterTab === 'presets' && <h1 className="text-white font-black text-base">✂️ お直し料金マスタ</h1>}
             {masterTab === 'schools' && schoolView === 'schools' && <h1 className="text-white font-black text-base">学校・商品マスタ</h1>}
+            {masterTab === 'schools' && schoolView === 'school_detail' && (
+              <>
+                <p className="text-white/60 text-[10px] font-bold truncate leading-tight">学校・商品マスタ</p>
+                <h1 className="text-white font-black text-base leading-tight">{selectedSchool?.name}</h1>
+              </>
+            )}
             {masterTab === 'schools' && schoolView === 'products' && (
               <>
                 <p className="text-white/60 text-[10px] font-bold truncate leading-tight">{selectedSchool?.name}</p>
@@ -619,6 +725,8 @@ function MasterPageInner() {
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleGlobalScan(f); e.target.value = '' }} />
               <div className="flex items-center gap-0.5 text-[10px]">
                 <span className={schoolView === 'schools'  ? 'text-white font-black' : 'text-white/40'}>学校</span>
+                <ChevronRight size={9} className="text-white/30" />
+                <span className={schoolView === 'school_detail' ? 'text-white font-black' : 'text-white/40'}>詳細</span>
                 <ChevronRight size={9} className="text-white/30" />
                 <span className={schoolView === 'products' ? 'text-white font-black' : 'text-white/40'}>商品</span>
                 <ChevronRight size={9} className="text-white/30" />
@@ -1066,10 +1174,10 @@ function MasterPageInner() {
                         </button>
                       </div>
                     </div>
-                    <button onClick={() => goToProducts(school)}
+                    <button onClick={() => goToSchoolDetail(school)}
                       className="w-full flex items-center justify-between px-4 py-2.5 bg-indigo-50 border-t border-indigo-100 hover:bg-indigo-100 active:bg-indigo-200 transition-all">
                       <span className="text-xs font-bold text-indigo-600 flex items-center gap-1.5">
-                        <Package size={12} />商品・サイズ/価格を管理する
+                        <Package size={12} />商品・規定品・学年色を管理する
                       </span>
                       <ChevronRight size={14} className="text-indigo-400" />
                     </button>
@@ -1082,6 +1190,243 @@ function MasterPageInner() {
               <Plus size={16} />学校を追加
             </button>
           </>
+        )}
+
+        {/* ================================================================
+            学校詳細（タブ付き: 商品マスタ / 規定品 / 学年色 / 保護者の声 / OCR）
+        ================================================================ */}
+        {masterTab === 'schools' && schoolView === 'school_detail' && selectedSchool && (
+          <div className="max-w-lg mx-auto">
+            {/* Sub-tab bar */}
+            <div className="flex overflow-x-auto gap-1 mb-4 bg-white border border-gray-200 rounded-xl p-1">
+              {([
+                { key: 'catalog',     label: '📦 商品マスタ' },
+                { key: 'regulations', label: '📋 規定品' },
+                { key: 'grades',      label: '🎨 学年色' },
+                { key: 'tips',        label: '💬 保護者の声' },
+                { key: 'ocr',         label: '📄 OCR取込' },
+              ] as { key: SchoolDetailTab; label: string }[]).map(t => (
+                <button key={t.key} onClick={() => setSchoolDetailTab(t.key)}
+                  className={`flex-shrink-0 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                    schoolDetailTab === t.key ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                  }`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* 商品マスタ tab */}
+            {schoolDetailTab === 'catalog' && (
+              <div>
+                <p className="text-xs text-gray-500 mb-3">商品・サイズ・価格マスタを管理します</p>
+                <button onClick={() => { setSchoolView('products'); fetchProducts(selectedSchool.id) }}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-3 font-bold text-sm transition-colors">
+                  商品マスタを開く →
+                </button>
+              </div>
+            )}
+
+            {/* 規定品 tab */}
+            {schoolDetailTab === 'regulations' && (
+              <div>
+                <div className="space-y-2 mb-4">
+                  {regItems.length === 0 && (
+                    <p className="text-center text-gray-400 py-6 text-sm">規定品が登録されていません。OCR取込または手動追加してください。</p>
+                  )}
+                  {regItems.map((item, i) => (
+                    <div key={i} className={`border rounded-xl p-3 ${item.required ? 'border-green-300 bg-green-50' : 'bg-white border-gray-200'}`}>
+                      <div className="flex gap-2 mb-2 items-start">
+                        <input value={item.name} onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, name: e.target.value } : it))}
+                          placeholder="アイテム名 *" className={`flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-indigo-400 ${item.required ? 'bg-green-50' : 'bg-white'}`} />
+                        <label className="flex items-center gap-1 text-xs text-gray-600 whitespace-nowrap pt-1.5">
+                          <input type="checkbox" checked={item.required} onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, required: e.target.checked } : it))} className="accent-green-600" />
+                          必須
+                        </label>
+                        <button onClick={() => setRegItems(prev => prev.filter((_, idx) => idx !== i))} className="text-red-400 text-xs pt-1.5 hover:text-red-600">削除</button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5 text-xs">
+                        <input value={item.price_tax_in ?? ''} type="number" onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, price_tax_in: e.target.value ? Number(e.target.value) : null } : it))}
+                          placeholder="税込価格" className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400 bg-white" />
+                        <input value={item.size_spec} onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, size_spec: e.target.value } : it))}
+                          placeholder="サイズ建て" className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400 bg-white" />
+                        <input value={item.avg_qty ?? ''} type="number" step="0.5" onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, avg_qty: e.target.value ? Number(e.target.value) : null } : it))}
+                          placeholder="平均点数" className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400 bg-white" />
+                        <input value={item.product_code} onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, product_code: e.target.value } : it))}
+                          placeholder="品番" className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400 bg-white" />
+                      </div>
+                      <div className="flex gap-3 mt-1.5 text-xs">
+                        <label className="flex items-center gap-1 text-gray-600">
+                          <input type="checkbox" checked={item.uses_grade_color} onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, uses_grade_color: e.target.checked } : it))} className="accent-purple-600" />
+                          🎨 学年色あり
+                        </label>
+                      </div>
+                      {item.uses_grade_color && (
+                        <input value={item.grade_color_note} onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, grade_color_note: e.target.value } : it))}
+                          placeholder="学年色メモ" className="mt-1.5 w-full border border-purple-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-purple-400 bg-purple-50" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setRegItems(prev => [...prev, { id: '', school_id: selectedSchool.id, name: '', required: true, price_tax_in: null, price_tax_out: null, size_spec: '', product_code: '', growth_adjust: false, washable: '', avg_qty: null, uses_grade_color: false, grade_color_note: '', item_notes: '', sort_order: prev.length, created_at: '', updated_at: '', updated_by: '' }])}
+                    className="flex-1 border-2 border-dashed border-gray-300 rounded-xl py-2.5 text-sm text-gray-500 hover:border-indigo-400 hover:text-indigo-500 transition-colors">
+                    + 追加
+                  </button>
+                  <button onClick={saveRegItems} disabled={regSaving}
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-2.5 text-sm font-bold disabled:opacity-50 transition-colors">
+                    {regSaving ? '保存中...' : '💾 保存'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 学年色 tab */}
+            {schoolDetailTab === 'grades' && (
+              <div>
+                <p className="text-xs text-gray-500 mb-3">ジャージなど学年によって色が変わるアイテムの学年カラーを登録</p>
+                <div className="space-y-2 mb-4">
+                  {regGrades.length === 0 && <p className="text-center text-gray-400 py-6 text-sm">学年カラーが登録されていません</p>}
+                  {regGrades.map((g, i) => (
+                    <div key={i} className="flex gap-2 items-center bg-white border border-gray-200 rounded-xl p-3">
+                      <input value={g.grade_name} onChange={e => setRegGrades(prev => prev.map((gr, idx) => idx === i ? { ...gr, grade_name: e.target.value } : gr))}
+                        placeholder="学年（例: 1年生）" className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-indigo-400" />
+                      <input value={g.color_name} onChange={e => setRegGrades(prev => prev.map((gr, idx) => idx === i ? { ...gr, color_name: e.target.value } : gr))}
+                        placeholder="色名" className="w-20 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-indigo-400" />
+                      <input type="color" value={g.color_hex || '#6366f1'} onChange={e => setRegGrades(prev => prev.map((gr, idx) => idx === i ? { ...gr, color_hex: e.target.value } : gr))}
+                        className="w-9 h-9 rounded-lg border border-gray-200 cursor-pointer" />
+                      <button onClick={() => setRegGrades(prev => prev.filter((_, idx) => idx !== i))} className="text-red-400 text-xs hover:text-red-600">削除</button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setRegGrades(prev => [...prev, { id: '', school_id: selectedSchool.id, grade_name: '', color_name: '', color_hex: '#6366f1', sort_order: prev.length, created_at: '', updated_at: '', updated_by: '' }])}
+                    className="flex-1 border-2 border-dashed border-gray-300 rounded-xl py-2.5 text-sm text-gray-500 hover:border-indigo-400 hover:text-indigo-500 transition-colors">
+                    + 追加
+                  </button>
+                  <button onClick={saveRegGrades} disabled={regSaving}
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-2.5 text-sm font-bold disabled:opacity-50 transition-colors">
+                    {regSaving ? '保存中...' : '💾 保存'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 保護者の声 tab */}
+            {schoolDetailTab === 'tips' && (
+              <div className="space-y-2">
+                {regTips.length === 0 && <p className="text-center text-gray-400 py-8 text-sm">保護者からの投稿がありません</p>}
+                {regTips.map(tip => (
+                  <div key={tip.id} className={`border rounded-xl p-3 ${tip.approved ? 'border-green-300 bg-green-50' : 'bg-white border-gray-200'}`}>
+                    {tip.item_name && <p className="text-xs text-indigo-600 font-bold mb-1">[{tip.item_name}]</p>}
+                    <p className="text-sm text-gray-800 mb-2">{tip.tip_text}</p>
+                    <div className="flex gap-2">
+                      <button onClick={() => approveTip(tip.id, true)}
+                        className={`flex-1 text-xs py-1.5 rounded-lg font-bold transition-colors ${tip.approved ? 'bg-green-600 text-white' : 'border border-green-500 text-green-600 hover:bg-green-50'}`}>
+                        ✅ 承認して掲載
+                      </button>
+                      <button onClick={() => approveTip(tip.id, false)}
+                        className={`flex-1 text-xs py-1.5 rounded-lg font-bold transition-colors ${!tip.approved ? 'bg-gray-400 text-white' : 'border border-gray-300 text-gray-500 hover:bg-gray-50'}`}>
+                        非承認
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* OCR取込 tab */}
+            {schoolDetailTab === 'ocr' && (
+              <div>
+                {!ocrResult ? (
+                  <div>
+                    <div onClick={() => ocrFileRef.current?.click()}
+                      className="border-2 border-dashed border-sky-300 bg-sky-50 rounded-2xl p-8 text-center cursor-pointer hover:bg-sky-100 transition-colors mb-4">
+                      <div className="text-4xl mb-2">📷</div>
+                      <p className="font-bold text-sky-700 mb-1">マニュアル・あんちょこを取り込む</p>
+                      <p className="text-xs text-gray-400">JPG / PNG（複数枚まとめて選択可）</p>
+                    </div>
+                    <input ref={ocrFileRef} type="file" accept="image/*" multiple
+                      onChange={e => {
+                        const selected = Array.from(e.target.files ?? [])
+                        setOcrFiles(selected)
+                        const urls = selected.map(f => URL.createObjectURL(f))
+                        setOcrPreviews(prev => { prev.forEach(u => URL.revokeObjectURL(u)); return urls })
+                      }}
+                      className="hidden" />
+                    {ocrPreviews.length > 0 && (
+                      <div className="flex gap-2 flex-wrap mb-4">
+                        {ocrPreviews.map((src, i) => (
+                          <img key={i} src={src} alt="" className="w-20 h-24 object-cover rounded-xl border border-gray-200" />
+                        ))}
+                      </div>
+                    )}
+                    {ocrFiles.length > 0 && (
+                      <button onClick={handleOcr} disabled={ocrLoading}
+                        className="w-full bg-sky-600 hover:bg-sky-700 text-white py-3 rounded-xl font-bold disabled:opacity-50 transition-colors">
+                        {ocrLoading ? '🤖 AI読み取り中...' : `🤖 AI読み取り開始（${ocrFiles.length}枚）`}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4 text-sm text-green-700 font-medium">
+                      ✅ {ocrEditItems.length}アイテムを読み取りました。確認・編集してから保存してください。
+                    </div>
+                    <div className="overflow-x-auto bg-white border border-gray-200 rounded-xl mb-4">
+                      <table className="w-full text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-gray-200">
+                            <th className="text-left px-3 py-2 font-bold text-gray-600">アイテム名</th>
+                            <th className="px-2 py-2 font-bold text-gray-600">区分</th>
+                            <th className="px-2 py-2 font-bold text-gray-600">税込価格</th>
+                            <th className="px-2 py-2 font-bold text-gray-600">平均点数</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {ocrEditItems.map((item, i) => (
+                            <tr key={i} className={item.confidence === 'low' ? 'bg-yellow-50' : item.required ? 'bg-green-50/50' : ''}>
+                              <td className="px-2 py-1.5">
+                                <div className="flex items-center gap-1">
+                                  {item.confidence === 'low' && <span className="text-yellow-500">⚠</span>}
+                                  <input value={item.name} onChange={e => setOcrEditItems(prev => prev.map((it, idx) => idx === i ? { ...it, name: e.target.value } : it))}
+                                    className="w-full bg-transparent min-w-[80px] focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1" />
+                                </div>
+                              </td>
+                              <td className="px-2 py-1.5 text-center">
+                                <select value={item.required ? 'true' : 'false'} onChange={e => setOcrEditItems(prev => prev.map((it, idx) => idx === i ? { ...it, required: e.target.value === 'true' } : it))}
+                                  className="text-xs bg-transparent focus:outline-none">
+                                  <option value="true">必須</option>
+                                  <option value="false">任意</option>
+                                </select>
+                              </td>
+                              <td className="px-2 py-1.5">
+                                <input value={item.price_tax_in ?? ''} type="number" onChange={e => setOcrEditItems(prev => prev.map((it, idx) => idx === i ? { ...it, price_tax_in: e.target.value ? Number(e.target.value) : null } : it))}
+                                  className="w-full bg-transparent min-w-[60px] focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1" />
+                              </td>
+                              <td className="px-2 py-1.5">
+                                <input value={item.avg_qty ?? ''} type="number" step="0.5" onChange={e => setOcrEditItems(prev => prev.map((it, idx) => idx === i ? { ...it, avg_qty: e.target.value ? Number(e.target.value) : null } : it))}
+                                  className="w-full bg-transparent min-w-[40px] focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1" />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="flex gap-3">
+                      <button onClick={() => { setOcrResult(null); setOcrFiles([]); setOcrPreviews([]) }}
+                        className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-50 transition-colors">
+                        ← 撮り直す
+                      </button>
+                      <button onClick={saveOcrItems} disabled={regSaving}
+                        className="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-sm font-bold disabled:opacity-50 transition-colors">
+                        {regSaving ? '保存中...' : `✅ 一括保存（${ocrEditItems.length}アイテム）`}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         {/* ================================================================
