@@ -77,12 +77,22 @@ type SlotInfo = {
   available: boolean
 }
 
+// reservation_settings 未登録の店舗用デフォルト枠（admin/settings の DEFAULT_RESV と同値）
+const DEFAULT_SETTINGS: ReservationSetting[] = [
+  { id: 'default-uniform', service_type: 'uniform', label: '制服採寸', duration_min: 60,
+    start_time: '10:00', end_time: '17:00', is_active: true,
+    slots_sun: 0, slots_mon: 2, slots_tue: 2, slots_wed: 2, slots_thu: 2, slots_fri: 2, slots_sat: 3 },
+  { id: 'default-jersey', service_type: 'jersey', label: 'ジャージ採寸', duration_min: 30,
+    start_time: '10:00', end_time: '17:00', is_active: true,
+    slots_sun: 0, slots_mon: 2, slots_tue: 2, slots_wed: 2, slots_thu: 2, slots_fri: 2, slots_sat: 3 },
+]
+
 // ============================================================
 // シンプルフォールバックフォーム（reservation_settings 未対応時）
 // ============================================================
-function FallbackForm({ storeId, storeName }: { storeId: string; storeName: string }) {
+function FallbackForm({ storeId, storeName, initialName }: { storeId: string; storeName: string; initialName?: string }) {
   const [step, setStep] = useState<'form' | 'done'>('form')
-  const [name, setName] = useState('')
+  const [name, setName] = useState(initialName ?? '')
   const [date, setDate] = useState('')
   const [note, setNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -220,31 +230,7 @@ export default function ReservePage() {
         if (store) setStoreName(store.name ?? '')
       } catch { /* ignore */ }
 
-      // reservation_settings を取得（失敗したらフォールバック）
-      let fetchedSettings: ReservationSetting[] = []
-      try {
-        const { data, error } = await (supabase as any)
-          .from('reservation_settings')
-          .select('*')
-          .eq('store_id', storeId)
-          .eq('is_active', true)
-          .order('label')
-        if (error) throw error
-        fetchedSettings = data ?? []
-      } catch {
-        setPageState('fallback')
-        return
-      }
-
-      if (fetchedSettings.length === 0) {
-        // 設定なし → フォールバック
-        setPageState('fallback')
-        return
-      }
-
-      setSettings(fetchedSettings)
-
-      // LIFF
+      // LIFF（フォールバック表示時も顧客名を反映できるよう、設定取得より先に実行）
       try {
         const liffModule = await import('@line/liff')
         const liff = liffModule.default
@@ -265,6 +251,25 @@ export default function ReservePage() {
           }
         }
       } catch { /* LIFF not available */ }
+
+      // reservation_settings を取得（テーブル自体がない場合のみフォールバック）
+      let fetchedSettings: ReservationSetting[] = []
+      try {
+        const { data, error } = await (supabase as any)
+          .from('reservation_settings')
+          .select('*')
+          .eq('store_id', storeId)
+          .eq('is_active', true)
+          .order('label')
+        if (error) throw error
+        fetchedSettings = data ?? []
+      } catch {
+        setPageState('fallback')
+        return
+      }
+
+      // 設定未登録の店舗はデフォルト枠でスロットUIを表示
+      setSettings(fetchedSettings.length > 0 ? fetchedSettings : DEFAULT_SETTINGS)
 
       setPageState('slot')
     }
@@ -447,7 +452,7 @@ export default function ReservePage() {
   }
 
   if (pageState === 'fallback') {
-    return <FallbackForm storeId={storeId} storeName={storeName} />
+    return <FallbackForm storeId={storeId} storeName={storeName} initialName={name} />
   }
 
   if (pageState === 'error') {
