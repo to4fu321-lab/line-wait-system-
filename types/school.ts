@@ -91,6 +91,7 @@ export interface OcrResultItem {
   product_code: string
   growth_adjust: boolean
   washable: string
+  avg_qty: number | null
   uses_grade_color: boolean
   grade_color_note: string
   item_notes: string
