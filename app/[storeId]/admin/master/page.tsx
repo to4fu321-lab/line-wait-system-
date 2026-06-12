@@ -1245,14 +1245,18 @@ function MasterPageInner() {
                         <button onClick={() => setRegItems(prev => prev.filter((_, idx) => idx !== i))} className="text-red-400 text-xs pt-1.5 hover:text-red-600">削除</button>
                       </div>
                       <div className="grid grid-cols-2 gap-1.5 text-xs">
-                        <input value={item.price_tax_in ?? ''} type="number" onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, price_tax_in: e.target.value ? Number(e.target.value) : null } : it))}
-                          placeholder="税込価格" className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400 bg-white" />
-                        <input value={item.size_spec} onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, size_spec: e.target.value } : it))}
-                          placeholder="サイズ建て" className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400 bg-white" />
-                        <input value={item.avg_qty ?? ''} type="number" step="0.5" onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, avg_qty: e.target.value ? Number(e.target.value) : null } : it))}
-                          placeholder="平均点数" className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400 bg-white" />
                         <input value={item.product_code} onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, product_code: e.target.value } : it))}
                           placeholder="品番" className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400 bg-white" />
+                        <input value={item.size_spec} onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, size_spec: e.target.value } : it))}
+                          placeholder="サイズ建て" className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400 bg-white" />
+                        <input value={item.price_tax_in ?? ''} type="number" onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, price_tax_in: e.target.value ? Number(e.target.value) : null } : it))}
+                          placeholder="税込価格" className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400 bg-white" />
+                        <input value={(item as any).eo_price_tax_in ?? ''} type="number" onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, eo_price_tax_in: e.target.value ? Number(e.target.value) : null } : it))}
+                          placeholder="EO価格（税込）" className="border border-orange-200 rounded-lg px-2 py-1 focus:outline-none focus:border-orange-400 bg-orange-50" />
+                        <input value={(item as any).cost_price ?? ''} type="number" onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, cost_price: e.target.value ? Number(e.target.value) : null } : it))}
+                          placeholder="仕入れ値" className="border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-gray-400 bg-gray-50" />
+                        <input value={item.avg_qty ?? ''} type="number" step="0.5" onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, avg_qty: e.target.value ? Number(e.target.value) : null } : it))}
+                          placeholder="平均点数" className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400 bg-white" />
                       </div>
                       <div className="flex gap-3 mt-1.5 text-xs">
                         <label className="flex items-center gap-1 text-gray-600">
@@ -1268,7 +1272,7 @@ function MasterPageInner() {
                   ))}
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setRegItems(prev => [...prev, { id: '', school_id: selectedSchool.id, name: '', required: true, price_tax_in: null, price_tax_out: null, size_spec: '', product_code: '', growth_adjust: false, washable: '', avg_qty: null, uses_grade_color: false, grade_color_note: '', item_notes: '', sort_order: prev.length, created_at: '', updated_at: '', updated_by: '' }])}
+                  <button onClick={() => setRegItems(prev => [...prev, { id: '', school_id: selectedSchool.id, name: '', required: true, price_tax_in: null, price_tax_out: null, eo_price_tax_in: null, eo_price_tax_out: null, cost_price: null, size_spec: '', product_code: '', growth_adjust: false, washable: '', avg_qty: null, uses_grade_color: false, grade_color_note: '', item_notes: '', sort_order: prev.length, created_at: '', updated_at: '', updated_by: '' } as any])}
                     className="flex-1 border-2 border-dashed border-gray-300 rounded-xl py-2.5 text-sm text-gray-500 hover:border-indigo-400 hover:text-indigo-500 transition-colors">
                     + 追加
                   </button>
@@ -1376,10 +1380,14 @@ function MasterPageInner() {
                       <table className="w-full text-xs border-collapse">
                         <thead>
                           <tr className="bg-gray-50 border-b border-gray-200">
-                            <th className="text-left px-3 py-2 font-bold text-gray-600">アイテム名</th>
+                            <th className="text-left px-3 py-2 font-bold text-gray-600 whitespace-nowrap">アイテム名</th>
                             <th className="px-2 py-2 font-bold text-gray-600">区分</th>
-                            <th className="px-2 py-2 font-bold text-gray-600">税込価格</th>
-                            <th className="px-2 py-2 font-bold text-gray-600">平均点数</th>
+                            <th className="px-2 py-2 font-bold text-gray-600 whitespace-nowrap">品番</th>
+                            <th className="px-2 py-2 font-bold text-gray-600 whitespace-nowrap">サイズ建て</th>
+                            <th className="px-2 py-2 font-bold text-gray-600 whitespace-nowrap">税込価格</th>
+                            <th className="px-2 py-2 font-bold text-orange-600 whitespace-nowrap">EO価格</th>
+                            <th className="px-2 py-2 font-bold text-gray-500 whitespace-nowrap">仕入れ値</th>
+                            <th className="px-2 py-2 font-bold text-gray-600 whitespace-nowrap">平均点数</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -1400,8 +1408,24 @@ function MasterPageInner() {
                                 </select>
                               </td>
                               <td className="px-2 py-1.5">
+                                <input value={(item as any).product_code ?? ''} onChange={e => setOcrEditItems(prev => prev.map((it, idx) => idx === i ? { ...it, product_code: e.target.value } : it))}
+                                  className="w-full bg-transparent min-w-[60px] focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1 font-mono" />
+                              </td>
+                              <td className="px-2 py-1.5">
+                                <input value={(item as any).size_spec ?? ''} onChange={e => setOcrEditItems(prev => prev.map((it, idx) => idx === i ? { ...it, size_spec: e.target.value } : it))}
+                                  className="w-full bg-transparent min-w-[80px] focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1" />
+                              </td>
+                              <td className="px-2 py-1.5">
                                 <input value={item.price_tax_in ?? ''} type="number" onChange={e => setOcrEditItems(prev => prev.map((it, idx) => idx === i ? { ...it, price_tax_in: e.target.value ? Number(e.target.value) : null } : it))}
                                   className="w-full bg-transparent min-w-[60px] focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1" />
+                              </td>
+                              <td className="px-2 py-1.5 bg-orange-50/50">
+                                <input value={(item as any).eo_price_tax_in ?? ''} type="number" onChange={e => setOcrEditItems(prev => prev.map((it, idx) => idx === i ? { ...it, eo_price_tax_in: e.target.value ? Number(e.target.value) : null } : it))}
+                                  className="w-full bg-transparent min-w-[60px] focus:outline-none focus:ring-1 focus:ring-orange-300 rounded px-1" />
+                              </td>
+                              <td className="px-2 py-1.5 bg-gray-50/50">
+                                <input value={(item as any).cost_price ?? ''} type="number" onChange={e => setOcrEditItems(prev => prev.map((it, idx) => idx === i ? { ...it, cost_price: e.target.value ? Number(e.target.value) : null } : it))}
+                                  className="w-full bg-transparent min-w-[60px] focus:outline-none focus:ring-1 focus:ring-gray-300 rounded px-1" />
                               </td>
                               <td className="px-2 py-1.5">
                                 <input value={item.avg_qty ?? ''} type="number" step="0.5" onChange={e => setOcrEditItems(prev => prev.map((it, idx) => idx === i ? { ...it, avg_qty: e.target.value ? Number(e.target.value) : null } : it))}

@@ -14,6 +14,9 @@ const OCR_PROMPT = `この画像は学校制服の販売マニュアルまたは
       "required": true,
       "price_tax_in": 12100,
       "price_tax_out": 11000,
+      "eo_price_tax_in": 14300,
+      "eo_price_tax_out": 13000,
+      "cost_price": 6600,
       "size_spec": "155〜185 / A体・B体",
       "product_code": "SH-401",
       "growth_adjust": false,
@@ -30,8 +33,13 @@ const OCR_PROMPT = `この画像は学校制服の販売マニュアルまたは
 
 判断基準:
 - required: 「必須」「必ず購入」「全員」などの表現があれば true
-- price_tax_in: 税込価格（整数・円）
-- price_tax_out: 税抜価格（整数・円）
+- price_tax_in: 正規の税込販売価格（整数・円）
+- price_tax_out: 正規の税抜販売価格（整数・円）
+- eo_price_tax_in: EO・別寸・特注の税込価格（整数・円）。EO価格が記載されていない場合はnull
+- eo_price_tax_out: EO・別寸・特注の税抜価格（整数・円）。記載がなければnull
+- cost_price: 仕入れ値・原価・仕入価格（整数・円）。記載がなければnull
+- size_spec: サイズ展開（例: "155〜185 / A体・B体"）
+- product_code: 品番・型番（英数字コード）
 - growth_adjust: 「成長」「のびしろ」「成長機能」などがあれば true
 - uses_grade_color: 学年によって色が違う場合 true（ジャージのライン色など）
 - confidence: 読み取りに自信がない場合 "low"（⚠表示に使用）

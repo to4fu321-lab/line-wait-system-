@@ -28,6 +28,9 @@ export interface SchoolItem {
   required: boolean
   price_tax_in: number | null
   price_tax_out: number | null
+  eo_price_tax_in: number | null   // EO（別寸）価格・税込
+  eo_price_tax_out: number | null  // EO（別寸）価格・税抜
+  cost_price: number | null        // 仕入れ値
   size_spec: string
   product_code: string
   growth_adjust: boolean
@@ -87,6 +90,9 @@ export interface OcrResultItem {
   required: boolean
   price_tax_in: number | null
   price_tax_out: number | null
+  eo_price_tax_in: number | null
+  eo_price_tax_out: number | null
+  cost_price: number | null
   size_spec: string
   product_code: string
   growth_adjust: boolean
