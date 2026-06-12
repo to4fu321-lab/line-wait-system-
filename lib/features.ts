@@ -22,6 +22,15 @@ export type FeatureKey =
   // ── かんたんLINEモード ─────────────────
   | 'kantan_line'           // LINE返信でタスク完了する運用
   | 'tray_scan'             // 置くだけスキャン（自動撮影・自動振り分け）
+  // ── 学校規定・採寸連携 ──────────────────
+  | 'school_master'        // 学校マスター管理
+  | 'school_ocr'           // 学校規定OCR取込
+  | 'school_crm_card'      // CRM学校規定カード
+  | 'school_measurement'   // 採寸パネル（アイテム別）
+  | 'school_waiting'       // 顧客待機サイネージ
+  | 'line_parent_info'     // LINE保護者情報投稿
+  | 'line_coupon'          // クーポン自動配布
+  | 'line_parent_rsv'      // LINE採寸予約（保護者）
   // ── 既存フラグ（後方互換）──────────────
   | 'queue'
   | 'crm'
@@ -65,6 +74,14 @@ export const PLAN_DEFS: Record<Plan, {
       purchase_orders:       false,
       kantan_line:           false,
       tray_scan:             false,
+      school_master:        false,
+      school_ocr:           false,
+      school_crm_card:      false,
+      school_measurement:   false,
+      school_waiting:       false,
+      line_parent_info:     false,
+      line_coupon:          false,
+      line_parent_rsv:      false,
     },
   },
   kantan: {
@@ -92,6 +109,14 @@ export const PLAN_DEFS: Record<Plan, {
       purchase_orders:       true,
       kantan_line:           true,
       tray_scan:             true,
+      school_master:        false,
+      school_ocr:           false,
+      school_crm_card:      false,
+      school_measurement:   false,
+      school_waiting:       false,
+      line_parent_info:     false,
+      line_coupon:          false,
+      line_parent_rsv:      false,
     },
   },
   simple: {
@@ -119,6 +144,14 @@ export const PLAN_DEFS: Record<Plan, {
       purchase_orders:       false,
       kantan_line:           false,
       tray_scan:             false,
+      school_master:        false,
+      school_ocr:           false,
+      school_crm_card:      false,
+      school_measurement:   false,
+      school_waiting:       false,
+      line_parent_info:     false,
+      line_coupon:          false,
+      line_parent_rsv:      false,
     },
   },
   standard: {
@@ -146,6 +179,14 @@ export const PLAN_DEFS: Record<Plan, {
       purchase_orders:       true,
       kantan_line:           false,
       tray_scan:             false,
+      school_master:        true,
+      school_ocr:           true,
+      school_crm_card:      true,
+      school_measurement:   true,
+      school_waiting:       false,
+      line_parent_info:     false,
+      line_coupon:          false,
+      line_parent_rsv:      false,
     },
   },
   full: {
@@ -173,6 +214,14 @@ export const PLAN_DEFS: Record<Plan, {
       purchase_orders:       true,
       kantan_line:           true,
       tray_scan:             true,
+      school_master:        true,
+      school_ocr:           true,
+      school_crm_card:      true,
+      school_measurement:   true,
+      school_waiting:       true,
+      line_parent_info:     true,
+      line_coupon:          true,
+      line_parent_rsv:      true,
     },
   },
 }
