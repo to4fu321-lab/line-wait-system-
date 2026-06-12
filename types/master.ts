@@ -17,24 +17,31 @@ export interface School {
 // 重要: maker_code に UNIQUE 制約なし —— 同品番でも学校が違えば別商品
 // ──────────────────────────────────────────────────────────────
 export interface SchoolProduct {
-  id:          string
-  store_id:    string
-  school_id:   string
-  item_name:   string
-  maker:       string | null   // メーカー名（例：トンボ、スクールフォーラム）
-  maker_code:  string | null   // メーカー品番（重複許可）
-  color_code:  string | null   // 色番
-  category:    string | null
-  gender:      string | null
-  notes:       string | null
-  barcode:     string | null   // JAN/EAN/QRコード・バーコード値
-  sort_order:  number
-  active:      boolean
-  created_at:  string
-  updated_at:  string
+  id:               string
+  store_id:         string
+  school_id:        string
+  item_name:        string
+  maker:            string | null   // メーカー名（例：トンボ、スクールフォーラム）
+  maker_code:       string | null   // メーカー品番（重複許可）
+  color_code:       string | null   // 色番
+  category:         string | null
+  gender:           string | null
+  notes:            string | null
+  barcode:          string | null   // JAN/EAN/QRコード・バーコード値
+  sort_order:       number
+  active:           boolean
+  // 規定品フィールド（学校ごとの採寸ルール）
+  required:         boolean         // 必須品かどうか
+  avg_qty:          number | null   // 平均購入点数
+  uses_grade_color: boolean         // 学年によって色が変わる
+  grade_color_note: string          // 学年色メモ
+  eo_price_tax_in:  number | null   // EO（別寸）税込価格
+  eo_price_tax_out: number | null   // EO（別寸）税抜価格
+  created_at:       string
+  updated_at:       string
   // JOIN 時のリレーション
-  school?:     School
-  variants?:   SchoolProductVariant[]
+  school?:          School
+  variants?:        SchoolProductVariant[]
 }
 
 // ──────────────────────────────────────────────────────────────

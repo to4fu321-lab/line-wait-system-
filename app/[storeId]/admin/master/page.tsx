@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { School, SchoolProduct, SchoolProductVariant, Staff } from '@/types/master'
-import type { SchoolItem, SchoolGrade, SchoolParentTip, OcrResult, OcrResultItem } from '@/types/school'
+import type { SchoolGrade, SchoolParentTip, OcrResult, OcrResultItem } from '@/types/school'
 import {
   PRODUCT_CATEGORY_OPTIONS, PRODUCT_GENDER_OPTIONS,
   STAFF_ROLE_OPTIONS, STAFF_COLOR_OPTIONS,
@@ -136,7 +136,6 @@ function MasterPageInner() {
 
   // ── School detail / regulations state ────────────────────
   const [schoolDetailTab, setSchoolDetailTab] = useState<SchoolDetailTab>('catalog')
-  const [regItems,   setRegItems]   = useState<SchoolItem[]>([])
   const [regGrades,  setRegGrades]  = useState<SchoolGrade[]>([])
   const [regTips,    setRegTips]    = useState<SchoolParentTip[]>([])
   const [regSaving,  setRegSaving]  = useState(false)
@@ -317,14 +316,14 @@ function MasterPageInner() {
     setSelectedSchool(school)
     setSchoolView('school_detail')
     setSchoolDetailTab('catalog')
-    const [itemsRes, gradesRes, tipsRes] = await Promise.all([
-      fetch(`/api/schools/${school.id}/items`).then(r => r.json()),
+    const [gradesRes, tipsRes] = await Promise.all([
       fetch(`/api/schools/${school.id}/grades`).then(r => r.json()),
       fetch(`/api/schools/${school.id}/tips`).then(r => r.json()),
     ])
-    setRegItems(Array.isArray(itemsRes) ? itemsRes : [])
     setRegGrades(Array.isArray(gradesRes) ? gradesRes : [])
     setRegTips(Array.isArray(tipsRes) ? tipsRes : [])
+    // 規定品タブは school_products を共用するためここで先読み
+    await fetchProducts(school.id)
   }
   const goToVariants = async (product: SchoolProduct) => {
     setSelectedProduct(product); setVariants([]); setSchoolView('variants')
@@ -339,16 +338,23 @@ function MasterPageInner() {
   }
 
   // ── Regulation save functions ─────────────────────────────
-  const saveRegItems = async () => {
-    if (!selectedSchool) return
+  const saveRegulationFields = async () => {
+    if (!selectedSchool || products.length === 0) return
     setRegSaving(true)
-    await fetch(`/api/schools/${selectedSchool.id}/items`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: regItems, updated_by: 'staff' }),
-    })
+    const now = new Date().toISOString()
+    await Promise.all(products.map(p =>
+      (supabase as any).from('school_products').update({
+        required:         p.required ?? true,
+        avg_qty:          p.avg_qty ?? null,
+        uses_grade_color: p.uses_grade_color ?? false,
+        grade_color_note: p.grade_color_note ?? '',
+        eo_price_tax_in:  p.eo_price_tax_in ?? null,
+        eo_price_tax_out: p.eo_price_tax_out ?? null,
+        updated_at: now,
+      }).eq('id', p.id)
+    ))
     setRegSaving(false)
-    showToast('ok', '規定品を保存しました')
+    showToast('ok', '規定品情報を保存しました')
   }
 
   const saveRegGrades = async () => {
@@ -389,26 +395,43 @@ function MasterPageInner() {
   const saveOcrItems = async () => {
     if (!selectedSchool) return
     setRegSaving(true)
-    await fetch(`/api/schools/${selectedSchool.id}/items`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: ocrEditItems, updated_by: 'staff' }),
-    })
-    setRegItems(ocrEditItems.map((it, idx) => ({
-      id: '', school_id: selectedSchool.id, name: it.name, required: it.required,
-      price_tax_in: it.price_tax_in, price_tax_out: it.price_tax_out,
-      size_spec: it.size_spec, product_code: it.product_code,
-      growth_adjust: it.growth_adjust, washable: it.washable,
-      avg_qty: it.avg_qty, uses_grade_color: it.uses_grade_color,
-      grade_color_note: it.grade_color_note, item_notes: it.item_notes,
-      sort_order: idx, created_at: '', updated_at: '', updated_by: '',
-    })))
+    const baseSort = products.length
+    for (let idx = 0; idx < ocrEditItems.length; idx++) {
+      const it = ocrEditItems[idx]
+      const productPayload = {
+        school_id:        selectedSchool.id,
+        store_id:         storeId,
+        item_name:        it.name,
+        maker_code:       (it as any).product_code || null,
+        notes:            [(it as any).size_spec, it.item_notes].filter(Boolean).join(' / ') || null,
+        required:         it.required,
+        avg_qty:          it.avg_qty ?? null,
+        uses_grade_color: it.uses_grade_color,
+        grade_color_note: it.grade_color_note ?? '',
+        eo_price_tax_in:  (it as any).eo_price_tax_in ?? null,
+        eo_price_tax_out: (it as any).eo_price_tax_out ?? null,
+        sort_order:       baseSort + idx,
+      }
+      const { data: newProduct } = await (supabase as any)
+        .from('school_products').insert(productPayload).select().single()
+      if (newProduct && (it.price_tax_in || (it as any).cost_price)) {
+        await (supabase as any).from('school_product_variants').insert({
+          product_id: newProduct.id,
+          store_id:   storeId,
+          size_label: (it as any).size_spec || '標準',
+          price:      it.price_tax_in ?? 0,
+          cost:       (it as any).cost_price ?? null,
+          stock:      0,
+        })
+      }
+    }
+    await fetchProducts(selectedSchool.id)
     setOcrResult(null)
     setOcrFiles([])
     setOcrPreviews([])
     setRegSaving(false)
     setSchoolDetailTab('regulations')
-    showToast('ok', `${ocrEditItems.length}アイテムを保存しました`)
+    showToast('ok', `${ocrEditItems.length}件を商品マスタに追加しました`)
   }
 
   // ── School CRUD ───────────────────────────────────────────
@@ -1228,59 +1251,62 @@ function MasterPageInner() {
 
             {/* 規定品 tab */}
             {schoolDetailTab === 'regulations' && (
-              <div>
-                <div className="space-y-2 mb-4">
-                  {regItems.length === 0 && (
-                    <p className="text-center text-gray-400 py-6 text-sm">規定品が登録されていません。OCR取込または手動追加してください。</p>
-                  )}
-                  {regItems.map((item, i) => (
-                    <div key={i} className={`border rounded-xl p-3 ${item.required ? 'border-green-300 bg-green-50' : 'bg-white border-gray-200'}`}>
-                      <div className="flex gap-2 mb-2 items-start">
-                        <input value={item.name} onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, name: e.target.value } : it))}
-                          placeholder="アイテム名 *" className={`flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-indigo-400 ${item.required ? 'bg-green-50' : 'bg-white'}`} />
-                        <label className="flex items-center gap-1 text-xs text-gray-600 whitespace-nowrap pt-1.5">
-                          <input type="checkbox" checked={item.required} onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, required: e.target.checked } : it))} className="accent-green-600" />
-                          必須
-                        </label>
-                        <button onClick={() => setRegItems(prev => prev.filter((_, idx) => idx !== i))} className="text-red-400 text-xs pt-1.5 hover:text-red-600">削除</button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-1.5 text-xs">
-                        <input value={item.product_code} onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, product_code: e.target.value } : it))}
-                          placeholder="品番" className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400 bg-white" />
-                        <input value={item.size_spec} onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, size_spec: e.target.value } : it))}
-                          placeholder="サイズ建て" className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400 bg-white" />
-                        <input value={item.price_tax_in ?? ''} type="number" onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, price_tax_in: e.target.value ? Number(e.target.value) : null } : it))}
-                          placeholder="税込価格" className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400 bg-white" />
-                        <input value={(item as any).eo_price_tax_in ?? ''} type="number" onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, eo_price_tax_in: e.target.value ? Number(e.target.value) : null } : it))}
-                          placeholder="EO価格（税込）" className="border border-orange-200 rounded-lg px-2 py-1 focus:outline-none focus:border-orange-400 bg-orange-50" />
-                        <input value={(item as any).cost_price ?? ''} type="number" onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, cost_price: e.target.value ? Number(e.target.value) : null } : it))}
-                          placeholder="仕入れ値" className="border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-gray-400 bg-gray-50" />
-                        <input value={item.avg_qty ?? ''} type="number" step="0.5" onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, avg_qty: e.target.value ? Number(e.target.value) : null } : it))}
-                          placeholder="平均点数" className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400 bg-white" />
-                      </div>
-                      <div className="flex gap-3 mt-1.5 text-xs">
-                        <label className="flex items-center gap-1 text-gray-600">
-                          <input type="checkbox" checked={item.uses_grade_color} onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, uses_grade_color: e.target.checked } : it))} className="accent-purple-600" />
-                          🎨 学年色あり
-                        </label>
-                      </div>
-                      {item.uses_grade_color && (
-                        <input value={item.grade_color_note} onChange={e => setRegItems(prev => prev.map((it, idx) => idx === i ? { ...it, grade_color_note: e.target.value } : it))}
-                          placeholder="学年色メモ" className="mt-1.5 w-full border border-purple-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-purple-400 bg-purple-50" />
-                      )}
+              <div className="px-4 pb-4">
+                <p className="text-xs text-gray-400 mb-3">商品マスタに登録済みの商品に対し、必須/任意・平均点数・EO価格・学年色を設定します。品番・サイズ・価格の追加は「📦 商品マスタ」から行ってください。</p>
+                {products.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-400 text-sm mb-3">商品がまだ登録されていません</p>
+                    <button onClick={() => { setSchoolView('products'); fetchProducts(selectedSchool.id) }}
+                      className="text-indigo-600 text-sm font-bold underline">📦 商品マスタへ →</button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2 mb-4">
+                      {products.map((prod, i) => (
+                        <div key={prod.id} className={`border rounded-xl p-3 ${prod.required ? 'border-green-300 bg-green-50' : 'bg-white border-gray-200'}`}>
+                          {/* 品名 + 必須チェック */}
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className={`flex-1 text-sm font-bold truncate ${prod.required ? 'text-green-800' : 'text-gray-700'}`}>
+                              {prod.item_name}
+                            </span>
+                            {prod.maker_code && <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded border border-gray-200">{prod.maker_code}</span>}
+                            <label className="flex items-center gap-1 text-xs text-gray-600 whitespace-nowrap">
+                              <input type="checkbox" checked={prod.required ?? true}
+                                onChange={e => setProducts(prev => prev.map((p, idx) => idx === i ? { ...p, required: e.target.checked } : p))}
+                                className="accent-green-600" />
+                              必須
+                            </label>
+                          </div>
+                          {/* 規定品フィールド */}
+                          <div className="grid grid-cols-2 gap-1.5 text-xs">
+                            <input value={prod.eo_price_tax_in ?? ''} type="number"
+                              onChange={e => setProducts(prev => prev.map((p, idx) => idx === i ? { ...p, eo_price_tax_in: e.target.value ? Number(e.target.value) : null } : p))}
+                              placeholder="EO価格（税込）" className="border border-orange-200 rounded-lg px-2 py-1 focus:outline-none focus:border-orange-400 bg-orange-50" />
+                            <input value={prod.avg_qty ?? ''} type="number" step="0.5"
+                              onChange={e => setProducts(prev => prev.map((p, idx) => idx === i ? { ...p, avg_qty: e.target.value ? Number(e.target.value) : null } : p))}
+                              placeholder="平均点数" className="border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-400 bg-white" />
+                          </div>
+                          <div className="flex gap-3 mt-1.5 text-xs">
+                            <label className="flex items-center gap-1 text-gray-600">
+                              <input type="checkbox" checked={prod.uses_grade_color ?? false}
+                                onChange={e => setProducts(prev => prev.map((p, idx) => idx === i ? { ...p, uses_grade_color: e.target.checked } : p))}
+                                className="accent-purple-600" />
+                              🎨 学年色あり
+                            </label>
+                          </div>
+                          {prod.uses_grade_color && (
+                            <input value={prod.grade_color_note ?? ''} onChange={e => setProducts(prev => prev.map((p, idx) => idx === i ? { ...p, grade_color_note: e.target.value } : p))}
+                              placeholder="学年色メモ（例: ジャージラインが学年色）" className="mt-1.5 w-full border border-purple-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-purple-400 bg-purple-50" />
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => setRegItems(prev => [...prev, { id: '', school_id: selectedSchool.id, name: '', required: true, price_tax_in: null, price_tax_out: null, eo_price_tax_in: null, eo_price_tax_out: null, cost_price: null, size_spec: '', product_code: '', growth_adjust: false, washable: '', avg_qty: null, uses_grade_color: false, grade_color_note: '', item_notes: '', sort_order: prev.length, created_at: '', updated_at: '', updated_by: '' } as any])}
-                    className="flex-1 border-2 border-dashed border-gray-300 rounded-xl py-2.5 text-sm text-gray-500 hover:border-indigo-400 hover:text-indigo-500 transition-colors">
-                    + 追加
-                  </button>
-                  <button onClick={saveRegItems} disabled={regSaving}
-                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-2.5 text-sm font-bold disabled:opacity-50 transition-colors">
-                    {regSaving ? '保存中...' : '💾 保存'}
-                  </button>
-                </div>
+                    <button onClick={saveRegulationFields} disabled={regSaving}
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-2.5 text-sm font-bold disabled:opacity-50 transition-colors">
+                      {regSaving ? '保存中...' : '💾 規定品情報を保存'}
+                    </button>
+                  </>
+                )}
               </div>
             )}
 
