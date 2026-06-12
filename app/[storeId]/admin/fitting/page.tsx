@@ -256,10 +256,23 @@ function FittingPageInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showToast])
 
-  // URLパラメータ queueId があれば自動起動
+  // 予約IDから採寸を開始（予約管理ページからの遷移用）
+  const startFromReservationId = useCallback(async (rId: string) => {
+    const { data: r } = await (supabase as any)
+      .from('reservations')
+      .select('id, reserved_at, status, purpose, notes, line_user_id, customer_id, child_id, customers(id, name, kana, tel, line_user_id), children(id, name, school_id, school_name, gender, grade)')
+      .eq('id', rId).single()
+    if (!r) { showToast('err', '予約データが見つかりません'); return }
+    await startFromReservation(r as ReservationRow)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showToast])
+
+  // URLパラメータ queueId / reservationId があれば自動起動
   useEffect(() => {
     const qId = searchParams.get('queueId')
-    if (qId) startFromQueue(qId)
+    if (qId) { startFromQueue(qId); return }
+    const rId = searchParams.get('reservationId')
+    if (rId) startFromReservationId(rId)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -313,7 +326,15 @@ function FittingPageInner() {
   // 予約カードから採寸を開始
   const startFromReservation = useCallback(async (r: ReservationRow) => {
     const c = r.customers
-    if (!c) { showToast('err', '顧客情報が紐付いていません'); return }
+    if (!c) {
+      // CRM顧客未紐付け: 備考の「お名前: 〇〇」を検索欄にセットして手動検索へ
+      const noteName = ((r as any).notes as string | null)?.match(/お名前:\s*(.+)/)?.[1]?.trim()
+      if (noteName) setQuery(noteName)
+      setLinkedResId(r.id)
+      setLinkedLineUserId(r.line_user_id ?? null)
+      showToast('err', '顧客が未紐付けの予約です。お客様を検索してください')
+      return
+    }
 
     // 顧客・LINE ID を設定
     setCustomer({ id: c.id, name: c.name, kana: c.kana, tel: c.tel })

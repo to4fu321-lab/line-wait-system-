@@ -6,7 +6,7 @@ import { BottomNav } from '../_components/BottomNav'
 import {
   ArrowLeft, Plus, Loader2, X, CalendarDays, Clock,
   User, Phone, GraduationCap, CheckCheck, BellRing,
-  ChevronLeft, ChevronRight, AlertCircle, Search, UserX,
+  ChevronLeft, ChevronRight, AlertCircle, Search, UserX, Ruler,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Customer, Child } from '@/types/crm'
@@ -89,8 +89,9 @@ function Toast({ msg, type, onUndo, onClose }: {
 // ============================================================
 // 予約カード
 // ============================================================
-function ReservationCard({ res, onUpdate, onDelete }: {
+function ReservationCard({ res, storeId, onUpdate, onDelete }: {
   res: ReservationFull
+  storeId: string
   onUpdate: (id: string, status: ReservationStatus, prevStatus: ReservationStatus) => Promise<void>
   onDelete: (id: string) => Promise<void>
 }) {
@@ -101,6 +102,9 @@ function ReservationCard({ res, onUpdate, onDelete }: {
     setLoading(s); await onUpdate(res.id, s, res.status); setLoading(null)
   }
   const inactive = res.status === 'completed' || res.status === 'cancelled' || res.status === 'no_show'
+  // 採寸系の予約か（LINE予約は service_type=uniform/jersey、手動予約は目的に「採寸」）
+  const isFitting = (res.purpose ?? '').includes('採寸')
+    || ['uniform', 'jersey', 'fitting'].includes(res.service_type ?? '')
 
   return (
     <div className={`rounded-2xl border p-4 transition-all ${
@@ -162,6 +166,14 @@ function ReservationCard({ res, onUpdate, onDelete }: {
           </button>
         )}
       </div>
+
+      {/* 採寸へ進む（採寸系予約のみ・採寸ページで来店チェックインも実行） */}
+      {!inactive && isFitting && (
+        <a href={`/${storeId}/admin/fitting?reservationId=${res.id}`}
+          className="mt-3 w-full flex items-center justify-center gap-2 py-3 rounded-xl font-black text-sm bg-teal-600 hover:bg-teal-500 text-white active:scale-95 transition-all">
+          <Ruler size={15} />採寸へ進む
+        </a>
+      )}
 
       {/* アクションボタン */}
       {!inactive && (
@@ -612,6 +624,7 @@ export default function ReservationsPage() {
                 <ReservationCard
                   key={item.data.id}
                   res={item.data as ReservationFull}
+                  storeId={storeId}
                   onUpdate={handleUpdateStatus}
                   onDelete={handleDelete}
                 />

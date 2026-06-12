@@ -13,6 +13,8 @@ export interface Reservation {
   child_id:      string | null
   reserved_at:   string
   purpose:       string | null
+  service_type?: string | null
+  line_user_id?: string | null
   status:        ReservationStatus
   queue_id:      string | null
   notes:         string | null
