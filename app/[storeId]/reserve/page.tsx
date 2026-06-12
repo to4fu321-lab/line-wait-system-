@@ -259,7 +259,7 @@ export default function ReservePage() {
             const { data: regCust } = await (supabase as any)
               .from('customers').select('name').eq('store_id', storeId)
               .eq('line_user_id', profile.userId).maybeSingle()
-            setName(regCust?.name || profile.displayName ?? '')
+            setName(regCust?.name || (profile.displayName ?? ''))
           } catch {
             setName(profile.displayName ?? '')
           }
