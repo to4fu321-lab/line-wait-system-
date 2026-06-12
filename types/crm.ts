@@ -31,6 +31,7 @@ export interface Customer {
   notes:        string | null
   staff_notes:  string | null
   school_name:  string | null
+  school_id:    string | null
   gender:       string | null
   category:     string | null
   created_at:   string
