@@ -93,6 +93,10 @@ export default function CRMPage() {
   const [deleteTarget,     setDeleteTarget]     = useState<Customer | null>(null)
   const [deleteMode,       setDeleteMode]       = useState<'soft' | 'hard' | null>(null)
   const [deleteLoading,    setDeleteLoading]    = useState(false)
+  // 完全削除時の残注文チェック（注文が残っていたら追加確認）
+  const [remainingOrders,  setRemainingOrders]  = useState<{ uniform: number; purchase: number; repair: number } | null>(null)
+  const [ordersChecking,   setOrdersChecking]   = useState(false)
+  const [ackRemaining,     setAckRemaining]     = useState(false)
   const [deleteChildTarget, setDeleteChildTarget] = useState<Child | null>(null)
   const [deleteChildLoading, setDeleteChildLoading] = useState(false)
   const [showQrModal,      setShowQrModal]      = useState(false)
@@ -381,6 +385,31 @@ export default function CRMPage() {
     setCustomers(merged); setCustomerLoading(false)
   }, [storeId])
 
+  // ── 完全削除を選択：残っている注文・履歴を集計して追加確認へ ──
+  const selectHardDelete = useCallback(async () => {
+    if (!deleteTarget) return
+    setOrdersChecking(true)
+    setAckRemaining(false)
+    try {
+      const [u, p, r] = await Promise.all([
+        (supabase as any).from('uniform_orders').select('id', { count: 'exact', head: true }).eq('customer_id', deleteTarget.id),
+        supabase.from('purchase_orders').select('id', { count: 'exact', head: true }).eq('customer_id', deleteTarget.id),
+        supabase.from('repair_histories').select('id', { count: 'exact', head: true }).eq('customer_id', deleteTarget.id),
+      ])
+      setRemainingOrders({ uniform: u.count ?? 0, purchase: p.count ?? 0, repair: r.count ?? 0 })
+    } catch {
+      setRemainingOrders({ uniform: 0, purchase: 0, repair: 0 })
+    }
+    setOrdersChecking(false)
+    setDeleteMode('hard')
+  }, [deleteTarget])
+
+  // 削除モーダルを閉じる際に追加確認の状態もリセット
+  const closeDeleteModal = useCallback(() => {
+    setDeleteTarget(null); setDeleteMode(null)
+    setRemainingOrders(null); setAckRemaining(false)
+  }, [])
+
   // ── 削除処理 ──────────────────────────────────────────
   const handleDelete = useCallback(async () => {
     if (!deleteTarget || !deleteMode) return
@@ -388,25 +417,34 @@ export default function CRMPage() {
     if (deleteMode === 'soft') {
       await supabase.from('customers').update({ deleted_at: new Date().toISOString() }).eq('id', deleteTarget.id)
     } else {
-      // 1. すべての整理券から顧客・子供の参照を外す
-      const { error: qErr } = await supabase.from('queues')
-        .update({ customer_id: null, child_id: null })
-        .eq('customer_id', deleteTarget.id)
-      if (qErr) { showToast('err', `削除失敗: ${qErr.message}`); setDeleteLoading(false); return }
-      // 2. お直し履歴・購入注文を削除
+      // 1. 整理券・予約から顧客参照を外す（FK が NO ACTION のため事前に解除が必要）
+      const [{ error: qErr }, { error: rErr }] = await Promise.all([
+        supabase.from('queues').update({ customer_id: null, child_id: null }).eq('customer_id', deleteTarget.id),
+        supabase.from('reservations').update({ customer_id: null }).eq('customer_id', deleteTarget.id),
+      ])
+      if (qErr || rErr) { showToast('err', `削除失敗: ${(qErr ?? rErr)!.message}`); setDeleteLoading(false); return }
+      // 2. 制服注文に紐づく採寸データの order_id を外す（measurements.order_id は NO ACTION）
+      const { data: uOrders } = await (supabase as any).from('uniform_orders')
+        .select('id').eq('customer_id', deleteTarget.id)
+      const orderIds = ((uOrders ?? []) as { id: string }[]).map(o => o.id)
+      if (orderIds.length > 0) {
+        await (supabase as any).from('measurements').update({ order_id: null }).in('order_id', orderIds)
+      }
+      // 3. お直し履歴・購入注文を削除
       await Promise.all([
         supabase.from('repair_histories').delete().eq('customer_id', deleteTarget.id),
         supabase.from('purchase_orders').delete().eq('customer_id', deleteTarget.id),
       ])
-      // 3. お子様を削除
+      // 4. お子様を削除（measurements は child_id CASCADE で自動削除）
       await supabase.from('children').delete().eq('customer_id', deleteTarget.id)
-      // 4. 顧客本体を削除
+      // 5. 顧客本体を削除（uniform_orders は customer_id CASCADE で自動削除）
       const { error: custErr } = await supabase.from('customers').delete().eq('id', deleteTarget.id)
       if (custErr) { showToast('err', `削除失敗: ${custErr.message}`); setDeleteLoading(false); return }
     }
     setCustomers(prev => prev.filter(c => c.id !== deleteTarget.id))
     if (selectedCustomer?.id === deleteTarget.id) setSelectedCustomer(null)
     setDeleteTarget(null); setDeleteMode(null); setDeleteLoading(false)
+    setRemainingOrders(null); setAckRemaining(false)
     showToast('ok', deleteMode === 'soft' ? '非表示にしました' : '完全削除しました')
   }, [deleteTarget, deleteMode, selectedCustomer, showToast])
 
@@ -1105,10 +1143,10 @@ export default function CRMPage() {
                   <p className="text-gray-500 text-xs mt-0.5">データは保持されます。「削除済みを表示」から復元可能です</p>
                 </div>
               </button>
-              <button onClick={() => setDeleteMode('hard')}
-                className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl bg-red-50 border border-red-300 text-left active:scale-[0.98] transition-all">
+              <button onClick={selectHardDelete} disabled={ordersChecking}
+                className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl bg-red-50 border border-red-300 text-left active:scale-[0.98] transition-all disabled:opacity-60">
                 <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
-                  <Trash2 size={16} className="text-red-600" />
+                  {ordersChecking ? <Loader2 size={16} className="text-red-600 animate-spin" /> : <Trash2 size={16} className="text-red-600" />}
                 </div>
                 <div>
                   <p className="font-bold text-red-600 text-sm">完全削除</p>
@@ -1116,7 +1154,7 @@ export default function CRMPage() {
                 </div>
               </button>
             </div>
-            <button onClick={() => setDeleteTarget(null)} className="w-full mt-3 py-3 rounded-2xl bg-gray-100 text-gray-600 font-bold text-sm">キャンセル</button>
+            <button onClick={closeDeleteModal} className="w-full mt-3 py-3 rounded-2xl bg-gray-100 text-gray-600 font-bold text-sm">キャンセル</button>
           </div>
         </div>
       )}
@@ -1132,14 +1170,39 @@ export default function CRMPage() {
             {customerChildren.length > 0 && (
               <p className="text-red-600 text-xs mb-1">お子様 {customerChildren.length}人（{customerChildren.map(c => c.name).join('・')}）も削除されます</p>
             )}
-            <p className="text-gray-500 text-xs mb-5 mt-1">
+            <p className="text-gray-500 text-xs mb-4 mt-1">
               {deleteMode === 'soft'
                 ? 'データは保持されます。「削除済みを表示」から復元できます'
                 : '⚠️ お直し・購入履歴・整理券も全て削除されます。この操作は取り消せません'}
             </p>
+
+            {/* 完全削除：注文・履歴が残っている場合は追加確認 */}
+            {deleteMode === 'hard' && remainingOrders &&
+              (remainingOrders.uniform + remainingOrders.purchase + remainingOrders.repair) > 0 && (
+              <div className="mb-4 px-4 py-3 bg-red-50 border-2 border-red-300 rounded-2xl">
+                <p className="text-red-700 text-sm font-black mb-1.5">⚠️ 未削除の注文・履歴が残っています</p>
+                <div className="text-red-600 text-xs space-y-0.5 mb-3">
+                  {remainingOrders.uniform  > 0 && <p>・制服注文 {remainingOrders.uniform} 件</p>}
+                  {remainingOrders.purchase > 0 && <p>・追加購入 {remainingOrders.purchase} 件</p>}
+                  {remainingOrders.repair   > 0 && <p>・お直し履歴 {remainingOrders.repair} 件</p>}
+                </div>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input type="checkbox" checked={ackRemaining}
+                    onChange={e => setAckRemaining(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-red-600 shrink-0" />
+                  <span className="text-red-700 text-xs font-bold leading-snug">
+                    これらの注文・履歴もすべて削除されることを理解しました
+                  </span>
+                </label>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => setDeleteMode(null)} className="py-4 rounded-xl bg-gray-100 text-gray-600 font-bold">戻る</button>
-              <button onClick={handleDelete} disabled={deleteLoading}
+              <button onClick={() => { setDeleteMode(null); setRemainingOrders(null); setAckRemaining(false) }}
+                className="py-4 rounded-xl bg-gray-100 text-gray-600 font-bold">戻る</button>
+              <button onClick={handleDelete}
+                disabled={deleteLoading || (deleteMode === 'hard' && !!remainingOrders &&
+                  (remainingOrders.uniform + remainingOrders.purchase + remainingOrders.repair) > 0 && !ackRemaining)}
                 className={`py-4 rounded-xl font-black text-white flex items-center justify-center gap-2 disabled:opacity-60 transition-all active:scale-95 ${deleteMode === 'soft' ? 'bg-amber-500' : 'bg-red-600'}`}>
                 {deleteLoading && <Loader2 size={16} className="animate-spin" />}
                 {deleteMode === 'soft' ? '非表示にする' : '完全削除する'}
