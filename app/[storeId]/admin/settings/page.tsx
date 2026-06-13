@@ -5,7 +5,7 @@ import { useEffect, useState, useCallback } from 'react'
 import {
   Settings, Loader2, Plus, Trash2, AlertCircle,
   CalendarDays, Clock, CheckCheck, LayoutDashboard, ChevronRight, Users,
-  PackageSearch, GraduationCap, ChevronDown,
+  PackageSearch, GraduationCap, ChevronDown, Shirt, Scissors,
 } from 'lucide-react'
 import type { OrderSchedule, ScheduleType } from '../_components/OrderReminderBanner'
 import Link from 'next/link'
@@ -633,34 +633,44 @@ export default function SettingsPage() {
 
         {/* ⑤ マスタ管理 */}
         <Section id="master" emoji="📋" title="マスタ管理" open={openSections.has('master')} onToggle={() => toggle('master')}>
-          <p className="text-xs text-gray-400">学校・商品・スタッフなどの基本データを管理します</p>
+          <p className="text-xs text-gray-400">学校・商品・スタッフ・お直しなどの基本データを管理します</p>
           <div className="grid grid-cols-2 gap-2">
-            <Link href={`/${storeId}/admin/master`}
-              className="flex flex-col gap-2 px-3 py-3.5 rounded-xl bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 active:opacity-70 transition-all">
-              <div className="flex items-center justify-between">
-                <div className="w-8 h-8 rounded-lg bg-indigo-100 border border-indigo-200 flex items-center justify-center">
-                  <GraduationCap size={15} className="text-indigo-600" />
+            {([
+              { href: `/${storeId}/admin/master?tab=schools`,
+                icon: GraduationCap, title: '学校マスタ', desc: '学校・規定品・学年色を管理',
+                card: 'bg-indigo-50 border-indigo-200 hover:bg-indigo-100',
+                badge: 'bg-indigo-100 border-indigo-200', icon_c: 'text-indigo-600',
+                chev: 'text-indigo-400', title_c: 'text-indigo-700', desc_c: 'text-indigo-500' },
+              { href: `/${storeId}/admin/master?tab=schools&view=products`,
+                icon: Shirt, title: '商品マスタ', desc: '学校ごとの品番・サイズ・価格',
+                card: 'bg-sky-50 border-sky-200 hover:bg-sky-100',
+                badge: 'bg-sky-100 border-sky-200', icon_c: 'text-sky-600',
+                chev: 'text-sky-400', title_c: 'text-sky-700', desc_c: 'text-sky-500' },
+              { href: `/${storeId}/admin/master?tab=staff`,
+                icon: Users, title: 'スタッフマスタ', desc: 'スタッフ情報・役職・カラー',
+                card: 'bg-violet-50 border-violet-200 hover:bg-violet-100',
+                badge: 'bg-violet-100 border-violet-200', icon_c: 'text-violet-600',
+                chev: 'text-violet-400', title_c: 'text-violet-700', desc_c: 'text-violet-500' },
+              { href: `/${storeId}/admin/master?tab=presets`,
+                icon: Scissors, title: 'お直しマスタ', desc: 'お直しの種別・料金を管理',
+                card: 'bg-rose-50 border-rose-200 hover:bg-rose-100',
+                badge: 'bg-rose-100 border-rose-200', icon_c: 'text-rose-600',
+                chev: 'text-rose-400', title_c: 'text-rose-700', desc_c: 'text-rose-500' },
+            ] as const).map(({ href, icon: Icon, title, desc, card, badge, icon_c, chev, title_c, desc_c }) => (
+              <Link key={title} href={href}
+                className={`flex flex-col gap-2 px-3 py-3.5 rounded-xl border active:opacity-70 transition-all ${card}`}>
+                <div className="flex items-center justify-between">
+                  <div className={`w-8 h-8 rounded-lg border flex items-center justify-center ${badge}`}>
+                    <Icon size={15} className={icon_c} />
+                  </div>
+                  <ChevronRight size={13} className={chev} />
                 </div>
-                <ChevronRight size={13} className="text-indigo-400" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-indigo-700">学校・商品マスタ</p>
-                <p className="text-[10px] text-indigo-500 mt-0.5 leading-relaxed">学校ごとの商品・サイズ・価格を管理</p>
-              </div>
-            </Link>
-            <Link href={`/${storeId}/admin/master?tab=staff`}
-              className="flex flex-col gap-2 px-3 py-3.5 rounded-xl bg-violet-50 border border-violet-200 hover:bg-violet-100 active:opacity-70 transition-all">
-              <div className="flex items-center justify-between">
-                <div className="w-8 h-8 rounded-lg bg-violet-100 border border-violet-200 flex items-center justify-center">
-                  <Users size={15} className="text-violet-600" />
+                <div>
+                  <p className={`text-xs font-bold ${title_c}`}>{title}</p>
+                  <p className={`text-[10px] mt-0.5 leading-relaxed ${desc_c}`}>{desc}</p>
                 </div>
-                <ChevronRight size={13} className="text-violet-400" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-violet-700">スタッフマスタ</p>
-                <p className="text-[10px] text-violet-500 mt-0.5 leading-relaxed">スタッフ情報・役職・カラーを管理</p>
-              </div>
-            </Link>
+              </Link>
+            ))}
           </div>
         </Section>
 
