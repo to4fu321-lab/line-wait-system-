@@ -9,7 +9,7 @@ import {
   CheckCheck, Package, Loader2, X, MessageCircle,
   CalendarDays, Pencil, AlertCircle, ChevronDown, ChevronUp,
   RotateCcw, ShoppingBag, Bell, Scissors, GraduationCap,
-  Trash2, ArchiveRestore, Eye, EyeOff, QrCode, ScanLine,
+  Trash2, ArchiveRestore, Eye, EyeOff, QrCode, ScanLine, Sparkles,
 } from 'lucide-react'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import type {
@@ -738,6 +738,19 @@ export default function CRMPage() {
 
   const pendingTotal = stats.repairReceived + stats.repairCompleted + stats.purchaseReceived + stats.purchaseInProgress + stats.purchaseArrived
 
+  // ── 新規登録の可視化（登録から60分以内を「NEW」扱い）──
+  const NEW_WINDOW_MS = 60 * 60 * 1000
+  const isNewCustomer = (c: any) =>
+    !!c?.created_at && Date.now() - new Date(c.created_at).getTime() <= NEW_WINDOW_MS
+  const minsAgo = (iso?: string | null) => {
+    if (!iso) return ''
+    const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+    return m <= 0 ? 'たった今' : m < 60 ? `${m}分前` : `${Math.floor(m / 60)}時間前`
+  }
+  const recentNew = allCustomers
+    .filter(isNewCustomer)
+    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
   return (
     <div className="min-h-[100dvh] bg-gray-50 text-gray-900">
       {toast && <Toast msg={toast.msg} type={toast.type} onUndo={toast.onUndo} onClose={() => setToast(null)} />}
@@ -802,6 +815,37 @@ export default function CRMPage() {
               )}
             </div>
           </div>
+
+          {/* 最近の新規登録（登録直後のお客様をすぐ把握）*/}
+          {!searchQuery.trim() && !showDeleted && recentNew.length > 0 && (
+            <div className="mb-3 bg-emerald-50 border border-emerald-200 rounded-2xl p-3 animate-fade-in">
+              <p className="text-xs font-black text-emerald-700 mb-2 flex items-center gap-1.5">
+                <Sparkles size={13} />最近の新規登録（{recentNew.length}）
+              </p>
+              <div className="space-y-1.5">
+                {recentNew.slice(0, 5).map(c => {
+                  const childrenArr = (c as any).children as { id?: string; name?: string; school_name: string | null }[] | undefined ?? []
+                  return (
+                    <button key={c.id}
+                      onClick={() => { setSelectedCustomer(prev => prev?.id === c.id ? null : c); setEditingCustomer(false); setEditingStaffNotes(false); setShowAddChild(false) }}
+                      className="w-full text-left flex items-center gap-3 px-3 py-2.5 bg-white border border-emerald-200 rounded-xl hover:border-emerald-400 active:scale-[0.98] transition-all">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                        <User size={15} className="text-emerald-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-black text-gray-900 text-sm truncate">{c.name}</p>
+                        <p className="text-[11px] text-gray-500 truncate">
+                          {[c.school_name, c.tel].filter(Boolean).join(' · ') || (c.line_user_id ? 'LINE連携済み' : 'LINE未連携')}
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-bold text-emerald-600 shrink-0">{minsAgo((c as any).created_at)}</span>
+                      <span className="inline-flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-full bg-emerald-500 text-white shrink-0">NEW</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* 学校フィルター — 常時表示 */}
           {schoolOptions.length > 0 && (
@@ -922,6 +966,11 @@ export default function CRMPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
+                          {isNewCustomer(c) && (
+                            <span className="inline-flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-full bg-emerald-500 text-white" title="新規登録">
+                              <Sparkles size={9} />NEW
+                            </span>
+                          )}
                           {(c as any).staff_notes && (
                             <span className="text-[11px]" title="引き継ぎノートあり">📝</span>
                           )}
