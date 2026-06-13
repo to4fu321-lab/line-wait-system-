@@ -417,12 +417,22 @@ export default function CRMPage() {
     if (deleteMode === 'soft') {
       await supabase.from('customers').update({ deleted_at: new Date().toISOString() }).eq('id', deleteTarget.id)
     } else {
-      // 1. 整理券・予約から顧客参照を外す（FK が NO ACTION のため事前に解除が必要）
-      const [{ error: qErr }, { error: rErr }] = await Promise.all([
+      // 子供IDを先に取得（children を参照する NO ACTION なFKの解除に必要）
+      const { data: kids } = await supabase.from('children').select('id').eq('customer_id', deleteTarget.id)
+      const childIds = ((kids ?? []) as { id: string }[]).map(k => k.id)
+      // .in() に空配列を渡さないためのダミー
+      const childFilter = childIds.length > 0 ? childIds : ['00000000-0000-0000-0000-000000000000']
+
+      // 1. 整理券・予約から顧客/子供の参照を外す（reservations / queues は NO ACTION のため事前解除が必須）
+      const cleanups = await Promise.all([
         supabase.from('queues').update({ customer_id: null, child_id: null }).eq('customer_id', deleteTarget.id),
-        supabase.from('reservations').update({ customer_id: null }).eq('customer_id', deleteTarget.id),
+        supabase.from('queues').update({ child_id: null }).in('child_id', childFilter),
+        supabase.from('reservations').update({ customer_id: null, child_id: null }).eq('customer_id', deleteTarget.id),
+        supabase.from('reservations').update({ child_id: null }).in('child_id', childFilter),
       ])
-      if (qErr || rErr) { showToast('err', `削除失敗: ${(qErr ?? rErr)!.message}`); setDeleteLoading(false); return }
+      const cleanupErr = cleanups.find(c => c.error)?.error
+      if (cleanupErr) { showToast('err', `削除失敗: ${cleanupErr.message}`); setDeleteLoading(false); return }
+
       // 2. 制服注文に紐づく採寸データの order_id を外す（measurements.order_id は NO ACTION）
       const { data: uOrders } = await (supabase as any).from('uniform_orders')
         .select('id').eq('customer_id', deleteTarget.id)
@@ -430,13 +440,18 @@ export default function CRMPage() {
       if (orderIds.length > 0) {
         await (supabase as any).from('measurements').update({ order_id: null }).in('order_id', orderIds)
       }
-      // 3. お直し履歴・購入注文を削除
+
+      // 3. お直し履歴・購入注文を削除（child_id も NO ACTION のため顧客・子供の両方で確実に削除）
       await Promise.all([
         supabase.from('repair_histories').delete().eq('customer_id', deleteTarget.id),
         supabase.from('purchase_orders').delete().eq('customer_id', deleteTarget.id),
+        supabase.from('repair_histories').delete().in('child_id', childFilter),
+        supabase.from('purchase_orders').delete().in('child_id', childFilter),
       ])
+
       // 4. お子様を削除（measurements は child_id CASCADE で自動削除）
-      await supabase.from('children').delete().eq('customer_id', deleteTarget.id)
+      const { error: childErr } = await supabase.from('children').delete().eq('customer_id', deleteTarget.id)
+      if (childErr) { showToast('err', `削除失敗: ${childErr.message}`); setDeleteLoading(false); return }
       // 5. 顧客本体を削除（uniform_orders は customer_id CASCADE で自動削除）
       const { error: custErr } = await supabase.from('customers').delete().eq('id', deleteTarget.id)
       if (custErr) { showToast('err', `削除失敗: ${custErr.message}`); setDeleteLoading(false); return }
