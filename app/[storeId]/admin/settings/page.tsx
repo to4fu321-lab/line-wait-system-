@@ -634,65 +634,36 @@ export default function SettingsPage() {
 
         {/* ⑤ マスタ管理 */}
         <Section id="master" emoji="📋" title="マスタ管理" open={openSections.has('master')} onToggle={() => toggle('master')}>
-          <p className="text-xs text-gray-400">学校・商品・スタッフ・お直しなどの基本データを管理します</p>
-          <div className="grid grid-cols-2 gap-2">
-            {([
-              { href: `/${storeId}/admin/master?tab=schools`,
-                icon: GraduationCap, title: '学校マスタ', desc: '学校・規定品・学年色を管理',
-                card: 'bg-indigo-50 border-indigo-200 hover:bg-indigo-100',
-                badge: 'bg-indigo-100 border-indigo-200', icon_c: 'text-indigo-600',
-                chev: 'text-indigo-400', title_c: 'text-indigo-700', desc_c: 'text-indigo-500' },
-              { href: `/${storeId}/admin/master?tab=schools&view=products`,
-                icon: Shirt, title: '商品マスタ', desc: '学校ごとの品番・サイズ・価格',
-                card: 'bg-sky-50 border-sky-200 hover:bg-sky-100',
-                badge: 'bg-sky-100 border-sky-200', icon_c: 'text-sky-600',
-                chev: 'text-sky-400', title_c: 'text-sky-700', desc_c: 'text-sky-500' },
-              { href: `/${storeId}/admin/master?tab=staff`,
-                icon: Users, title: 'スタッフマスタ', desc: 'スタッフ情報・役職・カラー',
-                card: 'bg-violet-50 border-violet-200 hover:bg-violet-100',
-                badge: 'bg-violet-100 border-violet-200', icon_c: 'text-violet-600',
-                chev: 'text-violet-400', title_c: 'text-violet-700', desc_c: 'text-violet-500' },
-              { href: `/${storeId}/admin/master?tab=presets`,
-                icon: Scissors, title: 'お直しマスタ', desc: 'お直しの種別・料金を管理',
-                card: 'bg-rose-50 border-rose-200 hover:bg-rose-100',
-                badge: 'bg-rose-100 border-rose-200', icon_c: 'text-rose-600',
-                chev: 'text-rose-400', title_c: 'text-rose-700', desc_c: 'text-rose-500' },
-              { href: `/${storeId}/admin/master/suppliers`,
-                icon: Factory, title: 'メーカー・仕入先', desc: '発注先・連絡先・標準納期',
-                card: 'bg-amber-50 border-amber-200 hover:bg-amber-100',
-                badge: 'bg-amber-100 border-amber-200', icon_c: 'text-amber-600',
-                chev: 'text-amber-400', title_c: 'text-amber-700', desc_c: 'text-amber-500' },
-              { href: `/${storeId}/admin/master/sizes`,
-                icon: Ruler, title: 'サイズマスタ', desc: '共通サイズ表記を管理',
-                card: 'bg-cyan-50 border-cyan-200 hover:bg-cyan-100',
-                badge: 'bg-cyan-100 border-cyan-200', icon_c: 'text-cyan-600',
-                chev: 'text-cyan-400', title_c: 'text-cyan-700', desc_c: 'text-cyan-500' },
-              { href: `/${storeId}/admin/master/templates`,
-                icon: MessageSquare, title: '定型文テンプレート', desc: 'LINE通知文・注意事項の定型',
-                card: 'bg-teal-50 border-teal-200 hover:bg-teal-100',
-                badge: 'bg-teal-100 border-teal-200', icon_c: 'text-teal-600',
-                chev: 'text-teal-400', title_c: 'text-teal-700', desc_c: 'text-teal-500' },
-              { href: `/${storeId}/admin/master/tags`,
-                icon: Tag, title: '顧客タグ', desc: 'CRMのセグメント・絞り込み用',
-                card: 'bg-pink-50 border-pink-200 hover:bg-pink-100',
-                badge: 'bg-pink-100 border-pink-200', icon_c: 'text-pink-600',
-                chev: 'text-pink-400', title_c: 'text-pink-700', desc_c: 'text-pink-500' },
-            ] as const).map(({ href, icon: Icon, title, desc, card, badge, icon_c, chev, title_c, desc_c }) => (
-              <Link key={title} href={href}
-                className={`flex flex-col gap-2 px-3 py-3.5 rounded-xl border active:opacity-70 transition-all ${card}`}>
-                <div className="flex items-center justify-between">
-                  <div className={`w-8 h-8 rounded-lg border flex items-center justify-center ${badge}`}>
-                    <Icon size={15} className={icon_c} />
-                  </div>
-                  <ChevronRight size={13} className={chev} />
-                </div>
-                <div>
-                  <p className={`text-xs font-bold ${title_c}`}>{title}</p>
-                  <p className={`text-[10px] mt-0.5 leading-relaxed ${desc_c}`}>{desc}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
+          {([
+            { group: '基本マスタ', items: [
+              { href: `/${storeId}/admin/master?tab=schools`,              icon: GraduationCap, title: '学校マスタ',      bg: 'bg-indigo-100', fg: 'text-indigo-600' },
+              { href: `/${storeId}/admin/master?tab=schools&view=products`, icon: Shirt,         title: '商品マスタ',      bg: 'bg-sky-100',    fg: 'text-sky-600' },
+              { href: `/${storeId}/admin/master?tab=staff`,                icon: Users,         title: 'スタッフマスタ',  bg: 'bg-violet-100', fg: 'text-violet-600' },
+              { href: `/${storeId}/admin/master?tab=presets`,              icon: Scissors,      title: 'お直しマスタ',    bg: 'bg-rose-100',   fg: 'text-rose-600' },
+            ] },
+            { group: 'その他マスタ', items: [
+              { href: `/${storeId}/admin/master/suppliers`, icon: Factory,        title: 'メーカー・仕入先',     bg: 'bg-amber-100', fg: 'text-amber-600' },
+              { href: `/${storeId}/admin/master/sizes`,     icon: Ruler,          title: 'サイズマスタ',         bg: 'bg-cyan-100',  fg: 'text-cyan-600' },
+              { href: `/${storeId}/admin/master/templates`, icon: MessageSquare,  title: '定型文テンプレート',   bg: 'bg-teal-100',  fg: 'text-teal-600' },
+              { href: `/${storeId}/admin/master/tags`,      icon: Tag,            title: '顧客タグ',             bg: 'bg-pink-100',  fg: 'text-pink-600' },
+            ] },
+          ] as const).map(({ group, items }) => (
+            <div key={group}>
+              <p className="text-[11px] font-bold text-gray-400 mb-1.5 px-1">{group}</p>
+              <div className="bg-white rounded-xl border border-gray-100 divide-y divide-gray-50 overflow-hidden">
+                {items.map(({ href, icon: Icon, title, bg, fg }) => (
+                  <Link key={title} href={href}
+                    className="flex items-center gap-3 px-3 py-2.5 active:bg-gray-50 transition-colors">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${bg}`}>
+                      <Icon size={14} className={fg} />
+                    </div>
+                    <span className="flex-1 text-sm font-bold text-gray-700">{title}</span>
+                    <ChevronRight size={15} className="text-gray-300" />
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ))}
         </Section>
 
         {/* ⑥ かんたんLINEモード */}

@@ -15,14 +15,21 @@ CREATE TABLE IF NOT EXISTS suppliers (
   email          text,
   contact_person text,                   -- 担当者
   lead_time_days integer,                -- 標準納期(日)
+  order_method   text,                   -- 発注方法 fax/web/phone/email/other
+  order_url      text,                   -- 発注サイト/FAX送信先など
+  min_lot        integer,                -- 最低発注ロット
   notes          text,
   sort_order     integer DEFAULT 0,
   is_active      boolean DEFAULT true,
   created_at     timestamptz DEFAULT now(),
   updated_at     timestamptz DEFAULT now()
 );
+-- 既にテーブルがある場合の追加カラム（再実行安全）
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS order_method text;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS order_url    text;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS min_lot      integer;
 CREATE INDEX IF NOT EXISTS idx_suppliers_store ON suppliers(store_id);
-COMMENT ON TABLE suppliers IS 'メーカー・仕入先マスタ（発注先の名称・連絡先・標準納期）';
+COMMENT ON TABLE suppliers IS 'メーカー・仕入先マスタ（発注先の名称・連絡先・発注方法・標準納期）';
 
 -- ── サイズマスタ ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS size_presets (
