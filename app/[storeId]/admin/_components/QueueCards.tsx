@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import {
   BellRing, CheckCheck, UserX, Clock,
   Loader2, Phone, User, GraduationCap,
-  MapPin, Bell, BellOff, Ruler,
+  MapPin, Bell, BellOff, Ruler, ClipboardList,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Queue, QueueStatus } from '@/types/database'
@@ -123,6 +123,9 @@ export function WaitingCard({ ticket, storeId, onAction, onCheckIn, onStartFitti
             {ticket.line_user_id
               ? <span className="text-xs bg-emerald-100 text-emerald-700 border border-emerald-300 px-1.5 py-0.5 rounded-full">LINE✓</span>
               : <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">LINE×</span>}
+            {details.source === 'crm_register' && (
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-300">📱 新規登録</span>
+            )}
           </div>
           {ticket.school_name && (
             <p className={`text-sm font-black truncate leading-tight mt-1 ${isRemoteUnchecked ? 'text-gray-500' : 'text-amber-600'}`}>
@@ -213,6 +216,12 @@ export function WaitingCard({ ticket, storeId, onAction, onCheckIn, onStartFitti
               呼出 &amp; 採寸へ進む
             </button>
           )}
+          {ticket.customer_id && ticket.category !== 'fitting' && (
+            <a href={`/${storeId}/admin/crm?customer=${ticket.customer_id}`}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-black text-sm bg-indigo-600 hover:bg-indigo-500 text-white transition-all active:scale-95">
+              <ClipboardList size={15} />受付入力へ進む
+            </a>
+          )}
         </div>
       )}
     </div>
@@ -256,6 +265,9 @@ export function CallingCard({ ticket, storeId, onAction, onGoToFitting }: {
             <span className="text-sm font-black text-gray-700">{CATEGORY_ICONS[ticket.category]} {CATEGORY_LABELS[ticket.category]}</span>
             {ticket.gender !== 'other' && (
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${GENDER_STYLES[ticket.gender]}`}>{GENDER_LABELS[ticket.gender]}</span>
+            )}
+            {details.source === 'crm_register' && (
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-300">📱 新規登録</span>
             )}
           </div>
           {ticket.school_name && (
@@ -316,6 +328,12 @@ export function CallingCard({ ticket, storeId, onAction, onGoToFitting }: {
           className="w-full mt-3 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-sm bg-teal-600 hover:bg-teal-500 text-white active:scale-95 transition-all">
           <Ruler size={15} />採寸へ進む
         </button>
+      )}
+      {ticket.customer_id && ticket.category !== 'fitting' && (
+        <a href={`/${storeId}/admin/crm?customer=${ticket.customer_id}`}
+          className="w-full mt-3 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-sm bg-indigo-600 hover:bg-indigo-500 text-white active:scale-95 transition-all">
+          <ClipboardList size={15} />受付入力へ進む
+        </a>
       )}
       <div className="grid grid-cols-3 gap-2 mt-2">
         <button onClick={() => act('completed')} disabled={!!loading}

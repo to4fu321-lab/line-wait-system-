@@ -34,6 +34,7 @@ const GRANULAR_FEATURES: { key: FeatureKey; label: string; icon: string }[] = [
   { key: 'line_parent_info',   label: 'LINE保護者情報投稿',       icon: '💚' },
   { key: 'line_coupon',        label: 'クーポン自動配布',         icon: '🎫' },
   { key: 'line_parent_rsv',    label: 'LINE採寸予約（保護者）',   icon: '📅' },
+  { key: 'customer_self_intake', label: 'お客様セルフ依頼入力',   icon: '📱' },
 ]
 
 const GRANULAR_FEATURE_GROUPS: { label: string; keys: FeatureKey[] }[] = [
@@ -48,7 +49,7 @@ const GRANULAR_FEATURE_GROUPS: { label: string; keys: FeatureKey[] }[] = [
   },
   {
     label: 'LINE・スキャン',
-    keys: ['kantan_line', 'tray_scan', 'reservation', 'orders', 'takeout'],
+    keys: ['kantan_line', 'tray_scan', 'reservation', 'orders', 'takeout', 'customer_self_intake'],
   },
   {
     label: '🏫 学校規定・採寸連携',

@@ -11,7 +11,7 @@ import {
   RotateCcw, ShoppingBag, Bell, Scissors, GraduationCap,
   Trash2, ArchiveRestore, Eye, EyeOff, QrCode, ScanLine,
 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { supabase, getTodayStart } from '@/lib/supabase'
 import type {
   Customer, Child, RepairHistory, PurchaseOrder,
   RepairStatus, PurchaseStatus,
@@ -153,6 +153,7 @@ export default function CRMPage() {
   const [qiDesiredDate,      setQiDesiredDate]      = useState('')
   const [qiMaker,            setQiMaker]            = useState('')
   const [qiCustomerId,       setQiCustomerId]       = useState<string | null>(null)
+  const [qiCustomerName,     setQiCustomerName]     = useState<string | null>(null)
   const [qiChildId,          setQiChildId]          = useState<string | null>(null)
   const [qiCustomerSearch,   setQiCustomerSearch]   = useState('')
   const [qiFoundCustomers,   setQiFoundCustomers]   = useState<Customer[]>([])
@@ -164,7 +165,7 @@ export default function CRMPage() {
     setQiStep(1); setQiIntakeType('repair')
     setQiItemName(''); setQiContent(''); setQiPrice(''); setQiNotes('')
     setQiDesiredDate(''); setQiMaker('')
-    setQiCustomerId(null); setQiChildId(null)
+    setQiCustomerId(null); setQiCustomerName(null); setQiChildId(null)
     setQiCustomerSearch(''); setQiFoundCustomers([]); setQiChildren([])
   }, [])
 
@@ -172,9 +173,28 @@ export default function CRMPage() {
     if (!qiCustomerSearch.trim()) { setQiFoundCustomers([]); return }
     const t = setTimeout(async () => {
       setQiSearching(true)
+      const term = qiCustomerSearch.trim()
+      // 数字のみ（1〜4桁）は当日の受付番号として検索
+      if (/^\d{1,4}$/.test(term)) {
+        const { data: qs } = await supabase.from('queues')
+          .select('customer_id')
+          .eq('store_id', storeId)
+          .eq('ticket_number', parseInt(term, 10))
+          .gte('created_at', getTodayStart())
+          .not('customer_id', 'is', null)
+        const ids = [...new Set((qs ?? []).map(q => q.customer_id as string))]
+        if (ids.length > 0) {
+          const { data } = await supabase.from('customers').select('*')
+            .in('id', ids).is('deleted_at', null)
+          setQiFoundCustomers(data ?? [])
+          setQiSearching(false)
+          return
+        }
+        // 番号でヒットしなければ通常検索にフォールバック（電話番号の数字など）
+      }
       const { data } = await supabase.from('customers').select('*')
         .eq('store_id', storeId).is('deleted_at', null)
-        .or(`name.ilike.%${qiCustomerSearch}%,kana.ilike.%${qiCustomerSearch}%,tel.ilike.%${qiCustomerSearch}%`)
+        .or(`name.ilike.%${term}%,kana.ilike.%${term}%,tel.ilike.%${term}%`)
         .order('updated_at', { ascending: false }).limit(10)
       setQiFoundCustomers(data ?? [])
       setQiSearching(false)
@@ -184,6 +204,7 @@ export default function CRMPage() {
 
   const handleQiSelectCustomer = useCallback(async (customer: Customer) => {
     setQiCustomerId(customer.id)
+    setQiCustomerName(customer.name)
     const { data: kids } = await supabase.from('children').select('*')
       .eq('customer_id', customer.id).order('name')
     const childArr = kids ?? []
@@ -195,6 +216,24 @@ export default function CRMPage() {
       setQiStep(3)
     }
   }, [])
+
+  // 整理券カード等からの遷移（?customer=）: 顧客を選択済みでクイック受付を開く
+  useEffect(() => {
+    const cid = searchParams?.get('customer')
+    if (!cid || !storeId) return
+    ;(async () => {
+      const { data: cust } = await supabase.from('customers').select('*')
+        .eq('id', cid).eq('store_id', storeId).is('deleted_at', null).single()
+      if (!cust) return
+      resetQi()
+      setQiCustomerId(cust.id)
+      setQiCustomerName(cust.name)
+      const { data: kids } = await supabase.from('children').select('*')
+        .eq('customer_id', cust.id).order('name')
+      setQiChildren(kids ?? [])
+      setShowQuickIntake(true)
+    })()
+  }, [searchParams, storeId, resetQi])
 
   const showToast = useCallback((type: 'ok' | 'err', msg: string, onUndo?: () => Promise<void>) => {
     setToast({ type, msg, onUndo })
@@ -1145,7 +1184,9 @@ export default function CRMPage() {
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100 shrink-0">
               <div className="flex items-center gap-2">
                 {qiStep > 1 && (
-                  <button onClick={() => setQiStep(s => (s - 1) as 1 | 2 | 3)}
+                  <button
+                    onClick={() => setQiStep(s =>
+                      (s === 3 && qiCustomerId && !qiCustomerSearch.trim() ? 1 : s - 1) as 1 | 2 | 3)}
                     className="p-1.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100">
                     <ArrowLeft size={16} />
                   </button>
@@ -1165,6 +1206,20 @@ export default function CRMPage() {
               {/* ── Step 1: Form ─────────────────────────────── */}
               {qiStep === 1 && (
                 <>
+                  {/* 整理券・登録完了カードから遷移した場合は顧客選択済み */}
+                  {qiCustomerId && qiCustomerName && (
+                    <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-300 rounded-xl px-3 py-2">
+                      <User size={14} className="text-emerald-600 shrink-0" />
+                      <p className="flex-1 text-sm font-black text-emerald-700 truncate">{qiCustomerName} 様</p>
+                      <span className="text-[10px] text-emerald-600 font-bold shrink-0">選択済み</span>
+                      <button
+                        onClick={() => { setQiCustomerId(null); setQiCustomerName(null); setQiChildId(null); setQiChildren([]) }}
+                        className="p-1 rounded-lg text-emerald-500 hover:bg-emerald-100 shrink-0">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  )}
+
                   {/* Intake type buttons */}
                   <div className="grid grid-cols-2 gap-1.5">
                     {INTAKE_OPTIONS.map(o => (
@@ -1242,10 +1297,10 @@ export default function CRMPage() {
                   })()}
 
                   <button
-                    onClick={() => { if (qiItemName.trim()) setQiStep(2) }}
+                    onClick={() => { if (qiItemName.trim()) setQiStep(qiCustomerId ? 3 : 2) }}
                     disabled={!qiItemName.trim()}
                     className="w-full py-3 rounded-xl font-black text-sm bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40 flex items-center justify-center gap-2">
-                    次へ → 顧客を選ぶ
+                    {qiCustomerId ? '次へ → 確認' : '次へ → 顧客を選ぶ'}
                   </button>
                 </>
               )}
@@ -1265,7 +1320,7 @@ export default function CRMPage() {
                       <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input type="text" value={qiCustomerSearch}
                         onChange={e => setQiCustomerSearch(e.target.value)}
-                        placeholder="名前・フリガナ・電話番号"
+                        placeholder="受付番号・名前・フリガナ・電話番号"
                         className="w-full pl-8 pr-3 border border-gray-300 rounded-xl py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
                     </div>
                   </div>
@@ -1301,6 +1356,12 @@ export default function CRMPage() {
                     {qiContent && ` (${qiContent})`}
                     {qiPrice && ` ¥${parseInt(qiPrice).toLocaleString()}`}
                   </div>
+                  {qiCustomerName && (
+                    <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-300 rounded-xl px-3 py-2">
+                      <User size={14} className="text-emerald-600 shrink-0" />
+                      <p className="text-sm font-black text-emerald-700 truncate">{qiCustomerName} 様</p>
+                    </div>
+                  )}
 
                   {qiChildren.length > 0 && (
                     <div>

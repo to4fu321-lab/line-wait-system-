@@ -31,6 +31,7 @@ export type FeatureKey =
   | 'line_parent_info'     // LINE保護者情報投稿
   | 'line_coupon'          // クーポン自動配布
   | 'line_parent_rsv'      // LINE採寸予約（保護者）
+  | 'customer_self_intake' // お客様セルフ依頼入力（登録後に自分のスマホで依頼内容を入力）
   // ── 既存フラグ（後方互換）──────────────
   | 'queue'
   | 'crm'
