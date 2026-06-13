@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import {
   CalendarDays, Clock, User, FileText, Check,
-  Loader2, ChevronLeft, ChevronRight, GraduationCap, Plus, X,
+  Loader2, ChevronLeft, ChevronRight, GraduationCap, Plus, X, ShoppingBag,
 } from 'lucide-react'
 
 // 採寸サービスかどうかの判定
@@ -109,6 +109,13 @@ function FallbackForm({ storeId, storeName, initialName }: { storeId: string; st
         </div>
         <h1 className="text-xl font-black text-white mb-2">予約を受け付けました</h1>
         <p className="text-zinc-400 text-sm">ご来店予約を承りました。</p>
+
+        {/* 予約のお客様もそのままスマホから制服注文を入力できる */}
+        <a href={`/${storeId}?action=purchase`}
+          className="mt-7 w-full max-w-xs flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-2xl transition-colors">
+          <ShoppingBag size={18} />制服を注文する
+        </a>
+        <p className="text-zinc-600 text-xs mt-2">サイズ・数量を選んでご注文いただけます</p>
       </div>
     )
   }
@@ -485,6 +492,13 @@ export default function ReservePage() {
           {dateLabel}{selectedTime && ` ${selectedTime}〜`}
         </p>
         <p className="text-zinc-600 text-xs mt-4">※ 確認のご連絡をお送りする場合があります</p>
+
+        {/* 予約のお客様もそのままスマホから制服注文を入力できる */}
+        <a href={`/${storeId}?action=purchase`}
+          className="mt-7 w-full max-w-xs flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-2xl transition-colors">
+          <ShoppingBag size={18} />制服を注文する
+        </a>
+        <p className="text-zinc-600 text-xs mt-2">サイズ・数量を選んでご注文いただけます</p>
       </div>
     )
   }

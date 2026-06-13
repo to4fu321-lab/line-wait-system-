@@ -160,9 +160,27 @@ export default function CrmRegisterPage() {
 
   // 受付チケットの確保:
   // 当日の待機・呼出中チケットがあれば顧客を紐付けて番号を再利用、
-  // なければ新規発行（受付番号で店側端末に即時表示される）
+  // なければ新規発行（受付番号で店側端末に即時表示される）。
+  // 受付タブ非対応プランの店舗では受付番号は発行せず、
+  // 「誰が登録したか」を店側へ知らせる通知のみ送る。
   const ensureTicket = async (cust: Customer): Promise<number | null> => {
-    if (!queueEnabled || !lineUserId) return null
+    if (!lineUserId) return null
+
+    if (!queueEnabled) {
+      // 受付番号の概念が無い店舗 → 新規登録の通知のみ（検索不要で誰か分かる）
+      fetch('/api/push-admin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storeId,
+          type:  'customer_register',
+          title: `📱 新規登録：${cust.name} 様`,
+          body:  `${cust.school_name ? `${cust.school_name} · ` : ''}お客様が登録を完了しました`,
+          url:   `/${storeId}/admin/crm`,
+        }),
+      }).catch(() => {})
+      return null
+    }
+
     try {
       const { data: existing } = await supabase.from('queues')
         .select('id, ticket_number')

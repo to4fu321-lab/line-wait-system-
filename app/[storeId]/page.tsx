@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   CheckCircle2, MessageCircle, Loader2, Clock,
-  ChevronRight, Users, AlertCircle, Plus, GraduationCap, Pencil,
+  ChevronRight, Users, AlertCircle, Plus, GraduationCap, Pencil, ShoppingBag,
 } from 'lucide-react'
 import ECShopView from './ECShopView'
 import { supabase, getTodayStart } from '@/lib/supabase'
@@ -1995,11 +1995,22 @@ export default function CustomerPage() {
         <h2 className="text-3xl font-black text-zinc-900 mb-2">ご対応完了</h2>
         <p className="text-zinc-500 text-base">ありがとうございました！</p>
       </div>
-      <button onClick={handleReset}
-        className="px-8 py-4 rounded-2xl text-white font-black active:scale-95 transition-transform"
-        style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`, boxShadow: `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.45)` }}>
-        最初に戻る
-      </button>
+
+      {/* 採寸・対面後に、お客様のスマホからそのまま制服注文を入力 */}
+      <div className="w-full max-w-xs space-y-3">
+        <button onClick={() => setView('purchase_ec')}
+          className="w-full px-8 py-4 rounded-2xl text-white font-black flex items-center justify-center gap-2 active:scale-95 transition-transform"
+          style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.45)` }}>
+          <ShoppingBag size={18} />制服を注文する
+        </button>
+        <p className="text-zinc-400 text-xs leading-relaxed">
+          サイズ・数量をお選びいただけます。<br />ご自宅からの追加注文もこちらから。
+        </p>
+        <button onClick={handleReset}
+          className="w-full px-8 py-3 rounded-2xl border-2 border-zinc-200 text-zinc-500 font-bold text-sm active:scale-95 transition-transform">
+          最初に戻る
+        </button>
+      </div>
     </div>
   )
 
