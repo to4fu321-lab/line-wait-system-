@@ -80,6 +80,7 @@ export interface DeliveryItem {
 
 export interface CustResult {
   id: string; name: string; tel: string | null; school_name: string | null
+  created_at?: string | null
   children?: { id: string; name: string; school_name: string | null }[]
 }
 

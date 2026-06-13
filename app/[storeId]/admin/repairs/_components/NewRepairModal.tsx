@@ -3,11 +3,11 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   Loader2, ChevronDown, ChevronLeft, ChevronRight,
-  User, Check, X, Search, Camera, ScanLine, Plus,
+  User, Check, X, Search, Camera, ScanLine, Plus, Clock, Sparkles,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
-  REPAIR_TYPE_LABELS, REPAIR_TYPE_ICONS, REPAIR_TYPE_COLORS,
+  REPAIR_TYPE_LABELS, REPAIR_TYPE_ICONS,
 } from '@/types/crm'
 import type { RepairType } from '@/types/crm'
 import { compressImage } from './utils'
@@ -20,8 +20,10 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast, showOcr = tr
   onToast: (t: 'ok' | 'err', m: string) => void
   showOcr?: boolean
 }) {
-  type Step = 'type' | 'ocr_confirm' | 'cat_repair' | 'details' | 'customer'
+  type Step = 'type' | 'ocr_confirm' | 'cat_repair' | 'details'
   const [step,           setStep]     = useState<Step>('type')
+  // 新規登録とみなす猶予（顧客ピッカーの「最近登録」表示・NEWバッジ判定に使用）
+  const RECENT_WINDOW_MS = 15 * 60 * 1000
   const [repairType,     setRepairType] = useState<RepairType | null>(null)
   const [itemName,       setItemName]  = useState('')
   const [hemMm,          setHemMm]    = useState(0)
@@ -42,6 +44,10 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast, showOcr = tr
   const [selectedCust,   setSelectedCust] = useState<CustResult | null>(null)
   const [selectedChild,  setSelectedChild] = useState<{ id: string; name: string; school_name: string | null } | null>(null)
   const [showRegister,   setShowRegister] = useState(false)
+  // 顧客ピッカー（全ステップ共通・常設バーから開く）
+  const [custPickerOpen, setCustPickerOpen] = useState(false)
+  const [recentCusts,    setRecentCusts]    = useState<CustResult[]>([])
+  const [recentLoading,  setRecentLoading]  = useState(false)
   const [saving,         setSaving] = useState(false)
   const [presets,        setPresets] = useState<{ id: string; item_name: string; default_price: number | null; category_id: string | null; repair_type: string | null }[]>([])
   const [selectedCategoryId,   setSelectedCategoryId]   = useState<string | null>(null)
@@ -114,6 +120,25 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast, showOcr = tr
     }, 300)
     return () => clearTimeout(t)
   }, [custSearch, storeId])
+
+  // 15分以内に登録された新規顧客（検索が空のとき候補表示）
+  useEffect(() => {
+    if (!custPickerOpen) return
+    setRecentLoading(true)
+    const since = new Date(Date.now() - RECENT_WINDOW_MS).toISOString()
+    ;(supabase as any)
+      .from('customers')
+      .select('id, name, tel, school_name, created_at, children:children(id, name, school_name)')
+      .eq('store_id', storeId)
+      .is('deleted_at', null)
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(6)
+      .then(({ data }: { data: CustResult[] | null }) => {
+        setRecentCusts(data ?? [])
+        setRecentLoading(false)
+      })
+  }, [custPickerOpen, storeId])
 
   useEffect(() => {
     if (selectedCategoryId) {
@@ -214,12 +239,14 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast, showOcr = tr
     return DEFAULT_REPAIR_CATS.map(dc => ({ id: null as string | null, name: dc.name as string, icon: dc.icon }))
   }, [categories])
 
-  const stepLabels: Record<Step, string> = { type: 'アイテム選択', ocr_confirm: '読み取り確認・修正', cat_repair: 'お直し選択', details: '内容入力', customer: '顧客選択' }
-  const steps: Step[] = ['type', 'cat_repair', 'details', 'customer']
+  const stepLabels: Record<Step, string> = { type: 'アイテム選択', ocr_confirm: '読み取り確認・修正', cat_repair: 'お直し選択', details: '内容入力' }
+  const steps: Step[] = ['type', 'cat_repair', 'details']
+  const isRecent = (createdAt?: string | null) =>
+    !!createdAt && Date.now() - new Date(createdAt).getTime() <= RECENT_WINDOW_MS
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-lg bg-white rounded-t-3xl shadow-2xl flex flex-col" style={{ maxHeight: '92dvh', paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={e => e.stopPropagation()}>
+      <div className="relative w-full max-w-lg bg-white rounded-t-3xl shadow-2xl flex flex-col" style={{ maxHeight: '92dvh', paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div className="px-5 pt-5 pb-4 border-b border-gray-100 shrink-0">
@@ -236,7 +263,6 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast, showOcr = tr
                 }
                 else if (step === 'cat_repair') { setStep('type'); setPresets([]); setSelectedCategoryId(null); setSelectedCategoryName('') }
                 else if (step === 'details') setStep(ocrConfidence ? 'ocr_confirm' : selectedCategoryName ? 'cat_repair' : 'type')
-                else if (step === 'customer') setStep('details')
               }}
               className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 active:scale-95 transition-all">
               {step === 'type' ? <X size={18} /> : <ChevronLeft size={18} />}
@@ -245,7 +271,7 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast, showOcr = tr
               {step === 'type' ? '✂️ お直し受付'
                : step === 'cat_repair' ? `${displayCats.find(c => c.name === selectedCategoryName)?.icon ?? '📦'} ${selectedCategoryName}`
                : step === 'details' && repairType ? `${REPAIR_TYPE_ICONS[repairType]} ${REPAIR_TYPE_LABELS[repairType]}`
-               : '👤 顧客選択'}
+               : '✂️ お直し受付'}
             </h2>
             {/* OCR ボタン */}
             {showOcr && (
@@ -262,6 +288,43 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast, showOcr = tr
             </div>
           </div>
           <p className="text-xs text-gray-400 font-medium">{stepLabels[step]}</p>
+
+          {/* 顧客バー（全ステップ常設・入力中いつでも紐付け） */}
+          <button
+            onClick={() => setCustPickerOpen(true)}
+            className={`mt-3 w-full flex items-center gap-2.5 px-3 py-2.5 rounded-2xl border-2 transition-all active:scale-[0.99] ${
+              selectedCust ? 'bg-indigo-50 border-indigo-300' : 'border-dashed border-amber-300 bg-amber-50/60'
+            }`}>
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${selectedCust ? 'bg-indigo-100' : 'bg-amber-100'}`}>
+              <User size={15} className={selectedCust ? 'text-indigo-600' : 'text-amber-600'} />
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              {selectedCust ? (
+                <>
+                  <p className="text-sm font-black text-gray-900 truncate">
+                    {selectedCust.name}{selectedChild ? ` ／ ${selectedChild.name}` : ''}
+                  </p>
+                  <p className="text-[10px] text-gray-500 truncate">
+                    {[selectedCust.school_name, selectedCust.tel].filter(Boolean).join(' · ') || 'タップで変更'}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-black text-amber-700">お客様を選択（後でもOK）</p>
+                  <p className="text-[10px] text-amber-600/80">入力中いつでも紐付けできます</p>
+                </>
+              )}
+            </div>
+            {selectedCust ? (
+              <span
+                onClick={e => { e.stopPropagation(); setSelectedCust(null); setSelectedChild(null); setCustSearch('') }}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-white rounded-lg transition-all">
+                <X size={14} />
+              </span>
+            ) : (
+              <ChevronRight size={16} className="text-amber-400 shrink-0" />
+            )}
+          </button>
         </div>
 
         {/* Body */}
@@ -707,31 +770,93 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast, showOcr = tr
                   className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
               </div>
 
-              <button onClick={() => setStep('customer')}
-                className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-lg shadow-indigo-500/25">
-                次へ：お客様を選択する
+              <button
+                onClick={() => {
+                  if (!selectedCust) { setCustPickerOpen(true); onToast('err', 'お客様を選択してください'); return }
+                  handleSave()
+                }}
+                disabled={saving}
+                className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50 shadow-lg shadow-indigo-500/25">
+                {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+                {selectedCust ? 'お直しを受付する' : 'お客様を選択して受付'}
               </button>
             </>
           )}
 
-          {/* ── Step 3: 顧客選択 ── */}
-          {step === 'customer' && (
-            <>
+        </div>
+        <div className="h-6 shrink-0" />
+
+        {/* ── 顧客ピッカー（全ステップ共通オーバーレイ） ── */}
+        {custPickerOpen && (
+          <div className="absolute inset-0 z-30 bg-white rounded-t-3xl flex flex-col" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+            <div className="px-5 pt-5 pb-3 border-b border-gray-100 shrink-0 flex items-center gap-3">
+              <button onClick={() => setCustPickerOpen(false)}
+                className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 active:scale-95 transition-all">
+                <ChevronLeft size={18} />
+              </button>
+              <h2 className="flex-1 text-base font-black text-gray-900">👤 お客様を選択</h2>
+              {selectedCust && (
+                <button onClick={() => setCustPickerOpen(false)}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black rounded-xl active:scale-95 transition-all">
+                  確定
+                </button>
+              )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
               {!selectedCust ? (
                 <>
                   <div className="relative">
                     <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input type="text" value={custSearch} onChange={e => setCustSearch(e.target.value)}
-                      placeholder="顧客名で検索"
+                      placeholder="顧客名・お子様名・電話番号で検索"
                       autoFocus
                       className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-sm focus:border-indigo-500 focus:outline-none" />
                   </div>
                   {searching && <div className="text-center py-4"><Loader2 size={20} className="animate-spin text-indigo-400 mx-auto" /></div>}
+
+                  {/* 検索が空のとき：15分以内の新規登録を候補表示 */}
+                  {custSearch.length === 0 && !showRegister && (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                        <Clock size={11} />最近登録されたお客様（15分以内）
+                      </p>
+                      {recentLoading ? (
+                        <div className="text-center py-4"><Loader2 size={18} className="animate-spin text-indigo-400 mx-auto" /></div>
+                      ) : recentCusts.length === 0 ? (
+                        <p className="text-xs text-gray-400 py-2">最近の新規登録はありません。名前で検索してください。</p>
+                      ) : (
+                        recentCusts.map(c => (
+                          <button key={c.id} onClick={() => { setSelectedCust(c); setShowRegister(false) }}
+                            className="w-full text-left px-4 py-3.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-2xl transition-all active:scale-[0.98]">
+                            <div className="flex items-center gap-2">
+                              <p className="font-black text-gray-900">{c.name}</p>
+                              <span className="inline-flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-full bg-emerald-500 text-white">
+                                <Sparkles size={9} />NEW
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-0.5">{[c.school_name, c.tel].filter(Boolean).join(' · ')}</p>
+                            {c.children && c.children.length > 0 && (
+                              <p className="text-[10px] text-gray-400 mt-0.5">お子様: {c.children.map(ch => ch.name).join('、')}</p>
+                            )}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     {custResults.map(c => (
                       <button key={c.id} onClick={() => { setSelectedCust(c); setShowRegister(false) }}
                         className="w-full text-left px-4 py-3.5 bg-gray-50 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-300 rounded-2xl transition-all active:scale-[0.98]">
-                        <p className="font-black text-gray-900">{c.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-black text-gray-900">{c.name}</p>
+                          {isRecent(c.created_at) && (
+                            <span className="inline-flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-full bg-emerald-500 text-white">
+                              <Sparkles size={9} />NEW
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-gray-500 mt-0.5">{[c.school_name, c.tel].filter(Boolean).join(' · ')}</p>
                         {c.children && c.children.length > 0 && (
                           <p className="text-[10px] text-gray-400 mt-0.5">お子様: {c.children.map(ch => ch.name).join('、')}</p>
@@ -739,6 +864,7 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast, showOcr = tr
                       </button>
                     ))}
                   </div>
+
                   {/* 新規顧客登録（常時表示） */}
                   {!showRegister && (
                     <button onClick={() => setShowRegister(true)}
@@ -756,16 +882,13 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast, showOcr = tr
                         className="mx-auto rounded-xl bg-white p-1 shadow-sm"
                       />
                       <p className="text-[10px] text-indigo-500 leading-relaxed">
-                        LINEで登録後、上の検索欄でお名前を検索してください
+                        LINEで登録後、上の「最近登録されたお客様」または検索からお選びください
                       </p>
                       <button onClick={() => setShowRegister(false)}
                         className="w-full py-2 text-xs font-bold text-gray-600 border border-gray-200 rounded-xl hover:bg-white active:scale-[0.98]">
                         閉じる
                       </button>
                     </div>
-                  )}
-                  {custSearch.length === 0 && !showRegister && (
-                    <p className="text-sm text-center text-gray-400 py-4">名前を入力して顧客を検索してください</p>
                   )}
                 </>
               ) : (
@@ -803,38 +926,15 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast, showOcr = tr
                     </div>
                   )}
 
-                  {/* 確認サマリー */}
-                  {repairType && (
-                    <div className="bg-gray-50 rounded-2xl p-4 space-y-1.5">
-                      <p className="text-xs font-black text-gray-700 mb-2">受付内容の確認</p>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${REPAIR_TYPE_COLORS[repairType]}`}>
-                          {REPAIR_TYPE_ICONS[repairType]} {REPAIR_TYPE_LABELS[repairType]}
-                        </span>
-                      </div>
-                      {itemName && <p className="text-xs text-gray-600">品名: {itemName}</p>}
-                      {repairType === 'hem' && hemMm !== 0 && <p className="text-xs font-bold text-amber-700">裾上げ {hemMm > 0 ? '+' : ''}{hemMm}mm</p>}
-                      {repairType === 'sleeve' && sleeveMm !== 0 && <p className="text-xs font-bold text-blue-700">袖丈 {sleeveMm > 0 ? '+' : ''}{sleeveMm}mm</p>}
-                      {repairType === 'waist' && waistMm !== 0 && <p className="text-xs font-bold text-purple-700">ウエスト {waistMm > 0 ? '+' : ''}{waistMm}mm</p>}
-                      {repairType === 'embroidery' && embText && <p className="text-xs font-bold text-pink-700">「{embText}」{embColor} {embPos}</p>}
-                      {content && <p className="text-xs text-gray-600">{content}</p>}
-                      {vendorName && <p className="text-xs text-gray-600">加工先: {vendorName}</p>}
-                      {deadline && <p className="text-xs text-gray-600">希望完了: {deadline}</p>}
-                      {price && <p className="text-xs font-bold text-gray-700">¥{Number(price).toLocaleString()}</p>}
-                    </div>
-                  )}
-
-                  <button onClick={handleSave} disabled={saving}
-                    className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50 shadow-lg shadow-indigo-500/25">
-                    {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
-                    お直しを受付する
+                  <button onClick={() => setCustPickerOpen(false)}
+                    className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-lg shadow-indigo-500/25">
+                    <Check size={18} />このお客様で確定
                   </button>
                 </>
               )}
-            </>
-          )}
-        </div>
-        <div className="h-6 shrink-0" />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

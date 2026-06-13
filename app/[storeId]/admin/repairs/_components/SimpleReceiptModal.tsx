@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X, Search, Check, Loader2, QrCode, Phone, UserPlus, Camera, CalendarDays } from 'lucide-react'
+import { X, Search, Check, Loader2, QrCode, Phone, UserPlus, Camera, CalendarDays, Clock, Sparkles } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { todayJst } from './utils'
 
@@ -24,7 +24,11 @@ interface CustResult {
   name: string
   tel: string | null
   line_user_id: string | null
+  created_at?: string | null
 }
+
+// 新規登録とみなす猶予（最近登録の候補表示に使用）
+const RECENT_WINDOW_MS = 15 * 60 * 1000
 
 type NewCustMode = null | 'qr' | 'phone'
 
@@ -41,6 +45,7 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
   const [customer,        setCustomer]        = useState<CustResult | null>(null)
   const [custSearch,      setCustSearch]      = useState('')
   const [custResults,     setCustResults]     = useState<CustResult[]>([])
+  const [recentCusts,     setRecentCusts]     = useState<CustResult[]>([])
   const [searchDone,      setSearchDone]      = useState(false)
   const [newCustMode,     setNewCustMode]     = useState<NewCustMode>(null)
   const [showChoicePanel, setShowChoicePanel] = useState(false)
@@ -79,6 +84,17 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
       setPresets(pres ?? [])
     }
     load()
+  }, [storeId])
+
+  // 15分以内に登録された新規顧客（顧客未選択・検索が空のとき候補表示）
+  useEffect(() => {
+    const since = new Date(Date.now() - RECENT_WINDOW_MS).toISOString()
+    ;(supabase as any).from('customers')
+      .select('id, name, tel, line_user_id, created_at')
+      .eq('store_id', storeId).is('deleted_at', null)
+      .gte('created_at', since)
+      .order('created_at', { ascending: false }).limit(6)
+      .then(({ data }: { data: CustResult[] | null }) => setRecentCusts(data ?? []))
   }, [storeId])
 
   useEffect(() => {
@@ -363,6 +379,38 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
                     />
                   </div>
                 </div>
+
+                {/* 15分以内の新規登録（検索が空のとき候補表示） */}
+                {custSearch.trim() === '' && newCustMode === null && !showChoicePanel && recentCusts.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                      <Clock size={11} />最近登録されたお客様（15分以内）
+                    </p>
+                    <div className="border border-emerald-200 rounded-xl overflow-hidden shadow-sm">
+                      {recentCusts.map(c => (
+                        <button key={c.id}
+                          onClick={() => { setCustomer(c); setCustSearch(''); setCustResults([]) }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 border-b border-emerald-100 last:border-0 text-left transition-colors">
+                          <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                            <span className="text-sm font-bold text-emerald-700">{c.name[0]}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-sm font-bold text-gray-900 truncate">{c.name}</p>
+                              <span className="inline-flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-full bg-emerald-500 text-white shrink-0">
+                                <Sparkles size={9} />NEW
+                              </span>
+                            </div>
+                            {c.tel && <p className="text-xs text-gray-400">{c.tel}</p>}
+                          </div>
+                          {c.line_user_id
+                            ? <span className="text-[10px] text-green-600 font-bold bg-green-50 px-1.5 py-0.5 rounded-full shrink-0">LINE</span>
+                            : <span className="text-[10px] text-gray-400 font-bold bg-gray-100 px-1.5 py-0.5 rounded-full shrink-0">電話</span>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {custResults.length > 0 && (
                   <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
