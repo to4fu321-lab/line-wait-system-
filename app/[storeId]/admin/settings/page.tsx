@@ -6,6 +6,7 @@ import {
   Settings, Loader2, Plus, Trash2, AlertCircle,
   CalendarDays, Clock, CheckCheck, LayoutDashboard, ChevronRight, Users,
   PackageSearch, GraduationCap, ChevronDown, Shirt, Scissors,
+  Factory, Ruler, MessageSquare, Tag,
 } from 'lucide-react'
 import type { OrderSchedule, ScheduleType } from '../_components/OrderReminderBanner'
 import Link from 'next/link'
@@ -656,6 +657,26 @@ export default function SettingsPage() {
                 card: 'bg-rose-50 border-rose-200 hover:bg-rose-100',
                 badge: 'bg-rose-100 border-rose-200', icon_c: 'text-rose-600',
                 chev: 'text-rose-400', title_c: 'text-rose-700', desc_c: 'text-rose-500' },
+              { href: `/${storeId}/admin/master/suppliers`,
+                icon: Factory, title: 'メーカー・仕入先', desc: '発注先・連絡先・標準納期',
+                card: 'bg-amber-50 border-amber-200 hover:bg-amber-100',
+                badge: 'bg-amber-100 border-amber-200', icon_c: 'text-amber-600',
+                chev: 'text-amber-400', title_c: 'text-amber-700', desc_c: 'text-amber-500' },
+              { href: `/${storeId}/admin/master/sizes`,
+                icon: Ruler, title: 'サイズマスタ', desc: '共通サイズ表記を管理',
+                card: 'bg-cyan-50 border-cyan-200 hover:bg-cyan-100',
+                badge: 'bg-cyan-100 border-cyan-200', icon_c: 'text-cyan-600',
+                chev: 'text-cyan-400', title_c: 'text-cyan-700', desc_c: 'text-cyan-500' },
+              { href: `/${storeId}/admin/master/templates`,
+                icon: MessageSquare, title: '定型文テンプレート', desc: 'LINE通知文・注意事項の定型',
+                card: 'bg-teal-50 border-teal-200 hover:bg-teal-100',
+                badge: 'bg-teal-100 border-teal-200', icon_c: 'text-teal-600',
+                chev: 'text-teal-400', title_c: 'text-teal-700', desc_c: 'text-teal-500' },
+              { href: `/${storeId}/admin/master/tags`,
+                icon: Tag, title: '顧客タグ', desc: 'CRMのセグメント・絞り込み用',
+                card: 'bg-pink-50 border-pink-200 hover:bg-pink-100',
+                badge: 'bg-pink-100 border-pink-200', icon_c: 'text-pink-600',
+                chev: 'text-pink-400', title_c: 'text-pink-700', desc_c: 'text-pink-500' },
             ] as const).map(({ href, icon: Icon, title, desc, card, badge, icon_c, chev, title_c, desc_c }) => (
               <Link key={title} href={href}
                 className={`flex flex-col gap-2 px-3 py-3.5 rounded-xl border active:opacity-70 transition-all ${card}`}>
