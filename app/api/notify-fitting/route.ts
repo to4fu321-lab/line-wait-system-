@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { getLineToken, storeBizType } from '@/lib/line-config'
+import { pushCard } from '@/lib/line-flex'
 
 interface FittingItem {
   item_name: string
@@ -49,44 +50,23 @@ export async function POST(req: NextRequest) {
 
   const itemLines = (items ?? [])
     .filter(i => i.qty > 0 && i.size_label)
-    .map(i => `・${i.item_name}　${i.size_label} × ${i.qty}枚${i.price > 0 ? `　¥${(i.price * i.qty).toLocaleString()}` : ''}`)
-    .join('\n')
+    .map(i => `${i.item_name}　${i.size_label} × ${i.qty}枚${i.price > 0 ? `　¥${(i.price * i.qty).toLocaleString()}` : ''}`)
+  if (totalAmount > 0) itemLines.push(`合計：¥${totalAmount.toLocaleString()}`)
 
-  const lines = [
-    `🎽 採寸が完了しました！`,
-    ``,
-    storeName ? `【${storeName}】` : null,
-    schoolName ? `${schoolName}　${childName} さん` : `${childName} さん`,
-    ``,
-    itemLines || null,
-    totalAmount > 0 ? `\n合計：¥${totalAmount.toLocaleString()}` : null,
-    ``,
-    `ご来店ありがとうございました。`,
-    `ご不明な点はお気軽にお問い合わせください。`,
-  ].filter(l => l !== null).join('\n')
+  const result = await pushCard(token, lineUserId, `採寸完了 ${childName} さん`, {
+    kind: 'ready',
+    title: '採寸が完了しました',
+    storeName: [storeName, schoolName].filter(Boolean).join('｜') || undefined,
+    customerName: childName,
+    nameSuffix: 'さん',
+    bodyLines: itemLines.length ? itemLines : undefined,
+    note: 'ご来店ありがとうございました。\nご不明な点はお気軽にお問い合わせください。',
+  })
 
-  try {
-    const res = await fetch('https://api.line.me/v2/bot/message/push', {
-      method:  'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization:  `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        to:       lineUserId,
-        messages: [{ type: 'text', text: lines }],
-      }),
-    })
-
-    if (!res.ok) {
-      const err = await res.text()
-      console.error('[notify-fitting] LINE API error', res.status, err)
-      return NextResponse.json({ ok: false, error: err }, { status: 500 })
-    }
-
-    return NextResponse.json({ ok: true })
-  } catch (e) {
-    console.error('[notify-fitting] exception', e)
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 })
+  if (!result.ok) {
+    console.error('[notify-fitting] LINE API error', result.status, result.error)
+    return NextResponse.json({ ok: false, error: result.error }, { status: 500 })
   }
+
+  return NextResponse.json({ ok: true })
 }

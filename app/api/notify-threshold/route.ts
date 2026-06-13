@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, getTodayStart } from '@/lib/supabase'
+import { pushCard, ogTicketUrl, resolveOrigin } from '@/lib/line-flex'
 
 const LIFF_URL = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || ''}`
 
@@ -95,37 +96,32 @@ export async function POST(req: NextRequest) {
   }
 
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN || ''
-
-  const storeLabel = storeName ? `【${storeName}】\n` : ''
   const paddedNum  = String(nextTicket.ticket_number).padStart(3, '0')
-  const messageText =
-    `⏰ まもなくお呼びします！\n\n${storeLabel}整理番号：${paddedNum}\n${nextTicket.customer_name} 様\n\nカウンター付近でお待ちください。\n\n▼ 待ち状況を確認\n${LIFF_URL}/${storeId}`
+  const origin = resolveOrigin(req.url)
+  const progressUrl = `${LIFF_URL}/${storeId}/progress?queue=${nextTicket.id}`
 
-  try {
-    const res = await fetch('https://api.line.me/v2/bot/message/push', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        to: nextTicket.line_user_id,
-        messages: [{ type: 'text', text: messageText }],
-      }),
-    })
+  const result = await pushCard(token, nextTicket.line_user_id, `まもなくお呼び出し 整理番号:${paddedNum}`, {
+    kind: 'soon',
+    title: 'まもなくお呼びします',
+    storeName: storeName || undefined,
+    numberLabel: '整理番号',
+    number: paddedNum,
+    customerName: nextTicket.customer_name,
+    imageUrl: ogTicketUrl(origin, { no: paddedNum, store: storeName || undefined, label: '整理番号', kind: 'soon' }),
+    steps: [{ label: '受付完了' }, { label: 'お呼び出し' }, { label: '完了' }],
+    currentStep: 0,
+    note: 'カウンター付近でお待ちください。\n下のボタンから待ち状況を確認できます。',
+    buttonLabel: '待ち状況を見る',
+    buttonUrl: progressUrl,
+  })
 
-    if (!res.ok) {
-      const err = await res.text()
-      console.error('[notify-threshold] LINE API Error:', err)
-      return NextResponse.json({ ok: false, error: `LINE API ${res.status}: ${err}` }, { status: 500 })
-    }
-
-    console.log(
-      `[notify-threshold] 通知送信 No.${nextTicket.ticket_number} ${nextTicket.customer_name} 様 (position=${noticeThreshold}, active=${activeCount})`
-    )
-    return NextResponse.json({ ok: true, notified: nextTicket.ticket_number })
-  } catch (e) {
-    console.error('[notify-threshold] LINE fetch error:', e)
-    return NextResponse.json({ ok: false, error: `LINE fetch error: ${String(e)}` }, { status: 500 })
+  if (!result.ok) {
+    console.error('[notify-threshold] LINE API Error:', result.error)
+    return NextResponse.json({ ok: false, error: `LINE API ${result.status ?? ''}: ${result.error}` }, { status: 500 })
   }
+
+  console.log(
+    `[notify-threshold] 通知送信 No.${nextTicket.ticket_number} ${nextTicket.customer_name} 様 (position=${noticeThreshold}, active=${activeCount})`
+  )
+  return NextResponse.json({ ok: true, notified: nextTicket.ticket_number })
 }

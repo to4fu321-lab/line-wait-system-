@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { getLineToken } from '@/lib/line-config'
+import { getLineToken, getLiffBaseUrl } from '@/lib/line-config'
+import { pushCard, ogTicketUrl, resolveOrigin, type CardOptions, type CardKind } from '@/lib/line-flex'
 
 // テイクアウト通知は takeout アカウントのトークンを使用
 const LINE_TOKEN = getLineToken('takeout')
+const LIFF_BASE  = getLiffBaseUrl('takeout')
+
+const TAKEOUT_STEPS = [
+  { label: '受付完了' },
+  { label: '調理中' },
+  { label: '完成' },
+  { label: 'お渡し' },
+]
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,7 +23,7 @@ export async function POST(req: NextRequest) {
 
     const { data: order } = await supabase
       .from('takeout_orders')
-      .select('*, store:stores(name, takeout_settings)')
+      .select('*, store:stores(name, takeout_settings), items:takeout_order_items(name, quantity)')
       .eq('id', orderId)
       .single()
 
@@ -35,20 +44,48 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, reason: 'disabled' })
     }
 
-    const message = status === 'confirmed'
-      ? `【${storeName}】\nご注文 ${order.order_number} を受け付けました！\nお支払いは受け取り時にお願いします。`
-      : status === 'preparing'
-      ? `【${storeName}】\n${order.order_number} の調理を開始しました。\nしばらくお待ちください。`
-      : `【${storeName}】\n${order.order_number} のご注文が完成しました！\nお受け取りをお願いします。`
+    // status → ステップ位置・配色・文言
+    const config: Record<string, { step: number; kind: CardKind; title: string; note: string }> = {
+      confirmed: { step: 0, kind: 'order', title: 'ご注文を受け付けました', note: 'お支払いは受け取り時にお願いします。\n進捗は下のボタンから確認できます。' },
+      preparing: { step: 1, kind: 'order', title: '調理を開始しました',     note: 'できあがりまでもうしばらくお待ちください。' },
+      ready:     { step: 2, kind: 'ready', title: 'ご注文が完成しました',   note: 'お受け取りをお願いします。' },
+    }
+    const c = config[status as string] ?? config.confirmed
 
-    const lineRes = await fetch('https://api.line.me/v2/bot/message/push', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${LINE_TOKEN}` },
-      body:    JSON.stringify({ to: order.line_user_id, messages: [{ type: 'text', text: message }] }),
+    const itemLines = (order.items as { name: string; quantity: number }[] ?? [])
+      .map(i => `${i.name} ×${i.quantity}`)
+
+    const origin = resolveOrigin(req.url)
+    const imageUrl = ogTicketUrl(origin, {
+      no: order.order_number,
+      store: storeName,
+      label: '注文番号',
+      kind: c.kind,
     })
+    const progressUrl = LIFF_BASE && order.store_id
+      ? `${LIFF_BASE}/${order.store_id}/progress?order=${orderId}`
+      : undefined
 
-    if (!lineRes.ok) {
-      console.error('LINE push failed:', await lineRes.text())
+    const card: CardOptions = {
+      kind: c.kind,
+      title: c.title,
+      storeName,
+      numberLabel: '注文番号',
+      number: order.order_number,
+      imageUrl,
+      bodyLines: itemLines.length ? itemLines : undefined,
+      steps: TAKEOUT_STEPS,
+      currentStep: c.step,
+      note: c.note,
+      buttonLabel: progressUrl ? '進捗を見る' : undefined,
+      buttonUrl: progressUrl,
+    }
+
+    const altText = `${storeName} ご注文 ${order.order_number}：${c.title}`
+    const result = await pushCard(LINE_TOKEN, order.line_user_id, altText, card)
+
+    if (!result.ok) {
+      console.error('LINE push failed:', result.error)
       return NextResponse.json({ ok: false, reason: 'line_error' }, { status: 500 })
     }
 
