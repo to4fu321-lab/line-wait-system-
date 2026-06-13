@@ -337,9 +337,9 @@ export default function CRMPage() {
     fetchStats()
   }, [qiCustomerId, qiChildId, qiItemName, qiContent, qiPrice, qiNotes, qiDesiredDate, qiMaker, qiIntakeType, storeId, showToast, resetQi, fetchStats])
 
-  const fetchAllCustomers = useCallback(async () => {
+  const fetchAllCustomers = useCallback(async (opts?: { silent?: boolean }) => {
     if (!storeId || groupStoreIds.length === 0) return
-    setAllLoading(true)
+    if (!opts?.silent) setAllLoading(true)  // 自動更新時はスピナーを出さない
     const q = supabase.from('customers').select('*, children(school_name)').in('store_id', groupStoreIds)
     const { data } = await (showDeleted ? q.not('deleted_at', 'is', null) : q.is('deleted_at', null))
       .order('kana', { ascending: true }).limit(500)
@@ -348,6 +348,22 @@ export default function CRMPage() {
   }, [storeId, showDeleted, groupStoreIds])
 
   useEffect(() => { fetchAllCustomers() }, [fetchAllCustomers])
+
+  // ── 新規登録などをリアルタイム反映（customers の変更を購読）──
+  useEffect(() => {
+    if (!storeId || groupStoreIds.length === 0) return
+    const channel = supabase.channel(`crm-customers-${storeId}`)
+    groupStoreIds.forEach(sid => {
+      channel.on('postgres_changes',
+        { event: '*', schema: 'public', table: 'customers', filter: `store_id=eq.${sid}` },
+        () => fetchAllCustomers({ silent: true }))
+    })
+    channel.subscribe()
+    // タブ復帰時にも最新化（購読が切れていた場合の保険）
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchAllCustomers({ silent: true }) }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { supabase.removeChannel(channel); document.removeEventListener('visibilitychange', onVisible) }
+  }, [storeId, groupStoreIds, fetchAllCustomers])
 
   // ── 顧客検索（お子様名でもヒット・削除済み切替対応）──
   const searchCustomers = useCallback(async (q: string, deleted = false) => {
