@@ -32,6 +32,7 @@ export type FeatureKey =
   | 'line_coupon'          // クーポン自動配布
   | 'line_parent_rsv'      // LINE採寸予約（保護者）
   | 'customer_self_intake' // お客様セルフ依頼入力（登録後に自分のスマホで依頼内容を入力）
+  | 'customer_self_order'  // お客様セルフ制服注文（採寸完了・予約後に自分のスマホで制服を注文）
   // ── 既存フラグ（後方互換）──────────────
   | 'queue'
   | 'crm'

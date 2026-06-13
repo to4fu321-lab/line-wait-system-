@@ -769,6 +769,7 @@ export default function CustomerPage() {
   const [allowRemote, setAllowRemote] = useState(false)
   const [arrivalModal, setArrivalModal] = useState(false)
   const [isSimpleMode, setIsSimpleMode] = useState(false)
+  const [selfOrderEnabled, setSelfOrderEnabled] = useState(true)
 
   const allowRemoteRef = useRef(false)
   const pendingHeightWeightRef = useRef<{ height: string; weight: string } | null>(null)
@@ -791,6 +792,7 @@ export default function CustomerPage() {
       const featuresData = (sd?.features ?? {}) as Record<string, unknown>
       const isSimple = !resolveFeature('tab_queue', featuresData)
       if (sd?.features) setIsSimpleMode(isSimple)
+      setSelfOrderEnabled(resolveFeature('customer_self_order', featuresData))
       if (sd && Array.isArray(sd.wait_thresholds) && sd.wait_thresholds.length > 0)
         setWaitThresholds(sd.wait_thresholds as WaitThreshold[])
       if (sd?.notification_plan) notificationPlanRef.current = sd.notification_plan
@@ -1996,18 +1998,23 @@ export default function CustomerPage() {
         <p className="text-zinc-500 text-base">ありがとうございました！</p>
       </div>
 
-      {/* 採寸・対面後に、お客様のスマホからそのまま制服注文を入力 */}
+      {/* 採寸・対面後に、お客様のスマホからそのまま制服注文を入力（店舗設定でON/OFF） */}
       <div className="w-full max-w-xs space-y-3">
-        <button onClick={() => setView('purchase_ec')}
-          className="w-full px-8 py-4 rounded-2xl text-white font-black flex items-center justify-center gap-2 active:scale-95 transition-transform"
-          style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.45)` }}>
-          <ShoppingBag size={18} />制服を注文する
-        </button>
-        <p className="text-zinc-400 text-xs leading-relaxed">
-          サイズ・数量をお選びいただけます。<br />ご自宅からの追加注文もこちらから。
-        </p>
+        {selfOrderEnabled && (
+          <>
+            <button onClick={() => setView('purchase_ec')}
+              className="w-full px-8 py-4 rounded-2xl text-white font-black flex items-center justify-center gap-2 active:scale-95 transition-transform"
+              style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.45)` }}>
+              <ShoppingBag size={18} />制服を注文する
+            </button>
+            <p className="text-zinc-400 text-xs leading-relaxed">
+              サイズ・数量をお選びいただけます。<br />ご自宅からの追加注文もこちらから。
+            </p>
+          </>
+        )}
         <button onClick={handleReset}
-          className="w-full px-8 py-3 rounded-2xl border-2 border-zinc-200 text-zinc-500 font-bold text-sm active:scale-95 transition-transform">
+          className={`w-full px-8 py-3 rounded-2xl font-bold text-sm active:scale-95 transition-transform ${selfOrderEnabled ? 'border-2 border-zinc-200 text-zinc-500' : 'text-white font-black py-4'}`}
+          style={selfOrderEnabled ? undefined : { background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`, boxShadow: `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.45)` }}>
           最初に戻る
         </button>
       </div>

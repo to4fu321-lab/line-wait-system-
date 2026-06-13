@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { resolveFeature } from '@/lib/features'
 import {
   CalendarDays, Clock, User, FileText, Check,
   Loader2, ChevronLeft, ChevronRight, GraduationCap, Plus, X, ShoppingBag,
@@ -90,7 +91,7 @@ const DEFAULT_SETTINGS: ReservationSetting[] = [
 // ============================================================
 // シンプルフォールバックフォーム（reservation_settings 未対応時）
 // ============================================================
-function FallbackForm({ storeId, storeName, initialName }: { storeId: string; storeName: string; initialName?: string }) {
+function FallbackForm({ storeId, storeName, initialName, selfOrderEnabled }: { storeId: string; storeName: string; initialName?: string; selfOrderEnabled?: boolean }) {
   const [step, setStep] = useState<'form' | 'done'>('form')
   const [name, setName] = useState(initialName ?? '')
   const [date, setDate] = useState('')
@@ -110,12 +111,16 @@ function FallbackForm({ storeId, storeName, initialName }: { storeId: string; st
         <h1 className="text-xl font-black text-white mb-2">予約を受け付けました</h1>
         <p className="text-zinc-400 text-sm">ご来店予約を承りました。</p>
 
-        {/* 予約のお客様もそのままスマホから制服注文を入力できる */}
-        <a href={`/${storeId}?action=purchase`}
-          className="mt-7 w-full max-w-xs flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-2xl transition-colors">
-          <ShoppingBag size={18} />制服を注文する
-        </a>
-        <p className="text-zinc-600 text-xs mt-2">サイズ・数量を選んでご注文いただけます</p>
+        {/* 予約のお客様もそのままスマホから制服注文を入力できる（店舗設定でON/OFF） */}
+        {selfOrderEnabled && (
+          <>
+            <a href={`/${storeId}?action=purchase`}
+              className="mt-7 w-full max-w-xs flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-2xl transition-colors">
+              <ShoppingBag size={18} />制服を注文する
+            </a>
+            <p className="text-zinc-600 text-xs mt-2">サイズ・数量を選んでご注文いただけます</p>
+          </>
+        )}
       </div>
     )
   }
@@ -185,6 +190,7 @@ export default function ReservePage() {
   // 全体の状態
   const [pageState, setPageState] = useState<'loading' | 'slot' | 'fallback' | 'done' | 'error'>('loading')
   const [storeName, setStoreName] = useState('')
+  const [selfOrderEnabled, setSelfOrderEnabled] = useState(true)
   const [lineUserId, setLineUserId] = useState<string | null>(null)
   const [settings, setSettings] = useState<ReservationSetting[]>([])
 
@@ -233,8 +239,11 @@ export default function ReservePage() {
       // ストア名
       try {
         const { data: store } = await (supabase as any)
-          .from('stores').select('name').eq('id', storeId).single()
-        if (store) setStoreName(store.name ?? '')
+          .from('stores').select('name, features').eq('id', storeId).single()
+        if (store) {
+          setStoreName(store.name ?? '')
+          setSelfOrderEnabled(resolveFeature('customer_self_order', (store.features ?? {}) as Record<string, unknown>))
+        }
       } catch { /* ignore */ }
 
       // LIFF（フォールバック表示時も顧客名を反映できるよう、設定取得より先に実行）
@@ -459,7 +468,7 @@ export default function ReservePage() {
   }
 
   if (pageState === 'fallback') {
-    return <FallbackForm storeId={storeId} storeName={storeName} initialName={name} />
+    return <FallbackForm storeId={storeId} storeName={storeName} initialName={name} selfOrderEnabled={selfOrderEnabled} />
   }
 
   if (pageState === 'error') {
@@ -493,12 +502,16 @@ export default function ReservePage() {
         </p>
         <p className="text-zinc-600 text-xs mt-4">※ 確認のご連絡をお送りする場合があります</p>
 
-        {/* 予約のお客様もそのままスマホから制服注文を入力できる */}
-        <a href={`/${storeId}?action=purchase`}
-          className="mt-7 w-full max-w-xs flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-2xl transition-colors">
-          <ShoppingBag size={18} />制服を注文する
-        </a>
-        <p className="text-zinc-600 text-xs mt-2">サイズ・数量を選んでご注文いただけます</p>
+        {/* 予約のお客様もそのままスマホから制服注文を入力できる（店舗設定でON/OFF） */}
+        {selfOrderEnabled && (
+          <>
+            <a href={`/${storeId}?action=purchase`}
+              className="mt-7 w-full max-w-xs flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-2xl transition-colors">
+              <ShoppingBag size={18} />制服を注文する
+            </a>
+            <p className="text-zinc-600 text-xs mt-2">サイズ・数量を選んでご注文いただけます</p>
+          </>
+        )}
       </div>
     )
   }
