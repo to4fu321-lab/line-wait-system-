@@ -14,6 +14,7 @@ import { supabase } from '@/lib/supabase'
 import type { WaitThreshold } from '@/types/database'
 import { DEFAULT_THRESHOLDS } from '@/types/database'
 import { BottomNav } from '../_components/BottomNav'
+import TemplatePicker from '../_components/TemplatePicker'
 import { useSimpleMode } from '@/lib/useSimpleMode'
 
 type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
@@ -292,7 +293,10 @@ export default function SettingsPage() {
         {/* ① 受付ページ設定 */}
         <Section id="reception" emoji="🔢" title="受付ページ設定" open={openSections.has('reception')} onToggle={() => toggle('reception')}>
           <div>
-            <label className="text-xs font-bold text-gray-600 mb-1.5 block">注意事項</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold text-gray-600 block">注意事項</label>
+              <TemplatePicker category="general" onInsert={t => setNoticeText(p => p ? p + '\n' + t : t)} />
+            </div>
             <p className="text-[11px] text-gray-400 mb-1.5">受付ページに表示される注意文（空欄でデフォルト表示）</p>
             <textarea value={noticeText} onChange={e => setNoticeText(e.target.value)} rows={3}
               placeholder="例: 混雑状況により、お時間をいただく場合がございます。&#10;ご了承のうえ、受付をお取りください。"
@@ -521,7 +525,10 @@ export default function SettingsPage() {
 
           {/* お直し持込注意事項 */}
           <div className="space-y-1.5">
-            <p className="text-xs font-bold text-gray-600">お直し持込 注意事項（顧客向けページ）</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold text-gray-600">お直し持込 注意事項（顧客向けページ）</p>
+              <TemplatePicker category="repair_note" onInsert={t => setRepairNotes(p => p ? p + '\n' + t : t)} />
+            </div>
             <p className="text-[10px] text-gray-400">リッチメニュー「依頼」から開くページに表示されます</p>
             <textarea
               value={repairNotes}
