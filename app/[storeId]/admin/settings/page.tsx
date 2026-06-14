@@ -646,7 +646,7 @@ export default function SettingsPage() {
               { href: `/${storeId}/admin/master?tab=schools`,              icon: GraduationCap, title: '学校マスタ',      bg: 'bg-indigo-100', fg: 'text-indigo-600' },
               { href: `/${storeId}/admin/master?tab=schools&view=products`, icon: Shirt,         title: '商品マスタ',      bg: 'bg-sky-100',    fg: 'text-sky-600' },
               { href: `/${storeId}/admin/master?tab=staff`,                icon: Users,         title: 'スタッフマスタ',  bg: 'bg-violet-100', fg: 'text-violet-600' },
-              { href: `/${storeId}/admin/master?tab=presets`,              icon: Scissors,      title: 'お直しマスタ',    bg: 'bg-rose-100',   fg: 'text-rose-600' },
+              { href: `/${storeId}/admin/master/repair`,                   icon: Scissors,      title: 'お直しマスタ',    bg: 'bg-rose-100',   fg: 'text-rose-600' },
             ] },
             { group: 'その他マスタ', items: [
               { href: `/${storeId}/admin/master/suppliers`, icon: Factory,        title: 'メーカー・仕入先',     bg: 'bg-amber-100', fg: 'text-amber-600' },

@@ -216,7 +216,7 @@ export default function StaffSettingsPage() {
         <div className="max-w-lg mx-auto px-4 py-5 space-y-4 pb-32">
 
           {/* ✂️ お直し項目・料金 */}
-          <Link href={`/${storeId}/admin/master?tab=presets`}
+          <Link href={`/${storeId}/admin/master/repair`}
             className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-indigo-200 hover:border-indigo-400 active:scale-[0.98] transition-all shadow-sm">
             <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center shrink-0">
               <Scissors size={28} className="text-indigo-600" />

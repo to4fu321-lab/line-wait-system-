@@ -318,11 +318,17 @@ function MasterPageInner() {
     setToast({ msg: 'プリセットを削除しました', type: 'ok' })
   }
 
+  // お直しマスタは専用ページへ移行済み（服種>項目>オプションの3階層）。
+  // 旧 presets タブに来たら新ページへリダイレクトする。
+  useEffect(() => {
+    if (masterTab === 'presets' && storeId) router.replace(`/${storeId}/admin/master/repair`)
+  }, [masterTab, storeId, router])
+
   // ── Tab 切替 ──────────────────────────────────────────────
   const switchTab = (tab: MasterTab) => {
+    if (tab === 'presets') { router.push(`/${storeId}/admin/master/repair`); return }
     setMasterTab(tab)
     if (tab === 'schools') { setSchoolView('schools'); setSelectedSchool(null); setSelectedProduct(null); setSchoolDetailTab('catalog') }
-    if (tab === 'presets') { fetchPresets(); fetchCategories() }
   }
 
   // ── Navigation (school drill-down) ───────────────────────
