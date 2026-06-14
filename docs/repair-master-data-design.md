@@ -6,6 +6,32 @@
 
 ---
 
+## ✅ 実装版（確定 / 2026-06-14 ゼロから再構築）
+
+設計案を実装するにあたり「シンプル・分かりやすい・拡張可能」を優先し、当初案の8テーブルから
+**実用上冗長な2テーブルを JSONB へ折りたたみ**、取引は既存アプリ互換のためフラット構造に統一した。
+
+| 区分 | テーブル | 備考 |
+|---|---|---|
+| マスタ | `repair_garment_types` | 服種 |
+| マスタ | `repair_items` | 項目=基本料金。`measurements`(採寸定義)・`manual`(参考画像) を JSONB 内包 |
+| マスタ | `repair_options` | オプション=価格差分。`group_label`/`group_select` で option_groups を内包 |
+| 取引 | `repair_histories` | **1お直し=1行**（複数項目は `slip_number` で束ねる）。マスタ連携・`pricing_mode`・`quote_status`・`selected_options`/`inputs`(JSONB) を追加。既存カラムは互換維持 |
+| 取引 | `repair_photos` | 実績写真。`phase`(intake/before/after/rework/delivery)、`repair_id`→repair_histories |
+
+**折りたたみ判断**
+- `repair_manuals` → 項目/オプションの `manual`(JSONB) に内包（多項目で共有したくなれば独立テーブルへ切出し可）
+- `repair_option_groups` → `repair_options.group_label`/`group_select` に内包
+- `repair_orders` + `repair_order_lines`（ヘッダ+明細の正規化）→ **廃止**。既存アプリ（CRM/配送/受付/通知/統計）が `repair_histories` フラット前提のため過剰と判断。多項目受付は伝票番号で束ねる
+
+**関連ファイル**: `sql/repair-system-rebuild.sql` / `sql/repair-system-seed.sql` / `types/repair.ts` /
+`lib/repairPricing.ts`（価格計算）/ `app/[storeId]/admin/master/repair/`（マスタ管理UI）/
+`app/[storeId]/admin/repairs/_components/NewRepairModal.tsx`（受付UI）
+
+> 以下は当初の設計案（理論編）。正規化版(orders/lines)の記述が残るが、上表が実装の確定形。
+
+---
+
 ## 0. 設計の3原則
 
 | 原則 | 内容 |
