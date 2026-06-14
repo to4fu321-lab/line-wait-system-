@@ -29,7 +29,7 @@ export function unitFactor(
 // 刺繍などの文字数（全角・半角どちらも1文字、空白除外）
 export function charCount(text: unknown): number {
   if (typeof text !== 'string') return 0
-  return [...text.replace(/\s/g, '')].length
+  return Array.from(text.replace(/\s/g, '')).length
 }
 
 // オプション選択スナップショット配列から加算額を求める

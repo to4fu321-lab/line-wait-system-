@@ -73,15 +73,19 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
 
   useEffect(() => {
     async function load() {
+      // 新お直しマスタ（服種=カテゴリ / 項目=プリセット）をこの画面の形に写す
       const [{ data: cats }, { data: pres }] = await Promise.all([
-        (supabase as any).from('repair_item_categories')
-          .select('id, name').eq('store_id', storeId).eq('is_active', true).order('sort_order'),
-        (supabase as any).from('repair_price_presets')
-          .select('id, item_name, repair_type, default_price, category_id, sort_order')
-          .eq('store_id', storeId).eq('is_active', true).order('sort_order'),
+        (supabase as any).from('repair_garment_types')
+          .select('id, name').eq('store_id', storeId).eq('active', true).order('sort_order'),
+        (supabase as any).from('repair_items')
+          .select('id, name, code, base_price, garment_type_id, sort_order')
+          .eq('store_id', storeId).eq('active', true).order('sort_order'),
       ])
       setCategories(cats ?? [])
-      setPresets(pres ?? [])
+      setPresets((pres ?? []).map((it: any): Preset => ({
+        id: it.id, item_name: it.name, repair_type: it.code,
+        default_price: it.base_price, category_id: it.garment_type_id, sort_order: it.sort_order,
+      })))
     }
     load()
   }, [storeId])
@@ -245,18 +249,28 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
       const itemName   = itemParts.join(' / ')
       const repairType = selected[0]?.repair_type ?? 'other'
       const finalPrice = price ? parseInt(price, 10) : null
+      const priceVal   = finalPrice && !isNaN(finalPrice) ? finalPrice : null
+      // 単一項目選択ならマスタ連携情報も保存（複数選択時は集約のため付けない）
+      const single = selected.length === 1 ? selected[0] : null
       const { error: insertErr } = await (supabase as any).from('repair_histories').insert({
         store_id:               storeId,
         customer_id:            finalCustomer.id,
         item_name:              itemName,
         content:                itemName,
         repair_type:            repairType,
-        price:                  finalPrice && !isNaN(finalPrice) ? finalPrice : null,
+        price:                  priceVal,
+        final_price:            priceVal,
         prepaid:                prepaid,
         desired_completion_date: desiredDate || null,
         notes:                  notes.trim() || null,
         status:                 'received',
         received_date:          todayJst(),
+        item_id:                single?.id ?? null,
+        garment_type_id:        single?.category_id ?? null,
+        item_code:              single?.repair_type ?? null,
+        base_price:             single?.default_price ?? null,
+        calculated_price:       priceVal,
+        pricing_mode:           priceManual ? 'adjusted' : 'master',
       })
       if (insertErr) throw new Error(insertErr.message)
       onCreated()
@@ -525,7 +539,7 @@ export function SimpleReceiptModal({ storeId, onClose, onCreated }: Props) {
             </p>
             {groups.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-6 bg-gray-50 rounded-xl">
-                設定 → お直し料金 からプリセットを追加してください
+                設定 → お直しマスタ から服種・項目を追加してください
               </p>
             ) : (
               <div className="space-y-4">

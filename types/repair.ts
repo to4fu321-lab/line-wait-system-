@@ -25,6 +25,10 @@ export interface MeasurementDef {
 // 特殊ケースのマニュアル（参考画像・注意書き）
 export type ManualSeverity = 'info' | 'warn' | 'danger'
 
+export const MANUAL_SEVERITY_LABELS: Record<ManualSeverity, string> = {
+  info: '案内', warn: '注意', danger: '要確認',
+}
+
 export interface RepairManual {
   title:    string
   body:     string
@@ -89,59 +93,10 @@ export interface RepairOption {
   updated_at:       string
 }
 
-// ── トランザクション：受付伝票 ────────────────────────────────
-export type RepairOrderStatus =
-  | 'received' | 'in_progress' | 'completed' | 'delivered' | 'cancelled'
-
-export const REPAIR_ORDER_STATUS_LABELS: Record<RepairOrderStatus, string> = {
-  received:    '預かり中',
-  in_progress: '作業中',
-  completed:   '完了',
-  delivered:   'お渡し済み',
-  cancelled:   'キャンセル',
-}
-
-export type PaymentStatus = 'unpaid' | 'prepaid' | 'paid'
-
-export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
-  unpaid:  '未入金',
-  prepaid: '前金あり',
-  paid:    '入金済み',
-}
-
-export interface RepairOrder {
-  id:                   string
-  store_id:             string
-  customer_id:          string
-  child_id:             string | null
-  slip_number:          string | null
-  status:               RepairOrderStatus
-  received_date:        string
-  desired_date:         string | null
-  completed_date:       string | null
-  delivered_date:       string | null
-  total_price:          number
-  has_pending_quote:    boolean
-  payment_status:       PaymentStatus
-  notified:             boolean
-  notes:                string | null
-  internal_memo:        string | null
-  vendor_name:          string | null
-  sent_to_vendor_at:    string | null
-  expected_return_date: string | null
-  is_rework:            boolean
-  rework_reason:        string | null
-  created_by:           string | null
-  created_at:           string
-  updated_at:           string
-  // JOIN 時
-  customer?:            { id: string; name: string; tel: string | null; line_user_id: string | null }
-  child?:               { name: string; school_name: string | null } | null
-  lines?:               RepairOrderLine[]
-  photos?:              RepairPhoto[]
-}
-
-// ── トランザクション：明細 ────────────────────────────────────
+// ── トランザクション：価格モード（取引は repair_histories フラット1行） ──
+//  受付の取引行そのものの型は app/[storeId]/admin/repairs/_components/types.ts の
+//  RepairRow が担う（既存アプリ互換）。ここでは再構築で追加した「価格モード・
+//  見積もり状態・オプションスナップショット」の共通型のみ定義する。
 export type PricingMode = 'master' | 'adjusted' | 'manual'
 
 export const PRICING_MODE_LABELS: Record<PricingMode, string> = {
@@ -158,7 +113,7 @@ export const QUOTE_STATUS_LABELS: Record<QuoteStatus, string> = {
   approved: '見積もり確定（承認待ち）',
 }
 
-// 明細に保存するオプション選択のスナップショット
+// 取引行(selected_options)に保存するオプション選択のスナップショット
 export interface SelectedOptionSnapshot {
   option_id:   string
   code:        string
@@ -166,30 +121,6 @@ export interface SelectedOptionSnapshot {
   group_label: string | null
   price_delta: number
   price_unit:  PriceUnit
-}
-
-export interface RepairOrderLine {
-  id:               string
-  order_id:         string
-  store_id:         string
-  garment_type_id:  string | null
-  item_id:          string | null
-  garment_name:     string | null
-  item_name:        string
-  item_code:        string | null
-  pricing_mode:     PricingMode
-  base_price:       number
-  calculated_price: number
-  final_price:      number | null    // null = 見積もり待ち
-  manual_reason:    string | null
-  quote_status:     QuoteStatus
-  inputs:           Record<string, string | number>
-  options:          SelectedOptionSnapshot[]
-  qty:              number
-  notes:            string | null
-  sort_order:       number
-  created_at:       string
-  updated_at:       string
 }
 
 // ── トランザクション：実績写真 ────────────────────────────────
@@ -206,8 +137,7 @@ export const REPAIR_PHOTO_PHASE_LABELS: Record<RepairPhotoPhase, string> = {
 export interface RepairPhoto {
   id:         string
   store_id:   string
-  order_id:   string
-  line_id:    string | null
+  repair_id:  string            // repair_histories.id
   phase:      RepairPhotoPhase
   path:       string
   url:        string | null
