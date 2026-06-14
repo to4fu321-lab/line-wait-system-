@@ -21,17 +21,24 @@ CREATE OR REPLACE FUNCTION handle_updated_at() RETURNS trigger AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END; $$ LANGUAGE plpgsql;
 
 -- ── 旧マスタ(テストデータ)を破棄 ────────────────────────────
-DROP VIEW  IF EXISTS school_product_variants CASCADE;
-DROP VIEW  IF EXISTS school_products         CASCADE;
-DROP VIEW  IF EXISTS school_items            CASCADE;
-DROP TABLE IF EXISTS school_product_variants CASCADE;
-DROP TABLE IF EXISTS school_products         CASCADE;
-DROP TABLE IF EXISTS school_items            CASCADE;
-DROP TABLE IF EXISTS prices                  CASCADE;
-DROP TABLE IF EXISTS school_requirements     CASCADE;
-DROP TABLE IF EXISTS size_set_items          CASCADE;
-DROP TABLE IF EXISTS size_sets               CASCADE;
-DROP TABLE IF EXISTS products                 CASCADE;
+-- テーブル/ビューのどちらでも安全に削除(再実行対応)
+DO $$
+DECLARE n text;
+BEGIN
+  FOREACH n IN ARRAY ARRAY[
+    'school_product_variants','school_products','school_items',
+    'prices','school_requirements','size_set_items','size_sets','products'
+  ] LOOP
+    IF EXISTS (
+      SELECT 1 FROM pg_class c JOIN pg_namespace ns ON ns.oid = c.relnamespace
+      WHERE ns.nspname = 'public' AND c.relname = n AND c.relkind = 'v'
+    ) THEN
+      EXECUTE format('DROP VIEW IF EXISTS public.%I CASCADE', n);
+    ELSE
+      EXECUTE format('DROP TABLE IF EXISTS public.%I CASCADE', n);
+    END IF;
+  END LOOP;
+END $$;
 
 -- store_id は既存マスタに合わせ text 型で統一(suppliers 等が text のため)。
 -- schools.id は uuid なので school 系参照は uuid を使う。
@@ -273,7 +280,7 @@ DECLARE
   i integer;
 BEGIN
   -- 店舗ごとにループ(schools を持つ store_id を対象)
-  FOR v_store IN SELECT DISTINCT store_id FROM schools LOOP
+  FOR v_store IN SELECT DISTINCT store_id::text FROM schools LOOP
     -- 既にこの店舗にサイズセットがあればスキップ
     IF EXISTS (SELECT 1 FROM size_sets WHERE store_id = v_store) THEN
       CONTINUE;
@@ -312,7 +319,7 @@ BEGIN
       RETURNING id INTO v_shoes;
 
     -- 学校ごとに 学校別注品(ブレザー/スラックス) + 規程 + 価格
-    FOR v_school IN SELECT id, name FROM schools WHERE store_id = v_store LOOP
+    FOR v_school IN SELECT id, name FROM schools WHERE store_id::text = v_store LOOP
       -- 学校別注品: ブレザー
       INSERT INTO products(store_id, school_id, name, category, gender, maker, maker_code, size_set_id, base_price_tax_in, sort_order)
         VALUES (v_store, v_school.id, 'ブレザー', '制服（上着）', '男女共通', 'トンボ', 'BL-101', v_ss_top, 14500, 1)
