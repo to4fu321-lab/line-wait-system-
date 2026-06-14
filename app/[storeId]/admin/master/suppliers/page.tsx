@@ -2,6 +2,16 @@
 
 import SimpleMaster from '../_components/SimpleMaster'
 
+// 初回に投入されるデフォルトのメーカー（あとから自由に編集・削除できる）
+const DEFAULT_SUPPLIERS = [
+  { name: 'トンボ' },
+  { name: 'カンコー' },
+  { name: 'スクールフォーラム' },
+  { name: '明石スクール' },
+  { name: '富士ヨット' },
+  { name: 'テイコク' },
+]
+
 export default function SuppliersMasterPage() {
   return (
     <SimpleMaster
@@ -11,6 +21,7 @@ export default function SuppliersMasterPage() {
       headerGrad="from-amber-600 to-orange-600"
       primaryKey="name"
       secondaryKeys={['contact_person', 'tel']}
+      seedDefaults={DEFAULT_SUPPLIERS}
       emptyHint="発注先のメーカー・仕入先を登録します"
       fields={[
         { key: 'name',           label: '仕入先名',   required: true, placeholder: '例: トンボ / ○○被服' },

@@ -30,12 +30,13 @@ interface SimpleMasterProps {
   primaryKey: string // 一覧の主タイトルに使うフィールド
   secondaryKeys?: string[] // 一覧の副情報に使うフィールド
   emptyHint?: string
+  seedDefaults?: Row[] // 初回（マスタが空）に一度だけ投入する初期データ
 }
 
 type Row = Record<string, any>
 
 export default function SimpleMaster({
-  table, title, emoji, headerGrad, fields, primaryKey, secondaryKeys = [], emptyHint,
+  table, title, emoji, headerGrad, fields, primaryKey, secondaryKeys = [], emptyHint, seedDefaults,
 }: SimpleMasterProps) {
   const { storeId } = useParams<{ storeId: string }>()
   const router = useRouter()
@@ -55,12 +56,24 @@ export default function SimpleMaster({
   const fetchRows = useCallback(async () => {
     if (!storeId) return
     setLoading(true)
-    const { data, error } = await (supabase as any)
+    const select = () => (supabase as any)
       .from(table).select('*').eq('store_id', storeId)
       .order('sort_order', { ascending: true }).order('created_at', { ascending: true })
+    let { data, error } = await select()
     if (error) { setTableOk(false); setLoading(false); return }
-    setTableOk(true); setRows(data ?? []); setLoading(false)
-  }, [storeId, table])
+    setTableOk(true)
+    // 初回だけデフォルトを投入（削除した状態は localStorage で記憶し再投入しない）
+    if ((!data || data.length === 0) && seedDefaults?.length && typeof window !== 'undefined') {
+      const flag = `master_seeded:${table}:${storeId}`
+      if (!localStorage.getItem(flag)) {
+        const toInsert = seedDefaults.map((d, i) => ({ ...d, store_id: storeId, sort_order: i }))
+        const { error: seedErr } = await (supabase as any).from(table).insert(toInsert)
+        localStorage.setItem(flag, '1')
+        if (!seedErr) { const re = await select(); data = re.data }
+      }
+    }
+    setRows(data ?? []); setLoading(false)
+  }, [storeId, table, seedDefaults])
 
   useEffect(() => { fetchRows() }, [fetchRows])
 
