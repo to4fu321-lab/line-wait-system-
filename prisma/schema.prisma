@@ -1,0 +1,269 @@
+// ============================================================
+// 学生服販売店 マスタデータ再設計 (Prisma Schema 参照定義)
+// ------------------------------------------------------------
+// 本ファイルは「設計の正典(canonical model)」です。
+// 実DBは Supabase(PostgreSQL) を使用しているため、実マイグレーションは
+// docs/master-data-redesign.md 内の SQL を Supabase へ適用してください。
+//
+// 設計の核となる分離:
+//   Product           = 「商品の実体」    (何であるか。メーカー・洗濯可否・標準価格)
+//   SizeSet           = 「サイズ規格」    (メーカーごとのサイズ展開。商品が参照)
+//   SchoolRequirement = 「学校ごとの規程」(必須/任意・学年色など。School×Product)
+//   Price             = 「価格」          (School×Product×サイズ。別寸価格含む)
+// これにより、同一商品を学校数だけ複製していた現状を解消します。
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL") // Supabase の場合は Connection Pooling 回避用
+}
+
+// ──────────────────────────────────────────────────────────────
+// 店舗 (既存。マルチテナントの最上位スコープ)
+// ──────────────────────────────────────────────────────────────
+model Store {
+  id   String @id @default(uuid()) @db.Uuid
+  name String
+
+  schools      School[]
+  products     Product[]
+  sizeSets     SizeSet[]
+  suppliers    Supplier[]
+  requirements SchoolRequirement[]
+  prices       Price[]
+
+  @@map("stores")
+}
+
+// ──────────────────────────────────────────────────────────────
+// 1. 学校マスタ
+// ──────────────────────────────────────────────────────────────
+model School {
+  id        String  @id @default(uuid()) @db.Uuid
+  storeId   String  @map("store_id") @db.Uuid
+  name      String
+  kana      String  @default("")
+  shortName String  @default("") @map("short_name")
+  sortOrder Int     @default(0) @map("sort_order")
+  active    Boolean @default(true)
+  notes     String  @default("")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  store        Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  grades       SchoolGrade[]
+  // 学校別注品 (この学校専用に作られた商品)
+  ownedProducts Product[]          @relation("SchoolOwnedProducts")
+  // この学校で扱う商品の規程 (自由商品・学校別注品どちらもここで束ねる)
+  requirements SchoolRequirement[]
+  prices       Price[]
+
+  @@unique([storeId, name])
+  @@index([storeId, sortOrder])
+  @@map("schools")
+}
+
+// 学年マスタ (学年色などの定義元)
+model SchoolGrade {
+  id        String @id @default(uuid()) @db.Uuid
+  schoolId  String @map("school_id") @db.Uuid
+  gradeName String @map("grade_name") // 例: 1年生
+  colorName String @default("") @map("color_name") // 例: 赤
+  colorHex  String @default("") @map("color_hex") // 例: #DC2626
+  sortOrder Int    @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@map("school_grades")
+}
+
+// ──────────────────────────────────────────────────────────────
+// 仕入先 / メーカーマスタ (既存 suppliers を正規化)
+// ──────────────────────────────────────────────────────────────
+model Supplier {
+  id           String  @id @default(uuid()) @db.Uuid
+  storeId      String  @map("store_id") @db.Uuid
+  name         String // メーカー名/仕入先名
+  kana         String?
+  leadTimeDays Int?    @map("lead_time_days")
+  orderMethod  String? @map("order_method") // fax/web/phone/email
+  orderUrl     String? @map("order_url")
+  minLot       Int?    @map("min_lot")
+  notes        String?
+  active       Boolean @default(true)
+  sortOrder    Int     @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  products Product[]
+  sizeSets SizeSet[]
+
+  @@index([storeId])
+  @@map("suppliers")
+}
+
+// ──────────────────────────────────────────────────────────────
+// 3. サイズセットマスタ (メーカーごとのサイズ規格定義)
+//    商品マスタから参照される。1セット = 複数のサイズ項目を持つ。
+//    例: トンボ「ブレザー用サイズA体」= [150,155,160,...,185]
+// ──────────────────────────────────────────────────────────────
+model SizeSet {
+  id         String  @id @default(uuid()) @db.Uuid
+  storeId    String  @map("store_id") @db.Uuid
+  supplierId String? @map("supplier_id") @db.Uuid // どのメーカー規格か
+  name       String // 例: トンボ ブレザー A体
+  category   String? // tops/bottoms/shoes など
+  notes      String?
+  active     Boolean @default(true)
+  sortOrder  Int     @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  store    Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  supplier Supplier?     @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  items    SizeSetItem[]
+  products Product[]
+
+  @@index([storeId])
+  @@map("size_sets")
+}
+
+// サイズセットの個々のサイズ (採寸時の選択肢の元)
+model SizeSetItem {
+  id        String @id @default(uuid()) @db.Uuid
+  sizeSetId String @map("size_set_id") @db.Uuid
+  label     String // 例: 160, M, 170B, W64
+  sortOrder Int    @default(0) @map("sort_order")
+
+  sizeSet SizeSet @relation(fields: [sizeSetId], references: [id], onDelete: Cascade)
+  prices  Price[]
+
+  @@unique([sizeSetId, label])
+  @@index([sizeSetId])
+  @@map("size_set_items")
+}
+
+// ──────────────────────────────────────────────────────────────
+// 2. 商品マスタ (自由商品 / 学校別注品 を1テーブルで管理)
+//    schoolId == null  → 自由商品 (全校共通・汎用品)
+//    schoolId != null  → 学校別注品 (その学校専用)
+//    どちらも「実体は1行のみ」。学校への割当・規程は SchoolRequirement、
+//    学校別の価格は Price で表現する (商品行を学校数だけ複製しない)。
+// ──────────────────────────────────────────────────────────────
+model Product {
+  id        String  @id @default(uuid()) @db.Uuid
+  storeId   String  @map("store_id") @db.Uuid
+  // null = 自由商品(汎用) / 値あり = 学校別注品
+  schoolId  String? @map("school_id") @db.Uuid
+
+  name        String
+  category    String?
+  gender      String? // 男子用/女子用/男女共通
+  supplierId  String? @map("supplier_id") @db.Uuid // メーカー
+  makerCode   String? @map("maker_code") // メーカー品番 (UNIQUE にしない: 同番でも別商品あり)
+  colorCode   String? @map("color_code")
+  barcode     String? // JAN/EAN
+  washable    String? // 洗濯可否 (washable/hand/dry-only など)
+  sizeSetId   String? @map("size_set_id") @db.Uuid // サイズ規格
+  // 標準価格 (学校別の上書きが無い場合のフォールバック)
+  basePriceTaxIn  Int? @map("base_price_tax_in")
+  basePriceTaxOut Int? @map("base_price_tax_out")
+  notes       String?
+  active      Boolean @default(true)
+  sortOrder   Int     @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  store        Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  ownerSchool  School?             @relation("SchoolOwnedProducts", fields: [schoolId], references: [id], onDelete: Cascade)
+  supplier     Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  sizeSet      SizeSet?            @relation(fields: [sizeSetId], references: [id], onDelete: SetNull)
+  requirements SchoolRequirement[]
+  prices       Price[]
+
+  @@index([storeId])
+  @@index([storeId, schoolId])
+  @@map("products")
+}
+
+// ──────────────────────────────────────────────────────────────
+// 4. 学校別規程マスタ (School × Product の割当 + ルール)
+//    「この学校でこの商品は必須/任意」「学年色を使うか」などを表現。
+//    - 自由商品: (schoolId, freeProduct.id) を行追加して各校に割り当てる
+//    - 学校別注品: その学校に対してのみ行を作る
+//    => 採寸接客では「この行を引くだけ」で必要商品が確定する。
+// ──────────────────────────────────────────────────────────────
+model SchoolRequirement {
+  id        String  @id @default(uuid()) @db.Uuid
+  storeId   String  @map("store_id") @db.Uuid
+  schoolId  String  @map("school_id") @db.Uuid
+  productId String  @map("product_id") @db.Uuid
+
+  required       Boolean @default(true) // 必須品か(false=任意/自由購入)
+  avgQty         Decimal? @map("avg_qty") @db.Decimal(4, 1) // 平均購入点数
+  usesGradeColor Boolean @default(false) @map("uses_grade_color") // 学年で色が変わる
+  gradeColorNote String  @default("") @map("grade_color_note")
+  itemNotes      String  @default("") @map("item_notes")
+  sortOrder      Int     @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  store   Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  school  School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  // 同じ学校に同じ商品を二重登録させない
+  @@unique([schoolId, productId])
+  @@index([schoolId, required, sortOrder])
+  @@map("school_requirements")
+}
+
+// ──────────────────────────────────────────────────────────────
+// 5. 価格マスタ (School × Product (× サイズ) の販売価格)
+//    - sizeSetItemId == null  → その商品の通常価格(全サイズ共通)
+//    - sizeSetItemId != null  → 特定サイズの価格 (大きいサイズの加算など)
+//    - isEo == true           → 別寸(EO)価格
+//    学校が標準価格を上書きしたい場合のみ行を作る。無ければ
+//    Product.basePrice* をフォールバックに使う。
+// ──────────────────────────────────────────────────────────────
+model Price {
+  id            String  @id @default(uuid()) @db.Uuid
+  storeId       String  @map("store_id") @db.Uuid
+  schoolId      String  @map("school_id") @db.Uuid
+  productId     String  @map("product_id") @db.Uuid
+  sizeSetItemId String? @map("size_set_item_id") @db.Uuid
+
+  priceTaxIn  Int  @map("price_tax_in")
+  priceTaxOut Int? @map("price_tax_out")
+  isEo        Boolean @default(false) @map("is_eo") // 別寸(EO)価格か
+  cost        Int? // 仕入価格
+  validFrom   DateTime? @map("valid_from") @db.Date // 価格改定の発効日(任意)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  store       Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  school      School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  product     Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sizeSetItem SizeSetItem? @relation(fields: [sizeSetItemId], references: [id], onDelete: Cascade)
+
+  // 学校×商品×サイズ×別寸区分 で一意
+  @@unique([schoolId, productId, sizeSetItemId, isEo])
+  @@index([schoolId, productId])
+  @@map("prices")
+}

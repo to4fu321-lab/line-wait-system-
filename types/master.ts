@@ -80,6 +80,131 @@ export const PRODUCT_CATEGORY_OPTIONS = [
 
 export const PRODUCT_GENDER_OPTIONS = ['男子用', '女子用', '男女共通'] as const
 
+// ══════════════════════════════════════════════════════════════
+// ▼▼ 再設計マスタ(正規化スキーマ。docs/master-data-redesign.md) ▼▼
+//    旧 SchoolProduct/SchoolProductVariant は互換ビュー用に残置。
+//    新規開発は以下の正規化型を使用する。
+// ══════════════════════════════════════════════════════════════
+
+// 1. 学校マスタ(再設計版。kana/notes を含む)
+export interface SchoolMaster {
+  id:         string
+  store_id:   string
+  name:       string
+  kana:       string
+  short_name: string
+  sort_order: number
+  active:     boolean
+  notes:      string
+  created_at: string
+  updated_at: string
+}
+
+// 3. サイズセットマスタ(メーカーごとのサイズ規格)
+export interface SizeSet {
+  id:          string
+  store_id:    string
+  supplier_id: string | null
+  name:        string
+  category:    string | null
+  notes:       string | null
+  active:      boolean
+  sort_order:  number
+  created_at:  string
+  updated_at:  string
+  items?:      SizeSetItem[]
+}
+
+export interface SizeSetItem {
+  id:          string
+  size_set_id: string
+  label:       string
+  sort_order:  number
+}
+
+// 2. 商品マスタ(自由商品 school_id=null / 学校別注品)
+export interface ProductMaster {
+  id:                 string
+  store_id:           string
+  school_id:          string | null   // null=自由商品(全校共通)
+  name:               string
+  category:           string | null
+  gender:             string | null
+  supplier_id:        string | null
+  maker:              string | null
+  maker_code:         string | null
+  color_code:         string | null
+  barcode:            string | null
+  washable:           string | null
+  size_set_id:        string | null
+  base_price_tax_in:  number | null
+  base_price_tax_out: number | null
+  notes:              string | null
+  active:             boolean
+  sort_order:         number
+  created_at:         string
+  updated_at:         string
+  size_set?:          SizeSet | null
+  school?:            SchoolMaster | null
+}
+
+// 4. 学校別規程マスタ(School × Product)
+export interface SchoolRequirement {
+  id:               string
+  store_id:         string
+  school_id:        string
+  product_id:       string
+  required:         boolean
+  avg_qty:          number | null
+  uses_grade_color: boolean
+  grade_color_note: string
+  item_notes:       string
+  sort_order:       number
+  created_at:       string
+  updated_at:       string
+  product?:         ProductMaster
+}
+
+// 5. 価格マスタ(School × Product × サイズ・別寸EO)
+export interface Price {
+  id:               string
+  store_id:         string
+  school_id:        string
+  product_id:       string
+  size_set_item_id: string | null
+  size_label:       string | null
+  price_tax_in:     number
+  price_tax_out:    number | null
+  cost:             number | null
+  is_eo:            boolean
+  valid_from:       string | null
+  active:           boolean
+  sort_order:       number
+  created_at:       string
+  updated_at:       string
+}
+
+export const WASHABLE_OPTIONS = [
+  { value: 'washable', label: '洗濯機OK' },
+  { value: 'hand',     label: '手洗い' },
+  { value: 'dry',      label: 'ドライのみ' },
+  { value: 'none',     label: '不可' },
+] as const
+
+export const SIZE_SET_CATEGORY_OPTIONS = [
+  { value: 'tops',    label: '上衣' },
+  { value: 'bottoms', label: '下衣' },
+  { value: 'shoes',   label: '靴' },
+  { value: 'general', label: '汎用' },
+] as const
+
+// 採寸シート行(getMeasurementSheet の戻り値)
+export interface MeasurementRow extends SchoolRequirement {
+  product: ProductMaster & { size_set?: SizeSet | null }
+  sizes:   { item_id: string | null; label: string; price_tax_in: number | null }[]
+  eo_price_tax_in: number | null
+}
+
 // ──────────────────────────────────────────────────────────────
 // スタッフマスタ
 // ──────────────────────────────────────────────────────────────
