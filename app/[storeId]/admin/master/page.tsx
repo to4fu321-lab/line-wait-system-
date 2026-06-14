@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import {
   ChevronLeft, ChevronRight, Plus, Pencil, Trash2,
@@ -152,6 +153,7 @@ function MasterPageInner() {
   const [editingProduct,       setEditingProduct]       = useState<SchoolProduct | null>(null)
   const [pName,                setPName]                = useState('')
   const [pMakerName,           setPMakerName]           = useState('')
+  const [supplierNames,        setSupplierNames]        = useState<string[]>([])
   const [pMaker,               setPMaker]               = useState('')
   const [pColor,               setPColor]               = useState('')
   const [pCategory,            setPCategory]            = useState('')
@@ -222,10 +224,22 @@ function MasterPageInner() {
     setStaffList(data ?? [])
   }, [storeId, showToast])
 
+  // 仕入先マスタ → 商品フォームのメーカー選択肢（表記ゆれ防止）
+  const fetchSuppliers = useCallback(async () => {
+    if (!storeId) return
+    const { data } = await (supabase as any)
+      .from('suppliers').select('name, is_active').eq('store_id', storeId)
+      .order('sort_order').order('name')
+    if (Array.isArray(data)) {
+      setSupplierNames(data.filter((s: any) => s.is_active !== false && s.name).map((s: any) => s.name as string))
+    }
+  }, [storeId])
+
   useEffect(() => {
     fetchSchools()
     fetchStaff()
-  }, [fetchSchools, fetchStaff])
+    fetchSuppliers()
+  }, [fetchSchools, fetchStaff, fetchSuppliers])
 
   // stores.school_names と同期
   const syncSchoolNames = useCallback(async (list: School[]) => {
@@ -1730,9 +1744,13 @@ function MasterPageInner() {
                 <input type="text" value={pName} onChange={e => setPName(e.target.value)} placeholder="例：男子夏用スラックス" autoFocus className={INPUT} />
               </Field>
               <div>
-                <label className="block text-xs font-bold text-gray-600 mb-2">メーカー区分</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-bold text-gray-600">メーカー・仕入先</label>
+                  <Link href={`/${storeId}/admin/master/suppliers`}
+                    className="text-[10px] font-bold text-indigo-600 hover:underline">仕入先マスタを編集 →</Link>
+                </div>
                 <div className="grid grid-cols-3 gap-1.5 mb-2">
-                  {['トンボ', 'カンコー', 'スクールフォーラム', '明石スクール', '富士ヨット', 'テイコク'].map(m => (
+                  {(supplierNames.length ? supplierNames : ['トンボ', 'カンコー', 'スクールフォーラム', '明石スクール', '富士ヨット', 'テイコク']).map(m => (
                     <button key={m} type="button"
                       onClick={() => setPMakerName(pMakerName === m ? '' : m)}
                       className={`py-2.5 rounded-xl text-sm font-bold border transition-all active:scale-95 ${
@@ -1743,7 +1761,10 @@ function MasterPageInner() {
                   ))}
                 </div>
                 <input type="text" value={pMakerName} onChange={e => setPMakerName(e.target.value)}
-                  placeholder="上記以外は直接入力" className={INPUT} />
+                  placeholder={supplierNames.length ? '一覧にない場合は直接入力' : '上記以外は直接入力'} className={INPUT} />
+                {!supplierNames.length && (
+                  <p className="text-[10px] text-gray-400 mt-1">仕入先マスタに登録すると、ここに候補が表示されます。</p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>

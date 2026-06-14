@@ -1,13 +1,62 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useParams } from 'next/navigation'
 import {
   Loader2, ChevronDown, ChevronUp, Check, CheckCheck, ClipboardList,
-  AlertCircle, X, Pencil, ShoppingBag,
+  AlertCircle, X, Pencil, ShoppingBag, Phone, ExternalLink, Truck,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { buildMakerHierarchy, buildUniformMakerHierarchy } from './utils'
 import type { PurchaseRow, MakerEntry, UniformOrderRow, UniformMakerEntry } from './types'
+
+const ORDER_METHOD_LABELS: Record<string, string> = {
+  web: 'Web', fax: 'FAX', phone: '電話', email: 'メール', other: 'その他',
+}
+
+// 仕入先マスタの発注情報をメーカー名で照合して表示するバナー
+function SupplierBanner({ maker }: { maker: string }) {
+  const { storeId } = useParams<{ storeId: string }>()
+  const [supplier, setSupplier] = useState<any | null>(null)
+  useEffect(() => {
+    if (!storeId || !maker) return
+    ;(async () => {
+      const { data } = await (supabase as any)
+        .from('suppliers').select('*').eq('store_id', storeId).eq('name', maker).limit(1).maybeSingle()
+      setSupplier(data ?? null)
+    })()
+  }, [storeId, maker])
+
+  if (!supplier) return null
+  const url: string | null = supplier.order_url ?? null
+  const isLink = url ? /^https?:\/\//.test(url) : false
+  return (
+    <div className="mb-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 space-y-1.5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-amber-800">
+        {supplier.order_method && (
+          <span className="font-bold">発注方法：{ORDER_METHOD_LABELS[supplier.order_method] ?? supplier.order_method}</span>
+        )}
+        {supplier.lead_time_days != null && (
+          <span className="flex items-center gap-1"><Truck size={11} />納期 {supplier.lead_time_days}日</span>
+        )}
+        {supplier.min_lot != null && <span>最低 {supplier.min_lot} 点〜</span>}
+        {supplier.tel && (
+          <a href={`tel:${supplier.tel}`} className="flex items-center gap-1 text-amber-900 font-bold underline">
+            <Phone size={11} />{supplier.tel}
+          </a>
+        )}
+      </div>
+      {url && isLink && (
+        <a href={url} target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:underline break-all">
+          <ExternalLink size={11} />{url}
+        </a>
+      )}
+      {url && !isLink && <p className="text-[11px] text-amber-800">送信先：{url}</p>}
+      {supplier.contact_person && <p className="text-[10px] text-amber-700">担当：{supplier.contact_person}</p>}
+    </div>
+  )
+}
 
 function OrderGuideModal({ maker, orders, onClose, onComplete }: {
   maker: string
@@ -61,6 +110,7 @@ function OrderGuideModal({ maker, orders, onClose, onComplete }: {
             </button>
             <h2 className="flex-1 text-base font-black text-gray-900">📋 {maker} — 発注ガイド</h2>
           </div>
+          {step === 'list' && <SupplierBanner maker={maker} />}
           {step === 'list' && (
             <>
               <p className="text-xs text-gray-500 mb-2.5">外部サイトで入力しながら 1行ずつチェックしてください</p>
@@ -343,6 +393,7 @@ function UniformOrderGuideModal({ maker, entry, onClose, onComplete }: {
             </button>
             <h2 className="flex-1 text-base font-black text-gray-900">📋 {maker} — 発注ガイド</h2>
           </div>
+          {step === 'list' && <SupplierBanner maker={maker} />}
           {step === 'list' && (
             <>
               <p className="text-xs text-gray-500 mb-2.5">外部サイトで入力しながら 1行ずつチェックしてください</p>
