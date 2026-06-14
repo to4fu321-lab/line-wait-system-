@@ -10,7 +10,7 @@
 import { supabase } from '@/lib/supabase'
 import type {
   SchoolMaster, SizeSet, SizeSetItem, ProductMaster,
-  SchoolRequirement, Price, MeasurementRow, ProcessingOption,
+  SchoolRequirement, Price, PriceBand, MeasurementRow, ProcessingOption,
 } from '@/types/master'
 
 const sb = supabase as any
@@ -180,6 +180,129 @@ export async function replacePrices(
   }))
   const { error } = await sb.from('prices').insert(payload)
   if (error) throw error
+}
+
+// ── 価格帯マスタ(編集の正) ────────────────────────────────────
+export async function listPriceBands(schoolId: string, productId: string): Promise<PriceBand[]> {
+  const { data } = await sb.from('price_bands')
+    .select('*').eq('school_id', schoolId).eq('product_id', productId)
+    .order('is_eo').order('sort_order')
+  return data ?? []
+}
+
+// 価格帯 → サイズ別価格(prices)へ展開する。
+//   - サイズ範囲バンド: from..to(sort_order昇順, 両端含む)の各サイズに価格を割当
+//   - from_item_id=null: サイズセット無し商品の共通価格(size_label=null の1行)
+//   - is_eo: 別寸価格(size_label='別寸')
+//   後勝ち: sort_order の後のバンドが重なり範囲を上書きする(修正しやすさ優先)。
+export function expandBandsToPrices(
+  bands: PriceBand[], items: SizeSetItem[],
+): Array<Partial<Price>> {
+  const ordered = items.slice().sort((a, b) => a.sort_order - b.sort_order)
+  const orderOf = new Map(ordered.map((it, i) => [it.id, i]))
+  const sized = bands.filter((b) => !b.is_eo)
+  const sorted = sized.slice().sort((a, b) => a.sort_order - b.sort_order)
+
+  const rows: Array<Partial<Price>> = []
+
+  if (ordered.length > 0) {
+    // item_id -> {price, cost, taxout} を後勝ちで確定
+    const byItem = new Map<string, { p: number; c: number | null; t: number | null }>()
+    for (const b of sorted) {
+      if (b.from_item_id == null) continue
+      const fi = orderOf.get(b.from_item_id)
+      const ti = b.to_item_id != null ? orderOf.get(b.to_item_id) : fi
+      if (fi == null || ti == null) continue
+      const [lo, hi] = fi <= ti ? [fi, ti] : [ti, fi]
+      for (let i = lo; i <= hi; i++) {
+        byItem.set(ordered[i].id, { p: b.price_tax_in, c: b.cost, t: b.price_tax_out })
+      }
+    }
+    ordered.forEach((it) => {
+      const v = byItem.get(it.id)
+      if (v) rows.push({
+        size_set_item_id: it.id, size_label: it.label,
+        price_tax_in: v.p, price_tax_out: v.t, cost: v.c, is_eo: false,
+      })
+    })
+  } else {
+    // サイズセット無し: 最初の共通バンドを1行に
+    const common = sorted[0]
+    if (common) rows.push({
+      size_label: null, price_tax_in: common.price_tax_in,
+      price_tax_out: common.price_tax_out, cost: common.cost, is_eo: false,
+    })
+  }
+
+  // 別寸(EO)
+  const eo = bands.find((b) => b.is_eo)
+  if (eo) rows.push({
+    size_label: '別寸', price_tax_in: eo.price_tax_in,
+    price_tax_out: eo.price_tax_out, cost: eo.cost, is_eo: true,
+  })
+  return rows
+}
+
+// 価格帯を一括置き換え → prices へ展開(マテリアライズ)。
+export async function replacePriceBands(
+  storeId: string, schoolId: string, productId: string,
+  bands: Array<Partial<PriceBand>>, items: SizeSetItem[],
+) {
+  await sb.from('price_bands').delete()
+    .eq('school_id', schoolId).eq('product_id', productId)
+  if (bands.length > 0) {
+    const payload = bands.map((b, i) => ({
+      store_id: storeId, school_id: schoolId, product_id: productId,
+      sort_order: i, ...b,
+    }))
+    const { error } = await sb.from('price_bands').insert(payload)
+    if (error) throw error
+  }
+  // prices へ展開(採寸/EC/API が読む派生データ)
+  const full = (bands as PriceBand[]).map((b, i) => ({ ...b, sort_order: i }))
+  await replacePrices(storeId, schoolId, productId, expandBandsToPrices(full, items))
+}
+
+// 既存の prices(サイズ別)から価格帯を推定(初回/旧データの取り込み用)。
+//   連続する同価格サイズを1バンドにまとめる。
+export function deriveBandsFromPrices(
+  prices: Price[], items: SizeSetItem[],
+): Array<Partial<PriceBand>> {
+  const ordered = items.slice().sort((a, b) => a.sort_order - b.sort_order)
+  const priceOf = new Map(
+    prices.filter((p) => !p.is_eo && p.size_set_item_id)
+      .map((p) => [p.size_set_item_id as string, p]),
+  )
+  const bands: Array<Partial<PriceBand>> = []
+  let run: { from: string; to: string; p: number; c: number | null; t: number | null } | null = null
+  const flush = () => {
+    if (run) bands.push({
+      from_item_id: run.from, to_item_id: run.to,
+      price_tax_in: run.p, price_tax_out: run.t, cost: run.c, is_eo: false,
+    })
+    run = null
+  }
+  for (const it of ordered) {
+    const pr = priceOf.get(it.id)
+    if (!pr) { flush(); continue }
+    if (run && run.p === pr.price_tax_in && run.c === pr.cost && run.t === pr.price_tax_out) {
+      run.to = it.id
+    } else {
+      flush()
+      run = { from: it.id, to: it.id, p: pr.price_tax_in, c: pr.cost, t: pr.price_tax_out }
+    }
+  }
+  flush()
+  // サイズセット無しの共通価格
+  if (ordered.length === 0) {
+    const common = prices.find((p) => !p.is_eo && !p.size_set_item_id)
+    if (common) bands.push({
+      from_item_id: null, to_item_id: null,
+      price_tax_in: common.price_tax_in, price_tax_out: common.price_tax_out,
+      cost: common.cost, is_eo: false,
+    })
+  }
+  return bands
 }
 
 // ── 新品加工オプションマスタ ──────────────────────────────────

@@ -18,14 +18,14 @@ import {
   listSizeSets, upsertSizeSet, deleteSizeSet, replaceSizeSetItems,
   listProducts, upsertProduct, deleteProduct,
   listRequirements, upsertRequirement, deleteRequirement, assignProductToSchool,
-  listPrices, replacePrices,
+  listPrices, listPriceBands, replacePriceBands, deriveBandsFromPrices, expandBandsToPrices,
 } from '@/lib/master'
 import {
   PRODUCT_CATEGORY_OPTIONS, PRODUCT_GENDER_OPTIONS,
   WASHABLE_OPTIONS, SIZE_SET_CATEGORY_OPTIONS, BODY_TYPE_OPTIONS,
 } from '@/types/master'
 import type {
-  SchoolMaster, SizeSet, ProductMaster, SchoolRequirement, Price,
+  SchoolMaster, SizeSet, SizeSetItem, ProductMaster, SchoolRequirement, PriceBand,
 } from '@/types/master'
 
 const INPUT = 'w-full border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:border-indigo-500 bg-white'
@@ -388,63 +388,94 @@ function RegulationsPanel({ storeId, school, requirements, products, onChange, s
 }
 
 // ════════════════════════════════════════════════════════════
-// 価格設定モーダル(サイズ別 + 別寸EO)
+// 価格設定モーダル(価格帯バンド + 別寸EO)
+//   サイズ範囲(例 150〜180)ごとに価格を入力 → 保存時に prices へ展開。
 // ════════════════════════════════════════════════════════════
+type BandRow = { key: string; from: string; to: string; price: string }
+let bandKeySeq = 0
+const newKey = () => `b${++bandKeySeq}`
+
 function PriceModal({ storeId, schoolId, req, onClose, onSaved, onError }: {
   storeId: string; schoolId: string; req: SchoolRequirement
   onClose: () => void; onSaved: () => void; onError: (m: string) => void
 }) {
   const product = req.product!
-  const items = (product.size_set?.items ?? []).slice().sort((a, b) => a.sort_order - b.sort_order)
+  const items: SizeSetItem[] = (product.size_set?.items ?? []).slice().sort((a, b) => a.sort_order - b.sort_order)
+  const hasSizes = items.length > 0
+  const labelOf = (id: string | null) => items.find((it) => it.id === id)?.label ?? '—'
+
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  // サイズごとの価格(item_id -> 価格)
-  const [sizePrices, setSizePrices] = useState<Record<string, string>>({})
-  const [basePrice, setBasePrice] = useState<string>(product.base_price_tax_in?.toString() ?? '')
-  const [eoPrice, setEoPrice] = useState<string>('')
+  const [saving, setSaving]   = useState(false)
+  const [bands, setBands]     = useState<BandRow[]>([])
+  const [commonPrice, setCommonPrice] = useState('') // サイズセット無し商品の共通価格
+  const [eoPrice, setEoPrice] = useState('')
 
   useEffect(() => {
     (async () => {
       try {
-        const rows = await listPrices(schoolId, product.id)
-        const map: Record<string, string> = {}
-        let base = '', eo = ''
-        for (const r of rows) {
-          if (r.is_eo) eo = r.price_tax_in?.toString() ?? ''
-          else if (r.size_set_item_id) map[r.size_set_item_id] = r.price_tax_in?.toString() ?? ''
-          else base = r.price_tax_in?.toString() ?? ''
+        // 価格帯が未登録なら既存 prices から推定して初期表示
+        let src = await listPriceBands(schoolId, product.id)
+        if (src.length === 0) {
+          const prices = await listPrices(schoolId, product.id)
+          src = deriveBandsFromPrices(prices, items) as PriceBand[]
+          const eo = prices.find((p) => p.is_eo)
+          if (eo) setEoPrice(String(eo.price_tax_in))
+        } else {
+          const eo = src.find((b) => b.is_eo)
+          if (eo) setEoPrice(String(eo.price_tax_in))
         }
-        setSizePrices(map); setEoPrice(eo)
-        if (base) setBasePrice(base)
+        const rows: BandRow[] = src.filter((b) => !b.is_eo && b.from_item_id).map((b) => ({
+          key: newKey(), from: b.from_item_id!, to: b.to_item_id ?? b.from_item_id!,
+          price: String(b.price_tax_in),
+        }))
+        setBands(rows)
+        const common = src.find((b) => !b.is_eo && !b.from_item_id)
+        if (common) setCommonPrice(String(common.price_tax_in))
       } catch (e: any) { onError(e.message) }
       setLoading(false)
     })()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const applyBaseToAll = () => {
-    const v = basePrice
-    if (!v) return
-    const map: Record<string, string> = {}
-    for (const it of items) map[it.id] = v
-    setSizePrices(map)
+  const addBand = () => {
+    const last = items[items.length - 1]
+    setBands((prev) => [...prev, { key: newKey(), from: items[0]?.id ?? '', to: last?.id ?? '', price: '' }])
   }
+  const patchBand = (key: string, patch: Partial<BandRow>) =>
+    setBands((prev) => prev.map((b) => b.key === key ? { ...b, ...patch } : b))
+  const removeBand = (key: string) => setBands((prev) => prev.filter((b) => b.key !== key))
+
+  // プレビュー: 現在の入力をサイズ別価格に展開
+  const preview = (() => {
+    const pseudo = bands.filter((b) => b.price && b.from).map((b, i) => ({
+      from_item_id: b.from, to_item_id: b.to || b.from,
+      price_tax_in: Number(b.price), price_tax_out: null, cost: null,
+      is_eo: false, sort_order: i,
+    })) as PriceBand[]
+    const rows = expandBandsToPrices(pseudo, items)
+    const map = new Map(rows.filter((r) => r.size_set_item_id).map((r) => [r.size_set_item_id, r.price_tax_in!]))
+    return items.map((it) => ({ label: it.label, price: map.get(it.id) ?? null }))
+  })()
+  const unsetCount = preview.filter((p) => p.price == null).length
 
   const save = async () => {
     setSaving(true)
     try {
-      const rows: Partial<Price>[] = []
-      if (items.length > 0) {
-        for (const it of items) {
-          const v = sizePrices[it.id]
-          if (v) rows.push({ size_set_item_id: it.id, size_label: it.label, price_tax_in: Number(v), is_eo: false })
+      const payload: Array<Partial<PriceBand>> = []
+      if (hasSizes) {
+        for (const b of bands) {
+          if (!b.price || !b.from) continue
+          payload.push({
+            from_item_id: b.from, to_item_id: b.to || b.from,
+            price_tax_in: Number(b.price), is_eo: false,
+            label: b.from === b.to ? labelOf(b.from) : `${labelOf(b.from)}〜${labelOf(b.to)}`,
+          })
         }
-      } else if (basePrice) {
-        // サイズセット無し: 商品共通価格を1行
-        rows.push({ size_label: null, price_tax_in: Number(basePrice), is_eo: false })
+      } else if (commonPrice) {
+        payload.push({ from_item_id: null, to_item_id: null, price_tax_in: Number(commonPrice), is_eo: false })
       }
-      if (eoPrice) rows.push({ size_label: '別寸', price_tax_in: Number(eoPrice), is_eo: true })
-      await replacePrices(storeId, schoolId, product.id, rows)
+      if (eoPrice) payload.push({ from_item_id: null, to_item_id: null, price_tax_in: Number(eoPrice), is_eo: true, label: '別寸' })
+      await replacePriceBands(storeId, schoolId, product.id, payload, items)
       onSaved()
     } catch (e: any) { onError(e.message ?? '保存失敗'); setSaving(false) }
   }
@@ -453,30 +484,64 @@ function PriceModal({ storeId, schoolId, req, onClose, onSaved, onError }: {
     <Modal title={`価格設定 — ${product.name}`} onClose={onClose} wide>
       {loading ? <div className="py-8 grid place-items-center"><Loader2 className="animate-spin text-indigo-500" /></div> : (
         <>
-          <Field label="標準価格(税込) — 全サイズ一括入力に使用">
-            <div className="flex gap-2">
-              <input type="number" className={INPUT} value={basePrice} onChange={(e) => setBasePrice(e.target.value)} placeholder="14500" />
-              {items.length > 0 && <button onClick={applyBaseToAll} className={BTN_GHOST}>全サイズへ</button>}
-            </div>
-          </Field>
+          {hasSizes ? (
+            <>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-gray-600">価格帯 — {product.size_set?.name}</p>
+                <span className="text-[10px] text-gray-400">サイズ範囲ごとに価格を設定</span>
+              </div>
 
-          {items.length > 0 ? (
-            <div>
-              <p className="text-xs font-bold text-gray-600 mb-2">サイズ別価格(税込) — {product.size_set?.name}</p>
-              <div className="grid grid-cols-2 gap-2">
-                {items.map((it) => (
-                  <label key={it.id} className="flex items-center gap-2 text-sm">
-                    <span className="w-16 text-gray-600 shrink-0">{it.label}</span>
-                    <input type="number" className="w-full border border-gray-300 rounded-lg px-2 py-1.5"
-                      value={sizePrices[it.id] ?? ''} onChange={(e) => setSizePrices((m) => ({ ...m, [it.id]: e.target.value }))} />
-                  </label>
+              <div className="space-y-2">
+                {bands.length === 0 && (
+                  <p className="text-xs text-gray-400 text-center py-3">「+ 価格帯を追加」から範囲と価格を入力してください</p>
+                )}
+                {bands.map((b) => (
+                  <div key={b.key} className="flex items-center gap-1.5 bg-gray-50 rounded-xl p-2">
+                    <select className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white"
+                      value={b.from} onChange={(e) => patchBand(b.key, { from: e.target.value })}>
+                      {items.map((it) => <option key={it.id} value={it.id}>{it.label}</option>)}
+                    </select>
+                    <span className="text-gray-400 text-sm shrink-0">〜</span>
+                    <select className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white"
+                      value={b.to} onChange={(e) => patchBand(b.key, { to: e.target.value })}>
+                      {items.map((it) => <option key={it.id} value={it.id}>{it.label}</option>)}
+                    </select>
+                    <div className="relative shrink-0">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">¥</span>
+                      <input type="number" inputMode="numeric" placeholder="価格"
+                        className="w-24 border border-gray-300 rounded-lg pl-5 pr-2 py-1.5 text-sm"
+                        value={b.price} onChange={(e) => patchBand(b.key, { price: e.target.value })} />
+                    </div>
+                    <button onClick={() => removeBand(b.key)} className="p-1.5 text-gray-300 hover:text-red-600 shrink-0"><Trash2 size={15} /></button>
+                  </div>
                 ))}
               </div>
-            </div>
+              <button onClick={addBand} className={`${BTN_GHOST} w-full border-dashed py-2`}>
+                <Plus size={16} /> 価格帯を追加
+              </button>
+
+              {/* プレビュー: 全サイズの確定価格 */}
+              <div className="bg-indigo-50/50 rounded-xl p-3">
+                <p className="text-[11px] font-bold text-gray-500 mb-1.5">
+                  確定プレビュー{unsetCount > 0 && <span className="text-amber-600 ml-1">(未設定 {unsetCount}件)</span>}
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {preview.map((p) => (
+                    <span key={p.label}
+                      className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${p.price == null ? 'bg-amber-100 text-amber-700' : 'bg-white text-gray-700 border border-gray-200'}`}>
+                      {p.label}{p.price != null ? ` ¥${p.price.toLocaleString()}` : ' 未'}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </>
           ) : (
-            <p className="text-xs text-amber-600 bg-amber-50 rounded-lg p-2">
-              この商品にサイズセットが未設定です。「商品マスタ」でサイズセットを割り当てるとサイズ別価格を入力できます。
-            </p>
+            <Field label="共通価格(税込)">
+              <input type="number" className={INPUT} value={commonPrice} onChange={(e) => setCommonPrice(e.target.value)} placeholder="14500" />
+              <p className="text-[11px] text-amber-600 mt-1">
+                サイズセット未設定のため共通価格になります。サイズ別にするには「商品マスタ」でサイズセットを割り当ててください。
+              </p>
+            </Field>
           )}
 
           <Field label="別寸(EO)価格(税込)">

@@ -202,6 +202,7 @@ export interface SchoolRequirement {
 }
 
 // 5. 価格マスタ(School × Product × サイズ・別寸EO)
+//    price_bands を保存すると自動展開される派生データ(採寸/EC/API が読む)。
 export interface Price {
   id:               string
   store_id:         string
@@ -218,6 +219,28 @@ export interface Price {
   sort_order:       number
   created_at:       string
   updated_at:       string
+}
+
+// 5b. 価格帯マスタ(編集の正)
+//     from_item_id..to_item_id … size_set_items を sort_order で範囲指定(両端含む)
+//     from_item_id = null       … サイズセット無し商品の共通価格
+//     is_eo = true              … 別寸(EO)価格
+export interface PriceBand {
+  id:            string
+  store_id:      string
+  school_id:     string
+  product_id:    string
+  from_item_id:  string | null
+  to_item_id:    string | null
+  price_tax_in:  number
+  price_tax_out: number | null
+  cost:          number | null
+  is_eo:         boolean
+  label:         string | null
+  sort_order:    number
+  active:        boolean
+  created_at:    string
+  updated_at:    string
 }
 
 export const WASHABLE_OPTIONS = [
