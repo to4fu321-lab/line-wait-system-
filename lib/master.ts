@@ -134,6 +134,33 @@ export async function deleteRequirement(id: string) {
   if (error) throw error
 }
 
+// 店舗全体の価格設定カバレッジ(俯瞰ビュー用)。
+//   学校ごとに「規定品何件中、価格設定済み何件か」を算出する。
+export interface SchoolCoverage {
+  school_id:   string
+  total:       number
+  priced:      number
+  unset:       string[]   // 価格未設定の商品名
+}
+export async function getStoreCoverage(storeId: string): Promise<Record<string, SchoolCoverage>> {
+  const [{ data: reqs }, { data: prices }] = await Promise.all([
+    sb.from('school_requirements')
+      .select('school_id, product_id, product:products(name)')
+      .eq('store_id', storeId),
+    sb.from('prices')
+      .select('school_id, product_id').eq('store_id', storeId).eq('is_eo', false),
+  ])
+  const pricedKeys = new Set<string>((prices ?? []).map((p: any) => `${p.school_id}:${p.product_id}`))
+  const map: Record<string, SchoolCoverage> = {}
+  for (const r of (reqs ?? []) as any[]) {
+    const cov = map[r.school_id] ?? (map[r.school_id] = { school_id: r.school_id, total: 0, priced: 0, unset: [] })
+    cov.total++
+    if (pricedKeys.has(`${r.school_id}:${r.product_id}`)) cov.priced++
+    else cov.unset.push(r.product?.name ?? '(無名)')
+  }
+  return map
+}
+
 // 商品を学校に割り当て(規程を作成。既存ならスキップ)
 export async function assignProductToSchool(
   storeId: string, schoolId: string, productId: string,

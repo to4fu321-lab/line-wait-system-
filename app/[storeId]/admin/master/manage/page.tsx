@@ -12,6 +12,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ChevronLeft, Plus, Pencil, Trash2, GraduationCap, Package, Ruler,
   Loader2, X, Check, Tag, Coins, School as SchoolIcon, Link2,
+  LayoutGrid, AlertCircle,
 } from 'lucide-react'
 import {
   listSchools, upsertSchool, deleteSchool,
@@ -19,7 +20,9 @@ import {
   listProducts, upsertProduct, deleteProduct,
   listRequirements, upsertRequirement, deleteRequirement, assignProductToSchool,
   listPrices, listPriceBands, replacePriceBands, deriveBandsFromPrices, expandBandsToPrices,
+  getStoreCoverage,
 } from '@/lib/master'
+import type { SchoolCoverage } from '@/lib/master'
 import {
   PRODUCT_CATEGORY_OPTIONS, PRODUCT_GENDER_OPTIONS,
   WASHABLE_OPTIONS, SIZE_SET_CATEGORY_OPTIONS, BODY_TYPE_OPTIONS,
@@ -88,13 +91,17 @@ export default function MasterManagePage() {
 
   const [requirements, setRequirements] = useState<SchoolRequirement[]>([])
   const [products, setProducts] = useState<ProductMaster[]>([])
+  const [coverage, setCoverage] = useState<Record<string, SchoolCoverage>>({})
+  const [showCoverage, setShowCoverage] = useState(false)
 
   // ── 初期ロード ──────────────────────────────────────────────
   const reloadBase = useCallback(async () => {
     setLoading(true)
     try {
-      const [sc, ss] = await Promise.all([listSchools(storeId), listSizeSets(storeId)])
-      setSchools(sc); setSizeSets(ss)
+      const [sc, ss, cov] = await Promise.all([
+        listSchools(storeId), listSizeSets(storeId), getStoreCoverage(storeId),
+      ])
+      setSchools(sc); setSizeSets(ss); setCoverage(cov)
     } catch (e: any) { show('err', e.message ?? '読み込み失敗') }
     setLoading(false)
   }, [storeId])
@@ -136,28 +143,59 @@ export default function MasterManagePage() {
         </header>
 
         <div className="p-4 space-y-3 max-w-2xl mx-auto">
-          <p className="text-xs text-gray-500">
-            学校を選ぶと「規定品・価格・商品・サイズセット」を管理できます。
-          </p>
-          {schools.map((s) => (
-            <div key={s.id} className="bg-white rounded-2xl border border-gray-200 p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-100 grid place-items-center shrink-0">
-                <SchoolIcon size={20} className="text-indigo-600" />
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-gray-500 flex-1">
+              学校を選ぶと「規定品・価格・商品・サイズセット」を管理できます。
+            </p>
+            <button onClick={() => setShowCoverage((v) => !v)}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold border shrink-0 ${showCoverage ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-500 border-gray-300'}`}>
+              <LayoutGrid size={13} /> 俯瞰
+            </button>
+          </div>
+          {schools.map((s) => {
+            const cov = coverage[s.id]
+            const done = cov ? cov.priced >= cov.total && cov.total > 0 : false
+            return (
+            <div key={s.id} className="bg-white rounded-2xl border border-gray-200 p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-100 grid place-items-center shrink-0">
+                  <SchoolIcon size={20} className="text-indigo-600" />
+                </div>
+                <button onClick={() => openSchool(s)} className="flex-1 text-left min-w-0">
+                  <p className="font-bold text-gray-900 truncate">{s.name}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {s.short_name && <span className="text-xs text-gray-400">略称: {s.short_name}</span>}
+                    {cov && cov.total > 0 && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${done ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-700'}`}>
+                        価格 {cov.priced}/{cov.total}
+                      </span>
+                    )}
+                  </div>
+                </button>
+                <button onClick={() => setSchoolModal(s)} className="p-2 text-gray-400 hover:text-indigo-600"><Pencil size={18} /></button>
+                <button
+                  onClick={async () => {
+                    if (!confirm(`「${s.name}」を削除しますか？\n関連する規程・別注品も削除されます。`)) return
+                    try { await deleteSchool(s.id); show('ok', '削除しました'); reloadBase() }
+                    catch (e: any) { show('err', e.message) }
+                  }}
+                  className="p-2 text-gray-400 hover:text-red-600"><Trash2 size={18} /></button>
               </div>
-              <button onClick={() => openSchool(s)} className="flex-1 text-left">
-                <p className="font-bold text-gray-900">{s.name}</p>
-                {s.short_name && <p className="text-xs text-gray-400">略称: {s.short_name}</p>}
-              </button>
-              <button onClick={() => setSchoolModal(s)} className="p-2 text-gray-400 hover:text-indigo-600"><Pencil size={18} /></button>
-              <button
-                onClick={async () => {
-                  if (!confirm(`「${s.name}」を削除しますか？\n関連する規程・別注品も削除されます。`)) return
-                  try { await deleteSchool(s.id); show('ok', '削除しました'); reloadBase() }
-                  catch (e: any) { show('err', e.message) }
-                }}
-                className="p-2 text-gray-400 hover:text-red-600"><Trash2 size={18} /></button>
+              {/* 俯瞰: 価格未設定の商品一覧 */}
+              {showCoverage && cov && cov.unset.length > 0 && (
+                <button onClick={() => openSchool(s)}
+                  className="mt-2 w-full text-left bg-amber-50 rounded-xl px-3 py-2 flex items-start gap-1.5">
+                  <AlertCircle size={13} className="text-amber-500 mt-0.5 shrink-0" />
+                  <span className="text-[11px] text-amber-800 leading-snug">
+                    価格未設定: {cov.unset.join('、')}
+                  </span>
+                </button>
+              )}
+              {showCoverage && cov && cov.total > 0 && cov.unset.length === 0 && (
+                <p className="mt-2 text-[11px] text-emerald-600 flex items-center gap-1"><Check size={12} /> 全規定品の価格設定済み</p>
+              )}
             </div>
-          ))}
+          )})}
           <button onClick={() => setSchoolModal('new')} className={`${BTN_GHOST} w-full border-dashed py-3`}>
             <Plus size={18} /> 学校を追加
           </button>
