@@ -205,6 +205,28 @@ export default function MasterManagePage() {
               <Ruler size={18} /> サイズセットマスタを管理(全校共通)
             </button>
           </div>
+
+          {/* その他のマスタ(このハブから集約して開く) */}
+          <div className="pt-4">
+            <p className="text-[11px] font-bold text-gray-400 mb-2 px-1">その他のマスタ</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { href: `/${storeId}/admin/master/suppliers`,  emoji: '🏭', label: 'メーカー・仕入先' },
+                { href: `/${storeId}/admin/master/sizes`,      emoji: '📏', label: 'サイズ表記' },
+                { href: `/${storeId}/admin/master/processing`, emoji: '✂️', label: '新品加工オプション' },
+                { href: `/${storeId}/admin/master/repair`,     emoji: '🧵', label: 'お直し料金' },
+                { href: `/${storeId}/admin/master?tab=staff`,  emoji: '🧑‍💼', label: 'スタッフ' },
+                { href: `/${storeId}/admin/master/tags`,       emoji: '🏷️', label: '顧客タグ' },
+                { href: `/${storeId}/admin/master/templates`,  emoji: '💬', label: '定型文' },
+              ].map((m) => (
+                <button key={m.label} onClick={() => router.push(m.href)}
+                  className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-left active:bg-gray-50">
+                  <span className="text-base shrink-0">{m.emoji}</span>
+                  <span className="text-xs font-bold text-gray-700 leading-tight">{m.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {schoolModal && (
