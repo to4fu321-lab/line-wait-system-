@@ -9,6 +9,7 @@ import {
   GraduationCap, Package, Tag, Loader2, X, AlertCircle, Users, UserCircle, Scissors, ScanLine,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { seedDefaultGrades } from '@/lib/master'
 import type { School, SchoolProduct, SchoolProductVariant, Staff } from '@/types/master'
 import type { SchoolGrade, SchoolParentTip, OcrResult, OcrResultItem } from '@/types/school'
 import {
@@ -392,6 +393,19 @@ function MasterPageInner() {
     })
     setRegSaving(false)
     showToast('ok', '学年色を保存しました')
+  }
+
+  // 標準学年(1〜3年 + 既定色)を自動生成して取り込む
+  const seedRegGrades = async () => {
+    if (!selectedSchool) return
+    setRegSaving(true)
+    try {
+      await seedDefaultGrades(selectedSchool.id, 3)
+      const grades = await fetch(`/api/schools/${selectedSchool.id}/grades`).then(r => r.json())
+      setRegGrades(Array.isArray(grades) ? grades : [])
+      showToast('ok', '標準学年を生成しました')
+    } catch (e: any) { showToast('err', `生成失敗: ${e.message}`) }
+    setRegSaving(false)
   }
 
   const approveTip = async (tipId: string, approved: boolean) => {
@@ -1340,7 +1354,16 @@ function MasterPageInner() {
               <div>
                 <p className="text-xs text-gray-500 mb-3">ジャージなど学年によって色が変わるアイテムの学年カラーを登録</p>
                 <div className="space-y-2 mb-4">
-                  {regGrades.length === 0 && <p className="text-center text-gray-400 py-6 text-sm">学年カラーが登録されていません</p>}
+                  {regGrades.length === 0 && (
+                    <div className="text-center py-6 space-y-3">
+                      <p className="text-gray-400 text-sm">学年カラーが登録されていません</p>
+                      <button onClick={seedRegGrades} disabled={regSaving}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 text-indigo-600 text-sm font-bold hover:bg-indigo-100 disabled:opacity-50 transition-colors">
+                        {regSaving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                        標準学年（1〜3年）を生成
+                      </button>
+                    </div>
+                  )}
                   {regGrades.map((g, i) => (
                     <div key={i} className="flex gap-2 items-center bg-white border border-gray-200 rounded-xl p-3">
                       <input value={g.grade_name} onChange={e => setRegGrades(prev => prev.map((gr, idx) => idx === i ? { ...gr, grade_name: e.target.value } : gr))}

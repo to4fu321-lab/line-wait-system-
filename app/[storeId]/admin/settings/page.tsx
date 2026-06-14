@@ -6,7 +6,7 @@ import {
   Settings, Loader2, Plus, Trash2, AlertCircle,
   CalendarDays, Clock, CheckCheck, LayoutDashboard, ChevronRight, Users,
   PackageSearch, GraduationCap, ChevronDown, Shirt, Scissors,
-  Factory, Ruler, MessageSquare, Tag,
+  Factory, Ruler, MessageSquare, Tag, Sparkles,
 } from 'lucide-react'
 import type { OrderSchedule, ScheduleType } from '../_components/OrderReminderBanner'
 import Link from 'next/link'
@@ -647,6 +647,7 @@ export default function SettingsPage() {
               { href: `/${storeId}/admin/master/manage`,                   icon: Shirt,         title: '商品マスタ',      bg: 'bg-sky-100',    fg: 'text-sky-600' },
               { href: `/${storeId}/admin/master?tab=staff`,                icon: Users,         title: 'スタッフマスタ',  bg: 'bg-violet-100', fg: 'text-violet-600' },
               { href: `/${storeId}/admin/master/repair`,                   icon: Scissors,      title: 'お直しマスタ',    bg: 'bg-rose-100',   fg: 'text-rose-600' },
+              { href: `/${storeId}/admin/master/processing`,               icon: Sparkles,      title: '新品加工オプション', bg: 'bg-fuchsia-100', fg: 'text-fuchsia-600' },
             ] },
             { group: 'その他マスタ', items: [
               { href: `/${storeId}/admin/master/suppliers`, icon: Factory,        title: 'メーカー・仕入先',     bg: 'bg-amber-100', fg: 'text-amber-600' },

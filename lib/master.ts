@@ -10,7 +10,7 @@
 import { supabase } from '@/lib/supabase'
 import type {
   SchoolMaster, SizeSet, SizeSetItem, ProductMaster,
-  SchoolRequirement, Price, MeasurementRow,
+  SchoolRequirement, Price, MeasurementRow, ProcessingOption,
 } from '@/types/master'
 
 const sb = supabase as any
@@ -179,6 +179,45 @@ export async function replacePrices(
     sort_order: i, ...r,
   }))
   const { error } = await sb.from('prices').insert(payload)
+  if (error) throw error
+}
+
+// ── 新品加工オプションマスタ ──────────────────────────────────
+export async function listProcessingOptions(storeId: string): Promise<ProcessingOption[]> {
+  const { data } = await sb.from('processing_options')
+    .select('*').eq('store_id', storeId).order('sort_order').order('name')
+  return data ?? []
+}
+
+export async function upsertProcessingOption(row: Partial<ProcessingOption>): Promise<ProcessingOption> {
+  const { data, error } = row.id
+    ? await sb.from('processing_options').update(row).eq('id', row.id).select().single()
+    : await sb.from('processing_options').insert(row).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteProcessingOption(id: string) {
+  const { error } = await sb.from('processing_options').delete().eq('id', id)
+  if (error) throw error
+}
+
+// カテゴリに連動する加工オプションを抽出(applies_to_category 空=全商品に適用)
+export function processingOptionsForCategory(
+  options: ProcessingOption[], category: string | null,
+): ProcessingOption[] {
+  return options.filter((o) =>
+    o.is_active &&
+    (o.applies_to_category.length === 0 ||
+     (category != null && o.applies_to_category.includes(category))))
+}
+
+// ── 学年色マスタ ──────────────────────────────────────────────
+// 標準学年(1〜n年 + 既定色)を自動生成。既存があればスキップ(DB関数が冪等)。
+export async function seedDefaultGrades(schoolId: string, gradeCount = 3): Promise<void> {
+  const { error } = await sb.rpc('seed_default_grades', {
+    p_school_id: schoolId, p_grade_count: gradeCount,
+  })
   if (error) throw error
 }
 

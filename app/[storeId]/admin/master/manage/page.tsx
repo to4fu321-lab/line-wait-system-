@@ -22,7 +22,7 @@ import {
 } from '@/lib/master'
 import {
   PRODUCT_CATEGORY_OPTIONS, PRODUCT_GENDER_OPTIONS,
-  WASHABLE_OPTIONS, SIZE_SET_CATEGORY_OPTIONS,
+  WASHABLE_OPTIONS, SIZE_SET_CATEGORY_OPTIONS, BODY_TYPE_OPTIONS,
 } from '@/types/master'
 import type {
   SchoolMaster, SizeSet, ProductMaster, SchoolRequirement, Price,
@@ -510,6 +510,13 @@ function ProductsPanel({ storeId, school, products, sizeSets, onChange, show }: 
         <p className="text-[11px] text-gray-400">
           {[p.category, p.gender, p.maker, p.maker_code, p.size_set?.name].filter(Boolean).join(' ・ ')}
         </p>
+        {p.body_types?.length > 0 && (
+          <div className="flex gap-1 mt-1">
+            {p.body_types.map((b) => (
+              <span key={b} className="px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-bold">{b}体</span>
+            ))}
+          </div>
+        )}
       </div>
       <button onClick={() => setModal(p)} className="p-2 text-gray-400 hover:text-indigo-600"><Pencil size={18} /></button>
       <button onClick={async () => {
@@ -560,6 +567,7 @@ function ProductModal({ storeId, school, sizeSets, initial, nextOrder, onClose, 
   const [maker, setMaker] = useState(initial?.maker ?? '')
   const [makerCode, setMakerCode] = useState(initial?.maker_code ?? '')
   const [washable, setWashable] = useState(initial?.washable ?? '')
+  const [bodyTypes, setBodyTypes] = useState<string[]>(initial?.body_types ?? [])
   const [sizeSetId, setSizeSetId] = useState(initial?.size_set_id ?? '')
   const [basePrice, setBasePrice] = useState(initial?.base_price_tax_in?.toString() ?? '')
   // 新規: 自由商品 or 学校別注品
@@ -576,6 +584,7 @@ function ProductModal({ storeId, school, sizeSets, initial, nextOrder, onClose, 
         name: name.trim(), category: category || null, gender: gender || null,
         maker: maker.trim() || null, maker_code: makerCode.trim() || null,
         washable: washable || null, size_set_id: sizeSetId || null,
+        body_types: bodyTypes,
         base_price_tax_in: basePrice ? Number(basePrice) : null,
         sort_order: initial?.sort_order ?? nextOrder, active: initial?.active ?? true,
       })
@@ -623,6 +632,21 @@ function ProductModal({ storeId, school, sizeSets, initial, nextOrder, onClose, 
           </select>
         </Field>
       </div>
+      <Field label="体型区分">
+        <div className="flex gap-2">
+          {BODY_TYPE_OPTIONS.map((b) => {
+            const on = bodyTypes.includes(b.value)
+            return (
+              <button key={b.value} type="button"
+                onClick={() => setBodyTypes((prev) => on ? prev.filter((v) => v !== b.value) : [...prev, b.value])}
+                className={`flex-1 py-2 rounded-xl text-sm font-bold border transition-colors ${on ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-500 border-gray-300'}`}>
+                {b.label}<span className="block text-[10px] font-medium opacity-70">{b.desc}</span>
+              </button>
+            )
+          })}
+        </div>
+        <p className="text-[10px] text-gray-400 mt-1">未選択＝体型区分なし（号数のみで管理）</p>
+      </Field>
       <Field label="標準価格(税込)"><input type="number" className={INPUT} value={basePrice} onChange={(e) => setBasePrice(e.target.value)} placeholder="14500" /></Field>
       <button onClick={save} disabled={saving} className={`${BTN_PRIMARY} w-full`}>
         {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />} 保存

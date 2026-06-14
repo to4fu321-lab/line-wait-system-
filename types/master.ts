@@ -80,6 +80,21 @@ export const PRODUCT_CATEGORY_OPTIONS = [
 
 export const PRODUCT_GENDER_OPTIONS = ['男子用', '女子用', '男女共通'] as const
 
+// 体型区分(全国共通規格)。号数(W○/cm)と組み合わせて学生服のサイズを表す。
+export const BODY_TYPE_OPTIONS = [
+  { value: 'Y', label: 'Y体', desc: 'やせ型' },
+  { value: 'A', label: 'A体', desc: '標準' },
+  { value: 'B', label: 'B体', desc: 'がっちり' },
+] as const
+
+// 加工オプションの入力タイプ
+export const PROCESSING_INPUT_TYPE_OPTIONS = [
+  { value: 'toggle', label: '有無(チェック)' },
+  { value: 'text',   label: '文字入力(刺繍名など)' },
+  { value: 'length', label: '寸法入力(裾上げcmなど)' },
+  { value: 'select', label: '選択肢から選ぶ' },
+] as const
+
 // ══════════════════════════════════════════════════════════════
 // ▼▼ 再設計マスタ(正規化スキーマ。docs/master-data-redesign.md) ▼▼
 //    旧 SchoolProduct/SchoolProductVariant は互換ビュー用に残置。
@@ -137,6 +152,7 @@ export interface ProductMaster {
   barcode:            string | null
   washable:           string | null
   size_set_id:        string | null
+  body_types:         string[]         // 対応体型(Y/A/B)。空=体型区分なし
   base_price_tax_in:  number | null
   base_price_tax_out: number | null
   notes:              string | null
@@ -146,6 +162,26 @@ export interface ProductMaster {
   updated_at:         string
   size_set?:          SizeSet | null
   school?:            SchoolMaster | null
+}
+
+// 6. 新品加工オプションマスタ(刺繍・裾上げ・校章等)
+//    お直し(repair_*)とは別概念=新品購入時の加工。
+//    applies_to_category が空なら全商品、値ありなら該当カテゴリ商品に自動提示。
+export interface ProcessingOption {
+  id:                  string
+  store_id:            string
+  name:                string
+  input_type:          string          // toggle/text/length/select
+  unit:                string | null   // 例: cm
+  default_price:       number | null
+  required:            boolean          // 標準で付帯(必須加工)
+  applies_to_category: string[]        // 連動カテゴリ(空=全商品)
+  choices:             string[]        // input_type=select の選択肢
+  notes:               string | null
+  sort_order:          number
+  is_active:           boolean
+  created_at:          string
+  updated_at:          string
 }
 
 // 4. 学校別規程マスタ(School × Product)
