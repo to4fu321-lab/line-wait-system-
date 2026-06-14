@@ -77,6 +77,11 @@ function MasterPageInner() {
   const initialTab = (searchParams?.get('tab') ?? (isSimpleMode ? 'presets' : 'schools')) as MasterTab
   const [masterTab, setMasterTab] = useState<MasterTab>(initialTab)
 
+  // 「学校・商品」マスタは再設計版(/master/manage)へ移行済み。リダイレクトする。
+  useEffect(() => {
+    if (masterTab === 'schools') router.replace(`/${storeId}/admin/master/manage`)
+  }, [masterTab, router, storeId])
+
   // ── School/Product/Variant state ──────────────────────────
   const [schoolView,      setSchoolView]      = useState<SchoolView>('schools')
   const [schools,         setSchools]         = useState<School[]>([])

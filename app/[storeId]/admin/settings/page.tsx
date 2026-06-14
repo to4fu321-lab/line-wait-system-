@@ -643,8 +643,8 @@ export default function SettingsPage() {
         <Section id="master" emoji="📋" title="マスタ管理" open={openSections.has('master')} onToggle={() => toggle('master')}>
           {([
             { group: '基本マスタ', items: [
-              { href: `/${storeId}/admin/master?tab=schools`,              icon: GraduationCap, title: '学校マスタ',      bg: 'bg-indigo-100', fg: 'text-indigo-600' },
-              { href: `/${storeId}/admin/master?tab=schools&view=products`, icon: Shirt,         title: '商品マスタ',      bg: 'bg-sky-100',    fg: 'text-sky-600' },
+              { href: `/${storeId}/admin/master/manage`,                   icon: GraduationCap, title: '学校・商品・価格',bg: 'bg-indigo-100', fg: 'text-indigo-600' },
+              { href: `/${storeId}/admin/master/manage`,                   icon: Shirt,         title: '商品マスタ',      bg: 'bg-sky-100',    fg: 'text-sky-600' },
               { href: `/${storeId}/admin/master?tab=staff`,                icon: Users,         title: 'スタッフマスタ',  bg: 'bg-violet-100', fg: 'text-violet-600' },
               { href: `/${storeId}/admin/master/repair`,                   icon: Scissors,      title: 'お直しマスタ',    bg: 'bg-rose-100',   fg: 'text-rose-600' },
             ] },
