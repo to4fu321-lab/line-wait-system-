@@ -114,7 +114,7 @@ export async function deleteProduct(id: string) {
 // その学校の規程一覧(商品実体を埋め込み)
 export async function listRequirements(schoolId: string): Promise<SchoolRequirement[]> {
   const { data } = await sb.from('school_requirements')
-    .select('*, product:products(*, size_set:size_sets(id,name,category))')
+    .select('*, product:products(*, size_set:size_sets(id,name,category,items:size_set_items(id,label,sort_order)))')
     .eq('school_id', schoolId)
     .order('sort_order')
   return data ?? []
