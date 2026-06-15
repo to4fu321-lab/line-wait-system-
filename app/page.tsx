@@ -31,11 +31,11 @@ export default function RootPage() {
             <span className="text-white">🎫</span>
           </div>
           <h1 className="text-3xl font-black tracking-tight text-zinc-900 leading-tight">
-            順番待ち・お直し<br />受付システム
+            学生服販売店向け<br />店舗運営支援システム
           </h1>
           <p className="mt-3 text-zinc-500 text-sm leading-relaxed">
-            店舗向け Web受付 SaaS<br />
-            <span className="text-zinc-400 text-xs">混雑解消 × 顧客管理 × LINE通知</span>
+            制服店のDXをまるごとサポート<br />
+            <span className="text-zinc-400 text-xs">受付 × 採寸 × お直し × 発注 × CRM × LINE通知</span>
           </p>
         </div>
 
