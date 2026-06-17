@@ -27,6 +27,7 @@ interface ProcessResult {
 interface ImportSummary {
   school_id: string; school_created: boolean
   products_created: number; requirements_created: number; prices_created: number
+  size_sets_created: number
   skipped: { item_name: string; reason: string }[]
 }
 
@@ -334,6 +335,7 @@ export default function ManualImportWizard({ storeId, schools, onClose, onImport
                 <p>商品: <span className="font-bold">{summary.products_created}</span> 件</p>
                 <p>規定品: <span className="font-bold">{summary.requirements_created}</span> 件</p>
                 <p>サイズ×価格: <span className="font-bold">{summary.prices_created}</span> 件</p>
+                {summary.size_sets_created > 0 && <p>サイズセット自動生成: <span className="font-bold">{summary.size_sets_created}</span> 件</p>}
                 {summary.skipped.length > 0 && (
                   <div className="pt-2 text-amber-700">
                     <p className="font-bold">スキップ {summary.skipped.length} 件</p>
