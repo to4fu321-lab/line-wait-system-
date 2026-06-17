@@ -11,7 +11,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   ChevronLeft, Plus, Pencil, Trash2, GraduationCap, Package, Ruler,
-  Loader2, X, Check, Tag, Coins, School as SchoolIcon, Link2,
+  Loader2, X, Check, Tag, Coins, School as SchoolIcon, Link2, Sparkles,
 } from 'lucide-react'
 import {
   listSchools, upsertSchool, deleteSchool,
@@ -24,6 +24,7 @@ import {
   PRODUCT_CATEGORY_OPTIONS, PRODUCT_GENDER_OPTIONS,
   WASHABLE_OPTIONS, SIZE_SET_CATEGORY_OPTIONS, BODY_TYPE_OPTIONS,
 } from '@/types/master'
+import ManualImportWizard from './_components/ManualImportWizard'
 import type {
   SchoolMaster, SizeSet, ProductMaster, SchoolRequirement, Price,
 } from '@/types/master'
@@ -120,6 +121,7 @@ export default function MasterManagePage() {
   // 学校マスタ(一覧)
   // ════════════════════════════════════════════════════════════
   const [schoolModal, setSchoolModal] = useState<SchoolMaster | 'new' | null>(null)
+  const [wizardOpen, setWizardOpen] = useState(false)
 
   if (loading) {
     return <div className="min-h-screen grid place-items-center"><Loader2 className="animate-spin text-indigo-500" size={32} /></div>
@@ -136,6 +138,9 @@ export default function MasterManagePage() {
         </header>
 
         <div className="p-4 space-y-3 max-w-2xl mx-auto">
+          <button onClick={() => setWizardOpen(true)} className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-sm font-bold shadow-sm hover:opacity-95">
+            <Sparkles size={18} /> マニュアルから取込（OCR）
+          </button>
           <p className="text-xs text-gray-500">
             学校を選ぶと「規定品・価格・商品・サイズセット」を管理できます。
           </p>
@@ -177,6 +182,15 @@ export default function MasterManagePage() {
             onClose={() => setSchoolModal(null)}
             onSaved={() => { setSchoolModal(null); show('ok', '保存しました'); reloadBase() }}
             onError={(m) => show('err', m)}
+          />
+        )}
+
+        {wizardOpen && (
+          <ManualImportWizard
+            storeId={storeId}
+            schools={schools}
+            onClose={() => setWizardOpen(false)}
+            onImported={() => { setWizardOpen(false); show('ok', '取り込みました'); reloadBase() }}
           />
         )}
       </div>
