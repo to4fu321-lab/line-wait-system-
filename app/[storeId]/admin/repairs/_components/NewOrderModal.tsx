@@ -156,13 +156,12 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   }, [custSearch, storeId])
 
   const handleSave = async () => {
-    if (!selectedCust) return
     setSaving(true)
     const today = new Date().toISOString().slice(0, 10)
     const orderId = crypto.randomUUID()
     const { error: oErr } = await (supabase as any).from('uniform_orders').insert({
       id: orderId, store_id: storeId,
-      customer_id: selectedCust.id, child_id: selectedChild?.id ?? null,
+      customer_id: selectedCust?.id ?? null, child_id: selectedChild?.id ?? null,
       maker: maker.trim() || null,
       priority,
       status: 'confirmed', payment_status: prepaid ? 'paid' : 'unpaid',
@@ -220,6 +219,12 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
               <p className="font-black text-gray-900 text-sm">📋 制服・用品注文</p>
               <p className="text-xs text-gray-400 font-medium">{stepLabels[step]}</p>
             </div>
+            {step !== 'customer' && (
+              <button onClick={() => setStep('customer')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border max-w-[32%] truncate shrink-0 ${selectedCust ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-amber-50 border-amber-300 text-amber-700'}`}>
+                {selectedCust ? `👤 ${selectedChild?.name ?? selectedCust.name}` : '＋顧客'}
+              </button>
+            )}
             <button onClick={() => orderFileRef.current?.click()} disabled={ocrLoading}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-60 shrink-0">
               {ocrLoading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
@@ -417,6 +422,11 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                   {custSearch.length === 0 && !showReg && (
                     <p className="text-sm text-center text-gray-400 py-4">名前を入力して顧客を検索してください</p>
                   )}
+                  {/* 顧客は後で紐付け（先に商品選択でもOK） */}
+                  <button onClick={() => setStep('products')}
+                    className="w-full py-2.5 text-sm font-bold text-gray-500 rounded-2xl hover:bg-gray-50">
+                    顧客は後で紐付け → 先に商品を選ぶ
+                  </button>
                 </>
               ) : (
                 <>
@@ -490,7 +500,11 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
               <div className="bg-gray-50 rounded-2xl px-4 py-3 flex items-center gap-2">
                 <User size={14} className="text-gray-400" />
                 <div>
-                  <p className="text-sm font-bold text-gray-900">{selectedCust?.name}</p>
+                  {selectedCust ? (
+                    <p className="text-sm font-bold text-gray-900">{selectedCust.name}</p>
+                  ) : (
+                    <button onClick={() => setStep('customer')} className="text-sm font-bold text-amber-600">＋ 顧客を紐付け（任意）</button>
+                  )}
                   {selectedChild && <p className="text-xs text-gray-500">お子様: {selectedChild.name}</p>}
                 </div>
               </div>

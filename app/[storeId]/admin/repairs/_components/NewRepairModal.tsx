@@ -199,7 +199,8 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   }
 
   async function handleSave() {
-    if (!selectedCust || !item) return
+    if (!item) return
+    if (!selectedCust) { onToast('err', 'お客様を紐付けてください（上部の「顧客」から登録できます）'); setStep('customer'); return }
     if (hasDanger && !manualConfirmed) { onToast('err', '特殊ケースの確認にチェックしてください'); return }
     if (pricingMode === 'manual' && item.code === 'other' && !manualItemName.trim()) { onToast('err', '内容（品名）を入力してください'); return }
     if (pricingMode !== 'master' && finalPrice == null && !mustQuote) { /* 価格未入力でも見積もり対象なら可 */ }
@@ -342,6 +343,12 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
           {step === 'build' && <button onClick={goBackBuild} className="p-1 text-gray-400"><ChevronLeft size={20} /></button>}
           <Scissors size={18} className="text-amber-500" />
           <h2 className="font-black text-gray-900 flex-1">お直し受付{step === 'build' && buildStepDefs[curBuildIdx] ? `・${buildStepDefs[curBuildIdx].label}（${curBuildIdx + 1}/${buildStepDefs.length}）` : ''}</h2>
+          {step === 'build' && (
+            <button onClick={() => setStep('customer')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border max-w-[40%] truncate ${selectedCust ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-amber-50 border-amber-300 text-amber-700'}`}>
+              {selectedCust ? `👤 ${selectedChild?.name ?? selectedCust.name}` : '＋顧客を紐付け'}
+            </button>
+          )}
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100"><X size={20} /></button>
         </div>
 
@@ -369,7 +376,7 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                     </div>
                   </div>
                 )}
-                <button onClick={() => { setStep('build'); setBuildStep(0) }} className="w-full py-3.5 bg-indigo-600 text-white font-black rounded-2xl flex items-center justify-center gap-2"><Check size={18} />お直し内容へ進む</button>
+                <button onClick={() => setStep('build')} className="w-full py-3.5 bg-indigo-600 text-white font-black rounded-2xl flex items-center justify-center gap-2"><Check size={18} />お直し内容へ進む</button>
               </div>
             ) : (
               <>
@@ -440,6 +447,12 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                       className="w-full py-2 text-xs font-bold text-gray-600 border border-gray-200 rounded-xl hover:bg-white">閉じる</button>
                   </div>
                 )}
+
+                {/* 顧客は後で紐付け（先に内容入力でもOK） */}
+                <button onClick={() => setStep('build')}
+                  className="w-full py-2.5 text-sm font-bold text-gray-500 rounded-2xl hover:bg-gray-50">
+                  顧客は後で紐付け → 先に内容を入力
+                </button>
               </>
             )}
           </div>
@@ -603,7 +616,7 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                   <p className="text-[11px] font-black text-gray-400">内容を確認して受付</p>
                   <div className="rounded-2xl border border-gray-200 text-sm divide-y">
                     {[
-                      ['お客様', `${selectedCust?.name ?? ''}${selectedChild ? ` / ${selectedChild.name}` : ''}`],
+                      ['お客様', selectedCust ? `${selectedCust.name}${selectedChild ? ` / ${selectedChild.name}` : ''}` : '未紐付け（上部の「顧客」から登録してください）'],
                       ['服種・項目', `${garments.find(g => g.id === garmentId)?.name ?? ''} / ${item.name}`],
                       ['金額', pricingMode === 'master' ? `¥${calculated.toLocaleString()}` : (finalPrice != null ? `¥${finalPrice.toLocaleString()}` : '見積もり待ち')],
                       ...(deadline ? [['仕上がり希望', deadline]] : []),
