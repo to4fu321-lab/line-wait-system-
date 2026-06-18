@@ -13,7 +13,7 @@ import { BottomNav } from '../_components/BottomNav'
 import { InquiryModal, type InquiryRow, type InquiryType, type InquiryStatus } from '../_components/InquiryModal'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { useDeviceMode } from '@/lib/useDeviceMode'
-import { rawToItem, todayJst } from './_components/utils'
+import { rawToItem, todayJst, fmtReqNo } from './_components/utils'
 import { useSimpleMode } from '@/lib/useSimpleMode'
 import type { RepairRow, PurchaseRow, UniformOrderRow, DeliveryItem } from './_components/types'
 import { Toast } from './_components/Toast'
@@ -434,10 +434,10 @@ export default function RepairsPage() {
     ? repairs.filter(r => pendingRepairIds.has(r.id))
     : sortedSubTab
   ).filter(r =>
-    matchSearch([r.content, r.item_name, r.child?.name, r.customer?.name, r.child?.school_name, r.slip_number])
+    matchSearch([r.content, r.item_name, r.child?.name, r.customer?.name, r.child?.school_name, r.slip_number, fmtReqNo('repair', r.request_no, r.id), r.request_no != null ? String(r.request_no) : null])
   )
   const filteredPurchases = purchases.filter(p =>
-    matchSearch([p.item_name, p.maker, p.notes, p.child?.name, p.customer?.name, p.child?.school_name])
+    matchSearch([p.item_name, p.maker, p.notes, p.child?.name, p.customer?.name, p.child?.school_name, fmtReqNo('purchase', p.request_no, p.id), p.request_no != null ? String(p.request_no) : null])
   )
   const filteredPurchaseUnordered = filteredPurchases.filter(p => ['received', 'ordered'].includes(p.status))
   const filteredPurchaseOnOrder   = filteredPurchases.filter(p => p.status === 'on_order')
@@ -528,12 +528,12 @@ export default function RepairsPage() {
     waiting.length
 
   const filteredWaiting = [...waitingUnpaid, ...waitingPaid].filter(i =>
-    matchSearch([i.item_name, i.sub_label, i.child?.name, i.customer?.name, i.child?.school_name, i.slip_number])
+    matchSearch([i.item_name, i.sub_label, i.child?.name, i.customer?.name, i.child?.school_name, i.slip_number, fmtReqNo(i.kind, i.request_no, i.id), i.request_no != null ? String(i.request_no) : null])
   )
 
   const filteredUniformOrders = uniformOrders
     .filter(o => o.status === 'confirmed')
-    .filter(o => matchSearch([o.maker, o.customer?.name, o.child?.name, o.child?.school_name, ...(o.items?.map(i => i.item_name) ?? [])]))
+    .filter(o => matchSearch([o.maker, o.customer?.name, o.child?.name, o.child?.school_name, ...(o.items?.map(i => i.item_name) ?? []), (o as any).request_no != null ? fmtReqNo('purchase', (o as any).request_no, o.id) : null, (o as any).request_no != null ? String((o as any).request_no) : null]))
 
   const pendingInqAll = inquiries
     .filter(i => i.status === 'pending')
