@@ -179,8 +179,10 @@ export function InquiryModal({
     doSave()
   }
 
-  // ── シンプルモード（ウィザード形式）────────────────────────────────
-  if (isSimpleMode) {
+  // ── ウィザード形式（シンプルモード、または通常モードの新規作成）──────
+  // 新規はどのモードでも1画面1〜2項目のウィザード。編集(通常モード)は
+  // ステータス・担当者などを扱える従来フォームを使う。
+  if (isSimpleMode || !isEdit) {
     const STEP_LABELS = ['種別', '急ぎ', 'お名前', '内容', '対応方法', '確認']
     const TOTAL = STEP_LABELS.length
     return (
