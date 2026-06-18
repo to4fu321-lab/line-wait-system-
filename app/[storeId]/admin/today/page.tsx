@@ -9,6 +9,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { Loader2, ClipboardList, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
+import { resolveFeature } from '@/lib/features'
 import { useSimpleMode } from '@/lib/useSimpleMode'
 import { BottomNav } from '../_components/BottomNav'
 import { InquiryModal, type InquiryRow } from '../_components/InquiryModal'
@@ -20,29 +21,36 @@ import { TodayTaskCard } from './_components/TodayTaskCard'
 export default function TodayPage() {
   const { storeId } = useParams<{ storeId: string }>()
   const router = useRouter()
-  const { hasFeature, loaded } = useStoreFeatures(storeId)
+  const { hasFeature } = useStoreFeatures(storeId)
   const { isSimpleMode } = useSimpleMode(storeId)
   const { tasks, remaining, loading, refetch } = useTodayTasks(storeId)
 
   const [storeName, setStoreName] = useState('')
+  const [allowed, setAllowed] = useState<boolean | null>(null) // フラグ判定（DB直読み）
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [inquiryItem, setInquiryItem] = useState<InquiryRow | null>(null)
 
-  // フラグOFF（またはロード後に無効）なら既存案件画面へ
-  useEffect(() => {
-    if (loaded && !hasFeature('today_tasks_ui')) router.replace(`/${storeId}/admin/repairs`)
-  }, [loaded, hasFeature, router, storeId])
-
+  // 店舗名＋フラグを毎回DBから取得（sessionStorage古値での誤リダイレクトを防止）
   useEffect(() => {
     if (!storeId) return
-    ;(supabase as any).from('stores').select('name').eq('id', storeId).single()
-      .then(({ data }: { data: { name: string } | null }) => setStoreName(data?.name ?? ''))
-  }, [storeId])
+    let cancelled = false
+    ;(supabase as any).from('stores').select('name, features').eq('id', storeId).single()
+      .then(({ data }: { data: { name: string; features: Record<string, unknown> | null } | null }) => {
+        if (cancelled) return
+        setStoreName(data?.name ?? '')
+        const features = data?.features ?? {}
+        try { sessionStorage.setItem(`sf_${storeId}`, JSON.stringify(features)) } catch {}
+        const ok = resolveFeature('today_tasks_ui', features)
+        setAllowed(ok)
+        if (!ok) router.replace(`/${storeId}/admin/repairs`)
+      })
+    return () => { cancelled = true }
+  }, [storeId, router])
 
   const smsEnabled = hasFeature('sms_notify')
   const show = (type: 'ok' | 'err', msg: string) => setToast({ type, msg })
 
-  if (!loaded || !hasFeature('today_tasks_ui')) {
+  if (allowed !== true) {
     return <div className="min-h-screen grid place-items-center"><Loader2 className="animate-spin text-indigo-500" size={32} /></div>
   }
 

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import ColorPicker from '@/app/_components/ColorPicker'
 import type { Store, BusinessType } from '@/types/database'
-import { PLAN_DEFS, type Plan, type FeatureKey } from '@/lib/features'
+import { PLAN_DEFS, ADDON_DEFAULT_OFF, type Plan, type FeatureKey } from '@/lib/features'
 
 // ── 細粒度フラグ（プランに加えて個別 on/off できる項目） ────────
 const GRANULAR_FEATURES: { key: FeatureKey; label: string; icon: string }[] = [
@@ -341,7 +341,10 @@ function StoreCard({
                       const f = GRANULAR_FEATURES.find(x => x.key === key)
                       if (!f) return null
                       const currentPlan = (features._plan as Plan | undefined) ?? 'full'
-                      const planDefault = PLAN_DEFS[currentPlan]?.features[f.key as FeatureKey]
+                      // アドオン/β機能は未設定=OFF（resolveFeature と一致させる）
+                      const planDefault = ADDON_DEFAULT_OFF.includes(f.key)
+                        ? false
+                        : PLAN_DEFS[currentPlan]?.features[f.key as FeatureKey]
                       const override = (features as Record<string, unknown>)[f.key]
                       const effective = override !== undefined ? (override as boolean) : (planDefault !== false)
                       const hasOverride = override !== undefined && override !== planDefault

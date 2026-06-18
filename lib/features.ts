@@ -257,4 +257,4 @@ export function resolveFeature(
 }
 
 // 契約時のみ有効化するアドオン/β機能。明示設定が無ければ常にOFF。
-const ADDON_DEFAULT_OFF: FeatureKey[] = ['sms_notify', 'today_tasks_ui']
+export const ADDON_DEFAULT_OFF: FeatureKey[] = ['sms_notify', 'today_tasks_ui']
