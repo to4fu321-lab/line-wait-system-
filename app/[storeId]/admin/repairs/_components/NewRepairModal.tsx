@@ -45,8 +45,9 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   const [searching, setSearching] = useState(false)
   const [selectedCust, setSelectedCust] = useState<CustResult | null>(null)
   const [selectedChild, setSelectedChild] = useState<{ id: string; name: string; school_name: string | null } | null>(null)
-  // 電話番号で登録（シンプルモード同様: いつでも・電話番号でOK）
+  // 顧客の新規登録（シンプルモード同様: いつでも・電話番号/LINEでOK）
   const [phoneMode, setPhoneMode] = useState(false)
+  const [showReg, setShowReg] = useState(false)
   const [newName, setNewName] = useState('')
   const [newTel, setNewTel] = useState('')
   const [registering, setRegistering] = useState(false)
@@ -387,24 +388,46 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                   {custSearch && !searching && custResults.length === 0 && <p className="text-center text-sm text-gray-400 py-4">該当なし。電話番号で登録できます。</p>}
                 </div>
 
-                {/* 電話番号で登録（いつでも・電話番号でOK） */}
-                {phoneMode ? (
-                  <div className="rounded-2xl border-2 border-indigo-200 bg-indigo-50/50 p-3 space-y-2">
-                    <p className="text-xs font-bold text-indigo-700">電話番号で登録・紐付け</p>
-                    <input className={INPUT} placeholder="お名前" value={newName} onChange={e => setNewName(e.target.value)} />
-                    <input className={INPUT} type="tel" inputMode="numeric" placeholder="電話番号（携帯可）" value={newTel} onChange={e => setNewTel(e.target.value)} />
-                    <div className="flex gap-2">
-                      <button onClick={() => { setPhoneMode(false); setNewName(''); setNewTel('') }} className="flex-1 py-2.5 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-bold">戻る</button>
-                      <button onClick={handlePhoneRegister} disabled={registering} className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-black flex items-center justify-center gap-1.5 disabled:opacity-50">
-                        {registering ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}登録して選択
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button onClick={() => { setPhoneMode(true); if (!newName && custSearch && !/\d/.test(custSearch)) setNewName(custSearch.trim()) }}
+                {/* 新規顧客を登録（LINE / 電話番号） */}
+                {!showReg ? (
+                  <button onClick={() => { setShowReg(true); if (!newName && custSearch && !/\d/.test(custSearch)) setNewName(custSearch.trim()) }}
                     className="w-full py-3 rounded-2xl border-2 border-dashed border-indigo-300 text-indigo-600 text-sm font-bold flex items-center justify-center gap-1.5">
-                    📞 電話番号で登録する
+                    ➕ 新規顧客を登録する
                   </button>
+                ) : (
+                  <div className="rounded-2xl border-2 border-indigo-200 bg-indigo-50/50 p-3 space-y-3">
+                    {/* 電話番号で登録 */}
+                    {phoneMode ? (
+                      <div className="space-y-2">
+                        <p className="text-xs font-black text-indigo-800">電話番号で登録・紐付け</p>
+                        <input className={INPUT} placeholder="お名前" value={newName} onChange={e => setNewName(e.target.value)} />
+                        <input className={INPUT} type="tel" inputMode="numeric" placeholder="電話番号（携帯可）" value={newTel} onChange={e => setNewTel(e.target.value)} />
+                        <div className="flex gap-2">
+                          <button onClick={() => { setPhoneMode(false); setNewTel('') }} className="flex-1 py-2.5 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-bold">戻る</button>
+                          <button onClick={handlePhoneRegister} disabled={registering} className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-black flex items-center justify-center gap-1.5 disabled:opacity-50">
+                            {registering ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}登録して選択
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={() => setPhoneMode(true)} className="w-full py-3 rounded-xl bg-indigo-600 text-white text-sm font-black flex items-center justify-center gap-1.5">
+                        📞 電話番号で登録する
+                      </button>
+                    )}
+                    {/* LINEで登録（QR） */}
+                    <div className="border-t border-indigo-200 pt-3 text-center space-y-2">
+                      <p className="text-xs font-black text-indigo-800">またはLINEで登録（QRを読み取ってもらう）</p>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=${encodeURIComponent(`https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || ''}/${storeId}`)}`}
+                        alt="受付QR" width={180} height={180}
+                        className="mx-auto rounded-xl bg-white p-1 shadow-sm"
+                      />
+                      <p className="text-[10px] text-indigo-500 leading-relaxed">LINE登録後、上の検索欄でお名前を検索してください</p>
+                    </div>
+                    <button onClick={() => { setShowReg(false); setPhoneMode(false); setNewTel('') }}
+                      className="w-full py-2 text-xs font-bold text-gray-600 border border-gray-200 rounded-xl hover:bg-white">閉じる</button>
+                  </div>
                 )}
               </>
             )}

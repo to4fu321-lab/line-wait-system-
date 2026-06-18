@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import {
-  X, Loader2, Check, Sparkles, ChevronDown, ChevronUp, Camera, ChevronLeft,
+  X, Loader2, Check, Sparkles, ChevronDown, ChevronUp, Camera, ChevronLeft, User,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { compressImage } from '@/lib/adminUtils'
@@ -67,6 +67,50 @@ export function InquiryModal({
   const [step,         setStep]         = useState(0)
   const ocrRef = useRef<HTMLInputElement>(null)
   const isEdit = !!item
+
+  // ── 顧客の紐付け・新規登録（どのタイミングでも） ──
+  const [custId,         setCustId]         = useState<string | null>((item as any)?.customer_id ?? null)
+  const [custResults,    setCustResults]    = useState<{ id: string; name: string; tel: string | null }[]>([])
+  const [custSearching,  setCustSearching]  = useState(false)
+  const [custPhoneMode,  setCustPhoneMode]  = useState(false)
+  const [custTel,        setCustTel]        = useState('')
+  const [custRegistering, setCustRegistering] = useState(false)
+
+  // 名前入力に応じて既存顧客を検索（未紐付け時のみ）
+  useEffect(() => {
+    if (custId || customerName.trim().length < 1) { setCustResults([]); return }
+    const t = setTimeout(async () => {
+      setCustSearching(true)
+      const q = customerName.trim(); const qTel = q.replace(/[-\s]/g, '')
+      const { data } = await (supabase as any).from('customers')
+        .select('id, name, tel').eq('store_id', storeId)
+        .or(`name.ilike.%${q}%,tel.ilike.%${q}%,tel.ilike.%${qTel}%`).is('deleted_at', null).limit(6)
+      setCustResults(data ?? []); setCustSearching(false)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [customerName, custId, storeId])
+
+  const linkCustomer = (c: { id: string; name: string }) => {
+    setCustId(c.id); setCustomerName(c.name); setCustResults([]); setCustPhoneMode(false)
+  }
+  const registerPhoneCustomer = async () => {
+    const name = customerName.trim()
+    const tel = custTel.trim()
+    const digits = tel.replace(/[-\s]/g, '')
+    if (!name) { setFormError('お名前を入力してください'); return }
+    if (!/^\d{10,11}$/.test(digits)) { setFormError('電話番号は10〜11桁で入力してください'); return }
+    setCustRegistering(true); setFormError(null)
+    const { data: rows } = await (supabase as any).from('customers')
+      .select('id, name, tel').eq('store_id', storeId).eq('tel', tel).is('deleted_at', null).limit(1)
+    let c = rows?.[0]
+    if (!c) {
+      const { data: created, error } = await (supabase as any).from('customers')
+        .insert({ store_id: storeId, name, tel }).select('id, name, tel').single()
+      if (error) { setCustRegistering(false); setFormError(error.message ?? '登録に失敗しました'); return }
+      c = created
+    }
+    setCustId(c.id); setCustomerName(c.name); setCustTel(''); setCustPhoneMode(false); setCustRegistering(false)
+  }
 
   // 初期値スナップショット（変更検知用）— useRef でマウント時の値を保持
   const initialRef = useRef({
@@ -148,6 +192,7 @@ export function InquiryModal({
     const payload: Record<string, unknown> = {
       store_id:        storeId,
       customer_name:   customerName.trim() || null,
+      customer_id:     custId,
       content:         content.trim(),
       type,
       is_urgent:       isUrgent,
@@ -285,11 +330,61 @@ export function InquiryModal({
             {step === 2 && (
               <div>
                 <p className="text-xl font-black text-gray-800 mb-1">お客様のお名前は？</p>
-                <p className="text-sm text-gray-500 mb-5">わからない場合は空欄のまま「次へ」を押してください</p>
-                <input value={customerName} onChange={e => setCustomerName(e.target.value)}
-                  placeholder="例：山田 太郎"
-                  className="w-full border-2 border-gray-200 rounded-2xl px-5 py-5 text-2xl focus:border-indigo-400 focus:outline-none"
-                  autoComplete="off" />
+                <p className="text-sm text-gray-500 mb-5">わからない場合は空欄のまま「次へ」。既存のお客様は検索して紐付け、新規はその場で登録できます。</p>
+
+                {custId ? (
+                  // 紐付け済み
+                  <div className="flex items-center gap-3 bg-indigo-50 border-2 border-indigo-200 rounded-2xl px-4 py-3">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center"><User size={18} className="text-indigo-600" /></div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-gray-900">{customerName || 'お客様'}</p>
+                      <p className="text-[11px] text-indigo-500 font-bold">顧客と紐付け済み</p>
+                    </div>
+                    <button onClick={() => setCustId(null)} className="text-xs font-bold text-gray-500 px-2 py-1 rounded-lg border border-gray-200">解除</button>
+                  </div>
+                ) : (
+                  <>
+                    <input value={customerName} onChange={e => setCustomerName(e.target.value)}
+                      placeholder="例：山田 太郎"
+                      className="w-full border-2 border-gray-200 rounded-2xl px-5 py-4 text-xl focus:border-indigo-400 focus:outline-none"
+                      autoComplete="off" />
+
+                    {/* 既存顧客の検索結果（紐付け候補） */}
+                    {(custSearching || custResults.length > 0) && (
+                      <div className="mt-2 space-y-1.5">
+                        {custSearching && <p className="text-xs text-gray-400">検索中…</p>}
+                        {custResults.map(c => (
+                          <button key={c.id} onClick={() => linkCustomer(c)}
+                            className="w-full text-left bg-white border border-gray-200 rounded-xl px-4 py-2.5 hover:border-indigo-300">
+                            <p className="font-bold text-gray-900 text-sm">{c.name}</p>
+                            {c.tel && <p className="text-[11px] text-gray-400">{c.tel}</p>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 電話番号で新規登録 */}
+                    {custPhoneMode ? (
+                      <div className="mt-3 rounded-2xl border-2 border-indigo-200 bg-indigo-50/50 p-3 space-y-2">
+                        <p className="text-xs font-black text-indigo-800">電話番号で新規登録（上のお名前で作成）</p>
+                        <input value={custTel} onChange={e => setCustTel(e.target.value)} type="tel" inputMode="numeric"
+                          placeholder="電話番号（携帯可）"
+                          className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-indigo-500" />
+                        <div className="flex gap-2">
+                          <button onClick={() => { setCustPhoneMode(false); setCustTel('') }} className="flex-1 py-2.5 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-bold">戻る</button>
+                          <button onClick={registerPhoneCustomer} disabled={custRegistering} className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-black flex items-center justify-center gap-1.5 disabled:opacity-50">
+                            {custRegistering ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}登録して紐付け
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={() => setCustPhoneMode(true)}
+                        className="mt-3 w-full py-2.5 rounded-2xl border-2 border-dashed border-indigo-300 text-indigo-600 text-sm font-bold flex items-center justify-center gap-1.5">
+                        📞 電話番号で新規登録する
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
             )}
 
