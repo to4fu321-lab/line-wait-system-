@@ -56,8 +56,15 @@ export function BottomNav() {
     t.featureKey === null || hasFeature(t.featureKey as Parameters<typeof hasFeature>[0])
   )
 
+  // today_tasks_ui ON のとき、案件タブを「やること」(/admin/today)へ差し替え
+  const todayOn = hasFeature('today_tasks_ui')
+  const tabPath = (tab: typeof ALL_TABS[number]) =>
+    todayOn && tab.id === 'repairs' ? `/${storeId}/admin/today` : tab.path(storeId)
+  const tabLabel = (tab: typeof ALL_TABS[number]) =>
+    todayOn && tab.id === 'repairs' ? 'やること' : tab.label
+
   function isActive(tab: typeof ALL_TABS[number]) {
-    const target = tab.path(storeId)
+    const target = tabPath(tab)
     if (tab.exact) return pathname === target || pathname === target + '/'
     return pathname.startsWith(target)
   }
@@ -81,7 +88,7 @@ export function BottomNav() {
             return (
               <Link
                 key={tab.id}
-                href={tab.path(storeId)}
+                href={tabPath(tab)}
                 prefetch={false}
                 style={{ touchAction: 'manipulation' }}
                 className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 relative transition-none ${
@@ -100,7 +107,7 @@ export function BottomNav() {
                   )}
                 </span>
                 <span className={`text-[10px] leading-none font-medium ${active ? 'text-indigo-600' : 'text-gray-400'}`}>
-                  {tab.label}
+                  {tabLabel(tab)}
                 </span>
               </Link>
             )

@@ -44,6 +44,8 @@ export type FeatureKey =
   | 'takeout'
   // ── 通知アドオン（既定OFF・契約時のみON）──
   | 'sms_notify'           // SMS完了通知（未契約時は電話連絡ステップに切替）
+  // ── UI（β・既定OFF）──
+  | 'today_tasks_ui'       // 「今日やること」スタッフ向けトップ画面
 
 // ── プラン定義 ─────────────────────────────────────────────────
 export const PLAN_DEFS: Record<Plan, {
@@ -254,5 +256,5 @@ export function resolveFeature(
   return true
 }
 
-// 契約時のみ有効化するアドオン。明示設定が無ければ常にOFF。
-const ADDON_DEFAULT_OFF: FeatureKey[] = ['sms_notify']
+// 契約時のみ有効化するアドオン/β機能。明示設定が無ければ常にOFF。
+const ADDON_DEFAULT_OFF: FeatureKey[] = ['sms_notify', 'today_tasks_ui']

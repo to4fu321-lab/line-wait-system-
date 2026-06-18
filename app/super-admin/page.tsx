@@ -37,12 +37,13 @@ const GRANULAR_FEATURES: { key: FeatureKey; label: string; icon: string }[] = [
   { key: 'customer_self_intake', label: 'お客様セルフ依頼入力',   icon: '📱' },
   { key: 'customer_self_order',  label: 'お客様セルフ制服注文',   icon: '🛍️' },
   { key: 'sms_notify',           label: 'SMS完了通知（アドオン）', icon: '📩' },
+  { key: 'today_tasks_ui',       label: '今日やること画面（β）',   icon: '📋' },
 ]
 
 const GRANULAR_FEATURE_GROUPS: { label: string; keys: FeatureKey[] }[] = [
   {
     label: 'タブ・ナビ',
-    keys: ['tab_queue', 'tab_repairs', 'tab_inquiries', 'tab_crm'],
+    keys: ['tab_queue', 'tab_repairs', 'tab_inquiries', 'tab_crm', 'today_tasks_ui'],
   },
   {
     label: '案件・修理',
