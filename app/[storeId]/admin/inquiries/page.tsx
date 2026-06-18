@@ -345,6 +345,7 @@ export default function InquiriesPage() {
   const [loading,    setLoading]    = useState(true)
   const [filter,     setFilter]     = useState<InquiryStatus | 'all'>('all')
   const [typeFilter, setTypeFilter] = useState<InquiryType | 'all'>('all')
+  const [searchText, setSearchText] = useState('')
   const [showModal,  setShowModal]  = useState(false)
   const [editItem,   setEditItem]   = useState<InquiryRow | null>(null)
   const [toast,      setToast]      = useState<string | null>(null)
@@ -368,6 +369,15 @@ export default function InquiriesPage() {
   const filtered = inquiries.filter(i => {
     if (filter     !== 'all' && i.status !== filter)     return false
     if (typeFilter !== 'all' && i.type   !== typeFilter) return false
+    if (searchText.trim()) {
+      const q = searchText.trim().toLowerCase()
+      const fields = [
+        i.customer_name, i.content,
+        fmtReqNo('inquiry', i.request_no, i.id),
+        i.request_no != null ? String(i.request_no) : null,
+      ]
+      if (!fields.some(f => f?.toLowerCase().includes(q))) return false
+    }
     return true
   })
 
@@ -406,6 +416,10 @@ export default function InquiriesPage() {
               )}
             </div>
           )}
+
+          <input value={searchText} onChange={e => setSearchText(e.target.value)}
+            placeholder="番号(I-0001)・名前・内容で検索"
+            className="w-full mb-2 border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:border-indigo-500" />
 
           <div className="flex gap-1 overflow-x-auto pb-0.5">
             {(['all', 'pending', 'in_progress', 'completed'] as const).map(s => (

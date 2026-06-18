@@ -20,6 +20,7 @@ import {
 } from '@/types/repair'
 import { calcLinePrice, needsQuote, toOptionSnapshot, addBusinessDays } from '@/lib/repairPricing'
 import type { CustResult } from './types'
+import { CustomerLinkSheet } from './CustomerLinkSheet'
 
 // item.code → 既存 repair_type 列へのマッピング（互換表示用）
 const REPAIR_TYPE_CODES: RepairType[] = ['hem', 'sleeve', 'waist', 'embroidery', 'button', 'tear', 'badge', 'size_exchange', 'other']
@@ -38,6 +39,7 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   type Step = 'customer' | 'build'
   const [step, setStep] = useState<Step>('customer')
   const [buildStep, setBuildStep] = useState(0) // build内サブステップ index
+  const [linkSheetOpen, setLinkSheetOpen] = useState(false) // 顧客インライン紐付け
 
   // ── 顧客 ──────────────────────────────────────────────────
   const [custSearch, setCustSearch] = useState('')
@@ -344,7 +346,7 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
           <Scissors size={18} className="text-amber-500" />
           <h2 className="font-black text-gray-900 flex-1">お直し受付{step === 'build' && buildStepDefs[curBuildIdx] ? `・${buildStepDefs[curBuildIdx].label}（${curBuildIdx + 1}/${buildStepDefs.length}）` : ''}</h2>
           {step === 'build' && (
-            <button onClick={() => setStep('customer')}
+            <button onClick={() => setLinkSheetOpen(true)}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border max-w-[40%] truncate ${selectedCust ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-amber-50 border-amber-300 text-amber-700'}`}>
               {selectedCust ? `👤 ${selectedChild?.name ?? selectedCust.name}` : '＋顧客を紐付け'}
             </button>
@@ -649,6 +651,16 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
           </div>
         )}
       </div>
+      {linkSheetOpen && (
+        <CustomerLinkSheet
+          storeId={storeId}
+          selectedCust={selectedCust}
+          selectedChild={selectedChild}
+          onSelect={(c, ch) => { setSelectedCust(c); setSelectedChild(ch) }}
+          onClear={() => { setSelectedCust(null); setSelectedChild(null) }}
+          onClose={() => setLinkSheetOpen(false)}
+        />
+      )}
     </div>
   )
 }

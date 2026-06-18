@@ -8,6 +8,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { compressImage } from './utils'
 import type { CustResult, CartItem } from './types'
+import { CustomerLinkSheet } from './CustomerLinkSheet'
 
 export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   storeId: string; onClose: () => void; onSave: () => void
@@ -16,6 +17,7 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   type OStep = 'customer' | 'products' | 'confirm'
   const [step,       setStep]       = useState<OStep>('customer')
   const [confirmStep, setConfirmStep] = useState(0) // confirm内サブステップ
+  const [linkSheetOpen, setLinkSheetOpen] = useState(false) // 顧客インライン紐付け
   const [schools,    setSchools]    = useState<{ id: string; name: string }[]>([])
   const [schoolId,   setSchoolId]   = useState<string | null>(null)
   const [products,   setProducts]   = useState<{ id: string; item_name: string; category: string | null; gender: string | null; maker_code: string | null }[]>([])
@@ -220,7 +222,7 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
               <p className="text-xs text-gray-400 font-medium">{stepLabels[step]}</p>
             </div>
             {step !== 'customer' && (
-              <button onClick={() => setStep('customer')}
+              <button onClick={() => setLinkSheetOpen(true)}
                 className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border max-w-[32%] truncate shrink-0 ${selectedCust ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-amber-50 border-amber-300 text-amber-700'}`}>
                 {selectedCust ? `👤 ${selectedChild?.name ?? selectedCust.name}` : '＋顧客'}
               </button>
@@ -606,6 +608,16 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
           )}
         </div>
       </div>
+      {linkSheetOpen && (
+        <CustomerLinkSheet
+          storeId={storeId}
+          selectedCust={selectedCust}
+          selectedChild={selectedChild}
+          onSelect={(c, ch) => { setSelectedCust(c); setSelectedChild(ch) }}
+          onClear={() => { setSelectedCust(null); setSelectedChild(null) }}
+          onClose={() => setLinkSheetOpen(false)}
+        />
+      )}
     </div>
   )
 }
