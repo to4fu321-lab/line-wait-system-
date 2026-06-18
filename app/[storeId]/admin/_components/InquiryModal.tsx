@@ -36,6 +36,171 @@ export interface InquiryRow {
 
 interface StaffMember { id: string; name: string }
 
+interface Advice {
+  priority?: string; priority_reason?: string; recommended_action?: string; sample_reply?: string
+  line_message?: string; email_subject?: string; email_body?: string
+  phone_script?: string; store_script?: string; notes?: string | null
+}
+
+// 対応方法に応じた「連絡先の条件付き登録」＋「AIアドバイス/送信ドラフト」パネル
+function ResponseMethodActions({
+  storeId, customerId, customerName, method, linkedTel, linkedLine, type, content, isUrgent, onSaveTel,
+}: {
+  storeId: string
+  customerId: string | null
+  customerName: string
+  method: ResponseMethod | ''
+  linkedTel: string | null
+  linkedLine: string | null
+  type: InquiryType
+  content: string
+  isUrgent: boolean
+  onSaveTel: (tel: string) => Promise<boolean>
+}) {
+  const [advice, setAdvice]   = useState<Advice | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [sent, setSent]       = useState(false)
+  const [copied, setCopied]   = useState<string | null>(null)
+  const [telInput, setTelInput] = useState('')
+  const [savingTel, setSavingTel] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const liffId = process.env.NEXT_PUBLIC_LIFF_ID || ''
+  const linkQrUrl = customerId
+    ? `https://liff.line.me/${liffId}/${storeId}/link-line?cid=${customerId}`
+    : ''
+
+  const copy = async (key: string, text: string) => {
+    try { await navigator.clipboard.writeText(text); setCopied(key); setTimeout(() => setCopied(null), 1500) }
+    catch { setErr('コピーに失敗しました') }
+  }
+
+  const fetchAdvice = async () => {
+    if (!content.trim()) { setErr('先に内容を入力してください'); return }
+    setLoading(true); setErr(null)
+    try {
+      const res = await fetch('/api/inquiry-advice', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, content, isUrgent, customerName, method: method || 'undecided' }),
+      })
+      const data = await res.json()
+      if (!data.ok) { setErr(data.error ?? 'アドバイス取得に失敗しました'); setLoading(false); return }
+      setAdvice(data.advice as Advice)
+    } catch (e) { setErr(String(e)) }
+    setLoading(false)
+  }
+
+  const sendLine = async () => {
+    if (!linkedLine || !advice?.line_message) return
+    setSending(true); setErr(null)
+    try {
+      const res = await fetch('/api/inquiry-send-line', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lineUserId: linkedLine, text: advice.line_message }),
+      })
+      const data = await res.json()
+      if (!data.ok) { setErr(data.error ?? 'LINE送信に失敗しました') } else { setSent(true) }
+    } catch (e) { setErr(String(e)) }
+    setSending(false)
+  }
+
+  if (!method) return null
+
+  return (
+    <div className="mt-4 space-y-3 border-t border-gray-100 pt-3">
+      {err && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-2 py-1">{err}</p>}
+
+      {/* 連絡先の条件付き登録 */}
+      {customerId && method === 'phone' && !linkedTel && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+          <p className="text-xs font-bold text-amber-700">この顧客の電話番号が未登録です</p>
+          <div className="flex gap-2">
+            <input value={telInput} onChange={e => setTelInput(e.target.value)} type="tel" inputMode="numeric" placeholder="電話番号"
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            <button onClick={async () => { setSavingTel(true); const ok = await onSaveTel(telInput); setSavingTel(false); if (ok) setTelInput('') }}
+              disabled={savingTel} className="px-3 py-2 rounded-lg bg-amber-600 text-white text-xs font-black disabled:opacity-50">登録</button>
+          </div>
+        </div>
+      )}
+      {customerId && method === 'phone' && linkedTel && (
+        <a href={`tel:${linkedTel}`} className="flex items-center justify-center gap-2 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-black">📞 {linkedTel} に発信</a>
+      )}
+      {customerId && method === 'line' && !linkedLine && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-center space-y-2">
+          <p className="text-xs font-bold text-indigo-700">この顧客はLINE未連携です。QRを読み取ってもらうと連携できます。</p>
+          {linkQrUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=10&data=${encodeURIComponent(linkQrUrl)}`} alt="LINE連携QR" width={160} height={160} className="mx-auto rounded-xl bg-white p-1" />
+          )}
+        </div>
+      )}
+
+      {/* AIアドバイス */}
+      <button onClick={fetchAdvice} disabled={loading}
+        className="w-full py-2.5 rounded-xl bg-violet-600 text-white text-sm font-black flex items-center justify-center gap-1.5 disabled:opacity-50">
+        {loading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+        AIアドバイス{method === 'line' ? '・LINE文面' : method === 'email' ? '・メール文面' : method === 'phone' ? '・電話トーク' : method === 'in_store' ? '・接客トーク' : ''}
+      </button>
+
+      {advice && (
+        <div className="space-y-2">
+          {advice.recommended_action && (
+            <div className="bg-gray-50 rounded-xl p-3">
+              <p className="text-[11px] font-black text-gray-400 mb-0.5">推奨対応{advice.priority ? `（優先度: ${advice.priority}）` : ''}</p>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap">{advice.recommended_action}</p>
+              {advice.notes && <p className="text-[11px] text-amber-600 mt-1">※ {advice.notes}</p>}
+            </div>
+          )}
+
+          {/* LINE 文面 + 送信 */}
+          {method === 'line' && advice.line_message && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 space-y-2">
+              <p className="text-[11px] font-black text-indigo-500">LINE送信文面</p>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap">{advice.line_message}</p>
+              <div className="flex gap-2">
+                <button onClick={() => copy('line', advice.line_message!)} className="flex-1 py-2 rounded-lg bg-white border border-indigo-200 text-indigo-700 text-xs font-bold">{copied === 'line' ? 'コピー済' : '本文をコピー'}</button>
+                <button onClick={sendLine} disabled={!linkedLine || sending || sent}
+                  className="flex-1 py-2 rounded-lg bg-indigo-600 text-white text-xs font-black disabled:opacity-50 flex items-center justify-center gap-1">
+                  {sending ? <Loader2 size={14} className="animate-spin" /> : sent ? '送信済' : 'LINEで送信'}
+                </button>
+              </div>
+              {!linkedLine && <p className="text-[10px] text-amber-600">※LINE未連携のため送信不可。上のQRで連携できます。</p>}
+            </div>
+          )}
+
+          {/* メール 件名・本文（コピー） */}
+          {method === 'email' && (advice.email_subject || advice.email_body) && (
+            <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 space-y-2">
+              <p className="text-[11px] font-black text-teal-600">メール下書き（ワンタップでコピー）</p>
+              {advice.email_subject && (
+                <button onClick={() => copy('subj', advice.email_subject!)} className="w-full text-left bg-white border border-teal-200 rounded-lg px-3 py-2">
+                  <span className="text-[10px] text-gray-400 block">件名 {copied === 'subj' ? '✓コピー済' : '（タップでコピー）'}</span>
+                  <span className="text-sm text-gray-800">{advice.email_subject}</span>
+                </button>
+              )}
+              {advice.email_body && (
+                <button onClick={() => copy('body', advice.email_body!)} className="w-full text-left bg-white border border-teal-200 rounded-lg px-3 py-2">
+                  <span className="text-[10px] text-gray-400 block">本文 {copied === 'body' ? '✓コピー済' : '（タップでコピー）'}</span>
+                  <span className="text-sm text-gray-800 whitespace-pre-wrap">{advice.email_body}</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* 電話 / 店頭 トーク */}
+          {(method === 'phone' || method === 'in_store') && (advice.phone_script || advice.store_script || advice.sample_reply) && (
+            <div className="bg-gray-50 rounded-xl p-3">
+              <p className="text-[11px] font-black text-gray-400 mb-0.5">{method === 'phone' ? '電話トーク例' : '接客トーク例'}</p>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap">{(method === 'phone' ? advice.phone_script : advice.store_script) || advice.sample_reply}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function InquiryModal({
   storeId, item, onClose, onSave, isSimpleMode = false,
 }: {
@@ -71,12 +236,16 @@ export function InquiryModal({
   const isEdit = !!item
 
   // ── 顧客の紐付け・新規登録（どのタイミングでも） ──
+  type CustRow = { id: string; name: string; tel: string | null; line_user_id?: string | null }
   const [custId,         setCustId]         = useState<string | null>((item as any)?.customer_id ?? null)
-  const [custResults,    setCustResults]    = useState<{ id: string; name: string; tel: string | null }[]>([])
+  const [custResults,    setCustResults]    = useState<CustRow[]>([])
   const [custSearching,  setCustSearching]  = useState(false)
   const [custPhoneMode,  setCustPhoneMode]  = useState(false)
   const [custTel,        setCustTel]        = useState('')
   const [custRegistering, setCustRegistering] = useState(false)
+  // 紐付け済み顧客の連絡先（条件付き登録・送信用）
+  const [linkedTel,  setLinkedTel]  = useState<string | null>(null)
+  const [linkedLine, setLinkedLine] = useState<string | null>(null)
 
   // 名前入力に応じて既存顧客を検索（未紐付け時のみ）
   useEffect(() => {
@@ -85,15 +254,28 @@ export function InquiryModal({
       setCustSearching(true)
       const q = customerName.trim(); const qTel = q.replace(/[-\s]/g, '')
       const { data } = await (supabase as any).from('customers')
-        .select('id, name, tel').eq('store_id', storeId)
+        .select('id, name, tel, line_user_id').eq('store_id', storeId)
         .or(`name.ilike.%${q}%,tel.ilike.%${q}%,tel.ilike.%${qTel}%`).is('deleted_at', null).limit(6)
       setCustResults(data ?? []); setCustSearching(false)
     }, 300)
     return () => clearTimeout(t)
   }, [customerName, custId, storeId])
 
-  const linkCustomer = (c: { id: string; name: string }) => {
-    setCustId(c.id); setCustomerName(c.name); setCustResults([]); setCustPhoneMode(false)
+  // 紐付け済み顧客の連絡先を取得（編集時など、未取得なら）
+  useEffect(() => {
+    if (!custId) { setLinkedTel(null); setLinkedLine(null); return }
+    let cancelled = false
+    ;(async () => {
+      const { data } = await (supabase as any).from('customers')
+        .select('tel, line_user_id').eq('id', custId).single()
+      if (!cancelled && data) { setLinkedTel(data.tel ?? null); setLinkedLine(data.line_user_id ?? null) }
+    })()
+    return () => { cancelled = true }
+  }, [custId])
+
+  const linkCustomer = (c: CustRow) => {
+    setCustId(c.id); setCustomerName(c.name); setLinkedTel(c.tel ?? null); setLinkedLine(c.line_user_id ?? null)
+    setCustResults([]); setCustPhoneMode(false)
   }
   const registerPhoneCustomer = async () => {
     const name = customerName.trim()
@@ -103,15 +285,27 @@ export function InquiryModal({
     if (!/^\d{10,11}$/.test(digits)) { setFormError('電話番号は10〜11桁で入力してください'); return }
     setCustRegistering(true); setFormError(null)
     const { data: rows } = await (supabase as any).from('customers')
-      .select('id, name, tel').eq('store_id', storeId).eq('tel', tel).is('deleted_at', null).limit(1)
+      .select('id, name, tel, line_user_id').eq('store_id', storeId).eq('tel', tel).is('deleted_at', null).limit(1)
     let c = rows?.[0]
     if (!c) {
       const { data: created, error } = await (supabase as any).from('customers')
-        .insert({ store_id: storeId, name, tel }).select('id, name, tel').single()
+        .insert({ store_id: storeId, name, tel }).select('id, name, tel, line_user_id').single()
       if (error) { setCustRegistering(false); setFormError(error.message ?? '登録に失敗しました'); return }
       c = created
     }
-    setCustId(c.id); setCustomerName(c.name); setCustTel(''); setCustPhoneMode(false); setCustRegistering(false)
+    setCustId(c.id); setCustomerName(c.name); setLinkedTel(c.tel ?? null); setLinkedLine(c.line_user_id ?? null)
+    setCustTel(''); setCustPhoneMode(false); setCustRegistering(false)
+  }
+
+  // 電話のみ顧客に電話番号を後付け保存
+  const saveTelToCustomer = async (tel: string): Promise<boolean> => {
+    if (!custId) return false
+    const digits = tel.replace(/[-\s]/g, '')
+    if (!/^\d{10,11}$/.test(digits)) { setFormError('電話番号は10〜11桁で入力してください'); return false }
+    const { error } = await (supabase as any).from('customers')
+      .update({ tel: tel.trim(), updated_at: new Date().toISOString() }).eq('id', custId)
+    if (error) { setFormError(error.message ?? '保存に失敗しました'); return false }
+    setLinkedTel(tel.trim()); return true
   }
 
   // 初期値スナップショット（変更検知用）— useRef でマウント時の値を保持
@@ -430,6 +624,11 @@ export function InquiryModal({
                     </button>
                   ))}
                 </div>
+                <ResponseMethodActions
+                  storeId={storeId} customerId={custId} customerName={customerName}
+                  method={method} linkedTel={linkedTel} linkedLine={linkedLine}
+                  type={type} content={content} isUrgent={isUrgent} onSaveTel={saveTelToCustomer}
+                />
               </div>
             )}
 
@@ -710,6 +909,11 @@ export function InquiryModal({
                   </button>
                 ))}
               </div>
+              <ResponseMethodActions
+                storeId={storeId} customerId={custId} customerName={customerName}
+                method={method} linkedTel={linkedTel} linkedLine={linkedLine}
+                type={type} content={content} isUrgent={isUrgent} onSaveTel={saveTelToCustomer}
+              />
             </div>
             <div>
               <label className="text-xs font-bold text-gray-600 mb-1 block">対応メモ</label>

@@ -12,11 +12,12 @@ const TYPE_LABELS: Record<string, string> = {
 
 export async function POST(req: NextRequest) {
   try {
-    const { type, content, isUrgent, customerName } = await req.json() as {
+    const { type, content, isUrgent, customerName, method } = await req.json() as {
       type: string
       content: string
       isUrgent: boolean
       customerName?: string
+      method?: string
     }
 
     if (!content?.trim()) {
@@ -30,25 +31,34 @@ export async function POST(req: NextRequest) {
 
     const client = new Anthropic({ apiKey })
 
-    const prompt = `あなたは制服販売店のベテランスタッフです。以下の${TYPE_LABELS[type] ?? type}に対して、適切な対応アドバイスをJSON形式で返してください。
+    const methodLabel: Record<string, string> = { LINE: 'LINE', email: 'メール', phone: '電話', visit: '来店', undecided: '未定' }
+    const mLabel = method ? (methodLabel[method] ?? method) : '未定'
+
+    const prompt = `あなたは制服販売店のベテランスタッフです。以下の${TYPE_LABELS[type] ?? type}に対して、適切な対応アドバイスと、連絡手段に応じた送信ドラフト/トーク例をJSON形式で返してください。
 
 【${TYPE_LABELS[type] ?? type}情報】
 ${customerName ? `お客様名: ${customerName}` : ''}
 種別: ${TYPE_LABELS[type] ?? type}${isUrgent ? '（急ぎ）' : ''}
+連絡手段: ${mLabel}
 内容: ${content}
 
-以下のJSON形式のみを返してください（コードブロック不要）:
+以下のJSON形式のみを返してください（コードブロック不要）。お客様名がある場合は本文/トークの宛名に自然に使ってください。
 {
   "priority": "高・中・低のいずれか",
   "priority_reason": "優先度の理由（種別・内容から1〜2文で）",
   "recommended_action": "推奨する対応（具体的に1〜3文で）",
   "sample_reply": "お客様への返答例（自然な日本語で）",
+  "line_message": "LINEで送る短文メッセージ（絵文字は控えめ・敬語）",
+  "email_subject": "メールの件名（簡潔に）",
+  "email_body": "メール本文（宛名・挨拶・用件・署名の体裁。自然な敬語）",
+  "phone_script": "電話で伝える際のトーク例（話し言葉で2〜4文）",
+  "store_script": "来店・店頭で対応する際のトーク例（話し言葉で2〜4文）",
   "notes": "注意点・補足（1〜2文。なければnull）"
 }`
 
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 512,
+      max_tokens: 1024,
       messages: [{ role: 'user', content: prompt }],
     })
 
