@@ -28,6 +28,31 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   const [searching,     setSearching]     = useState(false)
   const [selectedCust,  setSelectedCust]  = useState<CustResult | null>(null)
   const [selectedChild, setSelectedChild] = useState<{ id: string; name: string; school_name: string | null } | null>(null)
+  // 電話番号で登録（いつでも・電話番号でOK）
+  const [phoneMode, setPhoneMode] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newTel, setNewTel] = useState('')
+  const [registering, setRegistering] = useState(false)
+
+  const handlePhoneRegister = async () => {
+    const tel = newTel.trim()
+    const digits = tel.replace(/[-\s]/g, '')
+    if (!newName.trim()) { onToast('err', 'お名前を入力してください'); return }
+    if (!/^\d{10,11}$/.test(digits)) { onToast('err', '電話番号は10〜11桁で入力してください'); return }
+    setRegistering(true)
+    const sel = 'id, name, tel, school_name, children:children(id, name, school_name)'
+    const { data: rows } = await (supabase as any).from('customers')
+      .select(sel).eq('store_id', storeId).eq('tel', tel).is('deleted_at', null).limit(1)
+    let cust: CustResult | undefined = rows?.[0]
+    if (!cust) {
+      const { data: c, error } = await (supabase as any).from('customers')
+        .insert({ store_id: storeId, name: newName.trim(), tel }).select(sel).single()
+      if (error) { setRegistering(false); onToast('err', error.message ?? '登録に失敗しました'); return }
+      cust = c as CustResult
+    }
+    setSelectedCust(cust!); setSelectedChild(null)
+    setShowReg(false); setPhoneMode(false); setNewName(''); setNewTel(''); setRegistering(false)
+  }
   const [showReg,       setShowReg]       = useState(false)
 
   const [priority,     setPriority]     = useState<'normal' | 'new_student'>('normal')
@@ -328,8 +353,28 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                     </button>
                   )}
                   {showReg && (
-                    <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-4 text-center space-y-3">
-                      <p className="text-xs font-black text-indigo-800">お客様にQRを読み取ってもらってください</p>
+                    <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-4 space-y-3">
+                      {/* 電話番号で登録（いつでも・電話番号でOK） */}
+                      {phoneMode ? (
+                        <div className="space-y-2 text-left">
+                          <p className="text-xs font-black text-indigo-800">電話番号で登録・紐付け</p>
+                          <input className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-indigo-500" placeholder="お名前" value={newName} onChange={e => setNewName(e.target.value)} />
+                          <input className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-indigo-500" type="tel" inputMode="numeric" placeholder="電話番号（携帯可）" value={newTel} onChange={e => setNewTel(e.target.value)} />
+                          <div className="flex gap-2">
+                            <button onClick={() => { setPhoneMode(false); setNewName(''); setNewTel('') }} className="flex-1 py-2.5 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-bold">戻る</button>
+                            <button onClick={handlePhoneRegister} disabled={registering} className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-black flex items-center justify-center gap-1.5 disabled:opacity-50">
+                              {registering ? <Loader2 size={16} className="animate-spin" /> : '✓'}登録して選択
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button onClick={() => { setPhoneMode(true); if (!newName && custSearch && !/\d/.test(custSearch)) setNewName(custSearch.trim()) }}
+                          className="w-full py-3 rounded-xl bg-indigo-600 text-white text-sm font-black flex items-center justify-center gap-1.5">
+                          📞 電話番号で登録する
+                        </button>
+                      )}
+                      <div className="border-t border-indigo-200 pt-3 text-center space-y-3">
+                      <p className="text-xs font-black text-indigo-800">またはLINEで登録（QRを読み取ってもらう）</p>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=${encodeURIComponent(`https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || ''}/${storeId}`)}`}
@@ -343,6 +388,7 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                         className="w-full py-2 text-xs font-bold text-gray-600 border border-gray-200 rounded-xl hover:bg-white active:scale-[0.98]">
                         閉じる
                       </button>
+                      </div>
                     </div>
                   )}
                   {custSearch.length === 0 && !showReg && (

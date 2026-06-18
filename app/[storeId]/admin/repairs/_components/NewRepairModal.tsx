@@ -44,6 +44,32 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   const [searching, setSearching] = useState(false)
   const [selectedCust, setSelectedCust] = useState<CustResult | null>(null)
   const [selectedChild, setSelectedChild] = useState<{ id: string; name: string; school_name: string | null } | null>(null)
+  // 電話番号で登録（シンプルモード同様: いつでも・電話番号でOK）
+  const [phoneMode, setPhoneMode] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newTel, setNewTel] = useState('')
+  const [registering, setRegistering] = useState(false)
+
+  const handlePhoneRegister = async () => {
+    const tel = newTel.trim()
+    const digits = tel.replace(/[-\s]/g, '')
+    if (!newName.trim()) { onToast('err', 'お名前を入力してください'); return }
+    if (!/^\d{10,11}$/.test(digits)) { onToast('err', '電話番号は10〜11桁で入力してください'); return }
+    setRegistering(true)
+    // 既存を電話番号で検索 → 無ければ作成（create-or-link）
+    const sel = 'id, name, tel, school_name, children:children(id, name, school_name)'
+    const { data: rows } = await (supabase as any).from('customers')
+      .select(sel).eq('store_id', storeId).eq('tel', tel).is('deleted_at', null).limit(1)
+    let cust: CustResult | undefined = rows?.[0]
+    if (!cust) {
+      const { data: c, error } = await (supabase as any).from('customers')
+        .insert({ store_id: storeId, name: newName.trim(), tel }).select(sel).single()
+      if (error) { setRegistering(false); onToast('err', error.message ?? '登録に失敗しました'); return }
+      cust = c as CustResult
+    }
+    setSelectedCust(cust!); setSelectedChild(null)
+    setPhoneMode(false); setNewName(''); setNewTel(''); setRegistering(false)
+  }
 
   useEffect(() => {
     if (custSearch.trim().length < 1) { setCustResults([]); return }
@@ -326,8 +352,28 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                       <p className="text-xs text-gray-400">{[c.tel, c.school_name].filter(Boolean).join(' / ')}</p>
                     </button>
                   ))}
-                  {custSearch && !searching && custResults.length === 0 && <p className="text-center text-sm text-gray-400 py-6">該当なし。LINE登録後に再検索してください</p>}
+                  {custSearch && !searching && custResults.length === 0 && <p className="text-center text-sm text-gray-400 py-4">該当なし。電話番号で登録できます。</p>}
                 </div>
+
+                {/* 電話番号で登録（いつでも・電話番号でOK） */}
+                {phoneMode ? (
+                  <div className="rounded-2xl border-2 border-indigo-200 bg-indigo-50/50 p-3 space-y-2">
+                    <p className="text-xs font-bold text-indigo-700">電話番号で登録・紐付け</p>
+                    <input className={INPUT} placeholder="お名前" value={newName} onChange={e => setNewName(e.target.value)} />
+                    <input className={INPUT} type="tel" inputMode="numeric" placeholder="電話番号（携帯可）" value={newTel} onChange={e => setNewTel(e.target.value)} />
+                    <div className="flex gap-2">
+                      <button onClick={() => { setPhoneMode(false); setNewName(''); setNewTel('') }} className="flex-1 py-2.5 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-bold">戻る</button>
+                      <button onClick={handlePhoneRegister} disabled={registering} className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-black flex items-center justify-center gap-1.5 disabled:opacity-50">
+                        {registering ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}登録して選択
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => { setPhoneMode(true); if (!newName && custSearch && !/\d/.test(custSearch)) setNewName(custSearch.trim()) }}
+                    className="w-full py-3 rounded-2xl border-2 border-dashed border-indigo-300 text-indigo-600 text-sm font-bold flex items-center justify-center gap-1.5">
+                    📞 電話番号で登録する
+                  </button>
+                )}
               </>
             )}
           </div>
