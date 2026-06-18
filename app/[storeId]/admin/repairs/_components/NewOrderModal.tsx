@@ -15,6 +15,7 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
 }) {
   type OStep = 'customer' | 'products' | 'confirm'
   const [step,       setStep]       = useState<OStep>('customer')
+  const [confirmStep, setConfirmStep] = useState(0) // confirm内サブステップ
   const [schools,    setSchools]    = useState<{ id: string; name: string }[]>([])
   const [schoolId,   setSchoolId]   = useState<string | null>(null)
   const [products,   setProducts]   = useState<{ id: string; item_name: string; category: string | null; gender: string | null; maker_code: string | null }[]>([])
@@ -190,6 +191,19 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   const stepLabels: Record<OStep, string> = { customer: '顧客選択', products: '商品選択', confirm: '確認・登録' }
   const steps: OStep[] = ['customer', 'products', 'confirm']
 
+  // confirm サブステップ（区分→納期→支払/メモ→確認）
+  const confirmStepDefs = [
+    { key: 'priority', label: '区分' },
+    { key: 'delivery', label: '納期' },
+    { key: 'pay',      label: '支払・メモ' },
+    { key: 'review',   label: '確認' },
+  ] as const
+  const curConfirmIdx = Math.min(confirmStep, confirmStepDefs.length - 1)
+  const curConfirmKey = confirmStepDefs[curConfirmIdx].key
+  const isLastConfirm = curConfirmKey === 'review'
+  const goBackConfirm = () => { if (curConfirmIdx <= 0) setStep('products'); else setConfirmStep(curConfirmIdx - 1) }
+  const goNextConfirm = () => { if (curConfirmIdx < confirmStepDefs.length - 1) setConfirmStep(curConfirmIdx + 1) }
+
   return (
     <div className="fixed inset-0 z-[60] bg-black/50 flex flex-col justify-end sm:justify-center sm:items-center sm:p-4">
       <div className="bg-white sm:rounded-3xl sm:max-w-lg w-full flex flex-col rounded-t-3xl overflow-hidden" style={{ maxHeight: '92dvh', paddingBottom: 'env(safe-area-inset-bottom)' }}>
@@ -198,7 +212,7 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
           <input ref={orderFileRef} type="file" accept="image/*" capture="environment" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleOcrOrder(f); e.target.value = '' }} />
           <div className="flex items-center gap-3 mb-3">
-            <button onClick={step === 'customer' ? onClose : () => setStep(step === 'confirm' ? 'products' : 'customer')}
+            <button onClick={step === 'customer' ? onClose : step === 'confirm' ? goBackConfirm : () => setStep('customer')}
               className="p-2 -ml-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-all">
               {step === 'customer' ? <X size={18} /> : <ChevronLeft size={18} />}
             </button>
@@ -212,7 +226,7 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
               {ocrLoading ? '解析中...' : '伝票読取'}
             </button>
             {cart.length > 0 && step === 'products' && (
-              <button onClick={() => setStep('confirm')}
+              <button onClick={() => { setStep('confirm'); setConfirmStep(0) }}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-xl">
                 <ShoppingCart size={13} />{cart.length}点 次へ
               </button>
@@ -311,7 +325,7 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                       <p className="text-xs text-gray-500">{cart.length}点 合計</p>
                       <p className="font-black text-lg text-gray-900">¥{cartTotal.toLocaleString()}</p>
                     </div>
-                    <button onClick={() => setStep('confirm')}
+                    <button onClick={() => { setStep('confirm'); setConfirmStep(0) }}
                       className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-sm rounded-2xl active:scale-95 transition-all">
                       次へ →
                     </button>
@@ -440,6 +454,7 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
           {/* ── Step 3: 確認 ── */}
           {step === 'confirm' && (
             <div className="p-4 space-y-4">
+              {curConfirmKey === 'review' && (<>
               {/* カートサマリー */}
               <div className="bg-gray-50 rounded-2xl overflow-hidden">
                 <div className="px-4 py-2.5 border-b border-gray-200">
@@ -470,8 +485,10 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                   {selectedChild && <p className="text-xs text-gray-500">お子様: {selectedChild.name}</p>}
                 </div>
               </div>
+              </>)}
 
               {/* 優先区分 */}
+              {curConfirmKey === 'priority' && (
               <div>
                 <label className="text-xs font-bold text-gray-600 block mb-1.5">注文区分</label>
                 <div className="flex gap-2">
@@ -489,16 +506,20 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                   ))}
                 </div>
               </div>
+              )}
 
               {/* メーカー */}
+              {curConfirmKey === 'pay' && (
               <div>
                 <label className="text-xs font-bold text-gray-600 block mb-1.5">発注メーカー</label>
                 <input type="text" value={maker} onChange={e => setMaker(e.target.value)}
                   placeholder="例: 菅公学生服、明石スクールユニフォームカンパニー"
                   className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
               </div>
+              )}
 
               {/* 希望お渡し日 */}
+              {curConfirmKey === 'delivery' && (
               <div>
                 <label className="text-xs font-bold text-gray-600 block mb-1.5">希望お渡し日</label>
                 <div className="flex gap-1.5 flex-wrap mb-2">
@@ -517,16 +538,20 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                   min={new Date().toISOString().slice(0, 10)}
                   className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
               </div>
+              )}
 
               {/* メモ */}
+              {curConfirmKey === 'pay' && (
               <div>
                 <label className="text-xs font-bold text-gray-600 block mb-1.5">備考・メモ</label>
                 <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
                   placeholder="申し送り事項など"
                   className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
               </div>
+              )}
 
               {/* 支払い */}
+              {curConfirmKey === 'pay' && (
               <button type="button" onClick={() => setPrepaid(v => !v)}
                 className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${prepaid ? 'border-emerald-500 bg-emerald-500/10' : 'border-red-400 bg-red-50'}`}>
                 <div className="text-left">
@@ -539,12 +564,21 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                   <div className={`w-5 h-5 bg-white rounded-full mt-0.5 shadow-lg transition-transform ${prepaid ? 'translate-x-6' : 'translate-x-0.5'}`} />
                 </div>
               </button>
+              )}
 
-              <button onClick={handleSave} disabled={saving || cart.length === 0}
-                className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50 shadow-lg shadow-indigo-500/25">
-                {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
-                注文を登録する（{cart.length}点 ¥{cartTotal.toLocaleString()}）
-              </button>
+              {/* フッターナビ（区分→納期→支払・メモ→確認） */}
+              <div className="flex gap-2 pt-1">
+                <button onClick={goBackConfirm} className="flex-1 py-3.5 rounded-2xl bg-white border-2 border-gray-200 text-gray-600 font-black">戻る</button>
+                {isLastConfirm ? (
+                  <button onClick={handleSave} disabled={saving || cart.length === 0}
+                    className="flex-[2] py-3.5 bg-indigo-600 text-white font-black rounded-2xl flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-indigo-500/25">
+                    {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+                    登録（{cart.length}点 ¥{cartTotal.toLocaleString()}）
+                  </button>
+                ) : (
+                  <button onClick={goNextConfirm} className="flex-[2] py-3.5 bg-indigo-600 text-white font-black rounded-2xl">次へ</button>
+                )}
+              </div>
             </div>
           )}
         </div>
