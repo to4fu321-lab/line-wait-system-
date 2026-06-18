@@ -42,6 +42,8 @@ export type FeatureKey =
   | 'products'
   | 'purchase_orders'
   | 'takeout'
+  // ── 通知アドオン（既定OFF・契約時のみON）──
+  | 'sms_notify'           // SMS完了通知（未契約時は電話連絡ステップに切替）
 
 // ── プラン定義 ─────────────────────────────────────────────────
 export const PLAN_DEFS: Record<Plan, {
@@ -246,6 +248,11 @@ export function resolveFeature(
   if (key in planDef.features) {
     return planDef.features[key as keyof typeof planDef.features] !== false
   }
+  // アドオン機能（契約時のみON）はプラン未定義でも既定OFF
+  if (ADDON_DEFAULT_OFF.includes(key)) return false
   // 未定義 = 有効（後方互換）
   return true
 }
+
+// 契約時のみ有効化するアドオン。明示設定が無ければ常にOFF。
+const ADDON_DEFAULT_OFF: FeatureKey[] = ['sms_notify']

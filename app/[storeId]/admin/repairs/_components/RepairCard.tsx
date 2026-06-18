@@ -7,6 +7,7 @@ import {
   Banknote, Pencil, Truck, Trash2,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import {
   REPAIR_STATUS_LABELS, REPAIR_STATUS_COLORS,
   REQUEST_TYPE_LABELS, REQUEST_TYPE_COLORS,
@@ -31,6 +32,9 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [confirmVendor, setConfirmVendor] = useState(false)
   const [vendorName,    setVendorName]    = useState('')
+
+  const { hasFeature } = useStoreFeatures(storeId)
+  const smsEnabled = hasFeature('sms_notify') // アドオン未契約なら false → 電話連絡ステップ
 
   const reqType = (item.request_type ?? 'repair') as RequestType
   const name    = item.child?.name ?? item.customer?.name ?? '（顧客不明）'
@@ -141,20 +145,23 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
     const reqNo = fmtReqNo('repair', item.request_no, item.id)
     const hasLine = !!item.customer?.line_user_id
     const hasTel  = !!item.customer?.tel
-    const notifyMode: 'line' | 'sms' | 'none' =
-      hasLine ? 'line' : hasTel ? 'sms' : 'none'
+    // SMSアドオン未契約(smsEnabled=false)で電話のみの顧客は「電話連絡」運用
+    const notifyMode: 'line' | 'sms' | 'phone_manual' | 'none' =
+      hasLine ? 'line' : hasTel ? (smsEnabled ? 'sms' : 'phone_manual') : 'none'
     const completeBtnLabel =
-      notifyMode === 'line' ? '✅ お直し完了・LINE通知する' :
-      notifyMode === 'sms'  ? '✅ お直し完了・SMS通知する' :
-                              '✅ お直し完了'
+      notifyMode === 'line'         ? '✅ お直し完了・LINE通知する' :
+      notifyMode === 'sms'          ? '✅ お直し完了・SMS通知する' :
+      notifyMode === 'phone_manual' ? '✅ お直し完了（電話連絡）' :
+                                      '✅ お直し完了'
     const confirmText =
       notifyMode === 'line' ? 'LINEで通知して完了にしますか？' :
       notifyMode === 'sms'  ? 'SMSで通知して完了にしますか？' :
                               '完了にしますか？（通知なし）'
     const completeToast =
-      notifyMode === 'line' ? '✅ お直し完了・LINEで通知しました' :
-      notifyMode === 'sms'  ? '✅ お直し完了・SMSで通知しました' :
-                              '✅ お直し完了にしました'
+      notifyMode === 'line'         ? '✅ お直し完了・LINEで通知しました' :
+      notifyMode === 'sms'          ? '✅ お直し完了・SMSで通知しました' :
+      notifyMode === 'phone_manual' ? '✅ お直し完了にしました' :
+                                      '✅ お直し完了にしました'
 
     async function handlePaymentToggle() {
       const newPrepaid = !item.prepaid
@@ -180,11 +187,13 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
     async function handleSimpleComplete() {
       setLoading(true)
       const today = new Date().toISOString().slice(0, 10)
+      // 電話連絡運用は手動連絡済みなので notified:true で確定（SMS送信はしない）
+      const markNotified = notifyMode === 'phone_manual'
       const { error } = await (supabase as any).from('repair_histories')
-        .update({ status: 'completed', completed_date: today, work_started: true, updated_at: new Date().toISOString() })
+        .update({ status: 'completed', completed_date: today, work_started: true, ...(markNotified ? { notified: true } : {}), updated_at: new Date().toISOString() })
         .eq('id', item.id)
       if (error) { setLoading(false); onToast('err', '更新に失敗しました'); return }
-      if (notifyMode !== 'none') {
+      if (notifyMode === 'line' || notifyMode === 'sms') {
         try {
           const res = await fetch('/api/notify-repair', {
             method: 'POST',
@@ -337,6 +346,32 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
 
           {/* メインアクション（完了） */}
           {confirmPrimary ? (
+            notifyMode === 'phone_manual' ? (
+              /* SMS未契約: 電話連絡をうながす2ステップ */
+              <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 px-3 py-2.5 space-y-2">
+                <p className="text-sm text-center text-emerald-800 font-black">📞 お客様へ電話連絡をしてください</p>
+                {item.customer?.tel && (
+                  <a href={`tel:${item.customer.tel}`}
+                    className="flex items-center justify-center gap-2 py-2 rounded-xl bg-white border-2 border-emerald-200 text-emerald-700 text-base font-black active:scale-95 transition-all"
+                    style={{ touchAction: 'manipulation' }}>
+                    <Phone size={16} /> {item.customer.tel} に発信
+                  </a>
+                )}
+                <div className="flex gap-2">
+                  <button onClick={() => setConfirmPrimary(false)}
+                    className="flex-1 py-2 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-black active:scale-95 transition-all"
+                    style={{ touchAction: 'manipulation' }}>
+                    戻る
+                  </button>
+                  <button onClick={() => { setConfirmPrimary(false); handleSimpleComplete() }} disabled={loading}
+                    className="flex-1 py-2 rounded-xl bg-emerald-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md disabled:opacity-50"
+                    style={{ touchAction: 'manipulation' }}>
+                    {loading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                    電話連絡完了
+                  </button>
+                </div>
+              </div>
+            ) : (
             <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 px-3 py-2.5 space-y-2">
               <p className="text-sm text-center text-emerald-800 font-black">{confirmText}</p>
               <div className="flex gap-2">
@@ -353,6 +388,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                 </button>
               </div>
             </div>
+            )
           ) : (
             <button onClick={() => setConfirmPrimary(true)} disabled={loading}
               style={{ touchAction: 'manipulation' }}

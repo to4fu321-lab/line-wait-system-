@@ -36,6 +36,7 @@ const GRANULAR_FEATURES: { key: FeatureKey; label: string; icon: string }[] = [
   { key: 'line_parent_rsv',    label: 'LINE採寸予約（保護者）',   icon: '📅' },
   { key: 'customer_self_intake', label: 'お客様セルフ依頼入力',   icon: '📱' },
   { key: 'customer_self_order',  label: 'お客様セルフ制服注文',   icon: '🛍️' },
+  { key: 'sms_notify',           label: 'SMS完了通知（アドオン）', icon: '📩' },
 ]
 
 const GRANULAR_FEATURE_GROUPS: { label: string; keys: FeatureKey[] }[] = [
@@ -46,7 +47,7 @@ const GRANULAR_FEATURE_GROUPS: { label: string; keys: FeatureKey[] }[] = [
   {
     label: '案件・修理',
     keys: ['repairs_tab_purchase', 'repairs_tab_arrival', 'repairs_tab_delivery',
-           'repairs_ocr', 'repairs_master', 'repairs_dummy'],
+           'repairs_ocr', 'repairs_master', 'repairs_dummy', 'sms_notify'],
   },
   {
     label: 'LINE・スキャン',
