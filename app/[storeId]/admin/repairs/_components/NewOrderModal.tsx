@@ -349,14 +349,23 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                   {searching && <div className="text-center py-4"><Loader2 size={20} className="animate-spin text-indigo-400 mx-auto" /></div>}
                   <div className="space-y-2">
                     {custResults.map(c => (
-                      <button key={c.id} onClick={() => { setSelectedCust(c); setShowReg(false) }}
-                        className="w-full text-left px-4 py-3.5 bg-gray-50 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-300 rounded-2xl transition-all active:scale-[0.98]">
-                        <p className="font-black text-gray-900">{c.name}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{[c.school_name, c.tel].filter(Boolean).join(' · ')}</p>
-                        {c.children && c.children.length > 0 && (
-                          <p className="text-[10px] text-gray-400 mt-0.5">お子様: {c.children.map(ch => ch.name).join('、')}</p>
-                        )}
-                      </button>
+                      (c.children && c.children.length > 0) ? (
+                        // 子ども（生徒）を主役に表示。タップで保護者＋子を即リンク
+                        c.children.map(ch => (
+                          <button key={ch.id} onClick={() => { setSelectedCust(c); setSelectedChild(ch); setShowReg(false) }}
+                            className="w-full text-left px-4 py-3.5 bg-gray-50 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-300 rounded-2xl transition-all active:scale-[0.98]">
+                            {ch.school_name && <p className="text-[10px] font-black text-amber-600">{ch.school_name}</p>}
+                            <p className="font-black text-gray-900">{ch.name}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">保護者: {c.name}{c.tel ? ` · ${c.tel}` : ''}</p>
+                          </button>
+                        ))
+                      ) : (
+                        <button key={c.id} onClick={() => { setSelectedCust(c); setSelectedChild(null); setShowReg(false) }}
+                          className="w-full text-left px-4 py-3.5 bg-gray-50 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-300 rounded-2xl transition-all active:scale-[0.98]">
+                          <p className="font-black text-gray-900">{c.name}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{[c.school_name, c.tel].filter(Boolean).join(' · ')}</p>
+                        </button>
+                      )
                     ))}
                   </div>
                   {/* 新規顧客登録（常時表示） */}

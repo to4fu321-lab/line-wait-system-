@@ -554,12 +554,42 @@ export function InquiryModal({
             </div>
           </div>
 
-          {/* Customer name */}
+          {/* Customer link */}
           <div>
-            <label className="text-xs font-bold text-gray-600 mb-1 block">お客様名</label>
-            <input value={customerName} onChange={e => setCustomerName(e.target.value)}
-              placeholder="例：山田 太郎"
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+            <label className="text-xs font-bold text-gray-600 mb-1 block">お客様（検索して紐付け・新規登録）</label>
+            {custId ? (
+              <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2">
+                <User size={15} className="text-indigo-600" />
+                <span className="flex-1 text-sm font-bold text-gray-900">{customerName || 'お客様'}</span>
+                <span className="text-[10px] text-indigo-500 font-bold">紐付け済み</span>
+                <button onClick={() => setCustId(null)} className="text-xs text-gray-500 border border-gray-200 rounded px-1.5 py-0.5">解除</button>
+              </div>
+            ) : (
+              <>
+                <input value={customerName} onChange={e => setCustomerName(e.target.value)}
+                  placeholder="お名前で検索 / 入力"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+                {(custSearching || custResults.length > 0) && (
+                  <div className="mt-1.5 space-y-1">
+                    {custResults.map(c => (
+                      <button key={c.id} onClick={() => linkCustomer(c)} className="w-full text-left bg-white border border-gray-200 rounded-lg px-3 py-2 hover:border-indigo-300">
+                        <span className="text-sm font-bold text-gray-900">{c.name}</span>{c.tel && <span className="text-[11px] text-gray-400 ml-2">{c.tel}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {custPhoneMode ? (
+                  <div className="mt-2 flex gap-2">
+                    <input value={custTel} onChange={e => setCustTel(e.target.value)} type="tel" inputMode="numeric" placeholder="電話番号"
+                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    <button onClick={registerPhoneCustomer} disabled={custRegistering} className="px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-black disabled:opacity-50">登録</button>
+                    <button onClick={() => { setCustPhoneMode(false); setCustTel('') }} className="px-3 py-2 rounded-lg border border-gray-200 text-gray-600 text-xs font-bold">×</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setCustPhoneMode(true)} className="mt-2 text-xs font-bold text-indigo-600">📞 電話番号で新規登録</button>
+                )}
+              </>
+            )}
           </div>
 
           {/* Content + AI */}

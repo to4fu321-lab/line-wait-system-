@@ -380,12 +380,23 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                 </div>
                 <div className="space-y-1.5">
                   {custResults.map(c => (
-                    <button key={c.id} onClick={() => { setSelectedCust(c); setSelectedChild(null) }} className="w-full text-left bg-white border border-gray-200 rounded-xl px-4 py-3 hover:border-indigo-300">
-                      <p className="font-bold text-gray-900">{c.name}</p>
-                      <p className="text-xs text-gray-400">{[c.tel, c.school_name].filter(Boolean).join(' / ')}</p>
-                    </button>
+                    (c.children && c.children.length > 0) ? (
+                      // 子ども（生徒）を主役に表示。タップで保護者＋子を即リンク
+                      c.children.map(ch => (
+                        <button key={ch.id} onClick={() => { setSelectedCust(c); setSelectedChild(ch) }} className="w-full text-left bg-white border border-gray-200 rounded-xl px-4 py-3 hover:border-indigo-300">
+                          {ch.school_name && <p className="text-[11px] font-black text-amber-600 leading-none mb-0.5">{ch.school_name}</p>}
+                          <p className="font-bold text-gray-900">{ch.name}</p>
+                          <p className="text-xs text-gray-400">保護者: {c.name}{c.tel ? ` / ${c.tel}` : ''}</p>
+                        </button>
+                      ))
+                    ) : (
+                      <button key={c.id} onClick={() => { setSelectedCust(c); setSelectedChild(null) }} className="w-full text-left bg-white border border-gray-200 rounded-xl px-4 py-3 hover:border-indigo-300">
+                        <p className="font-bold text-gray-900">{c.name}</p>
+                        <p className="text-xs text-gray-400">{[c.tel, c.school_name].filter(Boolean).join(' / ')}</p>
+                      </button>
+                    )
                   ))}
-                  {custSearch && !searching && custResults.length === 0 && <p className="text-center text-sm text-gray-400 py-4">該当なし。電話番号で登録できます。</p>}
+                  {custSearch && !searching && custResults.length === 0 && <p className="text-center text-sm text-gray-400 py-4">該当なし。新規登録できます。</p>}
                 </div>
 
                 {/* 新規顧客を登録（LINE / 電話番号） */}
