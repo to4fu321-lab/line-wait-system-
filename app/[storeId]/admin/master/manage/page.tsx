@@ -133,7 +133,7 @@ export default function MasterManagePage() {
       <div className="min-h-screen bg-gray-50 pb-24">
         {toast && <Toast {...toast} onClose={() => setToast(null)} />}
         <header className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-4 py-4 flex items-center gap-2 sticky top-0 z-20">
-          <button onClick={() => router.push(`/${storeId}/admin/settings`)} className="p-1"><ChevronLeft size={24} /></button>
+          <button onClick={() => { if (typeof window !== 'undefined' && window.history.length > 1) router.back(); else router.push(`/${storeId}/admin/settings`) }} className="p-1"><ChevronLeft size={24} /></button>
           <h1 className="font-bold text-lg flex items-center gap-2"><GraduationCap size={22} /> マスタ管理</h1>
         </header>
 

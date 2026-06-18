@@ -307,7 +307,7 @@ export default function StaffSettingsPage() {
         {/* 📋 マスタ管理 */}
         <Section emoji="📋" title="マスタ管理" open={openSections.has('master')} onToggle={() => toggleSection('master')}>
           <div className="grid grid-cols-2 gap-3">
-            <Link href={`/${storeId}/admin/master`}
+            <Link href={`/${storeId}/admin/master/manage`}
               className="flex flex-col gap-3 px-4 py-4 rounded-2xl bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 active:scale-[0.98] transition-all">
               <div className="flex items-center justify-between">
                 <div className="w-10 h-10 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center">
