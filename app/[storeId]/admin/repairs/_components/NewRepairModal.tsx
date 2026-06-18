@@ -37,6 +37,7 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
 }) {
   type Step = 'customer' | 'build'
   const [step, setStep] = useState<Step>('customer')
+  const [buildStep, setBuildStep] = useState(0) // build内サブステップ index
 
   // ── 顧客 ──────────────────────────────────────────────────
   const [custSearch, setCustSearch] = useState('')
@@ -301,14 +302,45 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
     return Array.from(map.entries())
   }, [options])
 
+  // ── build サブステップ（該当が無い段は自動スキップ）─────────────
+  const buildStepDefs = useMemo(() => {
+    const defs: { key: string; label: string }[] = [
+      { key: 'garment', label: '服種' },
+      { key: 'item',    label: '項目' },
+    ]
+    if (item && ((item.measurements ?? []).length > 0 || manuals.length > 0)) defs.push({ key: 'measure', label: '採寸' })
+    if (item && groupedOptions.length > 0) defs.push({ key: 'options', label: 'オプション' })
+    if (item) {
+      defs.push({ key: 'price',   label: '価格' })
+      defs.push({ key: 'photo',   label: '写真' })
+      defs.push({ key: 'memo',    label: '納期・メモ' })
+      defs.push({ key: 'confirm', label: '確認' })
+    }
+    return defs
+  }, [item, manuals, groupedOptions])
+
+  const curBuildIdx = Math.min(buildStep, buildStepDefs.length - 1)
+  const curBuildKey = buildStepDefs[curBuildIdx]?.key ?? 'garment'
+  const isLastBuild = curBuildKey === 'confirm'
+
+  const canNextBuild = (() => {
+    if (curBuildKey === 'garment') return !!garmentId
+    if (curBuildKey === 'item')    return !!item
+    if (curBuildKey === 'measure') return !(hasDanger && !manualConfirmed)
+    return true
+  })()
+
+  const goBackBuild = () => { if (curBuildIdx <= 0) setStep('customer'); else setBuildStep(curBuildIdx - 1) }
+  const goNextBuild = () => { if (canNextBuild && curBuildIdx < buildStepDefs.length - 1) setBuildStep(curBuildIdx + 1) }
+
   return (
     <div className="fixed inset-0 z-[60] bg-black/40 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[94vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* ヘッダ */}
         <div className="sticky top-0 bg-white border-b px-4 py-3 flex items-center gap-2 z-10">
-          {step === 'build' && <button onClick={() => setStep('customer')} className="p-1 text-gray-400"><ChevronLeft size={20} /></button>}
+          {step === 'build' && <button onClick={goBackBuild} className="p-1 text-gray-400"><ChevronLeft size={20} /></button>}
           <Scissors size={18} className="text-amber-500" />
-          <h2 className="font-black text-gray-900 flex-1">お直し受付</h2>
+          <h2 className="font-black text-gray-900 flex-1">お直し受付{step === 'build' && buildStepDefs[curBuildIdx] ? `・${buildStepDefs[curBuildIdx].label}（${curBuildIdx + 1}/${buildStepDefs.length}）` : ''}</h2>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100"><X size={20} /></button>
         </div>
 
@@ -336,7 +368,7 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                     </div>
                   </div>
                 )}
-                <button onClick={() => setStep('build')} className="w-full py-3.5 bg-indigo-600 text-white font-black rounded-2xl flex items-center justify-center gap-2"><Check size={18} />お直し内容へ進む</button>
+                <button onClick={() => { setStep('build'); setBuildStep(0) }} className="w-full py-3.5 bg-indigo-600 text-white font-black rounded-2xl flex items-center justify-center gap-2"><Check size={18} />お直し内容へ進む</button>
               </div>
             ) : (
               <>
@@ -383,18 +415,21 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
         {step === 'build' && (
           <div className="p-4 space-y-4">
             {/* 服種 */}
+            {curBuildKey === 'garment' && (
             <div>
-              <p className="text-[11px] font-black text-gray-400 mb-1.5">① 服種</p>
+              <p className="text-[11px] font-black text-gray-400 mb-1.5">① 服種を選択</p>
               <div className="flex flex-wrap gap-2">
                 {garments.map(g => (
                   <button key={g.id} onClick={() => setGarmentId(g.id)} className={`px-3 py-2 rounded-xl text-sm font-bold border-2 ${garmentId === g.id ? 'bg-amber-500 text-white border-amber-500' : 'bg-white border-gray-200 text-gray-700'}`}>{g.icon} {g.name}</button>
                 ))}
               </div>
             </div>
+            )}
 
             {/* 項目 */}
+            {curBuildKey === 'item' && (
             <div>
-              <p className="text-[11px] font-black text-gray-400 mb-1.5">② 項目</p>
+              <p className="text-[11px] font-black text-gray-400 mb-1.5">② 項目を選択</p>
               <div className="grid grid-cols-2 gap-2">
                 {items.map(it => (
                   <button key={it.id} onClick={() => selectItem(it)} className={`text-left p-3 rounded-xl border-2 ${item?.id === it.id ? 'bg-amber-50 border-amber-400' : 'bg-white border-gray-200'}`}>
@@ -405,10 +440,12 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                 {items.length === 0 && <p className="col-span-2 text-center text-xs text-gray-400 py-4">この服種の項目がありません</p>}
               </div>
             </div>
+            )}
 
             {item && (
               <>
-                {/* マニュアル（特殊ケース） */}
+                {/* 採寸・特殊ケース */}
+                {curBuildKey === 'measure' && (<>
                 {manuals.map((m, i) => (
                   <div key={i} className={`rounded-xl p-3 border-2 ${m.severity === 'danger' ? 'bg-red-50 border-red-300' : m.severity === 'warn' ? 'bg-amber-50 border-amber-300' : 'bg-blue-50 border-blue-200'}`}>
                     <p className="font-black text-sm flex items-center gap-1 text-gray-800"><AlertTriangle size={14} className={m.severity === 'danger' ? 'text-red-500' : 'text-amber-500'} />{m.title}</p>
@@ -434,9 +471,10 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                     <div className="space-y-2">{item.measurements.map(m => renderMeasurement(m.key, m.label, m.unit, !!m.required))}</div>
                   </div>
                 )}
+                </>)}
 
                 {/* オプション */}
-                {groupedOptions.length > 0 && (
+                {curBuildKey === 'options' && (
                   <div>
                     <p className="text-[11px] font-black text-gray-400 mb-1.5">③ オプション</p>
                     <div className="space-y-2.5">
@@ -456,6 +494,8 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                   </div>
                 )}
 
+                {/* 価格 */}
+                {curBuildKey === 'price' && (<>
                 {/* 個別見積もり: その他の品名/内容 */}
                 {pricingMode === 'manual' && item.code === 'other' && (
                   <div className="space-y-2 bg-rose-50 border border-rose-200 rounded-xl p-3">
@@ -485,19 +525,10 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                   )}
                   {mustQuote && pricingMode === 'master' && <p className="text-[11px] text-rose-500 font-bold">※要見積もり項目です。金額確定後に「価格調整/個別見積もり」で入力してください</p>}
                 </div>
+                </>)}
 
-                {/* 受付写真・納期・メモ */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[11px] font-black text-gray-400 block mb-1">仕上がり希望日</label>
-                    <input type="date" className={INPUT} value={deadline} onChange={e => setDeadline(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-black text-gray-400 block mb-1">外注先（任意）</label>
-                    <input className={INPUT} value={vendorName} onChange={e => setVendorName(e.target.value)} placeholder="内製なら空欄" />
-                  </div>
-                </div>
-
+                {/* 写真 */}
+                {curBuildKey === 'photo' && (
                 <div>
                   <label className="text-[11px] font-black text-gray-400 block mb-1">受付時の写真（状態の記録）</label>
                   <div className="flex flex-wrap gap-2">
@@ -513,15 +544,61 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                       <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) setPhotos([...photos, { file: f, url: URL.createObjectURL(f) }]) }} />
                     </label>
                   </div>
+                  <p className="text-[11px] text-gray-400 mt-1">任意です。不要ならそのまま「次へ」。</p>
                 </div>
+                )}
 
+                {/* 納期・外注・メモ */}
+                {curBuildKey === 'memo' && (<>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[11px] font-black text-gray-400 block mb-1">仕上がり希望日</label>
+                    <input type="date" className={INPUT} value={deadline} onChange={e => setDeadline(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-black text-gray-400 block mb-1">外注先（任意）</label>
+                    <input className={INPUT} value={vendorName} onChange={e => setVendorName(e.target.value)} placeholder="内製なら空欄" />
+                  </div>
+                </div>
                 <textarea className={INPUT} rows={2} placeholder="社内メモ（任意）" value={memo} onChange={e => setMemo(e.target.value)} />
+                </>)}
 
-                <button onClick={handleSave} disabled={saving} className="w-full py-3.5 bg-amber-500 text-white font-black rounded-2xl flex items-center justify-center gap-2 disabled:opacity-50">
-                  {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}受付する
-                </button>
+                {/* 確認 */}
+                {curBuildKey === 'confirm' && (
+                <div className="space-y-2">
+                  <p className="text-[11px] font-black text-gray-400">内容を確認して受付</p>
+                  <div className="rounded-2xl border border-gray-200 text-sm divide-y">
+                    {[
+                      ['お客様', `${selectedCust?.name ?? ''}${selectedChild ? ` / ${selectedChild.name}` : ''}`],
+                      ['服種・項目', `${garments.find(g => g.id === garmentId)?.name ?? ''} / ${item.name}`],
+                      ['金額', pricingMode === 'master' ? `¥${calculated.toLocaleString()}` : (finalPrice != null ? `¥${finalPrice.toLocaleString()}` : '見積もり待ち')],
+                      ...(deadline ? [['仕上がり希望', deadline]] : []),
+                      ...(vendorName ? [['外注先', vendorName]] : []),
+                      ...(memo ? [['メモ', memo]] : []),
+                    ].map(([k, v]) => (
+                      <div key={k} className="flex gap-3 px-3 py-2">
+                        <span className="text-gray-400 font-bold w-20 shrink-0">{k}</span>
+                        <span className="text-gray-900 font-bold flex-1 break-words">{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                )}
+
               </>
             )}
+
+            {/* フッターナビ（全サブステップ共通） */}
+            <div className="flex gap-2 pt-1">
+              <button onClick={goBackBuild} className="flex-1 py-3 rounded-2xl bg-white border-2 border-gray-200 text-gray-600 font-black">戻る</button>
+              {isLastBuild ? (
+                <button onClick={handleSave} disabled={saving} className="flex-[2] py-3 bg-amber-500 text-white font-black rounded-2xl flex items-center justify-center gap-2 disabled:opacity-50">
+                  {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}受付する
+                </button>
+              ) : (
+                <button onClick={goNextBuild} disabled={!canNextBuild} className="flex-[2] py-3 bg-indigo-600 text-white font-black rounded-2xl disabled:opacity-40">次へ</button>
+              )}
+            </div>
           </div>
         )}
       </div>
