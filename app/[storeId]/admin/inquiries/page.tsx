@@ -21,6 +21,7 @@ import {
   INQ_STATUS_BADGE as STATUS_BADGE,
   INQ_METHOD_LABELS as METHOD_LABELS,
 } from '../repairs/_components/constants'
+import { fmtReqNo } from '../repairs/_components/utils'
 
 type SimpleStep = 'idle' | 'loading' | 'advice' | 'completing'
 
@@ -43,6 +44,7 @@ function InquiryCard({
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const isOverdue = item.due_date && item.status !== 'completed' && new Date(item.due_date) < today
+  const reqNo = fmtReqNo('inquiry', item.request_no, item.id)
 
   async function advanceStatus(e: React.MouseEvent) {
     e.stopPropagation()
@@ -120,7 +122,10 @@ function InquiryCard({
                 {STATUS_LABELS[item.status]}
               </span>
             </div>
-            {item.customer_name && <p className="text-xl font-black text-gray-800 mb-2">{item.customer_name}</p>}
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] font-black text-indigo-400 font-mono shrink-0">{reqNo}</span>
+              {item.customer_name && <p className="text-xl font-black text-gray-800">{item.customer_name}</p>}
+            </div>
             <p className="text-base text-gray-600 leading-relaxed mb-3 line-clamp-2">{item.content}</p>
             {item.response_notes && <p className="text-sm text-gray-400 mb-3 leading-relaxed">💬 {item.response_notes}</p>}
             {item.response_method && (
@@ -255,9 +260,10 @@ function InquiryCard({
               {STATUS_LABELS[item.status]}
             </span>
           </div>
-          {item.customer_name && (
-            <p className="text-xl font-black text-gray-800 mb-2">{item.customer_name}</p>
-          )}
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] font-black text-indigo-400 font-mono shrink-0">{reqNo}</span>
+            {item.customer_name && <p className="text-xl font-black text-gray-800">{item.customer_name}</p>}
+          </div>
           <p className="text-base text-gray-700 leading-relaxed mb-3 line-clamp-3">{item.content}</p>
           <p className="text-xs text-gray-400 mb-4">
             {new Date(item.created_at).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -295,6 +301,7 @@ function InquiryCard({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+            <span className="text-[10px] font-black text-indigo-400 font-mono mr-1">{reqNo}</span>
             {item.customer_name && <span className="text-xs font-bold text-gray-700">{item.customer_name}</span>}
             {isOverdue && <span className="text-[10px] font-black text-red-600">期限超過</span>}
             {item.due_date && !isOverdue && item.status !== 'completed' && (
@@ -349,7 +356,7 @@ export default function InquiriesPage() {
     setLoading(true)
     const { data, error } = await (supabase as any)
       .from('inquiries')
-      .select('id, customer_name, content, type, is_urgent, due_date, status, response_method, response_notes, responded_at, received_by, handled_by, created_at')
+      .select('id, request_no, customer_name, customer_id, content, type, is_urgent, due_date, status, response_method, response_notes, responded_at, received_by, handled_by, created_at')
       .eq('store_id', storeId)
       .order('created_at', { ascending: false })
     setLoading(false)

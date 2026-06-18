@@ -18,7 +18,9 @@ export type ResponseMethod = 'line' | 'phone' | 'in_store' | 'email'
 
 export interface InquiryRow {
   id: string
+  request_no: number | null
   customer_name: string | null
+  customer_id?: string | null
   content: string
   type: InquiryType
   is_urgent: boolean
