@@ -43,6 +43,7 @@ export function ReservationWizard({ storeId, onSaved, onCancel }: {
   const [step, setStep] = useState<StepKey>('customer')
   const [cust, setCust] = useState<CustResult | null>(null)
   const [child, setChild] = useState<Child | null>(null)
+  const [customerName, setCustomerName] = useState('')   // 未登録客の氏名のみ受付
   const [sheetOpen, setSheetOpen] = useState(false)
   const [choice, setChoice] = useState<Choice | null>(null)
   const [date, setDate] = useState(todayJst())
@@ -79,16 +80,19 @@ export function ReservationWizard({ storeId, onSaved, onCancel }: {
     return () => { cancelled = true }
   }, [step, choice, date, storeId])
 
+  const hasIdentity = !!cust || !!customerName.trim()   // 顧客紐付け or 氏名入力が必須
   const donePurpose = !!choice
   const doneDatetime = !!time
-  const canConfirm = donePurpose && doneDatetime
+  const canConfirm = hasIdentity && donePurpose && doneDatetime
 
   const save = async () => {
+    if (!hasIdentity) { setError('お客様（氏名）を入力してください'); return }
     if (!choice || !time) { setError('来店内容と日時を選んでください'); return }
     setSaving(true); setError(null)
     const { error: err } = await (supabase.from('reservations') as any).insert({
       store_id: storeId,
       customer_id: cust?.id ?? null,
+      customer_name: cust ? null : (customerName.trim() || null),   // CRM紐付け時はnull（customers.nameが真値）
       child_id: child?.id ?? null,
       reserved_at: `${date}T${time}:00+09:00`,
       purpose: choice.kind === 'fitting' ? choice.service.label : choice.info.label,
@@ -103,7 +107,8 @@ export function ReservationWizard({ storeId, onSaved, onCancel }: {
 
   // 各ステップの確定値（折りたたみ表示用）
   const summaryOf = (k: StepKey): string | null => {
-    if (k === 'customer') return cust ? `${child?.name ?? cust.name} 様` : null
+    if (k === 'customer') return cust ? `${child?.name ?? cust.name} 様`
+      : customerName.trim() ? `${customerName.trim()} 様（未登録）` : null
     if (k === 'purpose') return choiceLabel(choice)
     if (k === 'datetime') return time ? `${fmtDate(date)} ${time}` : null
     return null
@@ -158,12 +163,24 @@ export function ReservationWizard({ storeId, onSaved, onCancel }: {
                 <button onClick={() => setSheetOpen(true)} className="text-xs font-bold text-indigo-600 px-2 py-1 border border-indigo-200 rounded-lg">変更</button>
               </div>
             ) : (
-              <button onClick={() => setSheetOpen(true)} className="w-full py-3.5 rounded-2xl border-2 border-dashed border-indigo-300 text-indigo-600 font-bold">
-                🔍 顧客を検索 / 新規登録
-              </button>
+              <div className="space-y-2.5">
+                <button onClick={() => setSheetOpen(true)} className="w-full py-3.5 rounded-2xl border-2 border-dashed border-indigo-300 text-indigo-600 font-bold">
+                  🔍 顧客を検索 / 登録済みのお客様
+                </button>
+                <div className="flex items-center gap-2 text-[11px] text-gray-400 font-bold">
+                  <span className="flex-1 h-px bg-gray-200" />または<span className="flex-1 h-px bg-gray-200" />
+                </div>
+                <div>
+                  <input value={customerName} onChange={e => setCustomerName(e.target.value)}
+                    placeholder="お名前（苗字だけでもOK）"
+                    className="w-full border border-gray-300 rounded-2xl px-4 py-3 text-base font-bold" />
+                  <p className="text-[11px] text-gray-400 mt-1 px-1">未登録のお客様は氏名だけで受付できます（顧客台帳には登録されません）。</p>
+                </div>
+              </div>
             )}
             <div className="flex gap-2 pt-1">
-              <button onClick={() => setStep('purpose')} className="flex-1 py-3 rounded-2xl bg-indigo-600 text-white font-black">{cust ? '次へ' : '顧客なしで次へ'}</button>
+              <button onClick={() => setStep('purpose')} disabled={!hasIdentity}
+                className="flex-1 py-3 rounded-2xl bg-indigo-600 text-white font-black disabled:opacity-40">次へ</button>
             </div>
           </div>
         )}
@@ -284,7 +301,8 @@ export function ReservationWizard({ storeId, onSaved, onCancel }: {
             <p className="text-lg font-black text-gray-900">この内容で予約します</p>
             <div className="rounded-2xl border border-gray-200 divide-y text-sm">
               {[
-                ['お客様', cust ? `${child?.name ?? cust.name} 様${child ? `（保護者: ${cust.name}）` : ''}` : '（指定なし）'],
+                ['お客様', cust ? `${child?.name ?? cust.name} 様${child ? `（保護者: ${cust.name}）` : ''}`
+                  : customerName.trim() ? `${customerName.trim()} 様（未登録）` : '（未記名）'],
                 ['来店内容', choiceLabel(choice) ?? '（未選択）'],
                 ['日時', time ? `${fmtDate(date)} ${time}` : '（未選択）'],
               ].map(([k, v]) => (
@@ -310,7 +328,7 @@ export function ReservationWizard({ storeId, onSaved, onCancel }: {
       {sheetOpen && (
         <CustomerLinkSheet
           storeId={storeId} selectedCust={cust} selectedChild={child}
-          onSelect={(c, ch) => { setCust(c); setChild(ch) }}
+          onSelect={(c, ch) => { setCust(c); setChild(ch); setCustomerName('') }}
           onClear={() => { setCust(null); setChild(null) }}
           onClose={() => setSheetOpen(false)}
         />

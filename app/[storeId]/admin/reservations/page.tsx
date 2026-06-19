@@ -142,7 +142,7 @@ function ReservationCard({ res, storeId, onUpdate, onDelete }: {
             </p>
           )}
           <p className={`font-black text-xl leading-tight truncate mt-0.5 ${inactive ? 'text-gray-500' : 'text-gray-900'}`}>
-            {res.child?.name ?? res.customer?.name ?? '（顧客未登録）'} 様
+            {res.child?.name ?? res.customer?.name ?? res.customer_name ?? '（未記名）'} 様
           </p>
           {res.child && (
             <p className="text-xs text-gray-500 truncate">
