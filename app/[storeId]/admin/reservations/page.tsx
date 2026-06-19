@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Customer, Child } from '@/types/crm'
+import { ReservationWizard } from './_components/ReservationWizard'
 import {
   RESERVATION_STATUS_LABELS, RESERVATION_STATUS_COLORS,
   type Reservation, type ReservationStatus,
@@ -554,9 +555,9 @@ export default function ReservationsPage() {
 
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
 
-        {/* 新規予約フォーム */}
+        {/* 新規予約（受付ウィザード） */}
         {showForm && (
-          <NewReservationForm
+          <ReservationWizard
             storeId={storeId}
             onSaved={() => { setShowForm(false); showToast('ok', '予約を登録しました'); fetchTimeline() }}
             onCancel={() => setShowForm(false)}
