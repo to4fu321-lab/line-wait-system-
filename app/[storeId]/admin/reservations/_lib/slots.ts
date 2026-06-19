@@ -1,34 +1,30 @@
 // ============================================================
 // 予約枠（試着室）の空き計算ヘルパー
-//   reserve/page.tsx のロジックを抽出。容量にカウントするのは
-//   採寸系（isFitting）の予約のみ＝試着室を使う予約だけが枠を消費。
+//   採寸サービス(reservation_settings)ごとの所要時間で枠を生成し、
+//   容量にカウントするのは採寸系(isFitting)の予約のみ。
 // ============================================================
 import { supabase } from '@/lib/supabase'
 
 const sb = supabase as any
 
-export interface SlotInfo {
-  time: string
-  maxSlots: number
-  booked: number
-  remaining: number
-  available: boolean
-}
-export interface SlotResult {
-  slots: SlotInfo[]
-  dayClosed: boolean   // 予約不可日（max_slots=0）
-  hasSettings: boolean // reservation_settings 未設定なら false
+export interface ResvService {
+  service_type: string
+  label: string
+  duration_min: number
+  start_time: string
+  end_time: string
+  [k: string]: unknown // slots_sun..slots_sat
 }
 
-interface Setting {
-  service_type: string; label: string; duration_min: number
-  start_time: string; end_time: string; is_active: boolean
-  [k: string]: unknown
+export interface SlotInfo {
+  time: string; maxSlots: number; booked: number; remaining: number; available: boolean
+}
+export interface SlotResult {
+  slots: SlotInfo[]; dayClosed: boolean; hasSettings: boolean
 }
 
 const WEEKDAY_KEYS = ['slots_sun', 'slots_mon', 'slots_tue', 'slots_wed', 'slots_thu', 'slots_fri', 'slots_sat'] as const
 
-// 採寸系の予約か（枠を消費する対象）
 export function isFitting(purpose: string | null | undefined, serviceType: string | null | undefined): boolean {
   return (purpose ?? '').includes('採寸') || ['uniform', 'jersey', 'fitting'].includes(serviceType ?? '')
 }
@@ -46,31 +42,31 @@ function genSlots(start: string, end: string, stepMin: number): string[] {
   return out
 }
 
-export async function computeSlotInfo(storeId: string, date: string): Promise<SlotResult> {
-  const { data: rawSettings } = await sb.from('reservation_settings')
-    .select('*').eq('store_id', storeId).eq('is_active', true)
-  const settings = (rawSettings ?? []) as Setting[]
-  if (settings.length === 0) return { slots: [], dayClosed: false, hasSettings: false }
+// 有効な採寸サービス一覧（来店内容カードの「採寸」に使用）
+export async function loadServices(storeId: string): Promise<ResvService[]> {
+  const { data } = await sb.from('reservation_settings')
+    .select('*').eq('store_id', storeId).eq('is_active', true).order('duration_min', { ascending: false })
+  return (data ?? []) as ResvService[]
+}
+
+// 指定サービスの所要時間で当日の空き枠を計算
+export async function computeSlotInfo(storeId: string, date: string, service: ResvService): Promise<SlotResult> {
+  const all = await loadServices(storeId)
+  if (all.length === 0) return { slots: [], dayClosed: false, hasSettings: false }
 
   const dow = new Date(date + 'T12:00:00Z').getUTCDay()
   const weekdayKey = WEEKDAY_KEYS[dow]
-  let maxSlots = Math.min(...settings.map(s => Number((s as Record<string, unknown>)[weekdayKey] ?? 0)))
-
+  let maxSlots = Math.min(...all.map(s => Number((s as Record<string, unknown>)[weekdayKey] ?? 0)))
   try {
     const { data: override } = await sb.from('reservation_date_overrides')
       .select('max_slots').eq('store_id', storeId).eq('date', date).limit(1).maybeSingle()
     if (override != null) maxSlots = override.max_slots
   } catch { /* テーブル無ければ無視 */ }
-
   if (maxSlots <= 0) return { slots: [], dayClosed: true, hasSettings: true }
 
-  // 営業時間は全サービスの最小start〜最大end、所要時間は採寸サービス基準
-  const startTime = settings.reduce((a, s) => (s.start_time < a ? s.start_time : a), '23:59')
-  const endTime   = settings.reduce((a, s) => (s.end_time > a ? s.end_time : a), '00:00')
-  const fittingSvc = settings.find(s => isFitting(null, s.service_type) || s.label.includes('採寸')) ?? settings[0]
-  const slotDuration = fittingSvc.duration_min || 60
+  const slotDuration = service.duration_min || 60
   const durationMap: Record<string, number> = {}
-  for (const s of settings) durationMap[s.service_type] = s.duration_min
+  for (const s of all) durationMap[s.service_type] = s.duration_min
 
   const dayStart = `${date}T00:00:00+09:00`
   const dayEnd   = `${date}T23:59:59+09:00`
@@ -78,10 +74,10 @@ export async function computeSlotInfo(storeId: string, date: string): Promise<Sl
     .select('reserved_at, purpose, service_type').eq('store_id', storeId)
     .gte('reserved_at', dayStart).lte('reserved_at', dayEnd).neq('status', 'cancelled')
 
-  const [eh, em] = endTime.split(':').map(Number)
+  const [eh, em] = service.end_time.split(':').map(Number)
   const endOfDay = eh * 60 + em
 
-  const slots: SlotInfo[] = genSlots(startTime, endTime, 30).map(time => {
+  const slots: SlotInfo[] = genSlots(service.start_time, service.end_time, slotDuration).map(time => {
     const [th, tm] = time.split(':').map(Number)
     const tStart = th * 60 + tm
     const tEnd = tStart + slotDuration
