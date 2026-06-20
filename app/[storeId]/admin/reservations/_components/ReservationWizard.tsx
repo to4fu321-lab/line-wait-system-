@@ -6,12 +6,13 @@
 //   どのステップからでも操作可。採寸系のみ試着室(枠)を消費。
 // ============================================================
 import { useEffect, useState } from 'react'
-import { Loader2, Check, X, ChevronLeft, ChevronRight, User, Clock } from 'lucide-react'
+import { Loader2, Check, X, ChevronLeft, ChevronRight, User, Clock, ShoppingCart } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { CustomerLinkSheet } from '../../repairs/_components/CustomerLinkSheet'
 import type { CustResult } from '../../repairs/_components/types'
 import { INFO_PURPOSES, type InfoPurpose } from '../_lib/purposes'
 import { computeSlotInfo, loadServices, type SlotInfo, type ResvService } from '../_lib/slots'
+import { MonthCalendar } from './MonthCalendar'
 
 type Child = { id: string; name: string; school_name: string | null }
 type StepKey = 'customer' | 'purpose' | 'datetime' | 'confirm'
@@ -31,16 +32,16 @@ function addDays(d: string, n: number): string { const x = new Date(d + 'T12:00:
 function fmtDate(d: string): string { const x = new Date(d + 'T12:00:00Z'); const w = ['日', '月', '火', '水', '木', '金', '土']; return `${x.getUTCMonth() + 1}/${x.getUTCDate()}（${w[x.getUTCDay()]}）` }
 
 const STEPS: { key: StepKey; n: number; title: string }[] = [
-  { key: 'customer', n: 1, title: 'お客様' },
-  { key: 'purpose',  n: 2, title: '来店内容' },
+  { key: 'purpose',  n: 1, title: '要件' },
+  { key: 'customer', n: 2, title: 'お客様' },
   { key: 'datetime', n: 3, title: '日時' },
   { key: 'confirm',  n: 4, title: '確認' },
 ]
 
-export function ReservationWizard({ storeId, onSaved, onCancel }: {
-  storeId: string; onSaved: () => void; onCancel: () => void
+export function ReservationWizard({ storeId, onSaved, onCancel, onProductPurchase }: {
+  storeId: string; onSaved: () => void; onCancel: () => void; onProductPurchase: () => void
 }) {
-  const [step, setStep] = useState<StepKey>('customer')
+  const [step, setStep] = useState<StepKey>('purpose')
   const [cust, setCust] = useState<CustResult | null>(null)
   const [child, setChild] = useState<Child | null>(null)
   const [customerName, setCustomerName] = useState('')   // 未登録客の氏名のみ受付
@@ -179,16 +180,16 @@ export function ReservationWizard({ storeId, onSaved, onCancel }: {
               </div>
             )}
             <div className="flex gap-2 pt-1">
-              <button onClick={() => setStep('purpose')} disabled={!hasIdentity}
+              <button onClick={() => setStep('datetime')} disabled={!hasIdentity}
                 className="flex-1 py-3 rounded-2xl bg-indigo-600 text-white font-black disabled:opacity-40">次へ</button>
             </div>
           </div>
         )}
 
-        {/* STEP B 来店内容 */}
+        {/* STEP 要件（来店内容） */}
         {step === 'purpose' && (
           <div className="space-y-3">
-            <p className="text-lg font-black text-gray-900">何のご来店ですか？</p>
+            <p className="text-lg font-black text-gray-900">ご用件は何ですか？</p>
 
             {/* 採寸（試着室を使う）＝予約枠を消費 */}
             <div className="space-y-1.5">
@@ -202,7 +203,7 @@ export function ReservationWizard({ storeId, onSaved, onCancel }: {
                   {services.map(s => {
                     const sel = choice?.kind === 'fitting' && choice.service.service_type === s.service_type
                     return (
-                      <button key={s.service_type} onClick={() => { setChoice({ kind: 'fitting', service: s }); setTime(null); setStep('datetime') }}
+                      <button key={s.service_type} onClick={() => { setChoice({ kind: 'fitting', service: s }); setTime(null); setStep('customer') }}
                         className={`py-4 rounded-2xl border-2 font-black text-base flex flex-col items-center gap-0.5 active:scale-[0.98] transition-all ${
                           sel ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-700'
                         }`}>
@@ -222,7 +223,7 @@ export function ReservationWizard({ storeId, onSaved, onCancel }: {
                 {INFO_PURPOSES.map(p => {
                   const sel = choice?.kind === 'info' && choice.info.key === p.key
                   return (
-                    <button key={p.key} onClick={() => { setChoice({ kind: 'info', info: p }); setTime(null); setStep('datetime') }}
+                    <button key={p.key} onClick={() => { setChoice({ kind: 'info', info: p }); setTime(null); setStep('customer') }}
                       className={`py-4 rounded-2xl border-2 font-black text-base flex flex-col items-center gap-1 active:scale-[0.98] transition-all ${
                         sel ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-700'
                       }`}>
@@ -231,6 +232,15 @@ export function ReservationWizard({ storeId, onSaved, onCancel }: {
                   )
                 })}
               </div>
+            </div>
+
+            {/* 商品購入＝予約ではなく制服注文フローへ */}
+            <div className="space-y-1.5">
+              <p className="text-xs font-bold text-gray-500">購入・注文</p>
+              <button onClick={onProductPurchase}
+                className="w-full py-3.5 rounded-2xl border-2 border-teal-300 bg-teal-50 text-teal-700 font-black flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
+                <ShoppingCart size={18} /> 商品購入（制服注文へ）
+              </button>
             </div>
           </div>
         )}
@@ -248,6 +258,9 @@ export function ReservationWizard({ storeId, onSaved, onCancel }: {
               </div>
               <button onClick={() => { setDate(d => addDays(d, 1)) }} className="p-1.5 rounded-lg hover:bg-gray-200"><ChevronRight size={18} /></button>
             </div>
+
+            {/* 月カレンダー（営業日・混み具合） */}
+            <MonthCalendar storeId={storeId} value={date} onChange={setDate} />
 
             {usesFitting ? (
               <div>

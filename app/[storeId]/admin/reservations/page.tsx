@@ -11,9 +11,12 @@ import {
 import { supabase } from '@/lib/supabase'
 import type { Customer, Child } from '@/types/crm'
 import { ReservationWizard } from './_components/ReservationWizard'
+import { ReservationCard, type ReservationFull } from './_components/ReservationCard'
+import { AllReservationsView } from './_components/AllReservationsView'
+import { NewOrderModal } from '../repairs/_components/NewOrderModal'
 import {
-  RESERVATION_STATUS_LABELS, RESERVATION_STATUS_COLORS,
-  type Reservation, type ReservationStatus,
+  RESERVATION_STATUS_LABELS,
+  type ReservationStatus,
 } from '@/types/reservations'
 
 // ============================================================
@@ -39,11 +42,6 @@ function fmtDateJp(dateStr: string) {
 // ============================================================
 // 型
 // ============================================================
-type ReservationFull = Reservation & {
-  customer: { name: string; kana: string | null; tel: string | null } | null
-  child:    { name: string; school_name: string | null; grade: string | null } | null
-}
-
 type QueueRef = {
   id: string; ticket_number: number; customer_name: string
   child_name: string | null; school_name: string
@@ -82,165 +80,6 @@ function Toast({ msg, type, onUndo, onClose }: {
           className="shrink-0 px-3 py-1 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-xs font-black active:scale-95 transition-all disabled:opacity-50">
           {undoing ? '…' : '取消し'}
         </button>
-      )}
-    </div>
-  )
-}
-
-// ============================================================
-// 予約カード
-// ============================================================
-function ReservationCard({ res, storeId, onUpdate, onDelete }: {
-  res: ReservationFull
-  storeId: string
-  onUpdate: (id: string, status: ReservationStatus, prevStatus: ReservationStatus) => Promise<void>
-  onDelete: (id: string) => Promise<void>
-}) {
-  const [loading,        setLoading]        = useState<string | null>(null)
-  const [confirmDelete,  setConfirmDelete]  = useState(false)
-
-  const act = async (s: ReservationStatus) => {
-    setLoading(s); await onUpdate(res.id, s, res.status); setLoading(null)
-  }
-  const inactive = res.status === 'completed' || res.status === 'cancelled' || res.status === 'no_show'
-  // 採寸系の予約か（LINE予約は service_type=uniform/jersey、手動予約は目的に「採寸」）
-  const isFitting = (res.purpose ?? '').includes('採寸')
-    || ['uniform', 'jersey', 'fitting'].includes(res.service_type ?? '')
-
-  return (
-    <div className={`rounded-2xl border p-4 transition-all ${
-      inactive
-        ? 'bg-gray-100 border-gray-200'
-        : res.status === 'called'
-        ? 'bg-amber-50 border-amber-200 ring-1 ring-amber-200'
-        : res.status === 'arrived'
-        ? 'bg-emerald-50 border-emerald-200'
-        : 'bg-blue-50 border-blue-200'
-    }`}>
-      <div className="flex items-start gap-3">
-        {/* 時刻バッジ */}
-        <div className="shrink-0 text-center w-12">
-          <p className={`text-xl font-black tabular-nums leading-tight ${
-            inactive ? 'text-gray-500'
-            : res.status === 'called' ? 'text-amber-600 animate-pulse'
-            : res.status === 'arrived' ? 'text-emerald-600'
-            : 'text-indigo-600'
-          }`}>{fmtTime(res.reserved_at)}</p>
-          <p className="text-[9px] text-gray-500 mt-0.5">予約</p>
-        </div>
-
-        {/* 内容 */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
-              RESERVATION_STATUS_COLORS[res.status]
-            }`}>{RESERVATION_STATUS_LABELS[res.status]}</span>
-          </div>
-          {res.child?.school_name && (
-            <p className="text-sm font-black text-amber-600 truncate leading-tight">
-              {res.child.school_name}{res.child.grade && ` ${res.child.grade}`}
-            </p>
-          )}
-          <p className={`font-black text-xl leading-tight truncate mt-0.5 ${inactive ? 'text-gray-500' : 'text-gray-900'}`}>
-            {res.child?.name ?? res.customer?.name ?? res.customer_name ?? '（未記名）'} 様
-          </p>
-          {res.child && (
-            <p className="text-xs text-gray-500 truncate">
-              保護者: {res.customer?.name ?? '（未登録）'}
-            </p>
-          )}
-          {res.customer?.tel && (
-            <a href={`tel:${res.customer.tel}`}
-              className="text-xs text-blue-600 flex items-center gap-1 mt-0.5">
-              <Phone size={10} />{res.customer.tel}
-            </a>
-          )}
-          {res.purpose && <p className="text-xs text-gray-600 mt-1">📋 {res.purpose}</p>}
-          {res.notes   && <p className="text-xs text-gray-500 mt-0.5 italic">📝 {res.notes}</p>}
-        </div>
-
-        {/* 削除ボタン（確定前のみ） */}
-        {res.status === 'confirmed' && !confirmDelete && (
-          <button onClick={() => setConfirmDelete(true)}
-            className="p-1.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-500/10 transition-all shrink-0">
-            <X size={13} />
-          </button>
-        )}
-      </div>
-
-      {/* 採寸へ進む（採寸系予約のみ・採寸ページで来店チェックインも実行） */}
-      {!inactive && isFitting && (
-        <a href={`/${storeId}/admin/fitting?reservationId=${res.id}`}
-          className="mt-3 w-full flex items-center justify-center gap-2 py-3 rounded-xl font-black text-sm bg-teal-600 hover:bg-teal-500 text-white active:scale-95 transition-all">
-          <Ruler size={15} />採寸へ進む
-        </a>
-      )}
-
-      {/* アクションボタン */}
-      {!inactive && (
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          {res.status === 'confirmed' && (
-            <>
-              <button onClick={() => act('arrived')} disabled={!!loading}
-                className="py-2.5 rounded-xl font-bold text-xs bg-emerald-600/80 hover:bg-emerald-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
-                {loading === 'arrived' ? <Loader2 size={12} className="animate-spin" /> : '✅ 来店チェックイン'}
-              </button>
-              <button onClick={() => act('no_show')} disabled={!!loading}
-                className="py-2.5 rounded-xl font-bold text-xs bg-gray-300/80 hover:bg-gray-400 text-gray-700 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
-                <UserX size={12} />無断欠席
-              </button>
-            </>
-          )}
-          {res.status === 'arrived' && (
-            <>
-              <button onClick={() => act('called')} disabled={!!loading}
-                className="py-2.5 rounded-xl font-bold text-xs bg-amber-500/80 hover:bg-amber-500 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
-                {loading === 'called' ? <Loader2 size={12} className="animate-spin" /> : <><BellRing size={12} />呼出す</>}
-              </button>
-              <button onClick={() => act('completed')} disabled={!!loading}
-                className="py-2.5 rounded-xl font-bold text-xs bg-gray-300/80 text-gray-700 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
-                <CheckCheck size={12} />対応完了
-              </button>
-            </>
-          )}
-          {res.status === 'called' && (
-            <>
-              <button onClick={() => act('completed')} disabled={!!loading}
-                className="py-2.5 rounded-xl font-bold text-xs bg-emerald-600/80 hover:bg-emerald-600 text-white active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
-                {loading === 'completed' ? <Loader2 size={12} className="animate-spin" /> : <><CheckCheck size={12} />対応完了</>}
-              </button>
-              <button onClick={() => act('arrived')} disabled={!!loading}
-                className="py-2.5 rounded-xl font-bold text-xs bg-gray-300/80 text-gray-700 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
-                呼出に戻す
-              </button>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* 完了済みを戻す */}
-      {(res.status === 'no_show' || res.status === 'cancelled') && (
-        <button onClick={() => act('confirmed')} disabled={!!loading}
-          className="mt-3 w-full py-2 rounded-xl font-bold text-xs border border-indigo-300 text-indigo-600 hover:text-indigo-700 hover:border-indigo-400 transition-all flex items-center justify-center gap-1">
-          予約確定に戻す
-        </button>
-      )}
-
-      {/* 削除確認 */}
-      {confirmDelete && (
-        <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 space-y-2">
-          <p className="text-xs text-center text-red-700 font-bold">この予約を削除しますか？</p>
-          <div className="flex gap-2">
-            <button onClick={() => setConfirmDelete(false)}
-              className="flex-1 py-2 rounded-xl font-bold text-xs bg-gray-300 text-gray-700 active:scale-95">
-              キャンセル
-            </button>
-            <button onClick={async () => { await onDelete(res.id); setConfirmDelete(false) }} disabled={!!loading}
-              className="flex-1 py-2 rounded-xl font-bold text-xs bg-red-600 text-white active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1">
-              {loading === 'delete' ? <Loader2 size={12} className="animate-spin" /> : '削除する'}
-            </button>
-          </div>
-        </div>
       )}
     </div>
   )
@@ -458,6 +297,8 @@ export default function ReservationsPage() {
   const [timeline,     setTimeline]     = useState<TimelineItem[]>([])
   const [loading,      setLoading]      = useState(true)
   const [showForm,     setShowForm]     = useState(false)
+  const [showNewOrder, setShowNewOrder] = useState(false)
+  const [view,         setView]         = useState<'day' | 'all'>('day')
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string; onUndo?: () => Promise<void> } | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -561,10 +402,27 @@ export default function ReservationsPage() {
             storeId={storeId}
             onSaved={() => { setShowForm(false); showToast('ok', '予約を登録しました'); fetchTimeline() }}
             onCancel={() => setShowForm(false)}
+            onProductPurchase={() => { setShowForm(false); setShowNewOrder(true) }}
           />
         )}
 
+        {/* 表示切替：当日 / 全予約 */}
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={() => setView('day')}
+            className={`py-2.5 rounded-xl font-black text-sm border ${view === 'day' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200'}`}>
+            当日
+          </button>
+          <button onClick={() => setView('all')}
+            className={`py-2.5 rounded-xl font-black text-sm border ${view === 'all' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200'}`}>
+            全予約
+          </button>
+        </div>
+
+        {view === 'all' && <AllReservationsView storeId={storeId} showToast={showToast} />}
+
         {/* 日付ナビゲーター */}
+        {view === 'day' && (
+        <>
         <div className="flex items-center gap-2 bg-gray-100 border border-gray-200 rounded-2xl px-4 py-3">
           <button onClick={() => setSelectedDate(d => addDays(d, -1))}
             className="p-1.5 rounded-xl hover:bg-gray-200 active:scale-90 transition-all">
@@ -639,7 +497,20 @@ export default function ReservationsPage() {
             )}
           </div>
         )}
+        </>
+        )}
       </div>
+
+      {/* 商品購入（制服注文）モーダル */}
+      {showNewOrder && (
+        <NewOrderModal
+          storeId={storeId}
+          onClose={() => setShowNewOrder(false)}
+          onSave={() => { setShowNewOrder(false); showToast('ok', '商品購入を登録しました'); fetchTimeline() }}
+          onToast={(t, m) => showToast(t, m)}
+        />
+      )}
+
       <BottomNav />
     </div>
   )
