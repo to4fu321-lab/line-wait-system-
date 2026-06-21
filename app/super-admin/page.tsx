@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import ColorPicker from '@/app/_components/ColorPicker'
 import type { Store, BusinessType } from '@/types/database'
-import { PLAN_DEFS, type Plan, type FeatureKey } from '@/lib/features'
+import { PLAN_DEFS, ADDON_DEFAULT_OFF, type Plan, type FeatureKey } from '@/lib/features'
 
 // ── 細粒度フラグ（プランに加えて個別 on/off できる項目） ────────
 const GRANULAR_FEATURES: { key: FeatureKey; label: string; icon: string }[] = [
@@ -37,12 +37,13 @@ const GRANULAR_FEATURES: { key: FeatureKey; label: string; icon: string }[] = [
   { key: 'customer_self_intake', label: 'お客様セルフ依頼入力',   icon: '📱' },
   { key: 'customer_self_order',  label: 'お客様セルフ制服注文',   icon: '🛍️' },
   { key: 'sms_notify',           label: 'SMS完了通知（アドオン）', icon: '📩' },
+  { key: 'today_tasks_ui',       label: '今日やること画面（β）',   icon: '📋' },
 ]
 
 const GRANULAR_FEATURE_GROUPS: { label: string; keys: FeatureKey[] }[] = [
   {
     label: 'タブ・ナビ',
-    keys: ['tab_queue', 'tab_repairs', 'tab_inquiries', 'tab_crm'],
+    keys: ['tab_queue', 'tab_repairs', 'tab_inquiries', 'tab_crm', 'today_tasks_ui'],
   },
   {
     label: '案件・修理',
@@ -340,7 +341,10 @@ function StoreCard({
                       const f = GRANULAR_FEATURES.find(x => x.key === key)
                       if (!f) return null
                       const currentPlan = (features._plan as Plan | undefined) ?? 'full'
-                      const planDefault = PLAN_DEFS[currentPlan]?.features[f.key as FeatureKey]
+                      // アドオン/β機能は未設定=OFF（resolveFeature と一致させる）
+                      const planDefault = ADDON_DEFAULT_OFF.includes(f.key)
+                        ? false
+                        : PLAN_DEFS[currentPlan]?.features[f.key as FeatureKey]
                       const override = (features as Record<string, unknown>)[f.key]
                       const effective = override !== undefined ? (override as boolean) : (planDefault !== false)
                       const hasOverride = override !== undefined && override !== planDefault

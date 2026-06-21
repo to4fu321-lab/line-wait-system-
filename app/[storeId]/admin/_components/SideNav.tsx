@@ -57,8 +57,15 @@ export function SideNav() {
     t.featureKey === null || hasFeature(t.featureKey as Parameters<typeof hasFeature>[0])
   )
 
+  // today_tasks_ui ON のとき、案件管理を「やること」(/admin/today)へ差し替え
+  const todayOn = hasFeature('today_tasks_ui')
+  const tabPath = (tab: typeof ALL_TABS[number]) =>
+    todayOn && tab.id === 'repairs' ? `/${storeId}/admin/today` : tab.path(storeId)
+  const tabLabel = (tab: typeof ALL_TABS[number]) =>
+    todayOn && tab.id === 'repairs' ? 'やること' : tab.label
+
   function isActive(tab: typeof ALL_TABS[number]) {
-    const target = tab.path(storeId)
+    const target = tabPath(tab)
     if (tab.exact) return pathname === target || pathname === target + '/'
     return pathname.startsWith(target)
   }
@@ -89,7 +96,7 @@ export function SideNav() {
           return (
             <Link
               key={tab.id}
-              href={tab.path(storeId)}
+              href={tabPath(tab)}
               prefetch={false}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 active
@@ -98,7 +105,7 @@ export function SideNav() {
               }`}
             >
               <Icon size={18} strokeWidth={active ? 2.5 : 1.8} />
-              <span className="flex-1">{tab.label}</span>
+              <span className="flex-1">{tabLabel(tab)}</span>
               {badgeCount > 0 && (
                 <span className="inline-flex items-center justify-center w-5 h-5 bg-red-500 text-white text-[10px] font-black rounded-full leading-none">
                   {badgeCount > 99 ? '99+' : badgeCount}

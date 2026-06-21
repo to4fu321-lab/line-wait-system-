@@ -363,7 +363,7 @@ export default function ReservePage() {
       const dayEnd   = `${selectedDate}T23:59:59+09:00`
       const { data: reservations } = await (supabase as any)
         .from('reservations')
-        .select('reserved_at, service_type')
+        .select('reserved_at, service_type, purpose')
         .eq('store_id', storeId)
         .gte('reserved_at', dayStart)
         .lte('reserved_at', dayEnd)
@@ -386,6 +386,8 @@ export default function ReservePage() {
 
         let overlapCount = 0
         for (const r of (reservations ?? [])) {
+          // 試着室(採寸)を使う予約のみ枠を消費する
+          if (!isFittingService(r.service_type ?? '', r.purpose ?? '')) continue
           const jstTime = new Date(new Date(r.reserved_at).getTime() + 9 * 3600000)
             .toISOString().slice(11, 16)
           const [rh, rm] = jstTime.split(':').map(Number)
