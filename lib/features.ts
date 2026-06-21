@@ -46,6 +46,9 @@ export type FeatureKey =
   | 'sms_notify'           // SMS完了通知（未契約時は電話連絡ステップに切替）
   // ── UI（β・既定OFF）──
   | 'today_tasks_ui'       // 「今日やること」スタッフ向けトップ画面
+  // ── シフト管理（アドオン・既定OFF）──
+  | 'shift_management'     // シフト管理（店長作成・公開・人件費＋スタッフ希望提出・メッセージ）
+  | 'shift_inter_store'    // 店舗間スタッフヘルプ（同一グループ内で応援を募集→応募→確定）
 
 // ── プラン定義 ─────────────────────────────────────────────────
 export const PLAN_DEFS: Record<Plan, {
@@ -257,4 +260,4 @@ export function resolveFeature(
 }
 
 // 契約時のみ有効化するアドオン/β機能。明示設定が無ければ常にOFF。
-export const ADDON_DEFAULT_OFF: FeatureKey[] = ['sms_notify', 'today_tasks_ui']
+export const ADDON_DEFAULT_OFF: FeatureKey[] = ['sms_notify', 'today_tasks_ui', 'shift_management', 'shift_inter_store']

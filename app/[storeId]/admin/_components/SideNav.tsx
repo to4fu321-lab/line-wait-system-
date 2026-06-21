@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useParams, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Timer, Search, Settings, ClipboardList, Smartphone, Ruler } from 'lucide-react'
+import { Timer, Search, Settings, ClipboardList, Smartphone, Ruler, CalendarDays } from 'lucide-react'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { useDeviceMode } from '@/lib/useDeviceMode'
@@ -12,6 +12,7 @@ const ALL_TABS = [
   { id: 'queue',    featureKey: 'tab_queue',   label: '受付管理', icon: Timer,         exact: true,  path: (sid: string) => `/${sid}/admin` },
   { id: 'repairs',  featureKey: 'tab_repairs', label: '案件管理', icon: ClipboardList, exact: false, path: (sid: string) => `/${sid}/admin/repairs` },
   { id: 'crm',      featureKey: 'tab_crm',     label: '顧客管理', icon: Search,        exact: false, path: (sid: string) => `/${sid}/admin/crm` },
+  { id: 'shifts',   featureKey: 'shift_management', label: 'シフト', icon: CalendarDays, exact: false, path: (sid: string) => `/${sid}/admin/shifts` },
   { id: 'fitting',  featureKey: null,           label: '採寸受付', icon: Ruler,         exact: false, path: (sid: string) => `/${sid}/admin/fitting` },
   { id: 'settings', featureKey: null,           label: '設定',     icon: Settings,      exact: false, path: (sid: string) => `/${sid}/admin/settings/staff` },
 ] as const
@@ -22,6 +23,7 @@ export function SideNav() {
   const storeId  = params?.storeId ?? ''
   const [queueBadge,  setQueueBadge]  = useState(0)
   const [repairBadge, setRepairBadge] = useState(0)
+  const [shiftBadge,  setShiftBadge]  = useState(0)
   const [storeName,   setStoreName]   = useState<string>('')
   const { hasFeature } = useStoreFeatures(storeId)
   const { setMode } = useDeviceMode()
@@ -29,7 +31,7 @@ export function SideNav() {
   useEffect(() => {
     if (!storeId) return
     const fetchData = async () => {
-      const [{ count: waiting }, { count: r }, { count: p }, { count: rc }, { count: pa }, { count: inqPending }, storeRes] = await Promise.all([
+      const [{ count: waiting }, { count: r }, { count: p }, { count: rc }, { count: pa }, { count: inqPending }, { count: shiftReq }, storeRes] = await Promise.all([
         (supabase as any).from('queues').select('*', { count: 'exact', head: true })
           .eq('store_id', storeId).eq('status', 'waiting').gte('created_at', getTodayStart()),
         (supabase as any).from('repair_histories').select('*', { count: 'exact', head: true })
@@ -42,10 +44,13 @@ export function SideNav() {
           .eq('store_id', storeId).eq('status', 'arrived'),
         (supabase as any).from('inquiries').select('*', { count: 'exact', head: true })
           .eq('store_id', storeId).eq('status', 'pending'),
+        (supabase as any).from('shift_requests').select('*', { count: 'exact', head: true })
+          .eq('store_id', storeId).eq('status', 'submitted'),
         (supabase as any).from('stores').select('name').eq('id', storeId).single(),
       ])
       setQueueBadge(waiting ?? 0)
       setRepairBadge((r ?? 0) + (p ?? 0) + (rc ?? 0) + (pa ?? 0) + (inqPending ?? 0))
+      setShiftBadge(shiftReq ?? 0)
       if (storeRes.data?.name) setStoreName(storeRes.data.name)
     }
     fetchData()
@@ -73,6 +78,7 @@ export function SideNav() {
   function badgeFor(tab: typeof ALL_TABS[number]) {
     if (tab.id === 'queue')   return queueBadge
     if (tab.id === 'repairs') return repairBadge
+    if (tab.id === 'shifts')  return shiftBadge
     return 0
   }
 

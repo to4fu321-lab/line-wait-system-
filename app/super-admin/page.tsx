@@ -38,6 +38,8 @@ const GRANULAR_FEATURES: { key: FeatureKey; label: string; icon: string }[] = [
   { key: 'customer_self_order',  label: 'お客様セルフ制服注文',   icon: '🛍️' },
   { key: 'sms_notify',           label: 'SMS完了通知（アドオン）', icon: '📩' },
   { key: 'today_tasks_ui',       label: '今日やること画面（β）',   icon: '📋' },
+  { key: 'shift_management',     label: 'シフト管理（アドオン）',   icon: '📆' },
+  { key: 'shift_inter_store',    label: '店舗間ヘルプ（アドオン）', icon: '🤝' },
 ]
 
 const GRANULAR_FEATURE_GROUPS: { label: string; keys: FeatureKey[] }[] = [
@@ -58,6 +60,10 @@ const GRANULAR_FEATURE_GROUPS: { label: string; keys: FeatureKey[] }[] = [
     label: '🏫 学校規定・採寸連携',
     keys: ['school_master', 'school_ocr', 'school_crm_card', 'school_measurement',
            'school_waiting', 'line_parent_info', 'line_coupon', 'line_parent_rsv'],
+  },
+  {
+    label: '📆 シフト管理',
+    keys: ['shift_management', 'shift_inter_store'],
   },
 ]
 
