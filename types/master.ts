@@ -257,6 +257,7 @@ export interface Staff {
   role:        string | null  // 役職
   color:       string | null  // 表示カラー (#hex)
   pin:         string | null  // 4桁PIN（個人識別用）
+  hourly_wage: number | null  // 既定時給（円・人件費概算用）
   active:      boolean
   sort_order:  number
   created_at:  string
