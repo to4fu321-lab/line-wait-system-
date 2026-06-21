@@ -5,6 +5,15 @@
 --   今回シフト人件費用に hourly_wage(既定時給) を追加。
 -- ============================================================
 
+-- updated_at 自動更新の共有関数(無ければ作成。本番には既存)
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+  RETURNS trigger
+  LANGUAGE plpgsql
+  SET search_path TO 'public', 'extensions'
+AS $function$
+BEGIN NEW.updated_at = now(); RETURN NEW; END;
+$function$;
+
 CREATE TABLE IF NOT EXISTS staff (
   id          uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   store_id    uuid NOT NULL,

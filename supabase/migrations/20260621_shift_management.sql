@@ -4,6 +4,15 @@
 --   RLS は既存規約に合わせ全許可、テナント分離はクエリの store_id フィルタで担保。
 -- ============================================================
 
+-- updated_at 自動更新の共有関数(無ければ作成。本番には既存)
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+  RETURNS trigger
+  LANGUAGE plpgsql
+  SET search_path TO 'public', 'extensions'
+AS $function$
+BEGIN NEW.updated_at = now(); RETURN NEW; END;
+$function$;
+
 -- ── 確定/下書きシフト本体(1行 = 1スタッフ × 1日 × 1勤務) ──────
 CREATE TABLE IF NOT EXISTS shifts (
   id              uuid DEFAULT gen_random_uuid() PRIMARY KEY,
