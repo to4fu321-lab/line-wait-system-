@@ -115,7 +115,11 @@ export default function ShiftsPage() {
     <div className="max-w-3xl mx-auto px-4 py-4 pb-24">
       <div className="flex items-center gap-2 mb-3">
         <div className="w-9 h-9 rounded-xl bg-indigo-100 grid place-items-center"><CalendarDays size={20} className="text-indigo-600" /></div>
-        <h1 className="text-lg font-black text-gray-900">シフト管理</h1>
+        <h1 className="text-lg font-black text-gray-900 flex-1">シフト管理</h1>
+        <a href={`/${storeId}/staff`} target="_blank" rel="noopener noreferrer"
+          className="text-xs font-bold text-indigo-600 border border-indigo-200 rounded-lg px-2.5 py-1.5 hover:bg-indigo-50">
+          スタッフ用画面 ↗
+        </a>
       </div>
 
       {/* タブ */}
