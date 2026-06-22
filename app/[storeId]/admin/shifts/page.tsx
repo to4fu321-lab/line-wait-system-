@@ -88,12 +88,16 @@ export default function ShiftsPage() {
     setLoadingShifts(false)
   }, [storeId, range])
 
+  const loadTemplates = useCallback(async () => {
+    const { data } = await sb.from('shift_templates').select('*').eq('store_id', storeId).eq('active', true).order('sort_order')
+    setTemplates((data ?? []) as ShiftTemplate[])
+  }, [storeId])
+
   useEffect(() => {
     if (!storeId) return
     loadStaff(storeId).then(setStaff)
-    sb.from('shift_templates').select('*').eq('store_id', storeId).eq('active', true).order('sort_order')
-      .then(({ data }: any) => setTemplates((data ?? []) as ShiftTemplate[]))
-  }, [storeId])
+    loadTemplates()
+  }, [storeId, loadTemplates])
 
   useEffect(() => { if (range) fetchShifts() }, [fetchShifts]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -199,8 +203,9 @@ export default function ShiftsPage() {
       {tab === 'week' && (
         <>
           <ShiftPaintBar
-            templates={templates} paint={paint} onPick={setPaint}
-            onCopyPrev={handleCopyPrev} onGenerate={handleGenerate} busy={bulkBusy}
+            storeId={storeId} templates={templates} paint={paint} onPick={setPaint}
+            onCopyPrev={handleCopyPrev} onGenerate={handleGenerate}
+            onTemplatesChanged={loadTemplates} busy={bulkBusy}
           />
           <ShiftWeekGrid
             staff={staff} shifts={shifts} days={weekDays} loading={loadingShifts}
