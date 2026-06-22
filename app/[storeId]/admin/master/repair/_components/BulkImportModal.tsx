@@ -3,20 +3,25 @@
 import { useState } from 'react'
 import { Loader2, Trash2, Plus, Check } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { repairItemIcon } from '@/lib/repairIcons'
 
 const sb = supabase as any
 const INPUT = 'border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-amber-500 bg-white'
 
-export interface ImportItem { name: string; price: number | null; selected: boolean }
+export interface ImportItem { name: string; icon: string; price: number | null; selected: boolean }
 export interface ImportGarment { name: string; icon: string; selected: boolean; items: ImportItem[] }
 
 // preset/OCR の素朴な配列 → 選択フラグ付きの編集モデルへ変換
+// 項目アイコンは内容（名前）から推測して自動付与（プレビューで編集可）
 export function bulkFromParsed(
-  garments: { name?: string; icon?: string; items?: { name?: string; price?: number | null }[] }[],
+  garments: { name?: string; icon?: string; items?: { name?: string; icon?: string; price?: number | null }[] }[],
 ): ImportGarment[] {
   return (garments ?? []).map(g => ({
     name: g.name ?? '', icon: g.icon || '✂️', selected: true,
-    items: (g.items ?? []).map(it => ({ name: it.name ?? '', price: (it.price ?? null) as number | null, selected: true })),
+    items: (g.items ?? []).map(it => ({
+      name: it.name ?? '', icon: it.icon || repairItemIcon(it.name ?? ''),
+      price: (it.price ?? null) as number | null, selected: true,
+    })),
   }))
 }
 
@@ -36,7 +41,7 @@ export function BulkImportModal({ storeId, title, initial, onClose, onDone }: {
   const patchI = (gi: number, ii: number, patch: Partial<ImportItem>) =>
     setGarments(prev => prev.map((g, i) => i !== gi ? g : { ...g, items: g.items.map((it, j) => j === ii ? { ...it, ...patch } : it) }))
   const addItem = (gi: number) =>
-    setGarments(prev => prev.map((g, i) => i !== gi ? g : { ...g, items: [...g.items, { name: '', price: 0, selected: true }] }))
+    setGarments(prev => prev.map((g, i) => i !== gi ? g : { ...g, items: [...g.items, { name: '', icon: '✂️', price: 0, selected: true }] }))
   const removeItem = (gi: number, ii: number) =>
     setGarments(prev => prev.map((g, i) => i !== gi ? g : { ...g, items: g.items.filter((_, j) => j !== ii) }))
 
@@ -82,7 +87,8 @@ export function BulkImportModal({ storeId, title, initial, onClose, onDone }: {
           iSort += 10
           await sb.from('repair_items').insert({
             store_id: storeId, garment_type_id: gid,
-            code: `i_${Date.now().toString(36)}_${iSort}`, name: it.name.trim(), icon: '✂️',
+            code: `i_${Date.now().toString(36)}_${iSort}`, name: it.name.trim(),
+            icon: it.icon || repairItemIcon(it.name),
             base_price: it.price ?? 0, price_unit: 'per_item',
             measurements: [], manual: null, requires_quote: it.price == null, lead_time_days: null,
             sort_order: iSort,
@@ -119,6 +125,7 @@ export function BulkImportModal({ storeId, title, initial, onClose, onDone }: {
                   {g.items.map((it, ii) => (
                     <div key={ii} className="flex items-center gap-2 bg-white rounded-xl px-2 py-1.5">
                       <input type="checkbox" checked={it.selected} onChange={e => patchI(gi, ii, { selected: e.target.checked })} />
+                      <input className={INPUT + ' w-10 text-center px-1'} value={it.icon} onChange={e => patchI(gi, ii, { icon: e.target.value })} aria-label="アイコン" />
                       <input className={INPUT + ' flex-1'} value={it.name} onChange={e => patchI(gi, ii, { name: e.target.value })} placeholder="項目名" />
                       <div className="flex items-center gap-0.5">
                         <span className="text-gray-400 text-sm">¥</span>
