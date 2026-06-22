@@ -18,9 +18,14 @@ import { RequestReviewList } from './_components/RequestReviewList'
 import { LaborReport } from './_components/LaborReport'
 import { MessagePanel } from './_components/MessagePanel'
 import { HelpPanel } from './_components/HelpPanel'
+import { AttendanceTab } from './_components/AttendanceTab'
+import { LeaveReviewList } from './_components/LeaveReviewList'
+import { StaffingPlanTab } from './_components/StaffingPlanTab'
+import { Dashboard } from './_components/Dashboard'
 
 const sb = supabase as any
 type Tab = 'week' | 'month' | 'requests' | 'report' | 'messages' | 'help'
+  | 'attendance' | 'leave' | 'staffing' | 'dashboard'
 
 function monthRangeStr(y: number, m: number) {
   const days = new Date(y, m, 0).getDate()
@@ -34,6 +39,12 @@ export default function ShiftsPage() {
   const router = useRouter()
   const { hasFeature, loaded } = useStoreFeatures(storeId)
   const interStore = hasFeature('shift_inter_store')
+  const useAttendance = hasFeature('shift_attendance')
+  const useLeave = hasFeature('shift_leave')
+  const useSwap = hasFeature('shift_swap')
+  const useDemand = hasFeature('shift_demand')
+  const useDashboard = hasFeature('shift_dashboard')
+  const useAi = hasFeature('shift_ai')
 
   const [tab, setTab] = useState<Tab>('week')
   const [staff, setStaff] = useState<Staff[]>([])
@@ -105,8 +116,12 @@ export default function ShiftsPage() {
   const TABS: { id: Tab; label: string }[] = [
     { id: 'week', label: '週' },
     { id: 'month', label: '月' },
+    ...(useDemand ? [{ id: 'staffing' as Tab, label: '人員設計' }] : []),
     { id: 'requests', label: '希望' },
+    ...(useLeave || useSwap ? [{ id: 'leave' as Tab, label: '申請' }] : []),
+    ...(useAttendance ? [{ id: 'attendance' as Tab, label: '勤怠' }] : []),
     { id: 'report', label: '集計' },
+    ...(useDashboard ? [{ id: 'dashboard' as Tab, label: '経営' }] : []),
     { id: 'messages', label: '連絡' },
     ...(interStore ? [{ id: 'help' as Tab, label: 'ヘルプ' }] : []),
   ]
@@ -154,6 +169,21 @@ export default function ShiftsPage() {
       )}
 
       {tab === 'requests' && <RequestReviewList storeId={storeId} onChanged={fetchShifts} onToast={showToast} />}
+
+      {tab === 'staffing' && useDemand && (
+        <StaffingPlanTab storeId={storeId} shifts={shifts} ym={ym} useAi={useAi} onToast={showToast}
+          onPrev={() => setYm(({ y, m }) => m === 1 ? { y: y - 1, m: 12 } : { y, m: m - 1 })}
+          onNext={() => setYm(({ y, m }) => m === 12 ? { y: y + 1, m: 1 } : { y, m: m + 1 })}
+          onShiftsChanged={fetchShifts} />
+      )}
+
+      {tab === 'leave' && (useLeave || useSwap) && (
+        <LeaveReviewList storeId={storeId} useSwap={useSwap} onToast={showToast} />
+      )}
+
+      {tab === 'attendance' && useAttendance && <AttendanceTab storeId={storeId} />}
+
+      {tab === 'dashboard' && useDashboard && <Dashboard storeId={storeId} />}
 
       {tab === 'report' && (
         <LaborReport
