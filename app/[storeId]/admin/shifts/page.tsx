@@ -12,6 +12,7 @@ import { loadShifts, loadStaff, staffMapOf } from './_lib/data'
 import { weekDates, todayJst, addDays, fmtHM } from './_lib/time'
 import { ShiftWeekGrid } from './_components/ShiftWeekGrid'
 import { ShiftPaintBar, type PaintValue } from './_components/ShiftPaintBar'
+import { BottomNav } from '../_components/BottomNav'
 import { insertDraftShift, deleteDraftShiftsAt, applyTemplateToRow, copyPreviousWeek, generateFromAvailability } from './_lib/shiftBulk'
 import { ShiftMonthCalendar } from './_components/ShiftMonthCalendar'
 import { DayShiftSheet } from './_components/DayShiftSheet'
@@ -280,6 +281,8 @@ export default function ShiftsPage() {
       )}
 
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+
+      <BottomNav />
     </div>
   )
 }
