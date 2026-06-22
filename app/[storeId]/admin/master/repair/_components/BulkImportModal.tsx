@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Loader2, Trash2, Plus, Check } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { repairItemIcon } from '@/lib/repairIcons'
+import { RepairIcon, GarmentIconPicker, repairGarmentIcon } from '@/lib/garmentIcons'
 
 const sb = supabase as any
 const INPUT = 'border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-amber-500 bg-white'
@@ -17,7 +18,7 @@ export function bulkFromParsed(
   garments: { name?: string; icon?: string; items?: { name?: string; icon?: string; price?: number | null }[] }[],
 ): ImportGarment[] {
   return (garments ?? []).map(g => ({
-    name: g.name ?? '', icon: g.icon || '✂️', selected: true,
+    name: g.name ?? '', icon: repairGarmentIcon(g.name ?? '') ?? (g.icon || '✂️'), selected: true,
     items: (g.items ?? []).map(it => ({
       name: it.name ?? '', icon: it.icon || repairItemIcon(it.name ?? ''),
       price: (it.price ?? null) as number | null, selected: true,
@@ -35,6 +36,7 @@ export function BulkImportModal({ storeId, title, initial, onClose, onDone }: {
 }) {
   const [garments, setGarments] = useState<ImportGarment[]>(initial)
   const [saving, setSaving] = useState(false)
+  const [pickIcon, setPickIcon] = useState<number | null>(null)
 
   const patchG = (gi: number, patch: Partial<ImportGarment>) =>
     setGarments(prev => prev.map((g, i) => i === gi ? { ...g, ...patch } : g))
@@ -117,9 +119,17 @@ export function BulkImportModal({ storeId, title, initial, onClose, onDone }: {
             <div key={gi} className={`rounded-2xl border ${g.selected ? 'border-amber-200 bg-amber-50/40' : 'border-gray-200 opacity-60'}`}>
               <div className="flex items-center gap-2 p-3">
                 <input type="checkbox" checked={g.selected} onChange={e => patchG(gi, { selected: e.target.checked })} />
-                <input className={INPUT + ' w-12 text-center'} value={g.icon} onChange={e => patchG(gi, { icon: e.target.value })} />
+                <button type="button" onClick={() => setPickIcon(pickIcon === gi ? null : gi)}
+                  className={`w-10 h-9 rounded-lg border flex items-center justify-center text-gray-700 ${pickIcon === gi ? 'border-amber-500 bg-amber-50' : 'border-gray-300 bg-white'}`}>
+                  <RepairIcon icon={g.icon} className="w-5 h-5" />
+                </button>
                 <input className={INPUT + ' flex-1 font-bold'} value={g.name} onChange={e => patchG(gi, { name: e.target.value })} placeholder="服種名" />
               </div>
+              {pickIcon === gi && (
+                <div className="px-3 pb-2">
+                  <GarmentIconPicker value={g.icon} onChange={v => patchG(gi, { icon: v })} inputClassName={INPUT + ' w-full'} />
+                </div>
+              )}
               {g.selected && (
                 <div className="px-3 pb-3 space-y-1.5">
                   {g.items.map((it, ii) => (

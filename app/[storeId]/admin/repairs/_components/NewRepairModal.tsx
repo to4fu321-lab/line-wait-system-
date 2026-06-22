@@ -19,6 +19,7 @@ import {
   type PricingMode, type SelectedOptionSnapshot, type RepairManual,
 } from '@/types/repair'
 import { calcLinePrice, needsQuote, toOptionSnapshot, addBusinessDays } from '@/lib/repairPricing'
+import { RepairIcon } from '@/lib/garmentIcons'
 import type { CustResult } from './types'
 import { CustomerLinkSheet } from './CustomerLinkSheet'
 import { RecentCustomers, type RecentCust } from '../../_components/RecentCustomers'
@@ -554,7 +555,7 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
               <p className="text-[11px] font-black text-gray-400 mb-1.5">① 服種を選択</p>
               <div className="flex flex-wrap gap-2">
                 {garments.map(g => (
-                  <button key={g.id} onClick={() => setGarmentId(g.id)} className={`px-3 py-2 rounded-xl text-sm font-bold border-2 ${garmentId === g.id ? 'bg-amber-500 text-white border-amber-500' : 'bg-white border-gray-200 text-gray-700'}`}>{g.icon} {g.name}</button>
+                  <button key={g.id} onClick={() => setGarmentId(g.id)} className={`px-3 py-2 rounded-xl text-sm font-bold border-2 inline-flex items-center gap-1 ${garmentId === g.id ? 'bg-amber-500 text-white border-amber-500' : 'bg-white border-gray-200 text-gray-700'}`}><RepairIcon icon={g.icon} /> {g.name}</button>
                 ))}
               </div>
             </div>
@@ -567,7 +568,7 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
               <div className="grid grid-cols-2 gap-2">
                 {items.map(it => (
                   <button key={it.id} onClick={() => selectItem(it)} className={`text-left p-3 rounded-xl border-2 ${item?.id === it.id ? 'bg-amber-50 border-amber-400' : 'bg-white border-gray-200'}`}>
-                    <p className="font-bold text-gray-900 text-sm">{it.icon} {it.name}</p>
+                    <p className="font-bold text-gray-900 text-sm inline-flex items-center gap-1"><RepairIcon icon={it.icon} /> {it.name}</p>
                     <p className="text-indigo-600 font-black text-sm mt-0.5">{it.requires_quote ? '見積もり' : `¥${it.base_price.toLocaleString()}`}</p>
                   </button>
                 ))}
