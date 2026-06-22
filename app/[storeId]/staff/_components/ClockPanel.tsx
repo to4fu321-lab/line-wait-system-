@@ -5,6 +5,7 @@ import { LogIn, LogOut, Loader2, Clock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { TimeRecord, Shift } from '@/types/shifts'
 import { fmtHM, todayJst } from '../../admin/shifts/_lib/time'
+import { clockIn as doClockIn, clockOut as doClockOut } from '../../admin/shifts/_lib/timecard'
 
 const sb = supabase as any
 
@@ -41,18 +42,14 @@ export function ClockPanel({ storeId, staffId }: { storeId: string; staffId: str
         navigator.geolocation.getCurrentPosition(res, rej, { timeout: 4000 }))
       lat = pos.coords.latitude; lng = pos.coords.longitude
     } catch { /* GPSは任意 */ }
-    await sb.from('time_records').insert({
-      store_id: storeId, staff_id: staffId, shift_id: todayShift?.id ?? null,
-      work_date: today, clock_in_at: new Date().toISOString(),
-      clock_in_lat: lat, clock_in_lng: lng, status: 'working',
-    })
+    await doClockIn(storeId, staffId, today, todayShift?.id ?? null, lat, lng)
     setBusy(false); fetch()
   }
 
   const clockOut = async () => {
     if (!rec) return
     setBusy(true)
-    await sb.from('time_records').update({ clock_out_at: new Date().toISOString(), status: 'done' }).eq('id', rec.id)
+    await doClockOut(rec.id)
     setBusy(false); fetch()
   }
 
