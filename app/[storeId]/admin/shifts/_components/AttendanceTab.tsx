@@ -1,24 +1,74 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight, Loader2, Clock } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, Clock, Settings2, ExternalLink, Copy } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 import { loadAttendance, type AttendanceRow } from '../_lib/attendance'
 import { fmtHM, fmtDateJp, addDays, todayJst, fmtDurationH } from '../_lib/time'
+
+const sb = supabase as any
 
 export function AttendanceTab({ storeId }: { storeId: string }) {
   const [date, setDate] = useState(todayJst())
   const [rows, setRows] = useState<AttendanceRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [showCfg, setShowCfg] = useState(false)
+  const [requirePin, setRequirePin] = useState(false)
+  const [showOnReception, setShowOnReception] = useState(true)
 
   useEffect(() => {
     setLoading(true)
     loadAttendance(storeId, date).then(r => { setRows(r); setLoading(false) })
   }, [storeId, date])
 
+  useEffect(() => {
+    sb.from('stores').select('timecard_settings').eq('id', storeId).maybeSingle().then(({ data }: any) => {
+      const t = data?.timecard_settings ?? {}
+      setRequirePin(!!t.require_pin)
+      setShowOnReception(t.show_on_reception !== false)
+    })
+  }, [storeId])
+
+  const saveCfg = async (patch: { require_pin?: boolean; show_on_reception?: boolean }) => {
+    const next = { require_pin: requirePin, show_on_reception: showOnReception, ...patch }
+    setRequirePin(next.require_pin); setShowOnReception(next.show_on_reception)
+    await sb.from('stores').update({ timecard_settings: next }).eq('id', storeId)
+  }
+
+  const kioskUrl = typeof window !== 'undefined' ? `${window.location.origin}/${storeId}/timecard` : `/${storeId}/timecard`
+
   const tClock = (ts?: string | null) => ts ? new Date(ts).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '—'
 
   return (
     <div>
+      {/* 店頭タイムカード設定 */}
+      <div className="mb-3 rounded-2xl border border-gray-200 bg-white">
+        <button onClick={() => setShowCfg(v => !v)} className="w-full flex items-center gap-2 px-4 py-3">
+          <Settings2 size={16} className="text-gray-500" />
+          <span className="text-sm font-bold text-gray-800 flex-1 text-left">店頭タイムカード設定</span>
+          <span className="text-xs text-gray-400">{showCfg ? '閉じる' : '開く'}</span>
+        </button>
+        {showCfg && (
+          <div className="px-4 pb-4 space-y-3 border-t border-gray-100 pt-3">
+            <Toggle label="PIN確認を必須にする" sub="名前タップ後に本人のPINを確認（なりすまし防止）"
+              on={requirePin} onToggle={() => saveCfg({ require_pin: !requirePin })} />
+            <Toggle label="受付画面にボタンを表示" sub="受付トップに『タイムカード』ボタンを出す"
+              on={showOnReception} onToggle={() => saveCfg({ show_on_reception: !showOnReception })} />
+            <div className="flex items-center gap-2 pt-1">
+              <a href={`/${storeId}/timecard`} target="_blank" rel="noopener noreferrer"
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-black active:scale-95">
+                <ExternalLink size={15} />店頭タイムカードを開く
+              </a>
+              <button onClick={() => { navigator.clipboard?.writeText(kioskUrl) }}
+                className="px-3 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50">
+                <Copy size={16} />
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-400">店頭のタブレットをこのURLに固定しておくと、名前タップで出退勤できます。</p>
+          </div>
+        )}
+      </div>
+
       <div className="flex items-center justify-center gap-2 mb-3">
         <button onClick={() => setDate(d => addDays(d, -1))} className="p-1.5 rounded-lg hover:bg-gray-100"><ChevronLeft size={18} /></button>
         <button onClick={() => setDate(todayJst())} className="px-2.5 py-1 rounded-lg text-xs font-bold text-indigo-600 hover:bg-indigo-50">今日</button>
@@ -55,5 +105,19 @@ export function AttendanceTab({ storeId }: { storeId: string }) {
         </div>
       )}
     </div>
+  )
+}
+
+function Toggle({ label, sub, on, onToggle }: { label: string; sub: string; on: boolean; onToggle: () => void }) {
+  return (
+    <button type="button" onClick={onToggle} className="w-full flex items-center gap-3 text-left">
+      <div className="flex-1">
+        <p className="text-sm font-bold text-gray-800">{label}</p>
+        <p className="text-[11px] text-gray-400">{sub}</p>
+      </div>
+      <div className={`w-11 h-6 rounded-full shrink-0 transition-colors ${on ? 'bg-indigo-500' : 'bg-gray-300'}`}>
+        <div className={`w-5 h-5 bg-white rounded-full mt-0.5 shadow transition-transform ${on ? 'translate-x-5' : 'translate-x-0.5'}`} />
+      </div>
+    </button>
   )
 }

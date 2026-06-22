@@ -47,6 +47,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
   const [isOpen,         setIsOpen]         = useState<boolean | null>(null)
   const [notificationPlan, setNotificationPlan] = useState<'calling_only' | 'full'>('calling_only')
   const [isTestMode,     setIsTestMode]     = useState(false)
+  const [tcShowReception, setTcShowReception] = useState(false)
   const [showQrModal,    setShowQrModal]    = useState(false)
   const [pushStatus,     setPushStatus]     = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle')
   const [testLoading,    setTestLoading]    = useState(false)
@@ -102,11 +103,12 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     }
     // オプション列は別途取得（存在しない列でエラーになっても is_open に影響させない）
     const { data: opts } = await (supabase as any).from('stores')
-      .select('notification_plan, is_test_mode')
+      .select('notification_plan, is_test_mode, timecard_settings')
       .eq('id', store.id).single()
     if (opts) {
       if (opts.notification_plan) setNotificationPlan(opts.notification_plan)
       if (opts.is_test_mode != null) setIsTestMode(opts.is_test_mode)
+      setTcShowReception(opts.timecard_settings?.show_on_reception !== false)
     }
   }, [store.id])
 
@@ -349,6 +351,13 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
                 title="テイクアウト管理"
                 className="p-2 rounded-xl bg-gray-100 border border-gray-200 hover:bg-gray-200 active:opacity-60 transition-all text-gray-500 text-base leading-none flex items-center justify-center">
                 🥡
+              </a>
+            )}
+            {resolveFeature('shift_attendance', store.features ?? {}) && tcShowReception && (
+              <a href={`/${store.id}/timecard`} target="_blank" rel="noopener noreferrer"
+                title="タイムカード"
+                className="p-2 rounded-xl bg-gray-100 border border-gray-200 hover:bg-gray-200 active:opacity-60 transition-all text-gray-500 text-base leading-none flex items-center justify-center">
+                🕐
               </a>
             )}
             <a href={groupCode ? `/company/${groupCode}` : '/super-admin'}
