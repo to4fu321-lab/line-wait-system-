@@ -5,14 +5,16 @@
 //  基本料金=項目 / 加算=オプション。採寸定義・マニュアル(参考画像)もここで編集。
 // ============================================================================
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   ChevronLeft, Plus, Pencil, Trash2, Loader2, X, Scissors, ChevronDown, ChevronRight,
-  Ruler, ImagePlus, AlertTriangle,
+  Ruler, ImagePlus, AlertTriangle, Sparkles, Camera,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { REPAIR_PRESETS } from '@/lib/repairPresets'
+import { BulkImportModal, bulkFromParsed, type ImportGarment } from './_components/BulkImportModal'
 import {
   PRICE_UNIT_LABELS, PRICE_UNIT_HELP, MANUAL_SEVERITY_LABELS, REPAIR_PHOTOS_BUCKET,
   type RepairGarmentType, type RepairItem, type RepairOption,
@@ -132,6 +134,35 @@ export default function RepairMasterPage() {
 
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
   const showToast = (type: 'ok' | 'err', msg: string) => setToast({ msg, type })
+
+  // ── 一括取込（プリセット / 写真OCR）────────────────────────
+  const [importData, setImportData] = useState<{ title: string; initial: ImportGarment[] } | null>(null)
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const handleOcr = async (file: File) => {
+    setOcrLoading(true)
+    try {
+      const imageBase64 = await new Promise<string>((res, rej) => {
+        const reader = new FileReader()
+        reader.onload = () => res((reader.result as string).split(',')[1])
+        reader.onerror = rej
+        reader.readAsDataURL(file)
+      })
+      const storePin = sessionStorage.getItem(`admin_pin_${storeId}`) ?? ''
+      const resp = await fetch('/api/repair-ocr', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64, mimeType: file.type, storeId, storePin }),
+      })
+      const json = await resp.json()
+      if (!json.ok) { showToast('err', json.error ?? '読み取りに失敗しました'); return }
+      const garments = bulkFromParsed(json.garments ?? [])
+      if (garments.length === 0) { showToast('err', '価格表を読み取れませんでした。鮮明に撮影してください。'); return }
+      setImportData({ title: '写真から一括取込', initial: garments })
+    } catch {
+      showToast('err', '読み取りに失敗しました')
+    } finally { setOcrLoading(false) }
+  }
 
   const [garments, setGarments] = useState<RepairGarmentType[]>([])
   const [items, setItems] = useState<RepairItem[]>([])
@@ -397,12 +428,20 @@ export default function RepairMasterPage() {
 
           {/* 服種チップ */}
           <div className="bg-white rounded-2xl p-3 shadow-sm">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between gap-2 mb-2">
               <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider">服種（大項目）</p>
-              <button onClick={handleSeedPreset} disabled={seeding}
-                className="flex items-center gap-1 text-[11px] font-bold text-indigo-500 hover:text-indigo-700 disabled:opacity-50">
-                {seeding ? <Loader2 size={12} className="animate-spin" /> : <span>⚡</span>} 標準を取り込む
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button onClick={() => setImportData({ title: 'プリセットから一括追加', initial: bulkFromParsed(REPAIR_PRESETS) })}
+                  className="flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-1 text-xs font-bold text-amber-700 active:scale-95">
+                  <Sparkles size={13} />プリセット
+                </button>
+                <button onClick={() => fileRef.current?.click()} disabled={ocrLoading}
+                  className="flex items-center gap-1 rounded-full bg-indigo-50 border border-indigo-200 px-2.5 py-1 text-xs font-bold text-indigo-700 active:scale-95 disabled:opacity-50">
+                  {ocrLoading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}写真で取込
+                </button>
+                <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleOcr(f); e.target.value = '' }} />
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
               {garments.map(g => (
@@ -496,6 +535,20 @@ export default function RepairMasterPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ── 一括取込 Modal（プリセット / 写真OCR 共用）── */}
+      {importData && (
+        <BulkImportModal
+          storeId={storeId}
+          title={importData.title}
+          initial={importData.initial}
+          onClose={() => setImportData(null)}
+          onDone={(m) => {
+            setImportData(null); showToast('ok', m)
+            fetchGarments(); if (selectedGarment) fetchItems(selectedGarment)
+          }}
+        />
       )}
 
       {/* ── 服種 Modal ── */}
