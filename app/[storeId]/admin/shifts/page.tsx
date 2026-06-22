@@ -104,11 +104,20 @@ export default function ShiftsPage() {
 
   const publishWeek = async () => {
     setPublishing(true)
+    // 公開対象スタッフ（通知用）
+    const { data: draftRows } = await sb.from('shifts').select('staff_id')
+      .eq('store_id', storeId).gte('work_date', weekDays[0]).lte('work_date', weekDays[6]).eq('status', 'draft')
     const { error } = await sb.from('shifts').update({ status: 'published' })
       .eq('store_id', storeId).gte('work_date', weekDays[0]).lte('work_date', weekDays[6]).eq('status', 'draft')
     setPublishing(false)
     if (error) { showToast('公開に失敗しました', 'err'); return }
     showToast('この週のシフトを公開しました'); fetchShifts()
+    // スタッフへPWA通知（staff_push ON時のみ意味を持つ。購読が無ければ no-op）
+    const staffIds = Array.from(new Set((draftRows ?? []).map((r: any) => r.staff_id)))
+    if (staffIds.length) {
+      fetch('/api/shift-notify', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId, staffIds, title: 'シフトが公開されました', body: `${weekDays[0].slice(5)}〜の週のシフトを確認できます`, url: `/${storeId}/staff` }) }).catch(() => {})
+    }
   }
 
   if (!loaded) return <div className="min-h-[60vh] grid place-items-center"><Loader2 className="animate-spin text-indigo-300" /></div>
