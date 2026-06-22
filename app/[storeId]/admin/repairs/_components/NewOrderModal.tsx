@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase'
 import { compressImage } from './utils'
 import type { CustResult, CartItem } from './types'
 import { CustomerLinkSheet } from './CustomerLinkSheet'
+import { RecentCustomers, type RecentCust } from '../../_components/RecentCustomers'
 
 export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   storeId: string; onClose: () => void; onSave: () => void
@@ -354,6 +355,12 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                       className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-sm focus:border-indigo-500 focus:outline-none" />
                   </div>
                   {searching && <div className="text-center py-4"><Loader2 size={20} className="animate-spin text-indigo-400 mx-auto" /></div>}
+                  <RecentCustomers
+                    storeId={storeId}
+                    visible={custSearch.trim() === '' && !showReg}
+                    withChildren
+                    onPick={(c: RecentCust, ch) => { setSelectedCust({ id: c.id, name: c.name, tel: c.tel, school_name: c.school_name ?? null, children: c.children }); setSelectedChild(ch); setShowReg(false) }}
+                  />
                   <div className="space-y-2">
                     {custResults.map(c => (
                       (c.children && c.children.length > 0) ? (

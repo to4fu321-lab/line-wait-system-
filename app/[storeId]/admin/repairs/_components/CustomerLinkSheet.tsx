@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { Loader2, X, Check, Search, User } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { CustResult } from './types'
+import { RecentCustomers, type RecentCust } from '../../_components/RecentCustomers'
 
 type Child = { id: string; name: string; school_name: string | null }
 
@@ -92,6 +93,13 @@ export function CustomerLinkSheet({
               className="w-full border border-gray-300 rounded-xl pl-9 pr-3 py-2.5 text-sm bg-white focus:outline-none focus:border-indigo-500" />
             {searching && <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-gray-300" />}
           </div>
+
+          <RecentCustomers
+            storeId={storeId}
+            visible={q.trim() === '' && !showReg}
+            withChildren
+            onPick={(c: RecentCust, ch) => pick({ id: c.id, name: c.name, tel: c.tel, school_name: c.school_name ?? null, children: c.children }, ch)}
+          />
 
           <div className="space-y-1.5">
             {results.map(c => (

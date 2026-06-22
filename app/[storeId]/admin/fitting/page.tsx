@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../_components/BottomNav'
+import { RecentCustomers, type RecentCust } from '../_components/RecentCustomers'
 import { GRADE_OPTIONS } from '@/types/crm'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { MeasurementSchoolPanel } from '@/app/_components/MeasurementSchoolPanel'
@@ -795,6 +796,14 @@ function FittingPageInner() {
                 />
                 {searching && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 animate-spin" />}
               </div>
+
+              {!customer && (
+                <RecentCustomers
+                  storeId={storeId}
+                  visible={query.trim() === ''}
+                  onPick={(c: RecentCust) => selectCustomer({ id: c.id, name: c.name, kana: null, tel: c.tel })}
+                />
+              )}
 
               {results.length > 0 && !customer && (
                 <div className="space-y-1">

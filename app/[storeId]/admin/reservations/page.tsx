@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { BottomNav } from '../_components/BottomNav'
+import { RecentCustomers, type RecentCust } from '../_components/RecentCustomers'
 import {
   ArrowLeft, Plus, Loader2, X, CalendarDays, Clock,
   User, Phone, GraduationCap, CheckCheck, BellRing,
@@ -215,6 +216,7 @@ function NewReservationForm({ storeId, onSaved, onCancel }: {
               className="text-gray-500 hover:text-gray-900"><X size={13} /></button>
           </div>
         ) : (
+          <div className="space-y-2">
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input type="text" value={customerQuery} onChange={e => setCustomerQuery(e.target.value)}
@@ -232,6 +234,12 @@ function NewReservationForm({ storeId, onSaved, onCancel }: {
                 ))}
               </div>
             )}
+          </div>
+          <RecentCustomers
+            storeId={storeId}
+            visible={customerQuery.trim() === ''}
+            onPick={(c: RecentCust) => { setSelectedCustomer(c as any); setCustomerQuery(''); setCustomerResults([]) }}
+          />
           </div>
         )}
       </div>

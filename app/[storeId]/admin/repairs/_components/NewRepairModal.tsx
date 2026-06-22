@@ -21,6 +21,8 @@ import {
 import { calcLinePrice, needsQuote, toOptionSnapshot, addBusinessDays } from '@/lib/repairPricing'
 import type { CustResult } from './types'
 import { CustomerLinkSheet } from './CustomerLinkSheet'
+import { RecentCustomers, type RecentCust } from '../../_components/RecentCustomers'
+import { OcrCaptureButton, type OcrResult } from '../../_components/OcrCaptureButton'
 
 // item.code → 既存 repair_type 列へのマッピング（互換表示用）
 const REPAIR_TYPE_CODES: RepairType[] = ['hem', 'sleeve', 'waist', 'embroidery', 'button', 'tear', 'badge', 'size_exchange', 'other']
@@ -128,6 +130,36 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   const [memo, setMemo] = useState('')
   const [photos, setPhotos] = useState<{ file: File; url: string }[]>([])
   const [saving, setSaving] = useState(false)
+
+  // 直近登録の顧客をワンタップ選択
+  const pickRecent = (c: RecentCust, child: { id: string; name: string; school_name: string | null } | null) => {
+    setSelectedCust({ id: c.id, name: c.name, tel: c.tel, school_name: c.school_name ?? null, children: c.children })
+    setSelectedChild(child)
+    setShowReg(false); setPhoneMode(false)
+  }
+
+  // OCR読み取り結果を受付フォームへ反映
+  const handleOcr = async (r: OcrResult) => {
+    // 希望納期・お直し内容（メモへ）を自動入力
+    if (r.desiredDate) setDeadline(r.desiredDate)
+    if (r.items.length > 0) setMemo(prev => [prev, r.items.join(' / ')].filter(Boolean).join(' / '))
+    // 顧客：電話番号でDB検索 → ヒットすれば紐付け
+    if (r.tel) {
+      const { data } = await (supabase as any).from('customers')
+        .select('id, name, tel, school_name, children:children(id, name, school_name)')
+        .eq('store_id', storeId).is('deleted_at', null).eq('tel', r.tel).limit(1)
+      if (data?.[0]) {
+        setSelectedCust(data[0]); setSelectedChild(null)
+        onToast('ok', `📷 ${data[0].name}様を読み取りました`)
+        return
+      }
+    }
+    // 未登録 → 名前・電話を入力欄に流し込み、電話番号登録を開く
+    if (r.name && !/\d/.test(r.name)) setNewName(r.name)
+    if (r.tel) setNewTel(r.tel)
+    if (r.name || r.tel) { setShowReg(true); setPhoneMode(true); setStep('customer') }
+    onToast('ok', '📷 読み取りました。内容をご確認ください')
+  }
 
   const selectItem = useCallback(async (it: RepairItem) => {
     setItem(it)
@@ -351,6 +383,7 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
               {selectedCust ? `👤 ${selectedChild?.name ?? selectedCust.name}` : '＋顧客を紐付け'}
             </button>
           )}
+          <OcrCaptureButton onResult={handleOcr} onError={m => onToast('err', m)} />
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100"><X size={20} /></button>
         </div>
 
@@ -387,6 +420,7 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                   <input autoFocus className={INPUT + ' pl-9'} placeholder="お名前・電話・学校で検索" value={custSearch} onChange={e => setCustSearch(e.target.value)} />
                   {searching && <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-gray-300" />}
                 </div>
+                <RecentCustomers storeId={storeId} visible={custSearch.trim() === '' && !showReg} withChildren onPick={pickRecent} />
                 <div className="space-y-1.5">
                   {custResults.map(c => (
                     (c.children && c.children.length > 0) ? (

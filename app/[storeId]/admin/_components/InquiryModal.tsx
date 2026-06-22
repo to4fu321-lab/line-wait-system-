@@ -5,6 +5,7 @@ import {
   X, Loader2, Check, Sparkles, ChevronDown, ChevronUp, Camera, ChevronLeft, User,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { RecentCustomers, type RecentCust } from './RecentCustomers'
 import { compressImage } from '@/lib/adminUtils'
 import {
   INQ_TYPE_LABELS as TYPE_LABELS,
@@ -559,6 +560,14 @@ export function InquiryModal({
                       </div>
                     )}
 
+                    <div className="mt-2">
+                      <RecentCustomers
+                        storeId={storeId}
+                        visible={customerName.trim() === '' && !custId}
+                        onPick={(c: RecentCust) => linkCustomer({ id: c.id, name: c.name, tel: c.tel, line_user_id: c.line_user_id ?? null })}
+                      />
+                    </div>
+
                     {/* 電話番号で新規登録 */}
                     {custPhoneMode ? (
                       <div className="mt-3 rounded-2xl border-2 border-indigo-200 bg-indigo-50/50 p-3 space-y-2">
@@ -779,6 +788,13 @@ export function InquiryModal({
                     ))}
                   </div>
                 )}
+                <div className="mt-1.5">
+                  <RecentCustomers
+                    storeId={storeId}
+                    visible={customerName.trim() === '' && !custId}
+                    onPick={(c: RecentCust) => linkCustomer({ id: c.id, name: c.name, tel: c.tel, line_user_id: c.line_user_id ?? null })}
+                  />
+                </div>
                 {custPhoneMode ? (
                   <div className="mt-2 flex gap-2">
                     <input value={custTel} onChange={e => setCustTel(e.target.value)} type="tel" inputMode="numeric" placeholder="電話番号"
