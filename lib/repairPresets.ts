@@ -7,7 +7,7 @@ export interface PresetGarment { name: string; icon: string; items: PresetItem[]
 
 export const REPAIR_PRESETS: PresetGarment[] = [
   {
-    name: '学ラン上着', icon: '🧥',
+    name: '学ラン上着', icon: 'gakuran',
     items: [
       { name: '袖丈詰め', price: 2000 },
       { name: '着丈詰め', price: 3000 },
@@ -17,7 +17,7 @@ export const REPAIR_PRESETS: PresetGarment[] = [
     ],
   },
   {
-    name: '学ランズボン', icon: '👖',
+    name: '学ランズボン', icon: 'trousers',
     items: [
       { name: '裾上げ', price: 1500 },
       { name: 'ウエスト詰め', price: 2000 },
@@ -26,7 +26,7 @@ export const REPAIR_PRESETS: PresetGarment[] = [
     ],
   },
   {
-    name: 'ブレザー', icon: '🧥',
+    name: 'ブレザー', icon: 'blazer',
     items: [
       { name: '袖丈詰め', price: 2500 },
       { name: '着丈詰め', price: 3500 },
@@ -36,7 +36,7 @@ export const REPAIR_PRESETS: PresetGarment[] = [
     ],
   },
   {
-    name: 'スラックス', icon: '👖',
+    name: 'スラックス', icon: 'trousers',
     items: [
       { name: '裾上げ（シングル）', price: 1500 },
       { name: '裾上げ（ダブル）', price: 2000 },
@@ -45,7 +45,7 @@ export const REPAIR_PRESETS: PresetGarment[] = [
     ],
   },
   {
-    name: 'スカート', icon: '🩳',
+    name: 'スカート', icon: 'skirt',
     items: [
       { name: '丈詰め', price: 2000 },
       { name: 'ウエスト詰め', price: 2000 },
@@ -54,7 +54,7 @@ export const REPAIR_PRESETS: PresetGarment[] = [
     ],
   },
   {
-    name: 'セーラー服', icon: '👚',
+    name: 'セーラー服', icon: 'sailor',
     items: [
       { name: '着丈詰め', price: 3000 },
       { name: '袖丈詰め', price: 2000 },
@@ -63,7 +63,7 @@ export const REPAIR_PRESETS: PresetGarment[] = [
     ],
   },
   {
-    name: 'ジャージ', icon: '🥋',
+    name: 'ジャージ', icon: 'jersey',
     items: [
       { name: '裾上げ', price: 1500 },
       { name: '袖丈詰め', price: 1500 },
@@ -72,7 +72,7 @@ export const REPAIR_PRESETS: PresetGarment[] = [
     ],
   },
   {
-    name: 'ワイシャツ・ブラウス', icon: '👔',
+    name: 'ワイシャツ・ブラウス', icon: 'shirt',
     items: [
       { name: '袖丈詰め', price: 1500 },
       { name: '着丈詰め', price: 1500 },
@@ -80,7 +80,7 @@ export const REPAIR_PRESETS: PresetGarment[] = [
     ],
   },
   {
-    name: 'セーター・ベスト', icon: '🧶',
+    name: 'セーター・ベスト', icon: 'sweater',
     items: [
       { name: '着丈詰め', price: 2500 },
       { name: '袖丈詰め', price: 2000 },

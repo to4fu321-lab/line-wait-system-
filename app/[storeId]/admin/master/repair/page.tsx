@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { REPAIR_PRESETS } from '@/lib/repairPresets'
+import { RepairIcon, GarmentIconPicker } from '@/lib/garmentIcons'
 import { BulkImportModal, bulkFromParsed, type ImportGarment } from './_components/BulkImportModal'
 import {
   PRICE_UNIT_LABELS, MANUAL_SEVERITY_LABELS, REPAIR_PHOTOS_BUCKET,
@@ -347,8 +348,8 @@ export default function RepairMasterPage() {
             <div className="flex flex-wrap gap-2">
               {garments.map(g => (
                 <div key={g.id} className={`group flex items-center rounded-full border ${selectedGarment === g.id ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-gray-200 text-gray-700'}`}>
-                  <button onClick={() => { setSelectedGarment(g.id); setExpandedItem(null) }} className="pl-3 pr-1 py-1.5 text-sm font-bold">
-                    {g.icon} {g.name}
+                  <button onClick={() => { setSelectedGarment(g.id); setExpandedItem(null) }} className="pl-3 pr-1 py-1.5 text-sm font-bold flex items-center gap-1">
+                    <RepairIcon icon={g.icon} /> {g.name}
                   </button>
                   <button onClick={() => openG(g)} className="p-1 opacity-60 hover:opacity-100"><Pencil size={12} /></button>
                   <button onClick={() => delG(g)} className="pr-2 pl-0.5 py-1 opacity-60 hover:opacity-100"><Trash2 size={12} /></button>
@@ -386,7 +387,7 @@ export default function RepairMasterPage() {
                       </button>
                       <div className="flex-1 min-w-0" onClick={() => toggleItem(it.id)} role="button">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-black text-gray-900">{it.icon} {it.name}</span>
+                          <span className="font-black text-gray-900 inline-flex items-center gap-1"><RepairIcon icon={it.icon} /> {it.name}</span>
                           <span className="text-indigo-600 font-black">¥{it.base_price.toLocaleString()}</span>
                           <span className="text-[10px] bg-gray-100 text-gray-500 rounded px-1.5 py-0.5 font-bold">{PRICE_UNIT_LABELS[it.price_unit]}</span>
                           {it.requires_quote && <span className="text-[10px] bg-rose-100 text-rose-600 rounded px-1.5 py-0.5 font-bold">要見積もり</span>}
@@ -450,7 +451,7 @@ export default function RepairMasterPage() {
       {/* ── 服種 Modal ── */}
       {gModal && (
         <Modal title={editingG ? '服種を編集' : '服種を追加'} onClose={() => setGModal(false)}>
-          <Field label="アイコン（絵文字）"><input className={INPUT} value={gIcon} onChange={e => setGIcon(e.target.value)} placeholder="👖" /></Field>
+          <Field label="アイコン"><GarmentIconPicker value={gIcon} onChange={setGIcon} inputClassName={INPUT} /></Field>
           <Field label="名称" required><input className={INPUT} value={gName} onChange={e => setGName(e.target.value)} placeholder="スラックス" /></Field>
           <button onClick={saveG} className="w-full bg-amber-500 text-white font-black py-3 rounded-xl">保存</button>
         </Modal>
