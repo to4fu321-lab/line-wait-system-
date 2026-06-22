@@ -3,12 +3,14 @@
 import { ChevronLeft, ChevronRight, Plus, Loader2, Send } from 'lucide-react'
 import type { Shift } from '@/types/shifts'
 import type { Staff } from '@/types/master'
+import type { PaintValue } from './ShiftPaintBar'
 import { fmtHM, dowOf, workedMinutes, fmtDurationH } from '../_lib/time'
 
 const WEEK = ['日', '月', '火', '水', '木', '金', '土']
 
 export function ShiftWeekGrid({
   staff, shifts, days, loading, onPrev, onNext, onToday, onAdd, onEdit, onPublish, publishing,
+  paint = null, onPaintCell, onPaintRow,
 }: {
   staff: Staff[]
   shifts: Shift[]
@@ -21,7 +23,11 @@ export function ShiftWeekGrid({
   onEdit: (shift: Shift) => void
   onPublish: () => void
   publishing: boolean
+  paint?: PaintValue
+  onPaintCell?: (staffId: string, date: string) => void
+  onPaintRow?: (staffId: string) => void
 }) {
+  const painting = paint !== null
   const today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
   const draftCount = shifts.filter(s => s.status === 'draft').length
 
@@ -89,28 +95,31 @@ export function ShiftWeekGrid({
             {/* スタッフ行 */}
             {rows.map(s => (
               <div key={s.id} className="grid grid-cols-[88px_repeat(7,1fr)] gap-1 mb-1">
-                <div className="flex items-center gap-1.5 px-1 min-w-0">
+                <button type="button"
+                  onClick={() => { if (painting && staffIds.has(s.id)) onPaintRow?.(s.id) }}
+                  className={`flex items-center gap-1.5 px-1 min-w-0 text-left rounded-lg ${painting && staffIds.has(s.id) ? 'hover:bg-indigo-50 active:scale-[0.98]' : 'cursor-default'}`}>
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.color || '#cbd5e1' }} />
                   <span className="text-xs font-bold text-gray-800 truncate">{s.name}</span>
-                </div>
+                </button>
                 {days.map(d => {
                   const cell = byCell[`${s.id}_${d}`] ?? []
+                  const cellTap = () => painting ? onPaintCell?.(s.id, d) : (cell.length ? onEdit(cell[0]) : onAdd(s.id, d))
                   return (
-                    <button key={d} onClick={() => cell.length ? onEdit(cell[0]) : onAdd(s.id, d)}
+                    <button key={d} onClick={cellTap}
                       className={`min-h-[44px] rounded-lg border text-left p-1 active:scale-[0.98] transition-all ${
                         cell.length
                           ? 'border-transparent'
-                          : 'border-dashed border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/40 grid place-items-center'
+                          : `border-dashed grid place-items-center ${painting ? 'border-indigo-300 bg-indigo-50/40' : 'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/40'}`
                       }`}>
                       {cell.length === 0 ? (
-                        <Plus size={14} className="text-gray-300" />
+                        <Plus size={14} className={painting ? 'text-indigo-400' : 'text-gray-300'} />
                       ) : (
                         <div className="space-y-0.5">
                           {cell.map(sh => {
                             const min = workedMinutes(sh.start_time, sh.end_time, sh.break_minutes)
                             const bg = sh.is_help ? '#0d9488' : (s.color || '#6366f1')
                             return (
-                              <div key={sh.id} onClick={e => { e.stopPropagation(); onEdit(sh) }}
+                              <div key={sh.id} onClick={e => { e.stopPropagation(); painting ? onPaintCell?.(s.id, d) : onEdit(sh) }}
                                 className="rounded-md px-1.5 py-1 text-white leading-tight"
                                 style={{ background: bg, opacity: sh.status === 'draft' ? 0.6 : 1 }}>
                                 <p className="text-[10px] font-black">{fmtHM(sh.start_time)}-{fmtHM(sh.end_time)}</p>

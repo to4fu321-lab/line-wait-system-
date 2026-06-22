@@ -258,11 +258,21 @@ export interface Staff {
   color:       string | null  // 表示カラー (#hex)
   pin:         string | null  // 4桁PIN（個人識別用）
   hourly_wage: number | null  // 既定時給（円・人件費概算用）
+  tel:             string | null            // 電話番号
+  employment_type: string | null            // 正社員/パート/アルバイト
+  skill_level:     number | null            // 1-5（接客/採寸の習熟度）
+  skills:          string[] | null          // スキルタグ
+  max_weekly_hours: number | null           // 週の上限時間
+  max_daily_hours:  number | null           // 1日の上限時間
+  commute_min:      number | null           // 通勤時間（分）
+  availability:     import('@/lib/availability').Availability | null  // 固定の勤務可能曜日
   active:      boolean
   sort_order:  number
   created_at:  string
   updated_at:  string
 }
+
+export const EMPLOYMENT_TYPE_OPTIONS = ['正社員', 'パート', 'アルバイト'] as const
 
 export const STAFF_ROLE_OPTIONS = [
   '店長', 'リーダー', 'スタッフ', 'パート', 'アルバイト',
