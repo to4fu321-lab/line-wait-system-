@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
 export async function POST(req: NextRequest) {
-  const { storeId, subscription } = await req.json()
+  const { storeId, subscription, staffId, kind } = await req.json()
   if (!storeId || !subscription?.endpoint) {
     return NextResponse.json({ ok: false, error: 'invalid params' }, { status: 400 })
   }
@@ -13,6 +13,8 @@ export async function POST(req: NextRequest) {
     endpoint: subscription.endpoint,
     p256dh:   subscription.keys.p256dh,
     auth:     subscription.keys.auth,
+    staff_id: staffId ?? null,
+    kind:     kind ?? (staffId ? 'staff' : 'admin'),
   }, { onConflict: 'endpoint' })
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
