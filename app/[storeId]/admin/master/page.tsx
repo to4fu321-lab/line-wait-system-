@@ -14,8 +14,10 @@ import type { School, SchoolProduct, SchoolProductVariant, Staff } from '@/types
 import type { SchoolGrade, SchoolParentTip, OcrResult, OcrResultItem } from '@/types/school'
 import {
   PRODUCT_CATEGORY_OPTIONS, PRODUCT_GENDER_OPTIONS,
-  STAFF_ROLE_OPTIONS, STAFF_COLOR_OPTIONS,
+  STAFF_ROLE_OPTIONS, STAFF_COLOR_OPTIONS, EMPLOYMENT_TYPE_OPTIONS,
 } from '@/types/master'
+import type { Availability } from '@/lib/availability'
+import { AvailabilityEditor } from './_components/AvailabilityEditor'
 
 // ── 型 ────────────────────────────────────────────────────────
 // お直し料金マスタは /master/repair（服種>項目>オプションの3階層）へ移行済み。
@@ -88,8 +90,16 @@ function MasterPageInner() {
   const [sfName,               setSfName]               = useState('')
   const [sfKana,               setSfKana]               = useState('')
   const [sfRole,               setSfRole]               = useState('')
-  const [sfColor,              setSfColor]              = useState(STAFF_COLOR_OPTIONS[0])
+  const [sfColor,              setSfColor]              = useState<string>(STAFF_COLOR_OPTIONS[0])
   const [sfPin,                setSfPin]                = useState('')
+  const [sfWage,               setSfWage]               = useState('')
+  const [sfTel,                setSfTel]                = useState('')
+  const [sfEmployment,         setSfEmployment]         = useState('')
+  const [sfSkill,              setSfSkill]              = useState(0)
+  const [sfMaxWeekly,          setSfMaxWeekly]          = useState('')
+  const [sfMaxDaily,           setSfMaxDaily]           = useState('')
+  const [sfCommute,            setSfCommute]            = useState('')
+  const [sfAvail,              setSfAvail]              = useState<Availability | null>(null)
   const [sfSaving,             setSfSaving]             = useState(false)
   const [deleteStaffTarget,    setDeleteStaffTarget]    = useState<Staff | null>(null)
   const [deleteStaffLoading,   setDeleteStaffLoading]   = useState(false)
@@ -579,13 +589,34 @@ function MasterPageInner() {
   }
 
   // ── Staff CRUD ────────────────────────────────────────────
-  const openStaffAdd  = () => { setEditingStaff(null); setSfName(''); setSfKana(''); setSfRole(''); setSfColor(STAFF_COLOR_OPTIONS[0]); setSfPin(''); setStaffModal(true) }
-  const openStaffEdit = (s: Staff) => { setEditingStaff(s); setSfName(s.name); setSfKana(s.kana ?? ''); setSfRole(s.role ?? ''); setSfColor(s.color ?? STAFF_COLOR_OPTIONS[0]); setSfPin(s.pin ?? ''); setStaffModal(true) }
+  const resetStaffExtra = (s?: Staff) => {
+    setSfWage(s?.hourly_wage != null ? String(s.hourly_wage) : '')
+    setSfTel(s?.tel ?? '')
+    setSfEmployment(s?.employment_type ?? '')
+    setSfSkill(s?.skill_level ?? 0)
+    setSfMaxWeekly(s?.max_weekly_hours != null ? String(s.max_weekly_hours) : '')
+    setSfMaxDaily(s?.max_daily_hours != null ? String(s.max_daily_hours) : '')
+    setSfCommute(s?.commute_min != null ? String(s.commute_min) : '')
+    setSfAvail(s?.availability ?? null)
+  }
+  const openStaffAdd  = () => { setEditingStaff(null); setSfName(''); setSfKana(''); setSfRole(''); setSfColor(STAFF_COLOR_OPTIONS[0]); setSfPin(''); resetStaffExtra(); setStaffModal(true) }
+  const openStaffEdit = (s: Staff) => { setEditingStaff(s); setSfName(s.name); setSfKana(s.kana ?? ''); setSfRole(s.role ?? ''); setSfColor(s.color ?? STAFF_COLOR_OPTIONS[0]); setSfPin(s.pin ?? ''); resetStaffExtra(s); setStaffModal(true) }
 
   const handleStaffSave = async () => {
     if (!sfName.trim()) return
     setSfSaving(true)
-    const payload = { name: sfName.trim(), kana: sfKana.trim() || null, role: sfRole || null, color: sfColor, pin: sfPin.trim() || null, updated_at: new Date().toISOString() }
+    const payload = {
+      name: sfName.trim(), kana: sfKana.trim() || null, role: sfRole || null, color: sfColor, pin: sfPin.trim() || null,
+      hourly_wage: sfWage.trim() ? Number(sfWage) : null,
+      tel: sfTel.trim() || null,
+      employment_type: sfEmployment || null,
+      skill_level: sfSkill > 0 ? sfSkill : null,
+      max_weekly_hours: sfMaxWeekly.trim() ? Number(sfMaxWeekly) : null,
+      max_daily_hours: sfMaxDaily.trim() ? Number(sfMaxDaily) : null,
+      commute_min: sfCommute.trim() ? Number(sfCommute) : null,
+      availability: sfAvail,
+      updated_at: new Date().toISOString(),
+    }
     if (editingStaff) {
       const { data, error } = await (supabase as any).from('staff').update(payload).eq('id', editingStaff.id).select().single()
       setSfSaving(false)
@@ -759,6 +790,14 @@ function MasterPageInner() {
                           <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-full font-bold">
                             {staff.role}
                           </span>
+                        )}
+                        {staff.employment_type && (
+                          <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded-full font-bold">
+                            {staff.employment_type}
+                          </span>
+                        )}
+                        {staff.hourly_wage != null && (
+                          <span className="text-[10px] text-gray-500 font-bold">¥{staff.hourly_wage.toLocaleString()}/h</span>
                         )}
                         {staff.pin && (
                           <span className="text-[10px] text-gray-400 font-mono">PIN: {staff.pin}</span>
@@ -1326,6 +1365,58 @@ function MasterPageInner() {
                   onChange={e => setSfPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
                   placeholder="例：1234" className={INPUT} />
                 <p className="text-[10px] text-gray-400 mt-0.5">お渡し記録などで担当者を識別するためのPINです</p>
+              </Field>
+
+              {/* ── 勤務情報（シフト・人件費・自動生成に使用）── */}
+              <div className="pt-1 border-t border-gray-100">
+                <p className="text-[11px] font-black text-gray-400 mt-2 mb-1">勤務情報</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="時給（円）">
+                  <input type="number" inputMode="numeric" min={0} step={10} value={sfWage}
+                    onChange={e => setSfWage(e.target.value)} placeholder="例：1100" className={INPUT} />
+                </Field>
+                <Field label="電話番号">
+                  <input type="tel" value={sfTel} onChange={e => setSfTel(e.target.value)}
+                    placeholder="090-1234-5678" className={INPUT} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="雇用形態">
+                  <select value={sfEmployment} onChange={e => setSfEmployment(e.target.value)} className={INPUT}>
+                    <option value="">未設定</option>
+                    {EMPLOYMENT_TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </Field>
+                <Field label="通勤時間（分）">
+                  <input type="number" inputMode="numeric" min={0} step={5} value={sfCommute}
+                    onChange={e => setSfCommute(e.target.value)} placeholder="例：20" className={INPUT} />
+                </Field>
+              </div>
+              <Field label="スキル（接客・採寸の習熟度）">
+                <div className="flex gap-1.5 pt-0.5">
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <button key={n} type="button" onClick={() => setSfSkill(sfSkill === n ? 0 : n)}
+                      className={`w-9 h-9 rounded-lg text-sm font-black transition-all ${
+                        sfSkill >= n ? 'bg-amber-400 text-white' : 'bg-gray-100 text-gray-400'
+                      }`}>★</button>
+                  ))}
+                  <span className="self-center text-xs text-gray-400 ml-1">{sfSkill > 0 ? `Lv.${sfSkill}` : '未設定'}</span>
+                </div>
+              </Field>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="週の上限時間">
+                  <input type="number" inputMode="numeric" min={0} step={1} value={sfMaxWeekly}
+                    onChange={e => setSfMaxWeekly(e.target.value)} placeholder="例：28" className={INPUT} />
+                </Field>
+                <Field label="1日の上限時間">
+                  <input type="number" inputMode="numeric" min={0} step={1} value={sfMaxDaily}
+                    onChange={e => setSfMaxDaily(e.target.value)} placeholder="例：8" className={INPUT} />
+                </Field>
+              </div>
+              <Field label="勤務可能曜日（固定の希望日程）">
+                <AvailabilityEditor value={sfAvail} onChange={setSfAvail} />
+                <p className="text-[10px] text-gray-400 mt-1">「希望から下書き」やAI自動生成・欠員補充の判定に使われます</p>
               </Field>
             </div>
             <button onClick={handleStaffSave} disabled={!sfName.trim() || sfSaving}

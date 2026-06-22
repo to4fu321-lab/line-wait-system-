@@ -9,8 +9,10 @@ import type { Shift, ShiftTemplate } from '@/types/shifts'
 import type { Staff } from '@/types/master'
 import { Toast } from '../repairs/_components/Toast'
 import { loadShifts, loadStaff, staffMapOf } from './_lib/data'
-import { weekDates, todayJst, addDays } from './_lib/time'
+import { weekDates, todayJst, addDays, fmtHM } from './_lib/time'
 import { ShiftWeekGrid } from './_components/ShiftWeekGrid'
+import { ShiftPaintBar, type PaintValue } from './_components/ShiftPaintBar'
+import { insertDraftShift, deleteDraftShiftsAt, applyTemplateToRow, copyPreviousWeek, generateFromAvailability } from './_lib/shiftBulk'
 import { ShiftMonthCalendar } from './_components/ShiftMonthCalendar'
 import { DayShiftSheet } from './_components/DayShiftSheet'
 import { ShiftEditSheet } from './_components/ShiftEditSheet'
@@ -59,6 +61,8 @@ export default function ShiftsPage() {
   const [editSheet, setEditSheet] = useState<{ date: string; editing: Shift | null; defaultStaffId?: string } | null>(null)
   const [daySheet, setDaySheet] = useState<string | null>(null)
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
+  const [paint, setPaint] = useState<PaintValue>(null)
+  const [bulkBusy, setBulkBusy] = useState<'copy' | 'gen' | null>(null)
 
   const showToast = useCallback((msg: string, type: 'ok' | 'err' = 'ok') => setToast({ msg, type }), [])
   const staffMap = useMemo(() => staffMapOf(staff), [staff])
@@ -120,6 +124,42 @@ export default function ShiftsPage() {
     }
   }
 
+  // ── 直感セット（ペイント・一括）─────────────────────────────
+  const handlePaintCell = async (staffId: string, date: string) => {
+    const cell = shifts.filter(s => s.staff_id === staffId && s.work_date === date && s.status !== 'cancelled')
+    if (paint === 'erase') {
+      if (cell.some(s => s.status === 'draft')) { await deleteDraftShiftsAt(storeId, staffId, date); fetchShifts() }
+      return
+    }
+    if (paint) {
+      const same = cell.find(s => s.status === 'draft' && fmtHM(s.start_time) === fmtHM(paint.start_time) && fmtHM(s.end_time) === fmtHM(paint.end_time))
+      if (same) { await deleteDraftShiftsAt(storeId, staffId, date) }      // 同じ内容なら消す（トグル）
+      else if (cell.length === 0) { await insertDraftShift(storeId, staffId, date, paint.start_time, paint.end_time, paint.break_minutes, paint.label) }
+      else return                                                          // 既存(公開含む)があるセルは触らない
+      fetchShifts()
+    }
+  }
+  const handlePaintRow = async (staffId: string) => {
+    if (!paint || paint === 'erase') return
+    const n = await applyTemplateToRow(storeId, staffId, weekDays, paint)
+    showToast(n > 0 ? `${n}日分を追加しました` : '追加できる空き日がありません')
+    fetchShifts()
+  }
+  const handleCopyPrev = async () => {
+    setBulkBusy('copy')
+    const n = await copyPreviousWeek(storeId, weekDays)
+    setBulkBusy(null)
+    showToast(n > 0 ? `先週から${n}件コピーしました` : 'コピーできるシフトがありません')
+    fetchShifts()
+  }
+  const handleGenerate = async () => {
+    setBulkBusy('gen')
+    const n = await generateFromAvailability(storeId, weekDays, staff)
+    setBulkBusy(null)
+    showToast(n > 0 ? `希望から${n}件の下書きを作成しました` : '対象がありません（スタッフの勤務可能曜日を設定してください）')
+    fetchShifts()
+  }
+
   if (!loaded) return <div className="min-h-[60vh] grid place-items-center"><Loader2 className="animate-spin text-indigo-300" /></div>
 
   const TABS: { id: Tab; label: string }[] = [
@@ -157,15 +197,22 @@ export default function ShiftsPage() {
       </div>
 
       {tab === 'week' && (
-        <ShiftWeekGrid
-          staff={staff} shifts={shifts} days={weekDays} loading={loadingShifts}
-          onPrev={() => setWeekAnchor(d => addDays(d, -7))}
-          onNext={() => setWeekAnchor(d => addDays(d, 7))}
-          onToday={() => setWeekAnchor(todayJst())}
-          onAdd={(staffId, date) => setEditSheet({ date, editing: null, defaultStaffId: staffId })}
-          onEdit={(shift) => setEditSheet({ date: shift.work_date, editing: shift })}
-          onPublish={publishWeek} publishing={publishing}
-        />
+        <>
+          <ShiftPaintBar
+            templates={templates} paint={paint} onPick={setPaint}
+            onCopyPrev={handleCopyPrev} onGenerate={handleGenerate} busy={bulkBusy}
+          />
+          <ShiftWeekGrid
+            staff={staff} shifts={shifts} days={weekDays} loading={loadingShifts}
+            onPrev={() => setWeekAnchor(d => addDays(d, -7))}
+            onNext={() => setWeekAnchor(d => addDays(d, 7))}
+            onToday={() => setWeekAnchor(todayJst())}
+            onAdd={(staffId, date) => setEditSheet({ date, editing: null, defaultStaffId: staffId })}
+            onEdit={(shift) => setEditSheet({ date: shift.work_date, editing: shift })}
+            onPublish={publishWeek} publishing={publishing}
+            paint={paint} onPaintCell={handlePaintCell} onPaintRow={handlePaintRow}
+          />
+        </>
       )}
 
       {tab === 'month' && (
@@ -177,7 +224,7 @@ export default function ShiftsPage() {
         />
       )}
 
-      {tab === 'requests' && <RequestReviewList storeId={storeId} onChanged={fetchShifts} onToast={showToast} />}
+      {tab === 'requests' && <RequestReviewList storeId={storeId} staff={staff} onChanged={fetchShifts} onToast={showToast} />}
 
       {tab === 'staffing' && useDemand && (
         <StaffingPlanTab storeId={storeId} shifts={shifts} ym={ym} useAi={useAi} onToast={showToast}
