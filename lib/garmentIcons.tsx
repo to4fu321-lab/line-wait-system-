@@ -19,50 +19,55 @@ const base = (children: React.ReactNode): FC<IconProps> => {
 
 const dot = (x: number, y: number) => <circle key={`${x}-${y}`} cx={x} cy={y} r={0.7} fill="currentColor" stroke="none" />
 
-// 詰襟（学ラン上着）: 閉じた立ち襟 + 前立てボタン
-const Gakuran = base(<>
-  <path d="M8.5 3 L4 6 l2 3 2-1.2 V21 h7.5 V10.8 l2 1.2 2-3 -4.5-3" />
-  <path d="M9 3 h6 v2.6 h-6 Z" />
-  <path d="M12 5.6 V20" />
+// 上着共通：長袖の前身頃アウトライン（襟以外）。各服は末尾に襟を足して閉じる。
+const TOP = 'M10 4 L7.5 4.6 L4 6.2 L4 17.8 L7.2 17.8 L7.5 10 L7.5 20.5 H16.5 V10 L16.8 17.8 L20 17.8 L20 6.2 L16.5 4.6 L14 4'
+
+// ワイシャツ・ブラウス: 台襟 + 前立て + ボタン
+const Shirt = base(<>
+  <path d={TOP + ' L12 5.6 L10 4 Z'} />
+  <path d="M10 4 L11.4 6.6" /><path d="M14 4 L12.6 6.6" />
+  <path d="M12 6.6 V19" />
   {dot(12, 9)}{dot(12, 12)}{dot(12, 15)}
 </>)
 
-// ブレザー: 開いたV字ラペル + ボタン
+// 詰襟（学ラン上着）: 立ち襟バンド + 中央ボタン列
+const Gakuran = base(<>
+  <path d={TOP + ' L10 4 Z'} />
+  <path d="M9.5 4 H14.5 V5.8 H9.5 Z" />
+  <path d="M12 5.8 V19" />
+  {dot(12, 8)}{dot(12, 10.3)}{dot(12, 12.6)}{dot(12, 14.9)}{dot(12, 17.2)}
+</>)
+
+// ブレザー: ノッチドラペル + 胸ポケット + ボタン
 const Blazer = base(<>
-  <path d="M8.5 3 L4 6 l2 3 2-1.2 V21 h7.5 V10.8 l2 1.2 2-3 -4.5-3" />
-  <path d="M8.7 3 L12 12.5 L15.3 3" />
-  <path d="M12 12.5 V20" />
-  {dot(13, 14)}{dot(13, 16.5)}
+  <path d={TOP + ' L12 12 L10 4 Z'} />
+  <path d="M10 4 L11.6 7.2" /><path d="M14 4 L12.4 7.2" />
+  <path d="M12 12 V20" />
+  <path d="M9 11.5 h2" />
+  {dot(12.9, 14.2)}{dot(12.9, 16.6)}
 </>)
 
-// ジャージ: 立ち襟 + センターファスナー（破線）
-const Jersey = base(<>
-  <path d="M8.5 3 L4 6 l2 3 2-1.2 V21 h7.5 V10.8 l2 1.2 2-3 -4.5-3" />
-  <path d="M9 3 h6 v2.4 h-6 Z" />
-  <path d="M12 5.4 V20.5" strokeDasharray="1.4 1.2" />
-</>)
-
-// ワイシャツ・ブラウス: 開襟 + ボタン
-const Shirt = base(<>
-  <path d="M8.5 3 L4 6 l2 3 2-1.2 V21 h7.5 V10.8 l2 1.2 2-3 -4.5-3" />
-  <path d="M8.7 3 L12 6.4 L15.3 3" />
-  <path d="M12 7 V20" />
-  {dot(12, 10)}{dot(12, 13)}{dot(12, 16)}
+// セーラー服: 四角いセーラー襟 + リボン
+const Sailor = base(<>
+  <path d={TOP + ' L12 8 L10 4 Z'} />
+  <path d="M8.7 4 L8 11 H16 L15.3 4" />
+  <path d="M12 8 l-1.4 1.6 1.4 1.4 1.4-1.4 Z" />
 </>)
 
 // セーター・ベスト: Vネック + リブ裾
 const Sweater = base(<>
-  <path d="M8 3 L4 6 l2 2.6 2-1 V21 h8 V10.6 l2 1 2-2.6 -4-3" />
-  <path d="M9 3 L12 8.5 L15 3" />
-  <path d="M7 19 V21 M9.5 19 V21 M12 19 V21 M14.5 19 V21 M17 19 V21" />
+  <path d={TOP + ' L12 8.5 L10 4 Z'} />
+  <path d="M10 4 L12 7 L14 4" />
+  <path d="M7.5 18.5 H16.5" />
+  <path d="M9 18.5 V20.5 M11 18.5 V20.5 M13 18.5 V20.5 M15 18.5 V20.5" />
 </>)
 
-// セーラー服: 四角いセーラー襟 + スカーフ
-const Sailor = base(<>
-  <path d="M8.5 3 L4 6 l2 3 2-1.2 V21 h7.5 V10.8 l2 1.2 2-3 -4.5-3" />
-  <path d="M8.7 3 L7.4 11 H16.6 L15.3 3" />
-  <path d="M8.7 3 L12 8.5 L15.3 3" />
-  <path d="M12 8.5 l-1.2 3 h2.4 Z" />
+// ジャージ: 立ち襟 + センターファスナー + 袖サイドライン
+const Jersey = base(<>
+  <path d={TOP + ' L10 4 Z'} />
+  <path d="M9.5 4 H14.5 V5.8 H9.5 Z" />
+  <path d="M12 5.8 V20.5" strokeDasharray="1.4 1.2" />
+  <path d="M5.2 6.8 V17" /><path d="M18.8 6.8 V17" />
 </>)
 
 // ズボン・スラックス: ウエストバンド + 2本脚
