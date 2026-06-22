@@ -7,6 +7,13 @@ import type { ShiftMessage, MessageSender } from '@/types/shifts'
 
 const sb = supabase as any
 
+function fetch_notify(storeId: string, staffId: string, body: string) {
+  fetch('/api/shift-notify', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ storeId, staffIds: [staffId], title: '店長からメッセージ', body: body.slice(0, 60), url: `/${storeId}/staff` }),
+  }).catch(() => {})
+}
+
 // 店長↔スタッフ(または全体)の1スレッド。manager/staff 双方から利用。
 export function MessageThread({
   storeId, staffId, sender, heightClass = 'h-[60vh]',
@@ -57,7 +64,13 @@ export function MessageThread({
     setSending(true)
     const { error } = await sb.from('shift_messages').insert({ store_id: storeId, staff_id: staffId, sender, body })
     setSending(false)
-    if (!error) { setText(''); fetch() }
+    if (!error) {
+      setText(''); fetch()
+      // 店長→特定スタッフのときは本人へPWA通知（購読が無ければ no-op）
+      if (sender === 'manager' && staffId) {
+        fetch_notify(storeId, staffId, body)
+      }
+    }
   }
 
   return (
