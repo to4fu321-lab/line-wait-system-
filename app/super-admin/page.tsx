@@ -41,6 +41,13 @@ const GRANULAR_FEATURES: { key: FeatureKey; label: string; icon: string }[] = [
   { key: 'pos',                  label: 'レジ（会計）',            icon: '🧾' },
   { key: 'shift_management',     label: 'シフト管理（アドオン）',   icon: '📆' },
   { key: 'shift_inter_store',    label: '店舗間ヘルプ（アドオン）', icon: '🤝' },
+  { key: 'shift_attendance',     label: '出退勤打刻',               icon: '⏰' },
+  { key: 'shift_leave',          label: '休暇申請',                 icon: '🏖️' },
+  { key: 'shift_swap',           label: 'シフト交換',               icon: '🔄' },
+  { key: 'staff_push',           label: 'スタッフPWA通知',          icon: '🔔' },
+  { key: 'shift_demand',         label: '試着連動・人員設計',       icon: '📊' },
+  { key: 'shift_dashboard',      label: '経営ダッシュボード',       icon: '📈' },
+  { key: 'shift_ai',             label: 'AIシフト（生成/補充/申請）', icon: '🤖' },
 ]
 
 const GRANULAR_FEATURE_GROUPS: { label: string; keys: FeatureKey[] }[] = [
@@ -64,7 +71,8 @@ const GRANULAR_FEATURE_GROUPS: { label: string; keys: FeatureKey[] }[] = [
   },
   {
     label: '📆 シフト管理',
-    keys: ['shift_management', 'shift_inter_store'],
+    keys: ['shift_management', 'shift_inter_store', 'shift_attendance', 'shift_leave',
+           'shift_swap', 'staff_push', 'shift_demand', 'shift_dashboard', 'shift_ai'],
   },
 ]
 

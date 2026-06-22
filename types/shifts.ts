@@ -141,6 +141,96 @@ export interface ShiftBudget {
   updated_at:    string
 }
 
+// ── 出退勤打刻 ────────────────────────────────────────────────
+export interface TimeRecord {
+  id:            string
+  store_id:      string
+  staff_id:      string
+  shift_id:      string | null
+  work_date:     string
+  clock_in_at:   string | null
+  clock_out_at:  string | null
+  break_minutes: number
+  clock_in_lat:  number | null
+  clock_in_lng:  number | null
+  status:        'working' | 'done'
+  note:          string | null
+  created_at:    string
+  updated_at:    string
+  staff?:        Staff
+}
+
+// ── 休暇申請 ──────────────────────────────────────────────────
+export type LeaveType   = 'paid' | 'unpaid' | 'sick' | 'other'
+export type LeaveStatus = 'submitted' | 'approved' | 'rejected' | 'cancelled'
+
+export interface LeaveRequest {
+  id:          string
+  store_id:    string
+  staff_id:    string
+  leave_type:  LeaveType
+  start_date:  string
+  end_date:    string
+  reason:      string | null
+  status:      LeaveStatus
+  reviewed_by: string | null
+  note:        string | null
+  created_at:  string
+  updated_at:  string
+  staff?:      Staff
+}
+
+export const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
+  paid: '有給', unpaid: '無給休', sick: '病欠', other: 'その他',
+}
+
+// ── シフト交換 ────────────────────────────────────────────────
+export type SwapStatus = 'requested' | 'accepted' | 'approved' | 'rejected' | 'cancelled'
+
+export interface ShiftSwap {
+  id:            string
+  store_id:      string
+  from_shift_id: string
+  from_staff_id: string
+  to_staff_id:   string
+  status:        SwapStatus
+  note:          string | null
+  created_at:    string
+  updated_at:    string
+}
+
+export const SWAP_STATUS_LABELS: Record<SwapStatus, string> = {
+  requested: '相手の承諾待ち', accepted: '店長承認待ち', approved: '成立',
+  rejected: '却下', cancelled: '取消',
+}
+
+// ── 人員設計（試着連動） ──────────────────────────────────────
+export interface StaffingSettings {
+  id:               string
+  store_id:         string
+  time_block_min:   number
+  min_staff:        number
+  max_staff:        number
+  fitting_minutes:  number
+  per_person_rooms: number
+  conversion_rate:  number
+  visit_factor:     number
+  created_at:       string
+  updated_at:       string
+}
+
+export interface StaffingRequirement {
+  id:           string
+  store_id:     string
+  work_date:    string
+  time_block:   string
+  required:     number
+  reservations: number
+  source:       'demand' | 'manual' | 'ai'
+  created_at:   string
+  updated_at:   string
+}
+
 // ── 勤務パターン雛形 ──────────────────────────────────────────
 export interface ShiftTemplate {
   id:            string
