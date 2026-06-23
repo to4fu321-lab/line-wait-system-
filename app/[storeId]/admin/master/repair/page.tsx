@@ -18,6 +18,7 @@ import {
   type RepairGarmentType, type RepairItem, type RepairOption,
   type PriceUnit, type MeasurementDef, type RepairManual, type ManualSeverity,
 } from '@/types/repair'
+import { seedRepairPresets, SIZE_RANGE_PRESETS } from '@/lib/repairPresets'
 
 const INPUT = 'w-full border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:border-indigo-500 bg-white'
 
@@ -138,6 +139,7 @@ export default function RepairMasterPage() {
   const [selectedGarment, setSelectedGarment] = useState<string | null>(null)
   const [expandedItem, setExpandedItem] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [seeding, setSeeding] = useState(false)
 
   // ── fetch ──────────────────────────────────────────────────
   const fetchGarments = useCallback(async () => {
@@ -163,6 +165,26 @@ export default function RepairMasterPage() {
 
   useEffect(() => { if (storeId) fetchGarments() }, [storeId, fetchGarments])
   useEffect(() => { if (selectedGarment) fetchItems(selectedGarment) }, [selectedGarment, fetchItems])
+
+  // ── 標準お直しを一括取り込み（追記式・既存は壊さない）──────────
+  const handleSeedPreset = async () => {
+    if (seeding) return
+    if (!confirm('標準お直し一式（服種・項目・サイズ段階）を取り込みます。\n既存の設定はそのまま、不足分のみ追加します。よろしいですか？\n※金額は仮の値で入ります。取り込み後に各項目で調整してください。')) return
+    setSeeding(true)
+    try {
+      const r = await seedRepairPresets(storeId)
+      if (r.garments + r.items + r.options === 0) {
+        showToast('ok', '追加分はありませんでした（既に取り込み済み）')
+      } else {
+        showToast('ok', `服種${r.garments}・項目${r.items}・オプション${r.options}件を追加しました`)
+      }
+      await fetchGarments()
+    } catch {
+      showToast('err', '取り込みに失敗しました')
+    } finally {
+      setSeeding(false)
+    }
+  }
 
   // ── 服種 modal ──────────────────────────────────────────────
   const [gModal, setGModal] = useState(false)
@@ -360,9 +382,28 @@ export default function RepairMasterPage() {
         <div className="flex justify-center py-20"><Loader2 className="animate-spin text-gray-300" size={32} /></div>
       ) : (
         <div className="p-4 space-y-4">
+          {/* 服種が空のとき: 標準お直しを一括取り込み CTA */}
+          {garments.length === 0 && (
+            <button onClick={handleSeedPreset} disabled={seeding}
+              className="w-full flex items-center gap-3 rounded-2xl bg-indigo-600 text-white px-4 py-4 shadow-sm hover:bg-indigo-700 active:scale-[0.99] transition-all disabled:opacity-60">
+              <span className="text-2xl">{seeding ? '⏳' : '⚡'}</span>
+              <span className="flex-1 text-left">
+                <span className="block font-black text-base">標準お直しを取り込む</span>
+                <span className="block text-[11px] text-white/80">服種・項目・サイズ段階を一括作成。金額はあとから調整できます。</span>
+              </span>
+              {seeding ? <Loader2 size={18} className="animate-spin" /> : <ChevronRight size={18} className="opacity-80" />}
+            </button>
+          )}
+
           {/* 服種チップ */}
           <div className="bg-white rounded-2xl p-3 shadow-sm">
-            <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider mb-2">服種（大項目）</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider">服種（大項目）</p>
+              <button onClick={handleSeedPreset} disabled={seeding}
+                className="flex items-center gap-1 text-[11px] font-bold text-indigo-500 hover:text-indigo-700 disabled:opacity-50">
+                {seeding ? <Loader2 size={12} className="animate-spin" /> : <span>⚡</span>} 標準を取り込む
+              </button>
+            </div>
             <div className="flex flex-wrap gap-2">
               {garments.map(g => (
                 <div key={g.id} className={`group flex items-center rounded-full border ${selectedGarment === g.id ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-gray-200 text-gray-700'}`}>
@@ -540,6 +581,18 @@ export default function RepairMasterPage() {
           <Field label="グループ名" required hint="受付で見出しになります">
             <input className={INPUT} value={szGroup} onChange={e => setSzGroup(e.target.value)} placeholder="例: 詰め幅 / 出し幅" />
           </Field>
+          <div>
+            <p className="text-xs font-bold text-gray-600 mb-1">クイック範囲 <span className="font-normal text-gray-400">タップで下の欄を自動入力</span></p>
+            <div className="flex flex-wrap gap-1.5">
+              {SIZE_RANGE_PRESETS.map(p => (
+                <button key={p.label} type="button"
+                  onClick={() => { setSzMin(String(p.min)); setSzMax(String(p.max)); setSzStep(String(p.step)); setSzUnit(p.unit); setSzLabel(p.labelStyle) }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold border-2 border-indigo-200 text-indigo-600 bg-white hover:border-indigo-400 hover:bg-indigo-50 active:scale-95 transition-all">
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="grid grid-cols-4 gap-3">
             <Field label="最小"><input type="number" className={INPUT} value={szMin} onChange={e => setSzMin(e.target.value)} /></Field>
             <Field label="最大"><input type="number" className={INPUT} value={szMax} onChange={e => setSzMax(e.target.value)} /></Field>
