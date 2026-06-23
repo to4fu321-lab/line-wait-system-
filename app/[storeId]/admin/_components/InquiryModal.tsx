@@ -224,6 +224,7 @@ export function InquiryModal({
   const [saving,       setSaving]       = useState(false)
   const [formError,    setFormError]    = useState<string | null>(null)
   const [ocrLoading,   setOcrLoading]   = useState(false)
+  const [ocrMsg,       setOcrMsg]       = useState<{ ok: boolean; text: string } | null>(null)
   const [aiLoading,    setAiLoading]    = useState(false)
   const [aiAdvice,     setAiAdvice]     = useState<{
     priority: string; priority_reason: string
@@ -352,7 +353,7 @@ export function InquiryModal({
   }, [storeId])
 
   const handleOcr = async (file: File) => {
-    setOcrLoading(true)
+    setOcrLoading(true); setOcrMsg(null)
     try {
       const base64   = await compressImage(file)
       const storePin = sessionStorage.getItem(`admin_pin_${storeId}`) ?? ''
@@ -360,12 +361,22 @@ export function InquiryModal({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64: base64, mimeType: 'image/jpeg', slipType: 'inquiry', storeId, storePin }),
       })
-      const { ok, data } = await res.json()
+      const { ok, data, error } = await res.json()
       if (ok && data) {
         if (data.content)       setContent(prev => prev ? prev + '\n' + data.content : data.content)
         if (data.customer_name) setCustomerName(data.customer_name)
+        // 内容ステップへ誘導して読み取り結果をその場で確認・修正できるように
+        if (isSimpleMode || !isEdit) setStep(3)
+        const conf = data.confidence === 'high' ? '高' : data.confidence === 'medium' ? '中' : '低'
+        const warn = Array.isArray(data.warnings) && data.warnings.length
+          ? `　⚠️ ${data.warnings.join(' / ')}` : ''
+        setOcrMsg({ ok: true, text: `📷 メモを読み取りました（精度: ${conf}）${warn}` })
+      } else {
+        setOcrMsg({ ok: false, text: `OCRに失敗しました（${error ?? '不明なエラー'}）` })
       }
-    } catch { /* ignore */ }
+    } catch (e) {
+      setOcrMsg({ ok: false, text: `OCRエラー: ${String(e)}` })
+    }
     setOcrLoading(false)
   }
 
@@ -448,9 +459,19 @@ export function InquiryModal({
                 <p className="text-sm text-gray-400">{STEP_LABELS[step]}　{step + 1} / {TOTAL}</p>
               </div>
             </div>
-            <button onClick={onClose} className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">
-              <X size={22} className="text-gray-600" />
-            </button>
+            <div className="flex items-center gap-2">
+              {/* メモ写真OCR（急ぎ・メモだけのデータ化） */}
+              <input ref={ocrRef} type="file" accept="image/*" capture="environment" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleOcr(f); e.target.value = '' }} />
+              <button onClick={() => ocrRef.current?.click()} disabled={ocrLoading}
+                className="flex items-center gap-1 px-2.5 py-2 bg-violet-100 hover:bg-violet-200 text-violet-700 text-xs font-bold rounded-xl transition-colors disabled:opacity-50">
+                {ocrLoading ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
+                {ocrLoading ? '読取中...' : 'メモ読取'}
+              </button>
+              <button onClick={onClose} className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">
+                <X size={22} className="text-gray-600" />
+              </button>
+            </div>
           </div>
 
           {/* プログレスバー */}
@@ -600,6 +621,11 @@ export function InquiryModal({
                 <p className="text-sm text-gray-500 mb-5">
                   できるだけ詳しく入力してください <span className="text-red-500">（必須）</span>
                 </p>
+                {ocrMsg && (
+                  <p className={`text-sm font-bold rounded-xl px-4 py-2.5 mb-3 ${
+                    ocrMsg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
+                  }`}>{ocrMsg.text}</p>
+                )}
                 <textarea value={content} onChange={e => { setContent(e.target.value); setFormError(null) }}
                   placeholder="問合せ・クレームの内容を入力..."
                   rows={7}
