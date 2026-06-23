@@ -23,11 +23,11 @@ export async function POST(req: Request) {
     const supabase = getSupabase()
     let finalGroupId: string | null = groupId || null
 
-    // 新規会社を作成
-    if (!finalGroupId && newGroupName?.trim() && newGroupCode?.trim()) {
+    // 新規会社を作成（URLコードは任意・空欄可。groups.code は null 許容）
+    if (!finalGroupId && newGroupName?.trim()) {
       const { data: newGroup, error: groupErr } = await supabase
         .from('groups')
-        .insert({ name: newGroupName.trim(), code: newGroupCode.trim(), pin: newGroupPin || '0000' })
+        .insert({ name: newGroupName.trim(), code: newGroupCode?.trim() || null, pin: newGroupPin || '0000' })
         .select().single()
       if (groupErr) return NextResponse.json({ error: groupErr.message }, { status: 500 })
       finalGroupId = newGroup.id

@@ -885,7 +885,7 @@ function SuperDashboard() {
                   <div className="space-y-2">
                     <input value={newGroupName} onChange={e => setNewGroupName(e.target.value)} placeholder="会社名"
                       className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />
-                    <input value={newGroupCode} onChange={e => setNewGroupCode(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} placeholder="URLコード（英数字）"
+                    <input value={newGroupCode} onChange={e => setNewGroupCode(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} placeholder="URLコード（任意・空欄可／英数字）"
                       className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />
                     <input value={newGroupPin} onChange={e => setNewGroupPin(e.target.value)} maxLength={4} inputMode="numeric" placeholder="会社PIN"
                       className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />
