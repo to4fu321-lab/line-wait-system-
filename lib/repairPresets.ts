@@ -46,12 +46,15 @@ export function buildSizeTier(opts: {
   min:         number
   max:         number
   step:        number
-  unit?:       string                // 既定 cm
+  unit?:       string                // 既定 cm（'文字' なども可）
   labelStyle?: 'upto' | 'exact'      // 〜Ncm / Ncm
+  baseAdd?:    number                // 先頭バンドの加算（既定0）
+  stepAdd?:    number                // 1段ふえるごとの加算（既定0=一律）
 }): PresetOption[] {
-  const { groupCode, group, min, max, step, unit = 'cm', labelStyle = 'upto' } = opts
+  const { groupCode, group, min, max, step, unit = 'cm', labelStyle = 'upto', baseAdd = 0, stepAdd = 0 } = opts
   const out: PresetOption[] = []
   if (!(step > 0) || !(max >= min)) return out
+  let idx = 0
   for (let v = min; v <= max + 1e-9 && out.length < 60; v += step) {
     const val = Math.round(v * 100) / 100
     out.push({
@@ -59,9 +62,10 @@ export function buildSizeTier(opts: {
       group_select: 'single',
       code:         `sz_${groupCode}_${val}`,
       name:         labelStyle === 'upto' ? `〜${val}${unit}` : `${val}${unit}`,
-      price_delta:  0,
-      default_selected: false,
+      price_delta:  Math.round(baseAdd + stepAdd * idx),
+      default_selected: idx === 0 && stepAdd !== 0,   // 増分方式は先頭(=基本料金内)を初期選択
     })
+    idx++
   }
   return out
 }
@@ -70,10 +74,14 @@ export function buildSizeTier(opts: {
 export const SIZE_RANGE_PRESETS: {
   label: string; min: number; max: number; step: number; unit: string; labelStyle: 'upto' | 'exact'
 }[] = [
+  // 長さ（cm）
   { label: '〜5cm',          min: 1, max: 5,  step: 1, unit: 'cm', labelStyle: 'upto'  },
   { label: '〜10cm',         min: 1, max: 10, step: 1, unit: 'cm', labelStyle: 'upto'  },
   { label: '〜20cm',         min: 2, max: 20, step: 2, unit: 'cm', labelStyle: 'upto'  },
   { label: '1cm刻み(1〜10)', min: 1, max: 10, step: 1, unit: 'cm', labelStyle: 'exact' },
+  // 文字数（ネーム刺繍など）
+  { label: '〜3文字',        min: 3, max: 3,  step: 1, unit: '文字', labelStyle: 'upto' },
+  { label: '3〜10文字',      min: 3, max: 10, step: 1, unit: '文字', labelStyle: 'upto' },
 ]
 
 // ── 特殊素材マニュアル（裾上げ） ────────────────────────────────
@@ -145,10 +153,17 @@ export const REPAIR_PRESET: PresetGarment[] = [
       { code: 'badge',  name: '校章付け',       icon: '🏅', base_price: 500, price_unit: 'per_item', lead_time_days: 3 },
       { code: 'button', name: 'ボタン付け替え', icon: '🔘', base_price: 300, price_unit: 'per_item', lead_time_days: 3 },
       {
-        code: 'embroidery', name: 'ネーム刺繍', icon: '🔤', base_price: 100, price_unit: 'per_name',
-        measurements: [{ key: 'text', label: '刺繍文字', unit: '文字', required: true }],
+        // ネーム刺繍は「3文字まで固定 → 超過は1文字ごとに加算」の帯モデル。
+        // 基本料金=3文字までの価格、文字数バンドで超過分を加算（受付はタップ選択）。
+        // ローマ字が別単価のときは別項目（例: ネーム刺繍（ローマ字））を作るのが簡単。
+        code: 'embroidery', name: 'ネーム刺繍', icon: '🔤', base_price: 500, price_unit: 'per_item',
+        measurements: [{ key: 'text', label: '刺繍文字（控え）', unit: '文字' }],
         lead_time_days: 7,
         options: [
+          // 文字数: 〜3文字+0 / 〜4文字+100 / 〜5文字+200 …（超過1文字100円）
+          ...buildSizeTier({ groupCode: 'mojisuu', group: '文字数', min: 3, max: 10, step: 1, unit: '文字', baseAdd: 0, stepAdd: 100 }),
+          { group_label: '文字種', group_select: 'single', code: 'kanji', name: '漢字・かな', price_delta: 0, default_selected: true },
+          { group_label: '文字種', group_select: 'single', code: 'romaji', name: 'ローマ字', price_delta: 0 },
           { group_label: '書体', group_select: 'single', code: 'gothic', name: 'ゴシック体', price_delta: 0, default_selected: true },
           { group_label: '書体', group_select: 'single', code: 'mincho', name: '明朝体',     price_delta: 0 },
           { group_label: '色',   group_select: 'single', code: 'navy',   name: '紺',         price_delta: 0, default_selected: true },

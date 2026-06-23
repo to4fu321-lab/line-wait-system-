@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
-  PRICE_UNIT_LABELS, MANUAL_SEVERITY_LABELS, REPAIR_PHOTOS_BUCKET,
+  PRICE_UNIT_LABELS, PRICE_UNIT_HELP, MANUAL_SEVERITY_LABELS, REPAIR_PHOTOS_BUCKET,
   type RepairGarmentType, type RepairItem, type RepairOption,
   type PriceUnit, type MeasurementDef, type RepairManual, type ManualSeverity,
 } from '@/types/repair'
@@ -56,7 +56,7 @@ function Modal({ title, onClose, children, wide }: { title: string; onClose: () 
   )
 }
 
-const PRICE_UNITS: PriceUnit[] = ['per_item', 'per_pair', 'per_cm', 'per_name']
+const PRICE_UNITS: PriceUnit[] = ['per_item', 'per_name', 'per_pair', 'per_cm']
 const SEVERITIES: ManualSeverity[] = ['info', 'warn', 'danger']
 
 // マニュアル編集ブロック（項目/オプション共用）
@@ -516,7 +516,10 @@ export default function RepairMasterPage() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="基本料金（円・税込）" required><input type="number" className={INPUT} value={iBase} onChange={e => setIBase(e.target.value)} /></Field>
-            <Field label="単価方式"><select className={INPUT} value={iUnit} onChange={e => setIUnit(e.target.value as PriceUnit)}>{PRICE_UNITS.map(u => <option key={u} value={u}>{PRICE_UNIT_LABELS[u]}</option>)}</select></Field>
+            <Field label="単価方式">
+              <select className={INPUT} value={iUnit} onChange={e => setIUnit(e.target.value as PriceUnit)}>{PRICE_UNITS.map(u => <option key={u} value={u}>{PRICE_UNIT_LABELS[u]}</option>)}</select>
+              <p className="text-[11px] text-gray-500 mt-1 leading-snug">{PRICE_UNIT_HELP[iUnit].desc}<br /><span className="text-gray-400">例: {PRICE_UNIT_HELP[iUnit].example}</span></p>
+            </Field>
           </div>
           <div className="grid grid-cols-2 gap-3 items-end">
             <Field label="標準納期（営業日）" hint="空欄=店舗既定"><input type="number" className={INPUT} value={iLead} onChange={e => setILead(e.target.value)} /></Field>
@@ -560,7 +563,10 @@ export default function RepairMasterPage() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="加算額（円・マイナス可）"><input type="number" className={INPUT} value={oDelta} onChange={e => setODelta(e.target.value)} /></Field>
-            <Field label="単価方式"><select className={INPUT} value={oUnit} onChange={e => setOUnit(e.target.value as PriceUnit)}>{PRICE_UNITS.map(u => <option key={u} value={u}>{PRICE_UNIT_LABELS[u]}</option>)}</select></Field>
+            <Field label="単価方式">
+              <select className={INPUT} value={oUnit} onChange={e => setOUnit(e.target.value as PriceUnit)}>{PRICE_UNITS.map(u => <option key={u} value={u}>{PRICE_UNIT_LABELS[u]}</option>)}</select>
+              <p className="text-[11px] text-gray-500 mt-1 leading-snug">{PRICE_UNIT_HELP[oUnit].desc}<br /><span className="text-gray-400">例: {PRICE_UNIT_HELP[oUnit].example}</span></p>
+            </Field>
           </div>
           <div className="flex gap-4">
             <label className="flex items-center gap-2 text-sm font-bold text-gray-700"><input type="checkbox" checked={oDefault} onChange={e => setODefault(e.target.checked)} /> 初期選択</label>
@@ -573,13 +579,13 @@ export default function RepairMasterPage() {
 
       {/* ── サイズ段階を一括生成 Modal ── */}
       {szModal && (
-        <Modal title="サイズ段階を一括生成" onClose={() => setSzModal(false)} wide>
+        <Modal title="サイズ・文字数の段階を一括生成" onClose={() => setSzModal(false)} wide>
           <p className="text-xs text-gray-500 leading-relaxed -mt-1">
-            受付画面で<strong>タップで選べるサイズ</strong>を一式作ります（択一）。<br />
-            「<strong>〜5cmまで</strong>」は最大を5に、「<strong>サイズで金額が変わる</strong>」は加算方式を「サイズごと」にします。
+            受付画面で<strong>タップで選べる段階</strong>を一式作ります（択一）。長さ(cm)でも文字数でも使えます。<br />
+            「<strong>〜5cmまで</strong>」は最大を5に。ネーム刺繍は<strong>単位「文字」＋「サイズごとに加算」</strong>で「3文字まで→超過1文字ごと加算」を作れます。
           </p>
           <Field label="グループ名" required hint="受付で見出しになります">
-            <input className={INPUT} value={szGroup} onChange={e => setSzGroup(e.target.value)} placeholder="例: 詰め幅 / 出し幅" />
+            <input className={INPUT} value={szGroup} onChange={e => setSzGroup(e.target.value)} placeholder="例: 詰め幅 / 出し幅 / 文字数" />
           </Field>
           <div>
             <p className="text-xs font-bold text-gray-600 mb-1">クイック範囲 <span className="font-normal text-gray-400">タップで下の欄を自動入力</span></p>

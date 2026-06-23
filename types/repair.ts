@@ -14,6 +14,17 @@ export const PRICE_UNIT_LABELS: Record<PriceUnit, string> = {
   per_name: '1文字ごと',
 }
 
+// 単価方式の説明＋具体例（マスタUIのヒント表示用）
+export const PRICE_UNIT_HELP: Record<PriceUnit, { desc: string; example: string }> = {
+  per_item: { desc: '料金 × 点数（一番ふつう）',                 example: '裾上げ1,200円 × 3点 = 3,600円' },
+  per_name: { desc: '料金 × 文字数（空白は除く）',               example: '1文字100円 × 「山田太郎」5文字 = 500円' },
+  per_pair: { desc: '（上級）2点1組の料金。計算は1点ごとと同じ', example: '手袋の補修 2点で800円' },
+  per_cm:   { desc: '（上級）長さで課金。受付で長さ入力が必要',  example: 'テープ貼り 1cmあたり50円' },
+}
+
+// マスタUIで選びやすい並び順（よく使う2つを上に）
+export const PRICE_UNIT_ORDER: PriceUnit[] = ['per_item', 'per_name', 'per_pair', 'per_cm']
+
 // 採寸入力の定義（マスタ側で「受付時に聞く数値」を指定）
 export interface MeasurementDef {
   key:       string   // inputs に格納するキー（例: hem_length_mm）
