@@ -333,6 +333,19 @@ export default function StaffSettingsPage() {
                 <p className="text-xs text-violet-500 mt-0.5 leading-relaxed">スタッフ情報・役職・カラー</p>
               </div>
             </Link>
+            <Link href={`/${storeId}/admin/master/repair`}
+              className="flex flex-col gap-3 px-4 py-4 rounded-2xl bg-rose-50 border border-rose-200 hover:bg-rose-100 active:scale-[0.98] transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-rose-100 border border-rose-200 flex items-center justify-center">
+                  <Scissors size={20} className="text-rose-600" />
+                </div>
+                <ChevronRight size={14} className="text-rose-400" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-rose-700">お直しマスタ</p>
+                <p className="text-xs text-rose-500 mt-0.5 leading-relaxed">お直しの種類・料金・サイズ段階</p>
+              </div>
+            </Link>
           </div>
         </Section>
 
