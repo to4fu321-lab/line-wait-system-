@@ -6,7 +6,7 @@ import {
   BellRing, CheckCheck, UserX, RefreshCw, Clock, Users,
   Loader2, Store, Phone, User, GraduationCap,
   ChevronRight, LayoutDashboard, X, MapPin, BellOff, Bell,
-  CalendarDays, QrCode,
+  CalendarDays, QrCode, ShoppingCart,
 } from 'lucide-react'
 import { BottomNav } from './_components/BottomNav'
 import { QrRegistrationModal } from './_components/QrRegistrationModal'
@@ -447,6 +447,17 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
             <span className="text-violet-700 text-xs font-bold">予約管理</span>
             <ChevronRight size={12} className="text-violet-500 ml-auto" />
           </a>
+
+          {/* レジ（会計）クイックリンク — pos 機能ON時のみ */}
+          {resolveFeature('pos', store.features ?? {}) && (
+            <a href={`/${store.id}/admin/register`}
+              style={{ touchAction: 'manipulation' }}
+              className="flex items-center gap-2 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl active:opacity-70">
+              <ShoppingCart size={14} className="text-emerald-600 shrink-0" />
+              <span className="text-emerald-700 text-xs font-bold">🧾 レジ（会計）</span>
+              <ChevronRight size={12} className="text-emerald-500 ml-auto" />
+            </a>
+          )}
 
           {/* 待ちリスト */}
           <div className="space-y-3">
