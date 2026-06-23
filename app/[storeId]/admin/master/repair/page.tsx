@@ -275,6 +275,70 @@ export default function RepairMasterPage() {
     showToast('ok', '削除しました'); fetchOptions(o.item_id)
   }
 
+  // ── サイズ段階を一括生成 modal ──────────────────────────────
+  //  「〜5cm まで」「サイズで金額が変わる」を、タップ選択の択一オプション一式として生成。
+  const [szModal, setSzModal]   = useState(false)
+  const [szItemId, setSzItemId] = useState<string | null>(null)
+  const [szGroup, setSzGroup]   = useState('詰め幅')
+  const [szUnit, setSzUnit]     = useState('cm')
+  const [szMin, setSzMin]       = useState('1')
+  const [szMax, setSzMax]       = useState('5')
+  const [szStep, setSzStep]     = useState('1')
+  const [szLabel, setSzLabel]   = useState<'upto' | 'exact'>('upto') // 〜Ncm / Ncm
+  const [szPrice, setSzPrice]   = useState<'flat' | 'increment'>('flat')
+  const [szBaseAdd, setSzBaseAdd] = useState('0') // 最小サイズの加算額
+  const [szStepAdd, setSzStepAdd] = useState('0') // 1段ふえるごとの加算額
+  const [szSaving, setSzSaving] = useState(false)
+
+  const openSize = (itemId: string) => {
+    setSzItemId(itemId); setSzGroup('詰め幅'); setSzUnit('cm')
+    setSzMin('1'); setSzMax('5'); setSzStep('1')
+    setSzLabel('upto'); setSzPrice('flat'); setSzBaseAdd('0'); setSzStepAdd('0')
+    setSzModal(true)
+  }
+  // プレビュー用に生成内容を計算
+  const szPreview = (() => {
+    const min = Number(szMin), max = Number(szMax), step = Number(szStep)
+    if (!(step > 0) || !(max >= min)) return [] as { name: string; delta: number }[]
+    const baseAdd = Number(szBaseAdd) || 0, stepAdd = Number(szStepAdd) || 0
+    const out: { name: string; delta: number }[] = []
+    let idx = 0
+    for (let v = min; v <= max + 1e-9 && out.length < 60; v += step) {
+      const val = Math.round(v * 100) / 100
+      out.push({
+        name:  szLabel === 'upto' ? `〜${val}${szUnit}` : `${val}${szUnit}`,
+        delta: szPrice === 'flat' ? 0 : Math.round(baseAdd + stepAdd * idx),
+      })
+      idx++
+    }
+    return out
+  })()
+  const generateSizes = async () => {
+    if (!szItemId) return
+    if (!szGroup.trim()) return showToast('err', 'グループ名は必須です')
+    const rows = szPreview
+    if (rows.length === 0) return showToast('err', '最小・最大・刻みを確認してください')
+    if (rows.length > 50) return showToast('err', '段階が多すぎます（50以下にしてください）')
+    setSzSaving(true)
+    const list = optionsByItem[szItemId] ?? []
+    let sort = (list.at(-1)?.sort_order ?? 0) + 10
+    const payload = rows.map((r, i) => ({
+      store_id: storeId, item_id: szItemId,
+      group_label: szGroup.trim(), group_select: 'single' as const,
+      code: `o_${Date.now().toString(36)}_${i}`,
+      name: r.name, price_delta: r.delta, price_unit: 'per_item' as const,
+      default_selected: false, requires_quote: false, manual: null,
+      sort_order: (sort += 10),
+    }))
+    try {
+      const { error } = await (supabase as any).from('repair_options').insert(payload)
+      if (error) throw error
+      setSzModal(false); showToast('ok', `${payload.length}件のサイズを追加しました`)
+      setExpandedItem(szItemId); fetchOptions(szItemId)
+    } catch { showToast('err', '生成に失敗しました') }
+    finally { setSzSaving(false) }
+  }
+
   const toggleItem = (itemId: string) => {
     if (expandedItem === itemId) { setExpandedItem(null); return }
     setExpandedItem(itemId)
@@ -375,9 +439,14 @@ export default function RepairMasterPage() {
                             </div>
                           </div>
                         ))}
-                        <button onClick={() => openO(it.id)} className="w-full flex items-center justify-center gap-1 rounded-xl border-2 border-dashed border-gray-200 py-2 text-xs font-bold text-gray-400 hover:border-amber-400 hover:text-amber-500">
-                          <Plus size={13} /> オプションを追加
-                        </button>
+                        <div className="flex gap-2">
+                          <button onClick={() => openO(it.id)} className="flex-1 flex items-center justify-center gap-1 rounded-xl border-2 border-dashed border-gray-200 py-2 text-xs font-bold text-gray-400 hover:border-amber-400 hover:text-amber-500">
+                            <Plus size={13} /> オプションを追加
+                          </button>
+                          <button onClick={() => openSize(it.id)} className="flex-1 flex items-center justify-center gap-1 rounded-xl border-2 border-dashed border-indigo-200 py-2 text-xs font-bold text-indigo-400 hover:border-indigo-400 hover:text-indigo-600">
+                            <Ruler size={13} /> サイズ段階を一括生成
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -458,6 +527,67 @@ export default function RepairMasterPage() {
           </div>
           <ManualEditor value={oManual} onChange={setOManual} storeId={storeId} onToast={showToast} />
           <button onClick={saveO} className="w-full bg-amber-500 text-white font-black py-3 rounded-xl">保存</button>
+        </Modal>
+      )}
+
+      {/* ── サイズ段階を一括生成 Modal ── */}
+      {szModal && (
+        <Modal title="サイズ段階を一括生成" onClose={() => setSzModal(false)} wide>
+          <p className="text-xs text-gray-500 leading-relaxed -mt-1">
+            受付画面で<strong>タップで選べるサイズ</strong>を一式作ります（択一）。<br />
+            「<strong>〜5cmまで</strong>」は最大を5に、「<strong>サイズで金額が変わる</strong>」は加算方式を「サイズごと」にします。
+          </p>
+          <Field label="グループ名" required hint="受付で見出しになります">
+            <input className={INPUT} value={szGroup} onChange={e => setSzGroup(e.target.value)} placeholder="例: 詰め幅 / 出し幅" />
+          </Field>
+          <div className="grid grid-cols-4 gap-3">
+            <Field label="最小"><input type="number" className={INPUT} value={szMin} onChange={e => setSzMin(e.target.value)} /></Field>
+            <Field label="最大"><input type="number" className={INPUT} value={szMax} onChange={e => setSzMax(e.target.value)} /></Field>
+            <Field label="刻み"><input type="number" className={INPUT} value={szStep} onChange={e => setSzStep(e.target.value)} /></Field>
+            <Field label="単位"><input className={INPUT} value={szUnit} onChange={e => setSzUnit(e.target.value)} placeholder="cm" /></Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="表示形式">
+              <select className={INPUT} value={szLabel} onChange={e => setSzLabel(e.target.value as 'upto' | 'exact')}>
+                <option value="upto">〜Ncm（◯◯まで）</option>
+                <option value="exact">Ncm（ぴったり）</option>
+              </select>
+            </Field>
+            <Field label="金額の付け方">
+              <select className={INPUT} value={szPrice} onChange={e => setSzPrice(e.target.value as 'flat' | 'increment')}>
+                <option value="flat">一律（基本料金のまま）</option>
+                <option value="increment">サイズごとに加算</option>
+              </select>
+            </Field>
+          </div>
+          {szPrice === 'increment' && (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="最小サイズの加算額（円）" hint="基本料金への上乗せ"><input type="number" className={INPUT} value={szBaseAdd} onChange={e => setSzBaseAdd(e.target.value)} /></Field>
+              <Field label="1段ふえるごとに（円）"><input type="number" className={INPUT} value={szStepAdd} onChange={e => setSzStepAdd(e.target.value)} /></Field>
+            </div>
+          )}
+          {/* プレビュー */}
+          <div className="border border-gray-200 rounded-xl p-3 bg-gray-50">
+            <p className="text-xs font-bold text-gray-500 mb-2">プレビュー（{szPreview.length}件）</p>
+            {szPreview.length === 0 ? (
+              <p className="text-xs text-gray-400">最小・最大・刻みを確認してください</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {szPreview.map((p, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 bg-white border-2 border-indigo-200 rounded-lg px-2.5 py-1 text-xs font-bold text-indigo-700">
+                    {p.name}{p.delta !== 0 && <span className="text-gray-400">{p.delta > 0 ? '+' : ''}¥{p.delta.toLocaleString()}</span>}
+                  </span>
+                ))}
+              </div>
+            )}
+            <p className="text-[11px] text-gray-400 mt-2">
+              受付時の金額 = 基本料金{szPrice === 'increment' ? ' + サイズの加算額' : ''}。生成後も1つずつ編集できます。
+            </p>
+          </div>
+          <button onClick={generateSizes} disabled={szSaving || szPreview.length === 0}
+            className="w-full bg-indigo-600 text-white font-black py-3 rounded-xl disabled:opacity-50">
+            {szSaving ? '生成中…' : `${szPreview.length}件のサイズを追加`}
+          </button>
         </Modal>
       )}
     </div>
