@@ -116,11 +116,12 @@ function PaymentBadge({ status, onToggle, loading }: {
 
 // ── お渡し待ちカード ──────────────────────────────────────────
 
-function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle }: {
+function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onNotify }: {
   item: DeliveryItem
   alertDays: number
   onDeliver: (item: DeliveryItem, paid: boolean) => Promise<void>
   onPaymentToggle: (item: DeliveryItem) => Promise<void>
+  onNotify: (item: DeliveryItem) => Promise<void>
 }) {
   const [confirmOpen,      setConfirmOpen]      = useState(false)
   const [payAtDeliver,     setPayAtDeliver]     = useState(item.payment_status === 'paid')
@@ -216,7 +217,20 @@ function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle }: {
         )}
       </div>
 
-      {/* ⑦ お渡しアクション */}
+      {/* ⑦ LINE通知ボタン（未通知の場合のみ表示） */}
+      {!item.notified && (
+        <div className="px-4 pt-0 pb-2">
+          <button
+            onClick={async () => { setLoading('notify'); await onNotify(item); setLoading(null) }}
+            disabled={!!loading}
+            className="w-full py-2.5 rounded-xl font-bold text-sm bg-emerald-50 border border-emerald-300 text-emerald-700 active:opacity-70 disabled:opacity-50 flex items-center justify-center gap-2 transition-all">
+            {loading === 'notify' ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} />}
+            {loading === 'notify' ? '送信中...' : 'LINEで入荷をお知らせ'}
+          </button>
+        </div>
+      )}
+
+      {/* ⑧ お渡しアクション */}
       {!confirmOpen ? (
         <div className="px-4 pb-4 border-t border-slate-100 pt-3">
           <button onClick={() => setConfirmOpen(true)}
@@ -478,7 +492,7 @@ export default function DeliveryPage() {
     notified:       row.notified as boolean ?? false,
     payment_status: (row as Record<string, unknown>).payment_status as string | null ?? null,
     customer:       row.customer as { name: string; tel: string | null } | null,
-    child:          row.child as { name: string } | null,
+    child:          row.child as { name: string; school_name: string | null } | null,
   })
 
   const fetchWaiting = useCallback(async () => {
@@ -609,6 +623,22 @@ export default function DeliveryPage() {
     }
   }, [showToast])
 
+  const handleNotify = useCallback(async (item: DeliveryItem) => {
+    try {
+      const res = await fetch('/api/arrival-notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId, kind: item.kind, id: item.id }),
+      })
+      const json = await res.json()
+      if (!json.ok) throw new Error(json.error ?? '送信失敗')
+      setWaiting(prev => prev.map(i => i.id === item.id ? { ...i, notified: true } : i))
+      showToast('ok', 'LINE通知を送りました 📩')
+    } catch (e) {
+      showToast('err', e instanceof Error ? e.message : 'LINE通知に失敗しました')
+    }
+  }, [storeId, showToast])
+
   // ── render ─────────────────────────────────────────────────
 
   const waitingUnpaid = waiting.filter(i => i.payment_status !== 'paid')
@@ -684,6 +714,7 @@ export default function DeliveryPage() {
                   alertDays={alertDays}
                   onDeliver={handleDeliver}
                   onPaymentToggle={handlePaymentToggle}
+                  onNotify={handleNotify}
                 />
               ))}
             </div>
