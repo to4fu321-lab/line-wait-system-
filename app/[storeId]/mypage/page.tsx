@@ -10,7 +10,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, Package, Scissors, User, School, ChevronRight,
   Loader2, AlertCircle, Clock, CheckCircle2, ShoppingBag,
-  RefreshCw, GraduationCap,
+  RefreshCw, GraduationCap, Ruler,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { initLiff, getLineProfile } from '@/lib/liff'
@@ -51,6 +51,7 @@ export default function MyPage() {
   const [store, setStore]               = useState<StoreInfo | null>(null)
   const [error, setError]               = useState<string | null>(null)
   const [refreshing, setRefreshing]     = useState(false)
+  const [measurementsByChild, setMeasurementsByChild] = useState<Record<string, { height: string; weight?: string; date: string }[]>>({})
 
   const loadData = useCallback(async (silent = false) => {
     if (!storeId) return
@@ -114,9 +115,37 @@ export default function MyPage() {
           .limit(20),
       ])
 
-      setChildren(childRes.data ?? [])
+      const kids: Child[] = childRes.data ?? []
+      setChildren(kids)
       setPurchases(purchaseRes.data ?? [])
       setRepairs(repairRes.data ?? [])
+
+      // 採寸記録: 各お子様の身長・体重履歴をqueuesから取得
+      if (kids.length > 0) {
+        try {
+          const { data: queueRows } = await (supabase as any)
+            .from('queues')
+            .select('child_id, created_at, details')
+            .in('child_id', kids.map((c: Child) => c.id))
+            .not('details', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(50)
+
+          const byChild: Record<string, { height: string; weight?: string; date: string }[]> = {}
+          for (const q of (queueRows ?? [])) {
+            if (!q.child_id || !q.details?.height) continue
+            if (!byChild[q.child_id]) byChild[q.child_id] = []
+            if (byChild[q.child_id].length < 5) {
+              byChild[q.child_id].push({
+                height: q.details.height,
+                weight: q.details.weight,
+                date: q.created_at,
+              })
+            }
+          }
+          setMeasurementsByChild(byChild)
+        } catch { /* サイズ履歴は任意 */ }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'データの取得に失敗しました')
     }
@@ -189,23 +218,46 @@ export default function MyPage() {
               <GraduationCap size={14} className="text-gray-400" />
               <span className="text-sm font-bold text-gray-700">お子様情報</span>
             </div>
-            {children.map(child => (
-              <div key={child.id} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2">
-                <div className="w-7 h-7 rounded-xl flex items-center justify-center text-white text-xs font-black shrink-0"
-                  style={{ background: primaryColor }}>
-                  {child.name.charAt(0)}
+            {children.map(child => {
+              const measurements = measurementsByChild[child.id] ?? []
+              return (
+                <div key={child.id} className="bg-gray-50 rounded-xl px-3 py-2.5 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-7 h-7 rounded-xl flex items-center justify-center text-white text-xs font-black shrink-0"
+                      style={{ background: primaryColor }}>
+                      {child.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-gray-800">{child.name}</p>
+                      <p className="text-[10px] text-gray-500">
+                        {child.school_name ?? '学校未設定'}
+                        {child.grade && ` · ${child.grade}`}
+                      </p>
+                    </div>
+                    {child.gender === 'male' && <span className="text-[10px] text-blue-500 font-bold">男子</span>}
+                    {child.gender === 'female' && <span className="text-[10px] text-pink-500 font-bold">女子</span>}
+                  </div>
+                  {/* 採寸記録 */}
+                  {measurements.length > 0 && (
+                    <div className="pl-10">
+                      <div className="flex items-center gap-1 mb-1">
+                        <Ruler size={10} className="text-gray-400" />
+                        <span className="text-[10px] font-bold text-gray-400">採寸記録</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {measurements.map((m, i) => (
+                          <div key={i} className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg px-2 py-1">
+                            <span className="text-[10px] font-black text-indigo-700">{m.height}cm</span>
+                            {m.weight && <span className="text-[10px] text-gray-500">{m.weight}kg</span>}
+                            <span className="text-[9px] text-gray-400 ml-0.5">{formatDate(m.date)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-gray-800">{child.name}</p>
-                  <p className="text-[10px] text-gray-500">
-                    {child.school_name ?? '学校未設定'}
-                    {child.grade && ` · ${child.grade}`}
-                  </p>
-                </div>
-                {child.gender === 'male' && <span className="text-[10px] text-blue-500 font-bold">男子</span>}
-                {child.gender === 'female' && <span className="text-[10px] text-pink-500 font-bold">女子</span>}
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
 
