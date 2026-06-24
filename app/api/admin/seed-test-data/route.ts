@@ -45,8 +45,8 @@ export async function GET(req: NextRequest) {
   if (!storeId) return NextResponse.json({ error: 'storeId required' }, { status: 400 })
 
   const [{ data: customers }, { data: children }] = await Promise.all([
-    supabase.from('customers').select('id, name').eq('store_id', storeId).limit(50),
-    supabase.from('children').select('id, name, customer_id').eq('store_id', storeId).limit(50),
+    (supabase as any).from('customers').select('id, name').eq('store_id', storeId).limit(50),
+    (supabase as any).from('children').select('id, name, customer_id').eq('store_id', storeId).limit(50),
   ])
 
   return NextResponse.json({
@@ -69,12 +69,14 @@ export async function POST(req: NextRequest) {
   if (!storeId) return NextResponse.json({ error: 'storeId required' }, { status: 400 })
 
   // 実在する顧客・子供を取得
-  const [{ data: customers, error: custErr }, { data: children }] = await Promise.all([
-    supabase.from('customers').select('id, name').eq('store_id', storeId).limit(100),
-    supabase.from('children').select('id, name, customer_id, school_name').eq('store_id', storeId).limit(100),
+  const [{ data: customersRaw, error: custErr }, { data: childrenRaw }] = await Promise.all([
+    (supabase as any).from('customers').select('id, name').eq('store_id', storeId).limit(100),
+    (supabase as any).from('children').select('id, name, customer_id, school_name').eq('store_id', storeId).limit(100),
   ])
+  const customers = customersRaw as { id: string; name: string }[]
+  const children  = childrenRaw  as { id: string; name: string; customer_id: string; school_name: string | null }[] | null
 
-  if (custErr || !customers || customers.length === 0) {
+  if (custErr || !customersRaw || customersRaw.length === 0) {
     return NextResponse.json({ error: '顧客データが見つかりません。先に顧客を登録してください。' }, { status: 400 })
   }
 
@@ -154,8 +156,8 @@ export async function POST(req: NextRequest) {
   }
 
   const [repairResult, purchaseResult] = await Promise.all([
-    supabase.from('repair_histories').insert(repairRows),
-    supabase.from('purchase_orders').insert(purchaseRows),
+    (supabase as any).from('repair_histories').insert(repairRows),
+    (supabase as any).from('purchase_orders').insert(purchaseRows),
   ])
 
   const errors = [

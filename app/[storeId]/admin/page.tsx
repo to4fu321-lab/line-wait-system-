@@ -33,7 +33,7 @@ function urlBase64ToUint8Array(base64: string) {
   const pad = '='.repeat((4 - base64.length % 4) % 4)
   const b64 = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/')
   const raw = window.atob(b64)
-  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
+  return Uint8Array.from(Array.from(raw).map(c => c.charCodeAt(0)))
 }
 
 type AdminView  = 'loading' | 'select_store' | 'pin' | 'dashboard'
@@ -100,7 +100,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
 
   const fetchStoreStatus = useCallback(async () => {
     // is_open を必ず取得（別列の有無に影響されないよう独立クエリ）
-    const { data, error } = await supabase.from('stores')
+    const { data, error } = await (supabase as any).from('stores')
       .select('is_open')
       .eq('id', store.id).single()
     if (!error && data != null) {
@@ -119,7 +119,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
 
   const fetchQueues = useCallback(async () => {
     setRefreshing(true)
-    const { data } = await supabase.from('queues').select('*')
+    const { data } = await (supabase as any).from('queues').select('*')
       .eq('store_id', store.id).gte('created_at', getTodayStart())
       .order('ticket_number', { ascending: true })
     if (data) setQueues(data)
@@ -208,13 +208,13 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
   }
 
   const handleAction = async (id: string, status: QueueStatus) => {
-    const { error } = await supabase.from('queues').update({ status }).eq('id', id)
+    const { error } = await (supabase as any).from('queues').update({ status }).eq('id', id)
     if (error) { showToast('err', '更新失敗: ' + error.message); return }
     setQueues(prev => prev.map(q => q.id === id ? { ...q, status } : q))
     const labels: Record<QueueStatus, string> = { calling:'呼出', completed:'完了', cancelled:'不在', waiting:'待機に戻しました' }
     showToast('ok', labels[status])
     if (status === 'calling') {
-      const { data: freshTicket } = await supabase.from('queues')
+      const { data: freshTicket } = await (supabase as any).from('queues')
         .select('line_user_id, ticket_number, customer_name').eq('id', id).single()
       if (freshTicket?.line_user_id) {
         fetch('/api/notify', {
@@ -256,7 +256,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
   }, [store.id, router])
 
   const handleCheckIn = async (id: string) => {
-    const { error } = await supabase.from('queues').update({ checked_in: true }).eq('id', id)
+    const { error } = await (supabase as any).from('queues').update({ checked_in: true }).eq('id', id)
     if (error) { showToast('err', 'チェックイン失敗: ' + error.message); return }
     setQueues(prev => prev.map(q => q.id === id ? { ...q, checked_in: true } : q))
     showToast('ok', '代理チェックイン済みにしました')
@@ -268,7 +268,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     const schools = ['○○中学校', '△△高校', '□□学園', '◇◇学院', '星川中学校', '南高等学校']
     const genders = ['male', 'female', 'other'] as const
     const categories = ['fitting', 'pickup', 'other'] as const
-    const { data: last } = await supabase.from('queues')
+    const { data: last } = await (supabase as any).from('queues')
       .select('ticket_number').eq('store_id', store.id)
       .gte('created_at', getTodayStart())
       .order('ticket_number', { ascending: false }).limit(1).maybeSingle()
@@ -277,7 +277,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     const school   = schools[Math.floor(Math.random() * schools.length)]
     const gender   = genders[Math.floor(Math.random() * genders.length)]
     const category = categories[Math.floor(Math.random() * categories.length)]
-    const { error } = await supabase.from('queues').insert({
+    const { error } = await (supabase as any).from('queues').insert({
       store_id: store.id, ticket_number: nextNum, status: 'waiting',
       customer_name: name, school_name: school, child_name: null,
       category, gender, is_remote: false, checked_in: false,
@@ -742,8 +742,8 @@ export default function StoreAdminPage() {
   }, [])
 
   useEffect(() => {
-    supabase.from('stores').select('id, name, pin, group_id, business_type, features').order('name', { ascending: true })
-      .then(({ data, error }) => {
+    (supabase as any).from('stores').select('id, name, pin, group_id, business_type, features').order('name', { ascending: true })
+      .then(({ data, error }: { data: any; error: any }) => {
         if (error || !data || data.length === 0) {
           setFetchError(error?.message ?? '店舗データが見つかりません'); setView('select_store'); return
         }

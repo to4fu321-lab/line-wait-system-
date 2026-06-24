@@ -180,9 +180,9 @@ function FittingPageInner() {
   // 学校マスター読み込み
   useEffect(() => {
     if (!storeId) return
-    supabase.from('schools').select('id, name, short_name, sort_order')
+    (supabase as any).from('schools').select('id, name, short_name, sort_order')
       .eq('store_id', storeId).eq('active', true).order('sort_order')
-      .then(({ data }) => setSchools(data ?? []))
+      .then(({ data }: { data: any }) => setSchools(data ?? []))
   }, [storeId])
 
   // 今日の予約を読み込む
@@ -223,11 +223,11 @@ function FittingPageInner() {
 
     if (q.customer_id) {
       // CRM顧客が紐付き済み
-      const { data: cust } = await supabase.from('customers')
+      const { data: cust } = await (supabase as any).from('customers')
         .select('id, name, kana, tel').eq('id', q.customer_id).single()
       if (cust) {
         setCustomer(cust as CustomerRow)
-        const { data: kids } = await supabase.from('children').select('*').eq('customer_id', cust.id)
+        const { data: kids } = await (supabase as any).from('children').select('*').eq('customer_id', cust.id)
         const kidList = (kids ?? []) as ChildRow[]
         setChildren(kidList)
 
@@ -281,7 +281,7 @@ function FittingPageInner() {
   const searchCustomers = useCallback(async (q: string) => {
     if (!q.trim()) { setResults([]); return }
     setSearching(true)
-    const { data } = await supabase.from('customers')
+    const { data } = await (supabase as any).from('customers')
       .select('id, name, kana, tel')
       .eq('store_id', storeId)
       .or(`name.ilike.%${q}%,kana.ilike.%${q}%,tel.ilike.%${q.replace(/-/g, '')}%`)
@@ -298,7 +298,7 @@ function FittingPageInner() {
   // お客様選択
   const selectCustomer = useCallback(async (c: CustomerRow) => {
     setCustomer(c); setChild(null); setShowAddChild(false); setLoadingChild(true)
-    const { data } = await supabase.from('children').select('*')
+    const { data } = await (supabase as any).from('children').select('*')
       .eq('customer_id', c.id).order('created_at')
     setChildren(data ?? [])
     setLoadingChild(false)
@@ -309,7 +309,7 @@ function FittingPageInner() {
     if (!ncName.trim() || !customer) return
     setNcSaving(true)
     const schoolName = schools.find(s => s.id === ncSchoolId)?.name ?? null
-    const { data, error } = await supabase.from('children').insert({
+    const { data, error } = await (supabase as any).from('children').insert({
       customer_id: customer.id, store_id: storeId,
       name: ncName.trim(), kana: ncKana.trim() || null,
       school_id: ncSchoolId || null, school_name: schoolName,
@@ -345,7 +345,7 @@ function FittingPageInner() {
 
     // お子様を設定
     const resChild = r.children
-    const { data: kids } = await supabase.from('children').select('*').eq('customer_id', c.id)
+    const { data: kids } = await (supabase as any).from('children').select('*').eq('customer_id', c.id)
     setChildren((kids ?? []) as ChildRow[])
 
     const targetChild = resChild
@@ -384,7 +384,7 @@ function FittingPageInner() {
     if (!schoolId) { showToast('err', '学校が設定されていません'); return }
 
     setLoadingProd(true)
-    const { data: prods } = await supabase.from('school_products')
+    const { data: prods } = await (supabase as any).from('school_products')
       .select('id, item_name, category, gender, maker_code, sort_order')
       .eq('school_id', schoolId).eq('active', true)
       .order('sort_order').order('item_name')
@@ -392,7 +392,7 @@ function FittingPageInner() {
     const allProds = (prods ?? []) as ProductRow[]
     if (allProds.length) {
       const ids = allProds.map((p: ProductRow) => p.id)
-      const { data: vars } = await supabase.from('school_product_variants')
+      const { data: vars } = await (supabase as any).from('school_product_variants')
         .select('id, product_id, size_label, price, sort_order')
         .in('product_id', ids).eq('active', true).order('sort_order')
       const map: Record<string, VariantRow[]> = {}
@@ -432,7 +432,7 @@ function FittingPageInner() {
     if (!schoolId) { showToast('err', '学校が設定されていません。お子様情報を編集してください'); return }
 
     setLoadingProd(true)
-    const { data: prods } = await supabase.from('school_products')
+    const { data: prods } = await (supabase as any).from('school_products')
       .select('id, item_name, category, gender, maker_code, sort_order')
       .eq('school_id', schoolId).eq('active', true)
       .order('sort_order').order('item_name')
@@ -440,7 +440,7 @@ function FittingPageInner() {
     const allProds = (prods ?? []) as ProductRow[]
     if (allProds.length) {
       const ids = allProds.map((p: ProductRow) => p.id)
-      const { data: vars } = await supabase.from('school_product_variants')
+      const { data: vars } = await (supabase as any).from('school_product_variants')
         .select('id, product_id, size_label, price, sort_order')
         .in('product_id', ids).eq('active', true).order('sort_order')
       const map: Record<string, VariantRow[]> = {}
@@ -514,7 +514,7 @@ function FittingPageInner() {
     if (!child) return
     setSaving(true); setWithOrder(createOrder)
 
-    const { data: meas, error: measErr } = await supabase.from('measurements').insert({
+    const { data: meas, error: measErr } = await (supabase as any).from('measurements').insert({
       store_id: storeId,
       child_id: child.id,
       measured_date: new Date().toISOString().split('T')[0],
@@ -579,7 +579,7 @@ function FittingPageInner() {
     const { error: itemsErr } = await (supabase as any).from('uniform_order_items').insert(items)
 
     // measurement に order_id を紐付け
-    await supabase.from('measurements').update({ order_id: order.id }).eq('id', meas.id)
+    await (supabase as any).from('measurements').update({ order_id: order.id }).eq('id', meas.id)
 
     if (itemsErr) { setSaving(false); showToast('err', `明細保存失敗: ${itemsErr.message}`); return }
 

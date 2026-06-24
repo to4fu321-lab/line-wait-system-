@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       console.error('[notify-repair] LINE error:', result.error)
       return NextResponse.json({ ok: false, error: `LINE ${result.status ?? ''}` }, { status: 500 })
     }
-    await supabase.from('repair_histories').update({ notified: true }).eq('id', repairId)
+    await (supabase as any).from('repair_histories').update({ notified: true }).eq('id', repairId)
     console.log('[notify-repair] LINE sent:', repairId)
     return NextResponse.json({ ok: true, channel: 'line' })
   }
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
       `${reqText}\nお受け取りにお越しください。`
     try {
       await sendSms(tel, smsText)
-      await supabase.from('repair_histories').update({ notified: true }).eq('id', repairId)
+      await (supabase as any).from('repair_histories').update({ notified: true }).eq('id', repairId)
       console.log('[notify-repair] SMS sent:', repairId, toE164Japan(tel))
       return NextResponse.json({ ok: true, channel: 'sms' })
     } catch (e) {

@@ -11,36 +11,36 @@ export async function POST(req: NextRequest) {
 
   try {
     // 【テスト】タグ付き顧客を取得
-    const { data: testCustomers } = await supabase.from('customers')
+    const { data: testCustomers } = await (supabase as any).from('customers')
       .select('id').eq('store_id', storeId).like('name', '【テスト】%')
 
-    const ids = (testCustomers ?? []).map(c => c.id)
+    const ids = (testCustomers ?? []).map((c: any) => c.id)
 
     if (ids.length) {
       // 1. 整理券の FK 参照を外す（customer_id → null）
-      await supabase.from('queues')
+      await (supabase as any).from('queues')
         .update({ customer_id: null, child_id: null })
         .in('customer_id', ids)
 
       // 2. 関連レコードを削除
-      const { count: pc } = await (supabase.from('purchase_orders') as any)
+      const { count: pc } = await ((supabase as any).from('purchase_orders') as any)
         .delete({ count: 'exact' }).in('customer_id', ids)
       if (pc) deleted.push(`取置き依頼 ${pc}件`)
 
-      const { count: rc } = await supabase.from('repair_histories')
+      const { count: rc } = await (supabase as any).from('repair_histories')
         .delete({ count: 'exact' }).in('customer_id', ids)
       if (rc) deleted.push(`お直し依頼 ${rc}件`)
 
-      await supabase.from('children').delete().in('customer_id', ids)
+      await (supabase as any).from('children').delete().in('customer_id', ids)
 
       // 3. 顧客本体を削除
-      const { count: cc } = await supabase.from('customers')
+      const { count: cc } = await (supabase as any).from('customers')
         .delete({ count: 'exact' }).in('id', ids)
       if (cc) deleted.push(`顧客 ${cc}名`)
     }
 
     // 4. テスト整理券を削除（customer_name に「テスト」を含むもの）
-    const { count: qc } = await supabase.from('queues')
+    const { count: qc } = await (supabase as any).from('queues')
       .delete({ count: 'exact' })
       .eq('store_id', storeId).like('customer_name', '%テスト%')
     if (qc) deleted.push(`整理券 ${qc}件`)

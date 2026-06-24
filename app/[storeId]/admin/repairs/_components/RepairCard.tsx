@@ -163,7 +163,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       notifyMode === 'phone_manual' ? '✅ お直し完了にしました' :
                                       '✅ お直し完了にしました'
 
-    async function handlePaymentToggle() {
+    const handlePaymentToggle = async () => {
       const newPrepaid = !item.prepaid
       setLoading(true)
       const { error } = await (supabase as any).from('repair_histories')
@@ -184,7 +184,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       )
     }
 
-    async function handleSimpleComplete() {
+    const handleSimpleComplete = async () => {
       setLoading(true)
       const today = new Date().toISOString().slice(0, 10)
       // 電話連絡運用は手動連絡済みなので notified:true で確定（SMS送信はしない）
@@ -227,7 +227,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       onToast('ok', completeToast)
     }
 
-    async function handleSendToVendor() {
+    const handleSendToVendor = async () => {
       setLoading(true)
       const { error } = await (supabase as any).from('repair_histories')
         .update({
@@ -244,7 +244,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       onToast('ok', '📤 外注に出しました')
     }
 
-    async function handleReturnFromVendor() {
+    const handleReturnFromVendor = async () => {
       setLoading(true)
       const { error } = await (supabase as any).from('repair_histories')
         .update({ work_started: true, updated_at: new Date().toISOString() })
@@ -255,7 +255,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       onToast('ok', '📥 外注品が戻りました')
     }
 
-    async function handleSimpleRevert() {
+    const handleSimpleRevert = async () => {
       setLoading(true)
       const { error } = await (supabase as any).from('repair_histories')
         .update({ status: 'received', work_started: false, completed_date: null, notified: false, sent_to_vendor_at: null, vendor_name: null, updated_at: new Date().toISOString() })

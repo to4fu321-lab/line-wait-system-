@@ -92,11 +92,11 @@ export default function ManualOrderModal({ storeId, onClose, onCreated }: Props)
     setError('')
     setSubmitting(true)
     try {
-      const { data: orderNumber, error: numErr } = await supabase
+      const { data: orderNumber, error: numErr } = await (supabase as any)
         .rpc('get_next_order_number', { p_store_id: storeId })
       if (numErr) throw numErr
 
-      const { data: order, error: orderErr } = await supabase
+      const { data: order, error: orderErr } = await (supabase as any)
         .from('takeout_orders')
         .insert({
           store_id:      storeId,
@@ -112,7 +112,7 @@ export default function ManualOrderModal({ storeId, onClose, onCreated }: Props)
         .single()
       if (orderErr || !order) throw orderErr
 
-      await supabase.from('takeout_order_items').insert(
+      await (supabase as any).from('takeout_order_items').insert(
         cart.map(i => ({
           order_id:   (order as { id: string }).id,
           name:       i.name,

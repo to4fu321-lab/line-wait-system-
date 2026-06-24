@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   // 店舗情報を取得（テストモード確認 + business_type でトークン選択）
   let bizType: ReturnType<typeof storeBizType> = 'uniform'
   if (storeId) {
-    const { data: st } = await (supabase.from('stores') as any)
+    const { data: st } = await ((supabase as any).from('stores') as any)
       .select('is_test_mode, business_type').eq('id', storeId).single()
     if (st?.is_test_mode) {
       console.log(`[LINE通知スキップ] テストモード中 No.${ticketNumber} ${customerName}`)
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
 
   let storeName = rawStoreName
   if (!storeName && storeId) {
-    const { data } = await supabase.from('stores').select('name').eq('id', storeId).single()
+    const { data } = await (supabase as any).from('stores').select('name').eq('id', storeId).single()
     storeName = data?.name ?? ''
   }
 
