@@ -679,10 +679,16 @@ function SuperDashboard() {
             <h1 className="text-2xl font-black">🏢 総管理ダッシュボード</h1>
             {lastUpdated && <p className="text-gray-500 text-xs mt-0.5">最終更新: {lastUpdated.toLocaleTimeString('ja-JP')}</p>}
           </div>
-          <button onClick={fetchAll} disabled={refreshing}
-            className="p-2 rounded-xl bg-gray-700 active:scale-90 transition-transform disabled:opacity-50">
-            <RefreshCw size={20} className={refreshing ? 'animate-spin' : ''} />
-          </button>
+          <div className="flex items-center gap-2">
+            <a href="/super-admin/feedback"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-700 hover:bg-gray-600 text-sm font-bold active:scale-95 transition-all">
+              📨 フィードバック
+            </a>
+            <button onClick={fetchAll} disabled={refreshing}
+              className="p-2 rounded-xl bg-gray-700 active:scale-90 transition-transform disabled:opacity-50">
+              <RefreshCw size={20} className={refreshing ? 'animate-spin' : ''} />
+            </button>
+          </div>
         </div>
 
         {fetchError && (

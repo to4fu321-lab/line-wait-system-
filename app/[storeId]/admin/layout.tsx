@@ -4,6 +4,7 @@ import { ReactNode } from 'react'
 import { DeviceModeProvider } from './_components/DeviceModeProvider'
 import { SideNav } from './_components/SideNav'
 import { OrderReminderBanner } from './_components/OrderReminderBanner'
+import { FeedbackButton } from './_components/FeedbackButton'
 import { useDeviceMode } from '@/lib/useDeviceMode'
 
 function AdminLayoutInner({ children }: { children: ReactNode }) {
@@ -17,6 +18,7 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
         <main className="flex-1 min-w-0 overflow-y-auto">
           {children}
         </main>
+        <FeedbackButton />
       </div>
     )
   }
@@ -26,6 +28,7 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
     <>
       <OrderReminderBanner />
       {children}
+      <FeedbackButton />
     </>
   )
 }
