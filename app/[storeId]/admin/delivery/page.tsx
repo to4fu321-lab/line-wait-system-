@@ -114,6 +114,58 @@ function PaymentBadge({ status, onToggle, loading }: {
   )
 }
 
+// ── 一括LINE通知バナー ────────────────────────────────────────
+
+function BulkNotifyBanner({ items, storeId, onDone, onError }: {
+  items: DeliveryItem[]
+  storeId: string
+  onDone: (notifiedIds: string[]) => void
+  onError: (msg: string) => void
+}) {
+  const [sending, setSending] = useState(false)
+  const [progress, setProgress] = useState(0)
+
+  const handleBulk = async () => {
+    setSending(true)
+    setProgress(0)
+    const succeeded: string[] = []
+    for (const item of items) {
+      try {
+        const res = await fetch('/api/arrival-notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ storeId, kind: item.kind, id: item.id }),
+        })
+        const json = await res.json()
+        if (json.ok) succeeded.push(item.id)
+      } catch { /* 個別エラーはスキップして続行 */ }
+      setProgress(prev => prev + 1)
+    }
+    setSending(false)
+    if (succeeded.length > 0) onDone(succeeded)
+    else onError('送信できたLINE通知がありませんでした（line_user_id未登録の可能性）')
+  }
+
+  return (
+    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 flex items-center gap-3">
+      <Bell size={16} className="text-emerald-600 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-black text-emerald-800">未通知が{items.length}件あります</p>
+        {sending && (
+          <p className="text-xs text-emerald-600">{progress} / {items.length} 送信中...</p>
+        )}
+      </div>
+      <button
+        onClick={handleBulk}
+        disabled={sending}
+        className="px-4 py-2 bg-emerald-600 text-white text-xs font-black rounded-xl active:opacity-70 disabled:opacity-50 flex items-center gap-1.5 shrink-0">
+        {sending ? <Loader2 size={12} className="animate-spin" /> : <Bell size={12} />}
+        {sending ? '送信中...' : 'まとめて通知'}
+      </button>
+    </div>
+  )
+}
+
 // ── お渡し待ちカード ──────────────────────────────────────────
 
 function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onNotify }: {
@@ -706,6 +758,18 @@ export default function DeliveryPage() {
             </div>
           ) : (
             <div className="space-y-3">
+              {/* 未通知の入荷まとめて通知ボタン */}
+              {waiting.filter(i => !i.notified).length >= 2 && (
+                <BulkNotifyBanner
+                  items={waiting.filter(i => !i.notified)}
+                  storeId={storeId}
+                  onDone={notifiedIds => {
+                    setWaiting(prev => prev.map(i => notifiedIds.includes(i.id) ? { ...i, notified: true } : i))
+                    showToast('ok', `${notifiedIds.length}件のLINE通知を送りました 📩`)
+                  }}
+                  onError={msg => showToast('err', msg)}
+                />
+              )}
               {/* 未払いを先に、支払済みを後に */}
               {[...waitingUnpaid, ...waitingPaid].map(item => (
                 <WaitingCard
