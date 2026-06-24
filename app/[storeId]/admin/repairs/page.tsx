@@ -6,7 +6,7 @@ import {
   Scissors, ShoppingBag, Loader2,
   Check, Package, Plus, AlertCircle, CheckCheck,
   History, Search, Database, ShoppingCart, PackageCheck,
-  MessageSquarePlus,
+  MessageSquarePlus, Download,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../_components/BottomNav'
@@ -84,6 +84,7 @@ export default function RepairsPage() {
   const [handoverNote,    setHandoverNote]    = useState('')
   const [confirmingOC,    setConfirmingOC]    = useState(false)
   const [storeName, setStoreName] = useState('')
+  const [exporting,       setExporting]       = useState(false)
 
   const showToast = useCallback((type: 'ok' | 'err', msg: string, onUndo?: () => Promise<void>) => {
     setToast({ type, msg, onUndo })
@@ -488,6 +489,65 @@ export default function RepairsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredArrival, batchSelected, fetchAll, showToast])
 
+  // ── Excel出力 ──────────────────────────────────────────────
+  const exportExcel = useCallback(async () => {
+    if (exporting) return
+    setExporting(true)
+    try {
+      const XLSX = await import('xlsx')
+      const STATUS_JP: Record<string, string> = {
+        received: '受付中', in_progress: '作業中', completed: '完了', delivered: '渡し済み', cancelled: 'キャンセル',
+        ordered: '依頼受付', on_order: '発注済み', stocked: '確保済み', arrived: '入荷済み',
+      }
+      const REQ_JP: Record<string, string> = {
+        repair: 'お直し', repair_consult: '相談', inquiry: '問合せ', payment_pending: '入金待ち', embroidery: '刺繍',
+      }
+      const today = new Date().toISOString().slice(0, 10)
+
+      const repairSheet = XLSX.utils.json_to_sheet(repairs.map(r => ({
+        '伝票番号':     r.slip_number ?? '',
+        '受付No':       r.request_no ?? '',
+        'お客様':       r.customer?.name ?? '',
+        'お子様':       r.child?.name ?? '',
+        '学校':         r.child?.school_name ?? '',
+        '種別':         REQ_JP[r.request_type ?? ''] ?? r.request_type ?? '',
+        '品目':         r.item_name,
+        '内容':         r.content,
+        '受付日':       r.received_date,
+        '希望完了日':   r.desired_completion_date ?? '',
+        '完了日':       r.completed_date ?? '',
+        '状態':         STATUS_JP[r.status] ?? r.status,
+        '価格':         r.price ?? '',
+        '支払':         r.prepaid ? '前払済' : '未払',
+        '外注先':       r.vendor_name ?? '',
+        '備考':         r.notes ?? '',
+      })))
+
+      const purchaseSheet = XLSX.utils.json_to_sheet(purchases.map(p => ({
+        'お客様':       p.customer?.name ?? '',
+        'お子様':       p.child?.name ?? '',
+        '学校':         p.child?.school_name ?? '',
+        'メーカー':     p.maker ?? '',
+        '品目':         p.item_name,
+        '状態':         STATUS_JP[p.status] ?? p.status,
+        '受付日':       p.ordered_date,
+        '入荷日':       p.arrived_date ?? '',
+        '価格':         p.price ?? '',
+        '備考':         p.notes ?? '',
+      })))
+
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, repairSheet, 'お直し一覧')
+      XLSX.utils.book_append_sheet(wb, purchaseSheet, '発注一覧')
+      XLSX.writeFile(wb, `repairs_${today}.xlsx`)
+    } catch (e) {
+      showToast('err', 'Excel出力に失敗しました')
+      console.error(e)
+    } finally {
+      setExporting(false)
+    }
+  }, [repairs, purchases, exporting, showToast])
+
   // ダッシュボード counts
   const repairNotStarted  = repairs.filter(r => r.request_type === 'repair' && !r.work_started)
   const repairInProgress  = repairs.filter(r => r.request_type === 'repair' && r.work_started)
@@ -564,6 +624,12 @@ export default function RepairsPage() {
               </button>
             )}
             <div className="flex-1" />
+            <button onClick={exportExcel} disabled={exporting || loading}
+              className="flex items-center gap-1 px-2 py-1.5 bg-emerald-50 hover:bg-emerald-100 active:scale-95 text-emerald-700 border border-emerald-200 text-[10px] font-bold rounded-lg transition-all disabled:opacity-50"
+              title="お直し・発注一覧をExcel出力">
+              {exporting ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />}
+              {!exporting && <span>Excel</span>}
+            </button>
             {hasFeature('repairs_dummy') && (
               <button onClick={generateDummy} disabled={dummyLoading}
                 className="flex items-center gap-1 px-2 py-1.5 bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-400 text-[10px] font-bold rounded-lg transition-all disabled:opacity-50"
