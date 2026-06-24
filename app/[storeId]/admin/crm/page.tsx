@@ -10,6 +10,7 @@ import {
   CalendarDays, Pencil, AlertCircle, ChevronDown, ChevronUp,
   RotateCcw, ShoppingBag, Bell, Scissors, GraduationCap,
   Trash2, ArchiveRestore, Eye, EyeOff, QrCode, ScanLine, Sparkles,
+  Download,
 } from 'lucide-react'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import type {
@@ -112,6 +113,7 @@ export default function CRMPage() {
   const [groupStoreIds,     setGroupStoreIds]     = useState<string[]>([])
   const [storeNameMap,      setStoreNameMap]      = useState<Record<string, string>>({})
   const [reservationUrl,    setReservationUrl]    = useState<string | null>(null)
+  const [csvExporting,      setCsvExporting]      = useState(false)
 
   // 未対応統計
   const [stats, setStats] = useState({ repairReceived: 0, repairCompleted: 0, purchaseReceived: 0, purchaseInProgress: 0, purchaseArrived: 0 })
@@ -348,6 +350,61 @@ export default function CRMPage() {
   }, [storeId, showDeleted, groupStoreIds])
 
   useEffect(() => { fetchAllCustomers() }, [fetchAllCustomers])
+
+  // ── 顧客データ CSV ダウンロード ──
+  const handleDownloadCSV = useCallback(async () => {
+    if (!storeId || groupStoreIds.length === 0 || csvExporting) return
+    setCsvExporting(true)
+    try {
+      const { data } = await (supabase as any)
+        .from('customers')
+        .select('id, name, kana, tel, line_user_id, parent_name, created_at, children(name, school_name, grade, admission_year)')
+        .in('store_id', groupStoreIds)
+        .is('deleted_at', null)
+        .order('kana', { ascending: true })
+        .limit(2000)
+
+      const rows: string[][] = [
+        ['保護者名', 'フリガナ', '電話番号', 'LINE連携', 'お子様名', '学校名', '学年', '入学年度', '登録日'],
+      ]
+
+      for (const c of (data ?? [])) {
+        const kids = (c.children ?? []) as { name: string; school_name: string | null; grade: string | null; admission_year: number | null }[]
+        if (kids.length === 0) {
+          rows.push([
+            c.name ?? '', c.kana ?? '', c.tel ?? '', c.line_user_id ? '○' : '×',
+            '', '', '', '', c.created_at ? c.created_at.slice(0, 10) : '',
+          ])
+        } else {
+          kids.forEach((kid, idx) => {
+            rows.push([
+              idx === 0 ? (c.name ?? '') : '',
+              idx === 0 ? (c.kana ?? '') : '',
+              idx === 0 ? (c.tel ?? '') : '',
+              idx === 0 ? (c.line_user_id ? '○' : '×') : '',
+              kid.name ?? '',
+              kid.school_name ?? '',
+              kid.grade ?? '',
+              kid.admission_year != null ? String(kid.admission_year) : '',
+              idx === 0 ? (c.created_at ? c.created_at.slice(0, 10) : '') : '',
+            ])
+          })
+        }
+      }
+
+      const csvText = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\r\n')
+      const bom = '﻿'
+      const blob = new Blob([bom + csvText], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `crm_customers_${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setCsvExporting(false)
+    }
+  }, [storeId, groupStoreIds, csvExporting])
 
   // ── 新規登録などをリアルタイム反映（customers の変更を購読）──
   useEffect(() => {
@@ -804,6 +861,11 @@ export default function CRMPage() {
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-black text-gray-700">顧客管理</h2>
             <div className="flex items-center gap-2">
+              <button onClick={handleDownloadCSV} disabled={csvExporting || allLoading}
+                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border bg-emerald-50 border-emerald-200 text-emerald-700 disabled:opacity-50 hover:bg-emerald-100 transition-colors">
+                {csvExporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                CSV出力
+              </button>
               <button onClick={() => setShowQrModal(true)}
                 className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border bg-indigo-100 border-indigo-200 text-indigo-700">
                 <QrCode size={12} />新規登録QR
