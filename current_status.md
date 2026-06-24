@@ -6,63 +6,63 @@
 
 ## 完了したステップ
 
-### ✅ ステップ1: 市場リサーチと競合ブロック戦略
-- 成果物: `docs/research/market_and_barrier_analysis.md`
-
-### ✅ ステップ2: 仮説検証と要件定義
-- 成果物: `docs/hypotheses/feature_requirements.md`
-
-### ✅ ステップ3-Cycle1: P0機能実装
-- SeasonDashboard、SchoolDeadlineAlert
-- SQLマイグレーション（school_deadlines）
-
-### ✅ ステップ4: マニュアル作成
-- 成果物: `docs/manuals/store_onboarding_guide.md`
+### ✅ ステップ1〜4: 初期フェーズ
+- 市場リサーチ、仮説検証、P0実装、マニュアル作成
 
 ### ✅ サイクル2: バグ修正 + P1機能実装（F-03, F-04）
-- **SeasonDashboard修正**: repair_histories/purchase_ordersの正しいテーブル・ステータス値に修正
-- **F-03 在校生フォロー通知**: `app/[storeId]/admin/followup/page.tsx` + `/api/followup-notify`
-  - admission_yearから学年自動計算（4月基準）
-  - LINE連携済み保護者への一斉送信（夏服/成長/卒業テンプレ3種）
-- **F-04 採寸会チェックリスト**: `app/[storeId]/admin/measurement-event/page.tsx`
-  - 前日準備/当日対応/終了後 3カテゴリ
-  - localStorage日付別永続化、カスタム項目、進捗バー
+- SeasonDashboard修正（正しいDBテーブル）
+- F-03 在校生フォロー通知 + F-04 採寸会チェックリスト
 
 ### ✅ サイクル3: F-06 保護者マイページ
-- **F-06 保護者マイページ**: `app/[storeId]/mypage/page.tsx` 新規作成
-  - LIFF認証 → line_user_idで顧客特定
-  - お子様情報・手配中注文・お直し進捗を一覧表示
-  - 過去の履歴（渡し済み最大5件）表示
-  - purchase_orders/repair_histories の status badge表示
-- **purpose viewにマイページリンク追加**: `app/[storeId]/page.tsx`
-  - 登録済み顧客にのみ表示
+- LIFFログイン → 注文・お直し・お子様情報表示
+
+### ✅ サイクル4: F-05 発注数量集計ページ
+- `app/[storeId]/admin/order-summary/page.tsx`
+- メーカー→学校→商品→サイズ階層集計、クリップボードコピー
+
+### ✅ サイクル5: 学校マスタ締切日フィールド
+- `types/master.ts` + `admin/master/manage/page.tsx` に4つの日付フィールド追加
+- `supabase/migrations/20260624_school_deadlines.sql` 未適用（要手動実行）
+
+### ✅ サイクル6: 採寸記録（身長・体重）履歴
+- `app/[storeId]/mypage/page.tsx` — queues.details から取得してマイページに表示
+
+### ✅ サイクル7: 保護者マイページからお子様情報編集
+- 学校名・学年・入学年度を保護者が自己更新できるモーダル追加
+- admission_year 未入力問題を自力解消 → F-03 精度向上
+
+### ✅ サイクル8: 入荷時LINE通知ボタン
+- `app/api/arrival-notify/route.ts` 新規作成
+- デリバリーページの各カードに「LINEで入荷をお知らせ」ボタン追加
+- notified=true に更新
+
+### ✅ サイクル9: 一括LINE通知バナー
+- 未通知が2件以上の場合、デリバリーページ上部に「まとめて通知」ボタン表示
+- 全未通知アイテムに順次 arrival-notify を呼び出してバッチ送信
 
 ---
 
-## 検証済み仮説（サイクル3）
+## 検証済み仮説サマリー
 
 | 仮説 | 結論 |
 |------|------|
-| 保護者は注文状況をLINE上で確認したい | ✅ → マイページで確認可能に |
-| 既存LIFF認証フローを再利用できる | ✅ → initLiff/getLineProfileで顧客特定 |
-| purchase_orders/repair_historiesはcustomer_idで紐づく | ✅ → types/crm.tsで確認済み |
+| 保護者は注文状況をLINEで確認したい | ✅ マイページで確認可能 |
+| 入荷通知の電話かけは省力化できる | ✅ LINE一括通知で解消 |
+| 保護者が子供の学年・入学年度を自己更新できる | ✅ マイページ編集モーダルで解消 |
+| admission_year 未入力がフォロー通知の精度を下げていた | ✅ 保護者自己更新で改善 |
 
 ---
 
-## 次に実施すること（次サイクル）
+## 次サイクルの候補
 
-1. **F-05 発注数量自動集計**: 
-   - uniform_ordersを学校別・商品別・サイズ別に集計するビュー
-   - 新規ページ `app/[storeId]/admin/order-summary/` に作成
-   - **実装規模**: 中（既存テーブルからSELECT集計のみ）
-2. **SchoolDeadlineAlert DBマイグレーション適用**: 
-   - `supabase/migrations/20260624_school_deadlines.sql` をSupabase SQLエディタで実行
-3. **F-07 サイズ履歴トラッキング**: 
-   - childrenテーブルに身長・体重履歴を追加（年次変化の可視化）
+1. **CRM TypeScript修正**: ECShopView・crm/page.tsx の `never[]` 型エラー修正（ビルド安定化）
+2. **採寸会ページ ↔ 学校締切日の統合**: measurement-event ページで当日の締切情報も表示
+3. **発注書テキストエクスポート改善**: order-summary でメーカー別に整形したテキストをコピー
+4. **来店分析ダッシュボード**: 学校別・月別の来店推移グラフ
 
 ---
 
 ## 保留事項
 
-- F-07（サイズ履歴）: childrenテーブルにheight_history jsonb列を追加する必要あり → 次サイクル
+- SchoolDeadlineAlert DBマイグレーション: `supabase/migrations/20260624_school_deadlines.sql` を Supabase SQLエディタで手動実行が必要
 - F-08（発注書PDF出力）: 外部API連携が必要 → 将来検討

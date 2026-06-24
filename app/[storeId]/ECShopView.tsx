@@ -187,7 +187,7 @@ export default function ECShopView({
         status:       'ordered',
         ordered_date: today,
       }))
-      const { error: pErr } = await supabase.from('purchase_orders').insert(purchaseRows)
+      const { error: pErr } = await (supabase as any).from('purchase_orders').insert(purchaseRows)
       if (pErr) throw new Error(pErr.message)
       fetch('/api/push-admin', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },

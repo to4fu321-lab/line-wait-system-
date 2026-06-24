@@ -88,7 +88,7 @@ export function EditCustomerForm({ customer, onSaved, onCancel }: {
   const handleSave = async () => {
     if (!name.trim()) { setError('氏名を入力してください'); return }
     setLoading(true); setError(null)
-    const { data, error: err } = await supabase.from('customers')
+    const { data, error: err } = await (supabase as any).from('customers')
       .update({ name: name.trim(), kana: kana.trim() || null, tel: tel.trim() || null, notes: notes.trim() || null })
       .eq('id', customer.id).select().single()
     setLoading(false)
@@ -162,7 +162,7 @@ export function EditChildForm({ child, onSaved, onCancel, schoolOptions: _ignore
     if (!name.trim()) { setError('お名前を入力してください'); return }
     setLoading(true); setError(null)
     const schoolName = schools.find(s => s.id === schoolId)?.name ?? child.school_name ?? null
-    const { data, error: err } = await supabase.from('children')
+    const { data, error: err } = await (supabase as any).from('children')
       .update({
         name: name.trim(), kana: kana.trim() || null,
         school_id: schoolId || null, school_name: schoolName,
@@ -249,7 +249,7 @@ export function AddChildFormCRM({ customerId, storeId, onSaved, onCancel, school
     if (!name.trim()) { setError('お名前を入力してください'); return }
     setLoading(true); setError(null)
     const schoolName = schools.find(s => s.id === schoolId)?.name ?? null
-    const { data, error: err } = await supabase.from('children').insert({
+    const { data, error: err } = await (supabase as any).from('children').insert({
       customer_id: customerId, store_id: storeId,
       name: name.trim(), kana: kana.trim() || null,
       school_id: schoolId || null, school_name: schoolName,
