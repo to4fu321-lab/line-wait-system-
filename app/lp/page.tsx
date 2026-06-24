@@ -1,10 +1,15 @@
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+
+// 作り込み中は非公開。公開するときは Vercel 環境変数 NEXT_PUBLIC_LP_PUBLIC=1 を設定。
+const LP_PUBLIC = process.env.NEXT_PUBLIC_LP_PUBLIC === '1'
 
 export const metadata: Metadata = {
   title: '制服・お直し店のための店舗運営システム',
   description:
     '順番待ち・お直し管理・予約・顧客管理をスマホ1台で。学生服・呉服・スーツ・婦人服のお店のための、かんたん店舗運営システム。写真OCRで紙の伝票もそのままデータ化。',
+  robots: { index: false, follow: false },
   openGraph: {
     title: '制服・お直し店のための店舗運営システム',
     description: '順番待ち・お直し管理・予約・顧客管理をスマホ1台で。紙の伝票も写真でデータ化。',
@@ -14,6 +19,7 @@ export const metadata: Metadata = {
 
 // 紹介LP（公開・静的）。/lp で表示。ドメイン直下に差し替えも可能。
 export default function LandingPage() {
+  if (!LP_PUBLIC) notFound()
   return (
     <main className="min-h-screen bg-white text-zinc-900">
       {/* ===== ヘッダー ===== */}
