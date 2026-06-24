@@ -241,6 +241,19 @@ export default function StaffSettingsPage() {
             <ChevronRight size={20} className="text-emerald-400 shrink-0" />
           </Link>
 
+          {/* 🧵 お直し加工業者 */}
+          <Link href={`/${storeId}/admin/master/repair-vendors`}
+            className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-rose-200 hover:border-rose-400 active:scale-[0.98] transition-all shadow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-rose-100 flex items-center justify-center shrink-0 text-3xl">
+              🧵
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-black text-lg text-rose-700">お直し加工業者</p>
+              <p className="text-sm text-gray-500 mt-0.5">外注先の登録（受付でワンタップ選択）</p>
+            </div>
+            <ChevronRight size={20} className="text-rose-400 shrink-0" />
+          </Link>
+
           {/* 🍀 かんたんLINEモード */}
           {hasFeature('kantan_line') && (
             <Link href={`/${storeId}/admin/settings/kantan`}
@@ -357,6 +370,19 @@ export default function StaffSettingsPage() {
               <div>
                 <p className="text-sm font-black text-rose-700">お直しマスタ</p>
                 <p className="text-xs text-rose-500 mt-0.5 leading-relaxed">お直しの種類・料金・サイズ段階</p>
+              </div>
+            </Link>
+            <Link href={`/${storeId}/admin/master/repair-vendors`}
+              className="flex flex-col gap-3 px-4 py-4 rounded-2xl bg-pink-50 border border-pink-200 hover:bg-pink-100 active:scale-[0.98] transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-pink-100 border border-pink-200 flex items-center justify-center text-xl">
+                  🧵
+                </div>
+                <ChevronRight size={14} className="text-pink-400" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-pink-700">お直し加工業者</p>
+                <p className="text-xs text-pink-500 mt-0.5 leading-relaxed">外注先の登録（受付で選択）</p>
               </div>
             </Link>
           </div>

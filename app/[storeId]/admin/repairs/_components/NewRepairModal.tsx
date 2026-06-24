@@ -98,6 +98,13 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   const [options, setOptions] = useState<RepairOption[]>([])
   const [garmentId, setGarmentId] = useState<string | null>(null)
   const [item, setItem] = useState<RepairItem | null>(null)
+  const [vendors, setVendors] = useState<{ id: string; name: string }[]>([])
+
+  useEffect(() => {
+    ;(supabase as any).from('repair_vendors')
+      .select('id, name').eq('store_id', storeId).eq('active', true).order('sort_order')
+      .then(({ data }: { data: { id: string; name: string }[] | null }) => setVendors(data ?? []))
+  }, [storeId])
 
   useEffect(() => {
     ;(supabase as any).from('repair_garment_types')
@@ -639,10 +646,24 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                     <input type="date" className={INPUT} value={deadline} onChange={e => setDeadline(e.target.value)} />
                   </div>
                   <div>
-                    <label className="text-[11px] font-black text-gray-400 block mb-1">外注先（任意）</label>
-                    <input className={INPUT} value={vendorName} onChange={e => setVendorName(e.target.value)} placeholder="内製なら空欄" />
+                    <label className="text-[11px] font-black text-gray-400 block mb-1">加工業者（外注先・任意）</label>
+                    {vendors.length === 0 ? (
+                      <input className={INPUT} value={vendorName} onChange={e => setVendorName(e.target.value)} placeholder="内製なら空欄" />
+                    ) : (
+                      <input className={INPUT} value={vendorName} onChange={e => setVendorName(e.target.value)} placeholder="下から選択／内製は空欄" />
+                    )}
                   </div>
                 </div>
+                {vendors.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    <button type="button" onClick={() => setVendorName('')}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 ${vendorName === '' ? 'bg-gray-700 text-white border-gray-700' : 'bg-white border-gray-200 text-gray-600'}`}>内製</button>
+                    {vendors.map(v => (
+                      <button type="button" key={v.id} onClick={() => setVendorName(v.name)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 ${vendorName === v.name ? 'bg-amber-500 text-white border-amber-500' : 'bg-white border-gray-200 text-gray-700'}`}>{v.name}</button>
+                    ))}
+                  </div>
+                )}
                 <textarea className={INPUT} rows={2} placeholder="社内メモ（任意）" value={memo} onChange={e => setMemo(e.target.value)} />
                 </>)}
 
