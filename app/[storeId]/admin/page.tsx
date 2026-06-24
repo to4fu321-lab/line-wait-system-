@@ -13,6 +13,8 @@ import { QrRegistrationModal } from './_components/QrRegistrationModal'
 import { StoreSelectScreen } from './_components/StoreSelectScreen'
 import type { StoreInfo } from './_components/StoreSelectScreen'
 import { resolveFeature } from '@/lib/features'
+import { SeasonDashboard } from './_components/SeasonDashboard'
+import { SchoolDeadlineAlert } from './_components/SchoolDeadlineAlert'
 import { PinScreen } from './_components/PinScreen'
 import { WaitingCard, CallingCard, HistoryCard } from './_components/QueueCards'
 import { supabase, getTodayStart } from '@/lib/supabase'
@@ -442,6 +444,12 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
 
       <div className="flex-1 overflow-y-auto">
         <div className="p-4 space-y-4">
+
+          {/* 繁忙期シーズンダッシュボード */}
+          <SeasonDashboard storeId={store.id} />
+
+          {/* 学校別締切アラート */}
+          <SchoolDeadlineAlert storeId={store.id} />
 
           {/* 呼出中 — 最優先・フル幅 */}
           {callingTickets.length > 0 && (
