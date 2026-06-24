@@ -474,6 +474,15 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
             <ChevronRight size={12} className="text-violet-500 ml-auto" />
           </a>
 
+          {/* 在校生フォロー通知リンク */}
+          <a href={`/${store.id}/admin/followup`}
+            style={{ touchAction: 'manipulation' }}
+            className="flex items-center gap-2 px-3 py-2.5 bg-teal-50 border border-teal-200 rounded-xl active:opacity-70">
+            <GraduationCap size={14} className="text-teal-600 shrink-0" />
+            <span className="text-teal-700 text-xs font-bold">在校生フォロー通知</span>
+            <ChevronRight size={12} className="text-teal-500 ml-auto" />
+          </a>
+
           {/* レジ（会計）クイックリンク — pos 機能ON時のみ */}
           {resolveFeature('pos', store.features ?? {}) && (
             <a href={`/${store.id}/admin/register`}
