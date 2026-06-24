@@ -10,7 +10,7 @@ const TRIAL_DAYS = 30
 
 export const metadata: Metadata = {
   title: `${BRAND}｜仕上がり連絡がワンタップ。学生服店の受付システム`,
-  description: 'お客様への「仕上がりました」の連絡がワンタップ。電話の繋がらないストレスゼロ。受付・お直しもスマホ1台で、再来店までつながる。学生服専門店・呉服店・洋品店へ。',
+  description: 'お客様への「仕上がりました」の連絡がワンタップ。電話の繋がらないストレスゼロ。受付・お直しもスマホ1台で、再来店までつながる。学生服専門店のためのトータルDX。30日間無料・今すぐ使えます。',
   robots: { index: false, follow: false },
 }
 
@@ -32,7 +32,7 @@ export default function LandingPage({ searchParams }: { searchParams?: { preview
         <div aria-hidden className="pointer-events-none absolute -right-32 -top-32 -z-10 h-[34rem] w-[34rem] rounded-full bg-indigo-100 blur-[120px]" />
         <div className="mx-auto grid max-w-5xl items-center gap-12 px-5 py-14 lg:grid-cols-[1.1fr_0.9fr] lg:py-20">
           <div className="text-center lg:text-left">
-            <p className="text-sm font-bold tracking-wide text-indigo-600">学生服専門店のための受付・連絡システム（呉服店・洋品店にも）</p>
+            <p className="text-sm font-bold tracking-wide text-indigo-600">学生服専門店のための トータルDX</p>
             <h1 className="mt-4 text-[2.3rem] font-black leading-[1.12] tracking-tight sm:text-[3.1rem]">
               「仕上がりました」の連絡が、<br />
               <span className="text-indigo-600">ワンタップ。</span>
@@ -41,6 +41,10 @@ export default function LandingPage({ searchParams }: { searchParams?: { preview
               電話が繋がらない、何度もかけ直す——そんな手間はもう要りません。
               LINEでサッとお知らせ。受付もお直しもスマホ1台でラクになり、
               <strong className="font-bold text-zinc-900">お客様の再来店まで自然につながります。</strong>
+            </p>
+            <p className="mx-auto mt-3 max-w-lg text-sm text-zinc-400 lg:mx-0">
+              <span className="font-bold text-zinc-500">ミセプラ</span>＝お店のぜんぶが集まる場所。
+              <span className="whitespace-nowrap">Plaza・Platform・Plan・Plus</span> をひとつに。
             </p>
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row lg:items-start">
               <a href={START} className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-zinc-900 px-8 py-4 font-bold text-white shadow-lg shadow-zinc-900/15 transition-all hover:bg-black active:scale-[0.98] sm:w-auto">
@@ -133,7 +137,7 @@ export default function LandingPage({ searchParams }: { searchParams?: { preview
       <footer className="border-t border-zinc-100">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-6 text-xs text-zinc-400">
           <span className="font-black text-zinc-700">{BRAND}</span>
-          <span>学生服専門店のための受付・連絡システム</span>
+          <span>学生服専門店のためのトータルDX ／ 店 × Plaza・Platform・Plan・Plus</span>
         </div>
       </footer>
     </main>
