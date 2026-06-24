@@ -5,7 +5,8 @@ import type { Metadata } from 'next'
 const LP_PUBLIC = process.env.NEXT_PUBLIC_LP_PUBLIC === '1'
 
 const BRAND = 'みせサポ' // TODO: 正式なサービス名に差し替え
-const CONTACT = 'mailto:to4fu321@gmail.com?subject=無料体験の相談' // TODO: 公開用の連絡先に差し替え
+const START = '/start'   // 無料体験：その場で店舗を発行し即ログイン
+const TRIAL_DAYS = 30
 
 export const metadata: Metadata = {
   title: `${BRAND}｜仕上がり連絡がワンタップ。学生服店の受付システム`,
@@ -21,8 +22,8 @@ export default function LandingPage({ searchParams }: { searchParams?: { preview
       {/* Nav */}
       <header className="mx-auto flex h-16 max-w-5xl items-center justify-between px-5">
         <span className="text-[17px] font-black tracking-tight">{BRAND}</span>
-        <a href={CONTACT} className="rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-black active:scale-95">
-          無料体験を申し込む
+        <a href={START} className="rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-black active:scale-95">
+          無料で始める
         </a>
       </header>
 
@@ -42,10 +43,10 @@ export default function LandingPage({ searchParams }: { searchParams?: { preview
               <strong className="font-bold text-zinc-900">お客様の再来店まで自然につながります。</strong>
             </p>
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row lg:items-start">
-              <a href={CONTACT} className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-zinc-900 px-8 py-4 font-bold text-white shadow-lg shadow-zinc-900/15 transition-all hover:bg-black active:scale-[0.98] sm:w-auto">
-                無料で体験する <Arrow />
+              <a href={START} className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-zinc-900 px-8 py-4 font-bold text-white shadow-lg shadow-zinc-900/15 transition-all hover:bg-black active:scale-[0.98] sm:w-auto">
+                {TRIAL_DAYS}日間 無料で始める <Arrow />
               </a>
-              <span className="text-sm text-zinc-500">初期費用なし・専用機器なし・今の紙と並行でOK</span>
+              <span className="text-sm text-zinc-500">クレカ不要・メール登録なし・今すぐ使えます</span>
             </div>
           </div>
 
@@ -117,13 +118,13 @@ export default function LandingPage({ searchParams }: { searchParams?: { preview
         <div className="relative mx-auto max-w-4xl overflow-hidden rounded-[2rem] bg-zinc-900 px-6 py-14 text-center">
           <div aria-hidden className="pointer-events-none absolute -left-16 -top-16 h-56 w-56 rounded-full bg-indigo-500/40 blur-3xl" />
           <div className="relative">
-            <p className="text-sm font-bold text-indigo-300">かんたん導入・初期費用なし</p>
-            <h2 className="mt-2 text-2xl font-black text-white sm:text-3xl">まずは、無料体験から。</h2>
+            <p className="text-sm font-bold text-indigo-300">クレカ不要・メール登録なし・今すぐ使える</p>
+            <h2 className="mt-2 text-2xl font-black text-white sm:text-3xl">{TRIAL_DAYS}日間、無料ではじめる。</h2>
             <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-zinc-300">
-              お店のやり方に合わせて設定します。今の紙と並行で、無理なく試せます。
+              お店の名前を入れるだけ。すぐに使えるお店の画面ができます。今の紙と並行で、無理なく試せます。
             </p>
-            <a href={CONTACT} className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 font-bold text-zinc-900 transition-transform hover:scale-[1.02] active:scale-95">
-              無料で体験する <Arrow />
+            <a href={START} className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 font-bold text-zinc-900 transition-transform hover:scale-[1.02] active:scale-95">
+              今すぐ無料で始める <Arrow />
             </a>
           </div>
         </div>
