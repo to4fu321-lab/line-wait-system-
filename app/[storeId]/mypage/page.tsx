@@ -1,0 +1,305 @@
+'use client'
+
+// ============================================================
+// 保護者マイページ
+// LINEログイン済みの保護者が自分の注文・お直し状況を確認できる
+// ============================================================
+
+import { useEffect, useState, useCallback } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import {
+  ArrowLeft, Package, Scissors, User, School, ChevronRight,
+  Loader2, AlertCircle, Clock, CheckCircle2, ShoppingBag,
+  RefreshCw, GraduationCap,
+} from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { initLiff, getLineProfile } from '@/lib/liff'
+import type { Customer, Child, PurchaseOrder, RepairHistory } from '@/types/crm'
+import {
+  PURCHASE_STATUS_LABELS, PURCHASE_STATUS_COLORS,
+  REPAIR_STATUS_LABELS, REPAIR_STATUS_COLORS,
+} from '@/types/crm'
+
+interface StoreInfo {
+  name: string
+  logo_emoji: string | null
+  primary_color: string | null
+}
+
+function formatDate(d: string | null) {
+  if (!d) return null
+  return new Date(d).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })
+}
+
+function StatusBadge({ label, color }: { label: string; color: string }) {
+  return (
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${color}`}>
+      {label}
+    </span>
+  )
+}
+
+export default function MyPage() {
+  const { storeId } = useParams<{ storeId: string }>()
+  const router = useRouter()
+
+  const [loading, setLoading]           = useState(true)
+  const [customer, setCustomer]         = useState<Customer | null>(null)
+  const [children, setChildren]         = useState<Child[]>([])
+  const [purchases, setPurchases]       = useState<PurchaseOrder[]>([])
+  const [repairs, setRepairs]           = useState<RepairHistory[]>([])
+  const [store, setStore]               = useState<StoreInfo | null>(null)
+  const [error, setError]               = useState<string | null>(null)
+  const [refreshing, setRefreshing]     = useState(false)
+
+  const loadData = useCallback(async (silent = false) => {
+    if (!storeId) return
+    if (!silent) setLoading(true)
+    else setRefreshing(true)
+    setError(null)
+    try {
+      // ストア情報
+      const { data: storeData } = await (supabase as any)
+        .from('stores')
+        .select('name, logo_emoji, primary_color')
+        .eq('id', storeId)
+        .single()
+      if (storeData) setStore(storeData)
+
+      // LIFF初期化 + LINE profile取得
+      await initLiff()
+      const profile = await getLineProfile()
+      if (!profile?.userId) {
+        router.replace(`/${storeId}`)
+        return
+      }
+
+      // 顧客レコード取得
+      const { data: custRows } = await (supabase as any)
+        .from('customers')
+        .select('*')
+        .eq('store_id', storeId)
+        .eq('line_user_id', profile.userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+      const cust = custRows?.[0] && !custRows[0].deleted_at ? custRows[0] : null
+      if (!cust) {
+        router.replace(`/${storeId}`)
+        return
+      }
+      setCustomer(cust)
+
+      // お子様・注文・お直しを並列取得
+      const [childRes, purchaseRes, repairRes] = await Promise.all([
+        (supabase as any)
+          .from('children')
+          .select('*')
+          .eq('customer_id', cust.id)
+          .order('created_at', { ascending: true }),
+
+        (supabase as any)
+          .from('purchase_orders')
+          .select('*')
+          .eq('customer_id', cust.id)
+          .eq('store_id', storeId)
+          .order('created_at', { ascending: false })
+          .limit(20),
+
+        (supabase as any)
+          .from('repair_histories')
+          .select('*')
+          .eq('customer_id', cust.id)
+          .eq('store_id', storeId)
+          .order('created_at', { ascending: false })
+          .limit(20),
+      ])
+
+      setChildren(childRes.data ?? [])
+      setPurchases(purchaseRes.data ?? [])
+      setRepairs(repairRes.data ?? [])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'データの取得に失敗しました')
+    }
+    if (!silent) setLoading(false)
+    else setRefreshing(false)
+  }, [storeId, router])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  const activePurchases  = purchases.filter(p => p.status !== 'delivered')
+  const deliveredPurchases = purchases.filter(p => p.status === 'delivered').slice(0, 5)
+  const activeRepairs    = repairs.filter(r => r.status !== 'delivered')
+  const deliveredRepairs = repairs.filter(r => r.status === 'delivered').slice(0, 5)
+
+  const primaryColor = store?.primary_color ?? '#4F46E5'
+
+  if (loading) return (
+    <div className="min-h-[100dvh] bg-gray-50 flex items-center justify-center">
+      <Loader2 className="animate-spin text-indigo-400" size={32} />
+    </div>
+  )
+
+  if (error) return (
+    <div className="min-h-[100dvh] bg-gray-50 flex flex-col items-center justify-center gap-3 px-6 text-center">
+      <AlertCircle size={36} className="text-red-400" />
+      <p className="text-sm text-gray-600">{error}</p>
+      <button onClick={() => loadData()} className="text-sm text-indigo-600 underline">再試行</button>
+    </div>
+  )
+
+  return (
+    <div className="min-h-[100dvh] bg-gray-50 pb-12">
+      {/* ヘッダー */}
+      <header className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-10"
+        style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
+        <div className="flex items-center gap-3 max-w-md mx-auto">
+          <button onClick={() => router.back()} className="p-2 rounded-xl hover:bg-gray-100">
+            <ArrowLeft size={18} className="text-gray-600" />
+          </button>
+          <div className="flex-1">
+            <h1 className="text-base font-black text-gray-900">マイページ</h1>
+            <p className="text-[11px] text-gray-500">{store?.name}</p>
+          </div>
+          <button onClick={() => loadData(true)} className="p-2 rounded-xl hover:bg-gray-100" disabled={refreshing}>
+            <RefreshCw size={15} className={`text-gray-400 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      </header>
+
+      <div className="p-4 space-y-4 max-w-md mx-auto">
+
+        {/* 保護者情報 */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-white text-lg font-black"
+              style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}cc)` }}>
+              <User size={18} />
+            </div>
+            <div>
+              <p className="text-sm font-black text-gray-900">{customer?.name}</p>
+              {customer?.tel && <p className="text-[11px] text-gray-500">{customer.tel}</p>}
+            </div>
+          </div>
+        </div>
+
+        {/* お子様情報 */}
+        {children.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-2">
+            <div className="flex items-center gap-2 mb-1">
+              <GraduationCap size={14} className="text-gray-400" />
+              <span className="text-sm font-bold text-gray-700">お子様情報</span>
+            </div>
+            {children.map(child => (
+              <div key={child.id} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2">
+                <div className="w-7 h-7 rounded-xl flex items-center justify-center text-white text-xs font-black shrink-0"
+                  style={{ background: primaryColor }}>
+                  {child.name.charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-gray-800">{child.name}</p>
+                  <p className="text-[10px] text-gray-500">
+                    {child.school_name ?? '学校未設定'}
+                    {child.grade && ` · ${child.grade}`}
+                  </p>
+                </div>
+                {child.gender === 'male' && <span className="text-[10px] text-blue-500 font-bold">男子</span>}
+                {child.gender === 'female' && <span className="text-[10px] text-pink-500 font-bold">女子</span>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* 手配中の注文 */}
+        {activePurchases.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-2">
+            <div className="flex items-center gap-2 mb-1">
+              <Package size={14} className="text-indigo-500" />
+              <span className="text-sm font-bold text-gray-700">手配中の注文</span>
+              <span className="ml-auto text-xs font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{activePurchases.length}件</span>
+            </div>
+            {activePurchases.map(p => (
+              <div key={p.id} className="flex items-start gap-3 bg-gray-50 rounded-xl px-3 py-2.5">
+                <ShoppingBag size={14} className="text-gray-400 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-gray-800 truncate">{p.item_name}</p>
+                  {p.notes && <p className="text-[10px] text-gray-500 truncate">{p.notes}</p>}
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    {formatDate(p.ordered_date)} 受付
+                    {p.arrived_date && ` → ${formatDate(p.arrived_date)} 入荷`}
+                  </p>
+                </div>
+                <StatusBadge label={PURCHASE_STATUS_LABELS[p.status]} color={PURCHASE_STATUS_COLORS[p.status]} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* お直し進捗 */}
+        {activeRepairs.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-2">
+            <div className="flex items-center gap-2 mb-1">
+              <Scissors size={14} className="text-amber-500" />
+              <span className="text-sm font-bold text-gray-700">お直し進捗</span>
+              <span className="ml-auto text-xs font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">{activeRepairs.length}件</span>
+            </div>
+            {activeRepairs.map(r => (
+              <div key={r.id} className="flex items-start gap-3 bg-gray-50 rounded-xl px-3 py-2.5">
+                <Scissors size={14} className="text-gray-400 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-gray-800 truncate">{r.item_name}</p>
+                  <p className="text-[10px] text-gray-500 truncate">{r.content}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    {formatDate(r.received_date)} 預かり
+                    {r.completed_date && ` → ${formatDate(r.completed_date)} 完了`}
+                  </p>
+                </div>
+                <StatusBadge label={REPAIR_STATUS_LABELS[r.status]} color={REPAIR_STATUS_COLORS[r.status]} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* 何もなければ案内 */}
+        {activePurchases.length === 0 && activeRepairs.length === 0 && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
+            <CheckCircle2 size={28} className="mx-auto text-gray-300 mb-2" />
+            <p className="text-sm text-gray-500">手配中の注文・お直しはありません</p>
+          </div>
+        )}
+
+        {/* 過去の履歴 */}
+        {(deliveredPurchases.length > 0 || deliveredRepairs.length > 0) && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-2">
+            <div className="flex items-center gap-2 mb-1">
+              <Clock size={14} className="text-gray-400" />
+              <span className="text-sm font-bold text-gray-700">過去の履歴</span>
+            </div>
+            {deliveredPurchases.map(p => (
+              <div key={p.id} className="flex items-center gap-3 px-3 py-2 opacity-60">
+                <ShoppingBag size={12} className="text-gray-400 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-gray-600 truncate">{p.item_name}</p>
+                  <p className="text-[10px] text-gray-400">{formatDate(p.delivered_date)} お渡し済み</p>
+                </div>
+              </div>
+            ))}
+            {deliveredRepairs.map(r => (
+              <div key={r.id} className="flex items-center gap-3 px-3 py-2 opacity-60">
+                <Scissors size={12} className="text-gray-400 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-gray-600 truncate">{r.item_name}</p>
+                  <p className="text-[10px] text-gray-400">{formatDate(r.delivered_date)} お渡し済み</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <p className="text-center text-[10px] text-gray-400 pt-2">
+          ご不明な点はお気軽に店舗スタッフまでお声がけください
+        </p>
+
+      </div>
+    </div>
+  )
+}

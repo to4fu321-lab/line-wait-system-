@@ -8,44 +8,61 @@
 
 ### ✅ ステップ1: 市場リサーチと競合ブロック戦略
 - 成果物: `docs/research/market_and_barrier_analysis.md`
-- 少子化・ジェンダーレス制服・販売店高齢化・人手不足の最新動向を分析
-- 競合システム（アラジンオフィス、RESERVA、T&Y等）の弱点を特定
-- 「学校別ルールDB」「LINE保護者連携」「年間カレンダー連動」が最強の参入障壁と結論
 
 ### ✅ ステップ2: 仮説検証と要件定義
 - 成果物: `docs/hypotheses/feature_requirements.md`
-- P0（今サイクル）: F-01 シーズンダッシュボード、F-02 締切アラート、F-03 在校生フォロー自動化
-- P1（次サイクル）: F-04〜F-06
-- P2（将来）: F-07〜F-10
 
-### ✅ ステップ3: 機能実装
-- **SeasonDashboard コンポーネント新規作成** (`app/[storeId]/admin/_components/SeasonDashboard.tsx`)
-  - 11種の月別シーズン判定（繁忙期準備/最繁忙期/引渡し期/夏服受付/通常期）
-  - 今日の予約数・手配中受注・お渡し待ち件数のリアルタイム表示
-- **SchoolDeadlineAlert コンポーネント新規作成** (`app/[storeId]/admin/_components/SchoolDeadlineAlert.tsx`)
-  - 発注締切7日以内の学校を自動抽出・赤/黄バッジで表示
-- **admin/page.tsx 更新**: 両コンポーネントをコンテンツ先頭に配置
-- **types/school.ts 更新**: 締切日フィールド追加
-- **SQLマイグレーション追加**: `supabase/migrations/20260624_school_deadlines.sql`
+### ✅ ステップ3-Cycle1: P0機能実装
+- SeasonDashboard、SchoolDeadlineAlert
+- SQLマイグレーション（school_deadlines）
 
 ### ✅ ステップ4: マニュアル作成
 - 成果物: `docs/manuals/store_onboarding_guide.md`
-- IT非熟練スタッフが読める5ステップ初期設定ガイド
-- 採寸会当日・日常操作・年間スケジュール対応表
-- 在校生フォロー自動化の説明
-- よくあるトラブルと対処法
+
+### ✅ サイクル2: バグ修正 + P1機能実装（F-03, F-04）
+- **SeasonDashboard修正**: repair_histories/purchase_ordersの正しいテーブル・ステータス値に修正
+- **F-03 在校生フォロー通知**: `app/[storeId]/admin/followup/page.tsx` + `/api/followup-notify`
+  - admission_yearから学年自動計算（4月基準）
+  - LINE連携済み保護者への一斉送信（夏服/成長/卒業テンプレ3種）
+- **F-04 採寸会チェックリスト**: `app/[storeId]/admin/measurement-event/page.tsx`
+  - 前日準備/当日対応/終了後 3カテゴリ
+  - localStorage日付別永続化、カスタム項目、進捗バー
+
+### ✅ サイクル3: F-06 保護者マイページ
+- **F-06 保護者マイページ**: `app/[storeId]/mypage/page.tsx` 新規作成
+  - LIFF認証 → line_user_idで顧客特定
+  - お子様情報・手配中注文・お直し進捗を一覧表示
+  - 過去の履歴（渡し済み最大5件）表示
+  - purchase_orders/repair_histories の status badge表示
+- **purpose viewにマイページリンク追加**: `app/[storeId]/page.tsx`
+  - 登録済み顧客にのみ表示
+
+---
+
+## 検証済み仮説（サイクル3）
+
+| 仮説 | 結論 |
+|------|------|
+| 保護者は注文状況をLINE上で確認したい | ✅ → マイページで確認可能に |
+| 既存LIFF認証フローを再利用できる | ✅ → initLiff/getLineProfileで顧客特定 |
+| purchase_orders/repair_historiesはcustomer_idで紐づく | ✅ → types/crm.tsで確認済み |
 
 ---
 
 ## 次に実施すること（次サイクル）
 
-1. **DBマイグレーション適用**: `supabase/migrations/20260624_school_deadlines.sql` を Supabase SQL Editor で実行
-2. **P1機能の実装開始**: F-05（発注数量自動集計）の要件を `docs/todo.md` に記録してから実装
-3. **在校生フォロー（F-03）の実装**: `admission_year`フィールドをCRMに追加 → 通知スケジュール機能を実装
+1. **F-05 発注数量自動集計**: 
+   - uniform_ordersを学校別・商品別・サイズ別に集計するビュー
+   - 新規ページ `app/[storeId]/admin/order-summary/` に作成
+   - **実装規模**: 中（既存テーブルからSELECT集計のみ）
+2. **SchoolDeadlineAlert DBマイグレーション適用**: 
+   - `supabase/migrations/20260624_school_deadlines.sql` をSupabase SQLエディタで実行
+3. **F-07 サイズ履歴トラッキング**: 
+   - childrenテーブルに身長・体重履歴を追加（年次変化の可視化）
 
 ---
 
 ## 保留事項
 
-- F-03（在校生年次フォロー）: CRMの`children`テーブルへの`admission_year`追加は次サイクルで実施
-- F-05（発注数量集計）: 大規模変更のため `docs/todo.md` に記録し、実装前にオーナーに確認する
+- F-07（サイズ履歴）: childrenテーブルにheight_history jsonb列を追加する必要あり → 次サイクル
+- F-08（発注書PDF出力）: 外部API連携が必要 → 将来検討

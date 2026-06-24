@@ -1590,10 +1590,16 @@ export default function CustomerPage() {
         </button>
 
         {customer && (
-          <button onClick={() => setView('welcome')}
-            className="w-full py-3 text-zinc-400 text-sm text-center active:opacity-60 transition-opacity">
-            ← お子様を選び直す
-          </button>
+          <div className="flex flex-col items-center gap-1">
+            <a href={`/${storeId}/mypage`}
+              className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-2xl border border-zinc-200 bg-white/70 text-zinc-600 active:opacity-70 transition-opacity">
+              <User size={14} />マイページ（注文・お直し確認）<ChevronRight size={13} />
+            </a>
+            <button onClick={() => setView('welcome')}
+              className="w-full py-2.5 text-zinc-400 text-sm text-center active:opacity-60 transition-opacity">
+              ← お子様を選び直す
+            </button>
+          </div>
         )}
       </div>
     </main>
