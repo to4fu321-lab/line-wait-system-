@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import { MessageSquarePlus, X, Loader2, Check } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 
 type Kind = 'request' | 'bug' | 'question'
 
@@ -31,21 +30,23 @@ export function FeedbackButton() {
   const submit = async () => {
     if (!body.trim()) { setError('内容を入力してください'); return }
     setSaving(true); setError(null)
-    let storeName: string | null = null
     try {
-      const { data } = await (supabase as any).from('stores').select('name').eq('id', storeId).single()
-      storeName = data?.name ?? null
-    } catch { /* 店名取得失敗は無視 */ }
-    const { error: insErr } = await (supabase as any).from('feedback').insert({
-      store_id:   storeId || null,
-      store_name: storeName,
-      kind,
-      body:       body.trim(),
-      page_url:   typeof window !== 'undefined' ? window.location.pathname : null,
-      user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
-    })
+      const res = await fetch('/api/feedback', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storeId:   storeId || null,
+          kind,
+          body:      body.trim(),
+          pageUrl:   typeof window !== 'undefined' ? window.location.pathname : null,
+          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+        }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || !json.ok) { setError('送信に失敗しました。時間をおいて再度お試しください'); setSaving(false); return }
+    } catch {
+      setError('送信に失敗しました。通信環境をご確認ください'); setSaving(false); return
+    }
     setSaving(false)
-    if (insErr) { setError('送信に失敗しました。時間をおいて再度お試しください') ; return }
     setDone(true)
     setTimeout(() => { setOpen(false); reset() }, 1400)
   }

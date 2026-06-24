@@ -12,6 +12,8 @@ interface Feedback {
   page_url: string | null
   user_agent: string | null
   status: 'new' | 'triaged' | 'done' | 'wontfix' | string
+  issue_number: number | null
+  issue_url: string | null
   created_at: string
 }
 
@@ -157,6 +159,12 @@ export default function FeedbackAdminPage() {
                   <p className="text-[11px] text-gray-500 flex items-center gap-1">
                     <ExternalLink size={11} /> {f.page_url}
                   </p>
+                )}
+                {f.issue_url && (
+                  <a href={f.issue_url} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-300 hover:text-indigo-200">
+                    <ExternalLink size={11} /> GitHub Issue #{f.issue_number}
+                  </a>
                 )}
                 <div className="flex gap-1.5 pt-1">
                   {STATUSES.map(s => (

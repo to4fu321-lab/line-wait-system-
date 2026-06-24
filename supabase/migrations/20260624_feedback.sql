@@ -12,9 +12,13 @@ CREATE TABLE IF NOT EXISTS public.feedback (
   page_url    text,
   user_agent  text,
   status      text NOT NULL DEFAULT 'new',       -- new | triaged | done | wontfix
+  issue_number integer,                            -- 自動作成された GitHub Issue 番号
+  issue_url    text,                               -- 同 URL
   created_at  timestamptz NOT NULL DEFAULT now(),
   updated_at  timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE public.feedback ADD COLUMN IF NOT EXISTS issue_number integer;
+ALTER TABLE public.feedback ADD COLUMN IF NOT EXISTS issue_url    text;
 CREATE INDEX IF NOT EXISTS idx_feedback_status_created ON public.feedback(status, created_at DESC);
 
 ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
