@@ -202,7 +202,7 @@ function StoreCard({ s }: { s: StoreStats }) {
       </div>
       <a href={`/${s.store.id}/admin`} target="_blank" rel="noopener noreferrer"
         className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-amber-600/20 border border-amber-500/30 text-amber-300 text-xs font-bold active:scale-95 transition-all w-full">
-        <ShieldCheck size={12} />店舗管理（全機能）
+        <ShieldCheck size={12} />スタッフ画面を開く
       </a>
     </div>
   )
