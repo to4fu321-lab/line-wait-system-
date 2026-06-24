@@ -255,6 +255,10 @@ function SchoolModal({ storeId, initial, nextOrder, onClose, onSaved, onError }:
   const [kana, setKana] = useState(initial?.kana ?? '')
   const [shortName, setShortName] = useState(initial?.short_name ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
+  const [orderDeadline, setOrderDeadline]         = useState(initial?.order_deadline ?? '')
+  const [pickupDeadline, setPickupDeadline]       = useState(initial?.pickup_deadline ?? '')
+  const [measurementStart, setMeasurementStart]   = useState(initial?.measurement_start ?? '')
+  const [measurementEnd, setMeasurementEnd]       = useState(initial?.measurement_end ?? '')
   const [saving, setSaving] = useState(false)
 
   const save = async () => {
@@ -265,6 +269,10 @@ function SchoolModal({ storeId, initial, nextOrder, onClose, onSaved, onError }:
         id: initial?.id, store_id: storeId, name: name.trim(), kana: kana.trim(),
         short_name: shortName.trim(), notes: notes.trim(),
         sort_order: initial?.sort_order ?? nextOrder, active: initial?.active ?? true,
+        order_deadline:    orderDeadline   || null,
+        pickup_deadline:   pickupDeadline  || null,
+        measurement_start: measurementStart || null,
+        measurement_end:   measurementEnd   || null,
       })
       onSaved()
     } catch (e: any) { onError(e.message ?? '保存失敗'); setSaving(false) }
@@ -276,6 +284,16 @@ function SchoolModal({ storeId, initial, nextOrder, onClose, onSaved, onError }:
       <Field label="ふりがな"><input className={INPUT} value={kana} onChange={(e) => setKana(e.target.value)} placeholder="さくらがおかちゅうがっこう" /></Field>
       <Field label="略称"><input className={INPUT} value={shortName} onChange={(e) => setShortName(e.target.value)} placeholder="桜中" /></Field>
       <Field label="メモ"><textarea className={INPUT} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
+      {/* 締切日管理 */}
+      <div className="pt-2 border-t border-gray-100">
+        <p className="text-[11px] font-bold text-gray-400 mb-2">締切日管理（SchoolDeadlineAlert に表示）</p>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="発注締切日"><input type="date" className={INPUT} value={orderDeadline} onChange={e => setOrderDeadline(e.target.value)} /></Field>
+          <Field label="引渡し完了目標日"><input type="date" className={INPUT} value={pickupDeadline} onChange={e => setPickupDeadline(e.target.value)} /></Field>
+          <Field label="採寸受付開始日"><input type="date" className={INPUT} value={measurementStart} onChange={e => setMeasurementStart(e.target.value)} /></Field>
+          <Field label="採寸受付終了日"><input type="date" className={INPUT} value={measurementEnd} onChange={e => setMeasurementEnd(e.target.value)} /></Field>
+        </div>
+      </div>
       <button onClick={save} disabled={saving} className={`${BTN_PRIMARY} w-full`}>
         {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />} 保存
       </button>
