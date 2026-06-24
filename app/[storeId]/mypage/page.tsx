@@ -10,7 +10,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, Package, Scissors, User, School, ChevronRight,
   Loader2, AlertCircle, Clock, CheckCircle2, ShoppingBag,
-  RefreshCw, GraduationCap, Ruler,
+  RefreshCw, GraduationCap, Ruler, Edit2, X,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { initLiff, getLineProfile } from '@/lib/liff'
@@ -18,6 +18,7 @@ import type { Customer, Child, PurchaseOrder, RepairHistory } from '@/types/crm'
 import {
   PURCHASE_STATUS_LABELS, PURCHASE_STATUS_COLORS,
   REPAIR_STATUS_LABELS, REPAIR_STATUS_COLORS,
+  GRADE_OPTIONS,
 } from '@/types/crm'
 
 interface StoreInfo {
@@ -52,6 +53,10 @@ export default function MyPage() {
   const [error, setError]               = useState<string | null>(null)
   const [refreshing, setRefreshing]     = useState(false)
   const [measurementsByChild, setMeasurementsByChild] = useState<Record<string, { height: string; weight?: string; date: string }[]>>({})
+  const [editingChild, setEditingChild]   = useState<Child | null>(null)
+  const [editForm, setEditForm]           = useState({ school_name: '', grade: '', admission_year: '' })
+  const [editSaving, setEditSaving]       = useState(false)
+  const [editError, setEditError]         = useState<string | null>(null)
 
   const loadData = useCallback(async (silent = false) => {
     if (!storeId) return
@@ -155,6 +160,40 @@ export default function MyPage() {
 
   useEffect(() => { loadData() }, [loadData])
 
+  const openEdit = (child: Child) => {
+    setEditingChild(child)
+    setEditForm({
+      school_name: child.school_name ?? '',
+      grade: child.grade ?? '',
+      admission_year: child.admission_year?.toString() ?? '',
+    })
+    setEditError(null)
+  }
+
+  const saveChild = async () => {
+    if (!editingChild || !customer) return
+    setEditSaving(true)
+    setEditError(null)
+    try {
+      const updates = {
+        school_name:    editForm.school_name || null,
+        grade:          editForm.grade || null,
+        admission_year: editForm.admission_year ? parseInt(editForm.admission_year) : null,
+      }
+      const { error } = await (supabase as any)
+        .from('children')
+        .update(updates)
+        .eq('id', editingChild.id)
+        .eq('customer_id', customer.id)
+      if (error) throw error
+      setChildren(prev => prev.map(c => c.id === editingChild.id ? { ...c, ...updates } : c))
+      setEditingChild(null)
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : '保存に失敗しました')
+    }
+    setEditSaving(false)
+  }
+
   const activePurchases  = purchases.filter(p => p.status !== 'delivered')
   const deliveredPurchases = purchases.filter(p => p.status === 'delivered').slice(0, 5)
   const activeRepairs    = repairs.filter(r => r.status !== 'delivered')
@@ -236,6 +275,11 @@ export default function MyPage() {
                     </div>
                     {child.gender === 'male' && <span className="text-[10px] text-blue-500 font-bold">男子</span>}
                     {child.gender === 'female' && <span className="text-[10px] text-pink-500 font-bold">女子</span>}
+                    <button
+                      onClick={() => openEdit(child)}
+                      className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-500 shrink-0">
+                      <Edit2 size={12} />
+                    </button>
                   </div>
                   {/* 採寸記録 */}
                   {measurements.length > 0 && (
@@ -352,6 +396,72 @@ export default function MyPage() {
         </p>
 
       </div>
+
+      {/* お子様情報編集モーダル */}
+      {editingChild && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-end"
+          onClick={e => { if (e.target === e.currentTarget) setEditingChild(null) }}>
+          <div className="w-full max-w-md mx-auto bg-white rounded-t-3xl p-5 space-y-4"
+            style={{ paddingBottom: 'max(32px, env(safe-area-inset-bottom))' }}>
+
+            <div className="flex items-center gap-3">
+              <GraduationCap size={16} className="text-indigo-500" />
+              <h2 className="text-sm font-black text-gray-900 flex-1">{editingChild.name}さんの情報</h2>
+              <button onClick={() => setEditingChild(null)} className="p-1.5 rounded-lg hover:bg-gray-100">
+                <X size={16} className="text-gray-400" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-gray-600 mb-1.5 block">学校名</label>
+                <input
+                  value={editForm.school_name}
+                  onChange={e => setEditForm(prev => ({ ...prev, school_name: e.target.value }))}
+                  placeholder="○○中学校"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-400"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-600 mb-1.5 block">学年</label>
+                <select
+                  value={editForm.grade}
+                  onChange={e => setEditForm(prev => ({ ...prev, grade: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-400 bg-white">
+                  <option value="">選択してください</option>
+                  {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-600 mb-1.5 block">入学年度</label>
+                <select
+                  value={editForm.admission_year}
+                  onChange={e => setEditForm(prev => ({ ...prev, admission_year: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-400 bg-white">
+                  <option value="">選択してください</option>
+                  {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                    <option key={y} value={y}>{y}年度入学</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {editError && <p className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2">{editError}</p>}
+
+            <button
+              onClick={saveChild}
+              disabled={editSaving}
+              className="w-full py-3 bg-indigo-600 text-white text-sm font-black rounded-2xl active:opacity-70 disabled:opacity-50 flex items-center justify-center gap-2">
+              {editSaving && <Loader2 size={14} className="animate-spin" />}
+              {editSaving ? '保存中...' : '保存する'}
+            </button>
+
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
