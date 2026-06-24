@@ -4,7 +4,7 @@ import type { Metadata } from 'next'
 // 作り込み中は非公開。公開するときは Vercel 環境変数 NEXT_PUBLIC_LP_PUBLIC=1 を設定。
 const LP_PUBLIC = process.env.NEXT_PUBLIC_LP_PUBLIC === '1'
 
-const BRAND = 'みせサポ' // TODO: 正式なサービス名に差し替え
+const BRAND = 'ミセプラ'
 const START = '/start'   // 無料体験：その場で店舗を発行し即ログイン
 const TRIAL_DAYS = 30
 

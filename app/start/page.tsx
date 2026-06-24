@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-const BRAND = 'みせサポ'
+const BRAND = 'ミセプラ'
 const TRIAL_DAYS = 30
 
 export default function StartTrialPage() {
