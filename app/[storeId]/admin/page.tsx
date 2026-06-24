@@ -24,6 +24,9 @@ import {
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BAmZx5b8ScrgrqWa822FdQhtfHV2CSyqvxNeQX-Ds1KsqztPPRtZRyBP_LaQZmCLejg8Ivd7Gu4cBxKtNwodb3o'
 
+// サンプルグループ（本店/支店A）。総管理への導線はこのサンプル店舗からのみ残す
+const SAMPLE_GROUP_ID = '00000000-0000-0000-0000-000000000001'
+
 function urlBase64ToUint8Array(base64: string) {
   const pad = '='.repeat((4 - base64.length % 4) % 4)
   const b64 = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/')
@@ -360,11 +363,17 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
                 🕐
               </a>
             )}
-            <a href={groupCode ? `/company/${groupCode}` : '/super-admin'}
-              title={groupCode ? '会社管理ダッシュボード' : '総管理ダッシュボード'}
-              className="p-2 rounded-xl bg-gray-100 border border-gray-200 hover:bg-gray-200 active:opacity-60 transition-all text-gray-500">
-              <LayoutDashboard size={16} />
-            </a>
+            {groupCode ? (
+              <a href={`/company/${groupCode}`} title="会社管理ダッシュボード"
+                className="p-2 rounded-xl bg-gray-100 border border-gray-200 hover:bg-gray-200 active:opacity-60 transition-all text-gray-500">
+                <LayoutDashboard size={16} />
+              </a>
+            ) : store.group_id === SAMPLE_GROUP_ID ? (
+              <a href="/super-admin" title="総管理ダッシュボード"
+                className="p-2 rounded-xl bg-gray-100 border border-gray-200 hover:bg-gray-200 active:opacity-60 transition-all text-gray-500">
+                <LayoutDashboard size={16} />
+              </a>
+            ) : null}
           </div>
         </div>
 

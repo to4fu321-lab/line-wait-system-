@@ -228,6 +228,19 @@ export default function StaffSettingsPage() {
             <ChevronRight size={20} className="text-indigo-400 shrink-0" />
           </Link>
 
+          {/* 👥 スタッフ（PIN確認・追加） */}
+          <Link href={`/${storeId}/admin/master?tab=staff`}
+            className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-emerald-200 hover:border-emerald-400 active:scale-[0.98] transition-all shadow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center shrink-0">
+              <Users size={28} className="text-emerald-600" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-black text-lg text-emerald-700">スタッフ</p>
+              <p className="text-sm text-gray-500 mt-0.5">スタッフの登録・PIN（個人番号）の確認</p>
+            </div>
+            <ChevronRight size={20} className="text-emerald-400 shrink-0" />
+          </Link>
+
           {/* 🍀 かんたんLINEモード */}
           {hasFeature('kantan_line') && (
             <Link href={`/${storeId}/admin/settings/kantan`}

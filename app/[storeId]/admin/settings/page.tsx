@@ -88,6 +88,8 @@ export default function SettingsPage() {
   const [saved,             setSaved]             = useState(false)
   const [saveError,         setSaveError]         = useState<string | null>(null)
   const [storeName,         setStoreName]         = useState('')
+  const [groupCode] = useState<string | null>(() =>
+    typeof window !== 'undefined' ? sessionStorage.getItem('admin_group_code') : null)
 
   const [openSections, setOpenSections] = useState<Set<string>>(new Set())
   const toggle = (id: string) => setOpenSections(prev => {
@@ -243,13 +245,13 @@ export default function SettingsPage() {
             <h1 className="text-base font-bold text-gray-900">設定</h1>
             {storeName && <p className="text-xs text-gray-500 truncate">{storeName}</p>}
           </div>
-          <button onClick={() => {
-            const gc = sessionStorage.getItem('admin_group_code')
-            window.location.href = gc ? `/company/${gc}` : '/super-admin'
-          }} title="総管理ダッシュボード"
-            className="p-2 rounded-xl bg-gray-200/60 border border-gray-300/50 hover:bg-gray-300/60 active:opacity-60 transition-all text-gray-600">
-            <LayoutDashboard size={16} />
-          </button>
+          {groupCode && (
+            <button onClick={() => { window.location.href = `/company/${groupCode}` }}
+              title="会社管理ダッシュボード"
+              className="p-2 rounded-xl bg-gray-200/60 border border-gray-300/50 hover:bg-gray-300/60 active:opacity-60 transition-all text-gray-600">
+              <LayoutDashboard size={16} />
+            </button>
+          )}
           <button onClick={handleSave} disabled={saving}
             className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl transition-all ${saved ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50'}`}>
             {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <CheckCheck size={14} /> : null}
