@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   BellRing, CheckCheck, UserX, RefreshCw, Clock, Users,
-  Loader2, Store, Phone, User, GraduationCap,
+  Loader2, Store, Phone, User, GraduationCap, Package,
   ChevronRight, LayoutDashboard, X, MapPin, BellOff, Bell,
   CalendarDays, QrCode, ShoppingCart,
 } from 'lucide-react'
@@ -481,6 +481,15 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
             <GraduationCap size={14} className="text-teal-600 shrink-0" />
             <span className="text-teal-700 text-xs font-bold">在校生フォロー通知</span>
             <ChevronRight size={12} className="text-teal-500 ml-auto" />
+          </a>
+
+          {/* 発注数量集計リンク */}
+          <a href={`/${store.id}/admin/order-summary`}
+            style={{ touchAction: 'manipulation' }}
+            className="flex items-center gap-2 px-3 py-2.5 bg-orange-50 border border-orange-200 rounded-xl active:opacity-70">
+            <Package size={14} className="text-orange-600 shrink-0" />
+            <span className="text-orange-700 text-xs font-bold">発注数量集計</span>
+            <ChevronRight size={12} className="text-orange-500 ml-auto" />
           </a>
 
           {/* レジ（会計）クイックリンク — pos 機能ON時のみ */}

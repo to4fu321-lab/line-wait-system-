@@ -314,7 +314,7 @@ export default function MeasurementEventPage() {
         )}
       </div>
 
-      <BottomNav storeId={storeId} active="repairs" />
+      <BottomNav />
     </div>
   )
 }

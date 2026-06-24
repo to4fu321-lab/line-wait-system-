@@ -342,7 +342,7 @@ export default function FollowupPage() {
 
       </div>
 
-      <BottomNav storeId={storeId} active="crm" />
+      <BottomNav />
     </div>
   )
 }
