@@ -467,6 +467,31 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
           {/* 学校別締切アラート */}
           <SchoolDeadlineAlert storeId={store.id} />
 
+          {/* 履歴（完了・不在バッジのタップで表示）— コンテンツ先頭に表示 */}
+          {historyVisible && (
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden animate-fade-in">
+              <div className="flex border-b border-gray-200">
+                {([
+                  { key: 'completed', label: '完了', color: 'text-emerald-600' },
+                  { key: 'cancelled', label: '不在', color: 'text-gray-500' },
+                ] as { key: HistoryTab; label: string; color: string }[]).map(tab => (
+                  <button key={tab.key} onClick={() => setHistoryTab(tab.key)}
+                    className={`flex-1 py-3 text-sm font-bold transition-colors ${
+                      historyTab === tab.key ? `${tab.color} border-b-2 border-current bg-gray-50` : 'text-gray-400 hover:text-gray-600'
+                    }`}>
+                    {tab.label} ({queues.filter(q => q.status === tab.key).length})
+                  </button>
+                ))}
+              </div>
+              <div className="p-3 space-y-2">
+                {historyTickets.length === 0
+                  ? <div className="text-center py-8 text-gray-400 text-sm">該当する受付はありません</div>
+                  : historyTickets.map(t => <HistoryCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} />)
+                }
+              </div>
+            </div>
+          )}
+
           {/* 呼出中 — 最優先・フル幅 */}
           {callingTickets.length > 0 && (
             <div className="space-y-3">
@@ -510,30 +535,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
             ) : waitingTickets.map(t => <WaitingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onCheckIn={handleCheckIn} onStartFitting={t.category === 'fitting' ? handleStartFitting : undefined} />)}
           </div>
 
-          {/* 履歴（完了・不在バッジのタップで表示） */}
-          {historyVisible && (
-            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden animate-fade-in">
-              <div className="flex border-b border-gray-200">
-                {([
-                  { key: 'completed', label: '完了', color: 'text-emerald-600' },
-                  { key: 'cancelled', label: '不在', color: 'text-gray-500' },
-                ] as { key: HistoryTab; label: string; color: string }[]).map(tab => (
-                  <button key={tab.key} onClick={() => setHistoryTab(tab.key)}
-                    className={`flex-1 py-3 text-sm font-bold transition-colors ${
-                      historyTab === tab.key ? `${tab.color} border-b-2 border-current bg-gray-50` : 'text-gray-400 hover:text-gray-600'
-                    }`}>
-                    {tab.label} ({queues.filter(q => q.status === tab.key).length})
-                  </button>
-                ))}
-              </div>
-              <div className="p-3 space-y-2 max-h-80 overflow-y-auto">
-                {historyTickets.length === 0
-                  ? <div className="text-center py-8 text-gray-400 text-sm">該当する受付はありません</div>
-                  : historyTickets.map(t => <HistoryCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} />)
-                }
-              </div>
-            </div>
-          )}
+
 
         </div>
       </div>
