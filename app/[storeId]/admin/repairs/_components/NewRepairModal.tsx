@@ -9,7 +9,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
-  Loader2, ChevronLeft, User, Check, X, Search, Camera, AlertTriangle, Scissors,
+  Loader2, ChevronLeft, ChevronRight, User, Check, X, Search, Camera, AlertTriangle, Scissors,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { RepairType } from '@/types/crm'
@@ -138,6 +138,11 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   const [photos, setPhotos] = useState<{ file: File; url: string }[]>([])
   const [saving, setSaving] = useState(false)
 
+  // 過去実績写真（項目選択時に取得）
+  const [refPhotos,  setRefPhotos]  = useState<{ url: string; completed_date: string | null }[]>([])
+  const [refLoading, setRefLoading] = useState(false)
+  const [refOpen,    setRefOpen]    = useState(false)
+
   // 直近登録の顧客をワンタップ選択
   const pickRecent = (c: RecentCust, child: { id: string; name: string; school_name: string | null } | null) => {
     setSelectedCust({ id: c.id, name: c.name, tel: c.tel, school_name: c.school_name ?? null, children: c.children })
@@ -168,6 +173,42 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
     onToast('ok', '📷 読み取りました。内容をご確認ください')
   }
 
+  async function fetchRefPhotos(it: RepairItem) {
+    setRefPhotos([]); setRefOpen(false); setRefLoading(true)
+    let { data: repairs } = await (supabase as any)
+      .from('repair_histories')
+      .select('id, completed_date')
+      .eq('store_id', storeId)
+      .eq('item_id', it.id)
+      .in('status', ['completed', 'delivered'])
+      .order('completed_date', { ascending: false })
+      .limit(20)
+    // item_id未設定のデータへフォールバック（item_code で検索）
+    if (!repairs?.length && it.code && it.code !== 'other') {
+      const { data: fb } = await (supabase as any)
+        .from('repair_histories')
+        .select('id, completed_date')
+        .eq('store_id', storeId)
+        .eq('item_code', it.code)
+        .in('status', ['completed', 'delivered'])
+        .order('completed_date', { ascending: false })
+        .limit(20)
+      repairs = fb
+    }
+    if (!repairs?.length) { setRefLoading(false); return }
+    const ids = (repairs as any[]).map(r => r.id as string)
+    const dateMap = new Map<string, string | null>((repairs as any[]).map(r => [r.id, r.completed_date]))
+    const { data: ps } = await (supabase as any)
+      .from('repair_photos')
+      .select('url, repair_id')
+      .in('repair_id', ids)
+      .eq('phase', 'after')
+      .order('created_at', { ascending: false })
+      .limit(15)
+    setRefPhotos((ps ?? []).map((p: any) => ({ url: p.url, completed_date: dateMap.get(p.repair_id) ?? null })))
+    setRefLoading(false)
+  }
+
   const selectItem = useCallback(async (it: RepairItem) => {
     setItem(it)
     setPricingMode(it.requires_quote ? 'manual' : 'master')
@@ -182,7 +223,10 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
     const init: Record<string, boolean> = {}
     opts.forEach(o => { if (o.default_selected) init[o.id] = true })
     setOptSel(init)
-  }, [])
+    // 過去実績写真を非同期取得
+    fetchRefPhotos(it)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId])
 
   // single グループは1つだけ選択に矯正
   const toggleOption = (o: RepairOption) => {
@@ -529,6 +573,7 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                 ))}
                 {items.length === 0 && <p className="col-span-2 text-center text-xs text-gray-400 py-4">この服種の項目がありません</p>}
               </div>
+              <RefPhotoStrip photos={refPhotos} loading={refLoading} open={refOpen} onToggle={() => setRefOpen(v => !v)} />
             </div>
             )}
 
@@ -635,6 +680,7 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                     </label>
                   </div>
                   <p className="text-[11px] text-gray-400 mt-1">任意です。不要ならそのまま「次へ」。</p>
+                  <RefPhotoStrip photos={refPhotos} loading={refLoading} open={refOpen} onToggle={() => setRefOpen(v => !v)} />
                 </div>
                 )}
 
@@ -715,6 +761,44 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
           onClear={() => { setSelectedCust(null); setSelectedChild(null) }}
           onClose={() => setLinkSheetOpen(false)}
         />
+      )}
+    </div>
+  )
+}
+
+function RefPhotoStrip({ photos, loading, open, onToggle }: {
+  photos: { url: string; completed_date: string | null }[]
+  loading: boolean
+  open: boolean
+  onToggle: () => void
+}) {
+  if (loading) return (
+    <div className="flex items-center gap-1.5 text-[11px] text-gray-400 mt-2">
+      <Loader2 size={11} className="animate-spin" />過去実績を読み込み中...
+    </div>
+  )
+  if (!photos.length) return null
+  return (
+    <div className="mt-2.5">
+      <button type="button" onClick={onToggle}
+        className="flex items-center gap-1 text-[11px] font-bold text-indigo-500 active:opacity-70">
+        <Camera size={11} />過去の完了写真（{photos.length}件）
+        <ChevronRight size={10} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
+      </button>
+      {open && (
+        <div className="flex gap-1.5 mt-1.5 overflow-x-auto pb-1">
+          {photos.map((p, i) => (
+            <div key={i} className="shrink-0 relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={p.url} alt="" className="w-20 h-20 object-cover rounded-xl border-2 border-emerald-300" />
+              {p.completed_date && (
+                <span className="absolute bottom-0 left-0 right-0 text-center text-[8px] py-0.5 rounded-b-xl bg-emerald-700/80 text-white font-bold">
+                  {p.completed_date.slice(0, 7)}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )
