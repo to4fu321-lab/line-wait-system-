@@ -6,29 +6,29 @@ import { getLineToken } from '@/lib/line-config'
 import { pushMessages } from '@/lib/line-flex'
 
 // POST /api/followup-notify
-// 在校生フォロー通知: 指定した children の保護者LINEへ一斉送信
 export async function POST(req: NextRequest) {
   const body = await req.json() as {
     storeId: string
     childIds: string[]
     message: string
+    filterDesc?: string
   }
-  const { storeId, childIds, message } = body
+  const { storeId, childIds, message, filterDesc } = body
 
   if (!storeId || !childIds?.length || !message?.trim()) {
     return NextResponse.json({ ok: false, error: 'storeId / childIds / message は必須です' }, { status: 400 })
   }
 
-  // テストモード確認
   const { data: store } = await (supabase as any)
-    .from('stores').select('is_test_mode, business_type').eq('id', storeId).single()
+    .from('stores').select('is_test_mode, business_type, features').eq('id', storeId).single()
+
   if (store?.is_test_mode) {
-    return NextResponse.json({ ok: true, sent: 0, skipped: childIds.length, reason: 'test_mode' })
+    return NextResponse.json({ ok: true, sent: 0, skipped: childIds.length, reason: 'test_mode', unitPrice: 0, totalAmount: 0 })
   }
 
+  const unitPrice: number = (store?.features?.followup_notify_price as number | undefined) ?? 10
   const token = getLineToken(store?.business_type === 'takeout' ? 'takeout' : 'uniform')
 
-  // 対象 children の保護者 line_user_id を取得
   const { data: children, error: childErr } = await (supabase as any)
     .from('children')
     .select('id, name, school_name, customer:customers(id, name, line_user_id)')
@@ -55,16 +55,36 @@ export async function POST(req: NextRequest) {
     else results.errors++
   }
 
-  return NextResponse.json({ ok: true, ...results })
+  const totalAmount = results.sent * unitPrice
+
+  // 送信ログを記録（テーブル未作成でも無視）
+  if (results.sent > 0) {
+    try {
+      await (supabase as any).from('notification_logs').insert({
+        store_id: storeId,
+        type: 'followup',
+        recipient_count: results.sent,
+        unit_price: unitPrice,
+        total_amount: totalAmount,
+        filter_desc: filterDesc ?? null,
+      })
+    } catch { /* graceful — migration 未適用時はスキップ */ }
+  }
+
+  return NextResponse.json({ ok: true, ...results, unitPrice, totalAmount })
 }
 
-// GET /api/followup-notify?storeId=xxx&gradeYear=2025
-// 指定学年の在校生一覧（LINE連携状況付き）
+// GET /api/followup-notify?storeId=xxx
 export async function GET(req: NextRequest) {
   const storeId   = req.nextUrl.searchParams.get('storeId')
-  const gradeYear = req.nextUrl.searchParams.get('gradeYear') // 入学年度（admission_year）
+  const gradeYear = req.nextUrl.searchParams.get('gradeYear')
 
   if (!storeId) return NextResponse.json({ ok: false, error: 'storeId is required' }, { status: 400 })
+
+  const { data: store } = await (supabase as any)
+    .from('stores').select('features').eq('id', storeId).single()
+
+  const unitPrice: number = (store?.features?.followup_notify_price as number | undefined) ?? 10
 
   const query = (supabase as any)
     .from('children')
@@ -78,5 +98,5 @@ export async function GET(req: NextRequest) {
   const { data, error } = await query
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
 
-  return NextResponse.json({ ok: true, children: data ?? [] })
+  return NextResponse.json({ ok: true, children: data ?? [], unitPrice })
 }

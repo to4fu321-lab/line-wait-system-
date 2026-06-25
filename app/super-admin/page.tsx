@@ -446,6 +446,25 @@ function StoreCard({
             </div>
           </div>
 
+          {/* 📣 在校生フォロー通知 単価 */}
+          <div>
+            <p className="text-[10px] text-gray-400 mb-1.5 uppercase tracking-wider">📣 在校生フォロー通知 単価</p>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={(features.followup_notify_price as number | undefined) ?? 10}
+                onChange={e => setFeatures(prev => ({
+                  ...prev,
+                  followup_notify_price: parseInt(e.target.value) || 0,
+                }))}
+                className="w-28 bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none"
+              />
+              <span className="text-gray-400 text-xs">円 / 件</span>
+            </div>
+          </div>
+
           {msg && <p className={`text-xs px-3 py-2 rounded-xl ${msg.ok ? 'bg-emerald-900/40 text-emerald-300' : 'bg-red-900/40 text-red-300'}`}>{msg.text}</p>}
 
           {/* 店舗ツール */}
@@ -595,6 +614,136 @@ function StoreCard({
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+// ============================================================
+// 通知請求サマリー（月次）
+// ============================================================
+interface BillingRow {
+  store_id: string
+  store_name: string
+  this_month_count: number
+  this_month_amount: number
+  last_month_count: number
+  last_month_amount: number
+}
+
+function NotificationBillingSummary({ storeStats }: { storeStats: StoreStats[] }) {
+  const [rows,    setRows]    = useState<BillingRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [open,    setOpen]    = useState(false)
+
+  const fetch = useCallback(async () => {
+    if (!open) return
+    setLoading(true)
+    try {
+      const now   = new Date()
+      const y     = now.getFullYear()
+      const m     = now.getMonth() + 1
+      const thisStart = `${y}-${String(m).padStart(2,'0')}-01`
+      const prevStart = m === 1
+        ? `${y-1}-12-01`
+        : `${y}-${String(m-1).padStart(2,'0')}-01`
+
+      const { data } = await (supabase as any)
+        .from('notification_logs')
+        .select('store_id, recipient_count, total_amount, sent_at')
+        .gte('sent_at', prevStart)
+        .order('sent_at', { ascending: false })
+
+      if (!data) { setRows([]); setLoading(false); return }
+
+      const map = new Map<string, BillingRow>()
+      for (const stat of storeStats) {
+        map.set(stat.store.id, {
+          store_id: stat.store.id,
+          store_name: stat.store.name,
+          this_month_count: 0, this_month_amount: 0,
+          last_month_count: 0, last_month_amount: 0,
+        })
+      }
+
+      for (const log of (data as { store_id: string; recipient_count: number; total_amount: number; sent_at: string }[])) {
+        const row = map.get(log.store_id)
+        if (!row) continue
+        if (log.sent_at >= thisStart) {
+          row.this_month_count  += log.recipient_count
+          row.this_month_amount += log.total_amount
+        } else {
+          row.last_month_count  += log.recipient_count
+          row.last_month_amount += log.total_amount
+        }
+      }
+
+      setRows(Array.from(map.values()).filter(r => r.this_month_count > 0 || r.last_month_count > 0))
+    } catch { setRows([]) }
+    setLoading(false)
+  }, [open, storeStats])
+
+  useEffect(() => { fetch() }, [fetch])
+
+  const totalThis = rows.reduce((s, r) => s + r.this_month_amount, 0)
+  const totalLast = rows.reduce((s, r) => s + r.last_month_amount, 0)
+
+  const now = new Date()
+  const thisLabel = `${now.getMonth() + 1}月`
+  const lastLabel = now.getMonth() === 0 ? '12月' : `${now.getMonth()}月`
+
+  return (
+    <div className="mt-4 border border-gray-700/60 rounded-2xl overflow-hidden">
+      <button onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-gray-800 text-gray-300 hover:text-white transition-colors">
+        <span className="flex items-center gap-2 text-sm font-bold">
+          📣 在校生フォロー通知 請求サマリー
+          {rows.length > 0 && (
+            <span className="text-[10px] bg-indigo-600/30 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30">
+              {thisLabel} {totalThis.toLocaleString()}円
+            </span>
+          )}
+        </span>
+        {open ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+      </button>
+
+      {open && (
+        <div className="bg-gray-900/30 p-4 space-y-3">
+          {loading ? (
+            <div className="flex justify-center py-4"><Loader2 size={20} className="animate-spin text-gray-500" /></div>
+          ) : rows.length === 0 ? (
+            <p className="text-center text-gray-600 text-sm py-4">送信ログなし（migration未適用または送信履歴なし）</p>
+          ) : (
+            <>
+              {/* ヘッダー */}
+              <div className="grid grid-cols-5 gap-2 text-[10px] text-gray-500 uppercase tracking-wider px-2">
+                <span className="col-span-2">店舗</span>
+                <span className="text-right">{thisLabel} 件数</span>
+                <span className="text-right">{thisLabel} 金額</span>
+                <span className="text-right">{lastLabel} 金額</span>
+              </div>
+              <div className="space-y-1">
+                {rows.map(row => (
+                  <div key={row.store_id} className="grid grid-cols-5 gap-2 bg-gray-800/60 rounded-xl px-3 py-2.5 text-sm items-center">
+                    <span className="col-span-2 font-bold text-white truncate text-xs">{row.store_name}</span>
+                    <span className="text-right tabular-nums text-indigo-300 font-bold">{row.this_month_count}件</span>
+                    <span className="text-right tabular-nums text-white font-black">{row.this_month_amount.toLocaleString()}円</span>
+                    <span className="text-right tabular-nums text-gray-500">{row.last_month_amount.toLocaleString()}円</span>
+                  </div>
+                ))}
+              </div>
+              {/* 合計 */}
+              <div className="grid grid-cols-5 gap-2 border-t border-gray-700 pt-2 px-3 text-sm items-center">
+                <span className="col-span-2 text-xs font-bold text-gray-400">合計</span>
+                <span className="text-right tabular-nums text-indigo-300 font-bold">
+                  {rows.reduce((s, r) => s + r.this_month_count, 0)}件
+                </span>
+                <span className="text-right tabular-nums text-white font-black">{totalThis.toLocaleString()}円</span>
+                <span className="text-right tabular-nums text-gray-500">{totalLast.toLocaleString()}円</span>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -1013,6 +1162,9 @@ function SuperDashboard() {
             </div>
           )}
         </div>
+
+        {/* 通知請求サマリー */}
+        <NotificationBillingSummary storeStats={storeStats} />
 
         <p className="text-center text-gray-600 text-xs mt-4">30秒ごとに自動更新</p>
       </div>
