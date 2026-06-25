@@ -774,10 +774,11 @@ export default function StoreAdminPage() {
   }, [storeId, loadGroupCode])
 
   const handleSelectStore = (s: StoreInfo) => { setSelectedStore(s); setView('pin') }
-  const handleAuth = () => {
+  const handleAuth = (role: 'owner' | 'staff') => {
     if (selectedStore) {
       sessionStorage.setItem('admin_store_id', selectedStore.id)
       sessionStorage.setItem('admin_auth', '1')
+      sessionStorage.setItem('admin_role', role)
       loadGroupCode(selectedStore)
       if (selectedStore.business_type === 'takeout') {
         router.replace(`/${selectedStore.id}/kitchen`)
@@ -791,7 +792,7 @@ export default function StoreAdminPage() {
     setView('dashboard')
   }
   const handleLogout = () => {
-    sessionStorage.removeItem('admin_auth'); sessionStorage.removeItem('admin_store_id')
+    sessionStorage.removeItem('admin_auth'); sessionStorage.removeItem('admin_store_id'); sessionStorage.removeItem('admin_role')
     setSelectedStore(null); setView('select_store')
   }
 
@@ -811,7 +812,9 @@ export default function StoreAdminPage() {
     </>
   )
   if (view === 'pin' && selectedStore) return (
-    <PinScreen storeName={selectedStore.name} storePin={selectedStore.pin} storeId={selectedStore.id} onAuth={handleAuth} onBack={() => setView('select_store')} />
+    <PinScreen storeName={selectedStore.name} storePin={selectedStore.pin}
+      ownerPin={String(selectedStore.features?.owner_pin ?? '')}
+      storeId={selectedStore.id} onAuth={handleAuth} onBack={() => setView('select_store')} />
   )
   if (view === 'dashboard' && selectedStore) return (
     <AdminDashboard store={selectedStore} groupCode={groupCode} onLogout={handleLogout} />

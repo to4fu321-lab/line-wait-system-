@@ -114,6 +114,7 @@ export default function CRMPage() {
   const [storeNameMap,      setStoreNameMap]      = useState<Record<string, string>>({})
   const [reservationUrl,    setReservationUrl]    = useState<string | null>(null)
   const [csvExporting,      setCsvExporting]      = useState(false)
+  const isOwner = typeof window !== 'undefined' && sessionStorage.getItem('admin_role') === 'owner'
 
   // 未対応統計
   const [stats, setStats] = useState({ repairReceived: 0, repairCompleted: 0, purchaseReceived: 0, purchaseInProgress: 0, purchaseArrived: 0 })
@@ -861,11 +862,13 @@ export default function CRMPage() {
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-black text-gray-700">顧客管理</h2>
             <div className="flex items-center gap-2">
-              <button onClick={handleDownloadCSV} disabled={csvExporting || allLoading}
-                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border bg-emerald-50 border-emerald-200 text-emerald-700 disabled:opacity-50 hover:bg-emerald-100 transition-colors">
-                {csvExporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-                CSV出力
-              </button>
+              {isOwner && (
+                <button onClick={handleDownloadCSV} disabled={csvExporting || allLoading}
+                  className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border bg-emerald-50 border-emerald-200 text-emerald-700 disabled:opacity-50 hover:bg-emerald-100 transition-colors">
+                  {csvExporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                  CSV出力
+                </button>
+              )}
               <button onClick={() => setShowQrModal(true)}
                 className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border bg-indigo-100 border-indigo-200 text-indigo-700">
                 <QrCode size={12} />新規登録QR
