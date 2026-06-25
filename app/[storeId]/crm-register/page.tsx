@@ -182,7 +182,7 @@ export default function CrmRegisterPage() {
     }
 
     try {
-      const { data: existing } = await supabase.from('queues')
+      const { data: existing } = await (supabase as any).from('queues')
         .select('id, ticket_number')
         .eq('store_id', storeId)
         .eq('line_user_id', lineUserId)
@@ -191,17 +191,17 @@ export default function CrmRegisterPage() {
         .order('created_at', { ascending: false })
 
       if (existing && existing.length > 0) {
-        await supabase.from('queues')
+        await (supabase as any).from('queues')
           .update({ customer_name: cust.name, customer_id: cust.id })
-          .in('id', existing.map(e => e.id))
+          .in('id', existing.map((e: any) => e.id))
         return existing[0].ticket_number
       }
 
-      const { data: nextNum, error: numErr } = await supabase
+      const { data: nextNum, error: numErr } = await (supabase as any)
         .rpc('get_next_ticket_number', { p_store_id: storeId })
       if (numErr || nextNum == null) return null
 
-      const { data: t, error } = await supabase.from('queues').insert({
+      const { data: t, error } = await (supabase as any).from('queues').insert({
         store_id:      storeId,
         ticket_number: nextNum as number,
         status:        'waiting',
@@ -243,7 +243,7 @@ export default function CrmRegisterPage() {
   const handleRegister = async () => {
     if (!name.trim() || !lineUserId) return
     setSaving(true); setErrorMsg('')
-    const { data: newCust, error } = await supabase.from('customers').insert({
+    const { data: newCust, error } = await (supabase as any).from('customers').insert({
       store_id:     storeId,
       name:         name.trim(),
       kana:         kana.trim() || null,

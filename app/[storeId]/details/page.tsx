@@ -23,12 +23,12 @@ function DetailsForm() {
 
   useEffect(() => {
     if (!ticketId) return
-    supabase
+    ;(supabase as any)
       .from('queues')
       .select('ticket_number, details, line_user_id')
       .eq('id', ticketId)
       .single()
-      .then(({ data, error: err }) => {
+      .then(({ data, error: err }: { data: any; error: any }) => {
         if (err || !data) { setNotFound(true); return }
         setTicketNumber(data.ticket_number)
         setLineUserId(data.line_user_id ?? null)
@@ -49,13 +49,13 @@ function DetailsForm() {
     if (weight.trim())      details.weight      = weight.trim()
     if (parentPhone.trim()) details.parentPhone = parentPhone.trim()
 
-    const { error: updateErr } = await supabase
+    const { error: updateErr } = await (supabase as any)
       .from('queues')
       .update({ details })
       .eq('id', ticketId)
 
     if (!updateErr && parentPhone.trim() && lineUserId && storeId) {
-      await supabase
+      await (supabase as any)
         .from('customers')
         .update({ tel: parentPhone.trim() })
         .eq('store_id', storeId)

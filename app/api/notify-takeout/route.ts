@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, reason: 'invalid_params' }, { status: 400 })
     }
 
-    const { data: order } = await supabase
+    const { data: order } = await (supabase as any)
       .from('takeout_orders')
       .select('*, store:stores(name, takeout_settings), items:takeout_order_items(name, quantity)')
       .eq('id', orderId)
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     }
 
     const field = status === 'confirmed' ? 'notified_confirmed' : status === 'preparing' ? 'notified_preparing' : 'notified_ready'
-    await supabase.from('takeout_orders').update({ [field]: true }).eq('id', orderId)
+    await (supabase as any).from('takeout_orders').update({ [field]: true }).eq('id', orderId)
 
     return NextResponse.json({ ok: true })
   } catch (e) {

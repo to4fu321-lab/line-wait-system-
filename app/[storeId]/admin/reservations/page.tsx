@@ -148,7 +148,7 @@ function NewReservationForm({ storeId, onSaved, onCancel }: {
     if (!customerQuery.trim()) { setCustomerResults([]); return }
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
     searchTimerRef.current = setTimeout(async () => {
-      const { data } = await supabase.from('customers').select('*')
+      const { data } = await (supabase as any).from('customers').select('*')
         .eq('store_id', storeId).is('deleted_at', null)
         .or(`name.ilike.%${customerQuery}%,kana.ilike.%${customerQuery}%,tel.ilike.%${customerQuery}%`)
         .limit(5)
@@ -158,8 +158,8 @@ function NewReservationForm({ storeId, onSaved, onCancel }: {
 
   useEffect(() => {
     if (!selectedCustomer) { setChildren([]); setSelectedChild(null); return }
-    supabase.from('children').select('*').eq('customer_id', selectedCustomer.id)
-      .then(({ data }) => {
+    (supabase as any).from('children').select('*').eq('customer_id', selectedCustomer.id)
+      .then(({ data }: { data: any }) => {
         setChildren(data ?? [])
         if (data?.length === 1) setSelectedChild(data[0])
       })
@@ -168,7 +168,7 @@ function NewReservationForm({ storeId, onSaved, onCancel }: {
   const handleSave = async () => {
     setLoading(true); setError(null)
     const reserved_at = `${reservedDate}T${reservedTime}:00+09:00`
-    const { error: err } = await (supabase.from('reservations') as any).insert({
+    const { error: err } = await ((supabase as any).from('reservations') as any).insert({
       store_id:    storeId,
       customer_id: selectedCustomer?.id ?? null,
       child_id:    selectedChild?.id    ?? null,
@@ -316,8 +316,8 @@ export default function ReservationsPage() {
 
   useEffect(() => {
     if (!storeId) return
-    supabase.from('stores').select('name').eq('id', storeId).single()
-      .then(({ data }) => { if (data) setStoreName(data.name ?? '') })
+    (supabase as any).from('stores').select('name').eq('id', storeId).single()
+      .then(({ data }: { data: any }) => { if (data) setStoreName(data.name ?? '') })
   }, [storeId])
 
   const fetchTimeline = useCallback(async () => {
@@ -327,13 +327,13 @@ export default function ReservationsPage() {
     const dayEnd   = `${selectedDate}T23:59:59+09:00`
 
     const [{ data: resData }, { data: queueData }] = await Promise.all([
-      (supabase.from('reservations') as any)
+      ((supabase as any).from('reservations') as any)
         .select('*, customer:customers(name, kana, tel), child:children(name, school_name, grade)')
         .eq('store_id', storeId)
         .gte('reserved_at', dayStart)
         .lte('reserved_at', dayEnd)
         .order('reserved_at'),
-      supabase.from('queues').select('*')
+      (supabase as any).from('queues').select('*')
         .eq('store_id', storeId)
         .gte('created_at', dayStart)
         .lte('created_at', dayEnd)
@@ -352,19 +352,19 @@ export default function ReservationsPage() {
   useEffect(() => { fetchTimeline() }, [fetchTimeline])
 
   const handleUpdateStatus = useCallback(async (id: string, status: ReservationStatus, prevStatus: ReservationStatus) => {
-    const { error } = await (supabase.from('reservations') as any)
+    const { error } = await ((supabase as any).from('reservations') as any)
       .update({ status, updated_at: new Date().toISOString() }).eq('id', id)
     if (error) { showToast('err', `更新失敗: ${error.message}`); return }
     fetchTimeline()
     showToast('ok', `${RESERVATION_STATUS_LABELS[status]}にしました`, async () => {
-      await (supabase.from('reservations') as any)
+      await ((supabase as any).from('reservations') as any)
         .update({ status: prevStatus, updated_at: new Date().toISOString() }).eq('id', id)
       fetchTimeline()
     })
   }, [fetchTimeline, showToast])
 
   const handleDelete = useCallback(async (id: string) => {
-    const { error } = await (supabase.from('reservations') as any).delete().eq('id', id)
+    const { error } = await ((supabase as any).from('reservations') as any).delete().eq('id', id)
     if (error) { showToast('err', `削除失敗: ${error.message}`); return }
     showToast('ok', '予約を削除しました')
     fetchTimeline()

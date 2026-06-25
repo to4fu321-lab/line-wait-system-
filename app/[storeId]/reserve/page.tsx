@@ -304,12 +304,12 @@ export default function ReservePage() {
     if (cust) {
       setCustomerId(cust.id)
       if (cust.name) setName(cust.name) // 採寸サービス選択時も登録名で上書き
-      const { data: kids } = await supabase.from('children').select('id, name, school_name, school_id, grade, gender')
+      const { data: kids } = await (supabase as any).from('children').select('id, name, school_name, school_id, grade, gender')
         .eq('customer_id', cust.id).order('created_at')
       setChildren((kids ?? []) as ChildRow[])
     }
     // 学校マスターを取得
-    const { data: sc } = await supabase.from('schools').select('id, name')
+    const { data: sc } = await (supabase as any).from('schools').select('id, name')
       .eq('store_id', storeId).eq('active', true).order('sort_order')
     setSchools((sc ?? []) as SchoolRow[])
     setLoadingChildren(false)
@@ -638,7 +638,7 @@ export default function ReservePage() {
                         if (!ncName.trim() || !customerId) return
                         setNcSaving(true)
                         const schoolName = schools.find(s => s.id === ncSchoolId)?.name ?? null
-                        const { data } = await supabase.from('children').insert({
+                        const { data } = await (supabase as any).from('children').insert({
                           customer_id: customerId, store_id: storeId,
                           name: ncName.trim(), school_id: ncSchoolId || null,
                           school_name: schoolName, grade: ncGrade || null, gender: ncGender || null,

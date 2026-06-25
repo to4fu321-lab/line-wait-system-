@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'purchaseOrderId is required' }, { status: 400 })
   }
 
-  const { data: order, error: orderErr } = await supabase
+  const { data: order, error: orderErr } = await (supabase as any)
     .from('purchase_orders')
     .select(`
       id, item_name, notes, price, request_no,
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: `LINE API ${result.status ?? ''}: ${result.error}` }, { status: 500 })
   }
 
-  await supabase
+  await (supabase as any)
     .from('purchase_orders')
     .update({ notified: true })
     .eq('id', purchaseOrderId)

@@ -116,6 +116,11 @@ export interface SchoolMaster {
   special_notes?:       string | null  // 特記事項
   schedule_notes?:      string | null  // 販売スケジュール・締切
   extra_info?:          string | null  // その他情報
+  // 締切日管理（SchoolDeadlineAlert が参照）
+  order_deadline?:      string | null  // 発注締切日 (YYYY-MM-DD)
+  pickup_deadline?:     string | null  // 引渡し完了目標日 (YYYY-MM-DD)
+  measurement_start?:   string | null  // 採寸受付開始日
+  measurement_end?:     string | null  // 採寸受付終了日
   created_at: string
   updated_at: string
 }

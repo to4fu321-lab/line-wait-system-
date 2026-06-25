@@ -15,7 +15,7 @@ function urlBase64ToUint8Array(base64: string) {
   const pad = '='.repeat((4 - base64.length % 4) % 4)
   const b64 = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/')
   const raw = window.atob(b64)
-  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
+  return Uint8Array.from(Array.from(raw).map(c => c.charCodeAt(0)))
 }
 
 type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'

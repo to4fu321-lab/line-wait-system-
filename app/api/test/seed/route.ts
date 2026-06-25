@@ -66,14 +66,14 @@ export async function POST(req: NextRequest) {
       let custId:  string | null = null
       let childId: string | null = null
 
-      const { data: newCust, error: custErr } = await supabase.from('customers').insert({
+      const { data: newCust, error: custErr } = await (supabase as any).from('customers').insert({
         store_id: storeId, name: tc.name, kana: tc.kana, tel: tc.tel,
       }).select('id').single()
 
       if (newCust) {
         custId = newCust.id
         created.push(`顧客: ${tc.name}`)
-        const { data: newChild } = await supabase.from('children').insert({
+        const { data: newChild } = await (supabase as any).from('children').insert({
           customer_id: custId, store_id: storeId,
           name: tc.child.name, kana: tc.child.kana,
           school_name: tc.child.school, grade: tc.child.grade,
@@ -82,11 +82,11 @@ export async function POST(req: NextRequest) {
         if (childId) created.push(`  お子様: ${tc.child.name}（${tc.child.school} ${tc.child.grade}）`)
       } else {
         console.warn('[seed] customer insert skipped, looking up existing:', custErr?.message)
-        const { data: existing } = await supabase.from('customers')
+        const { data: existing } = await (supabase as any).from('customers')
           .select('id').eq('store_id', storeId).eq('name', tc.name).single()
         if (existing) {
           custId = existing.id
-          const { data: existChild } = await supabase.from('children')
+          const { data: existChild } = await (supabase as any).from('children')
             .select('id').eq('customer_id', custId).limit(1).single()
           if (existChild) childId = existChild.id
         }
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
 
     // 3. 整理券（待ち）3件 — 身長・体重の事前入力テスト用
     const todayJst = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
-    const { data: maxRows } = await supabase.from('queues')
+    const { data: maxRows } = await (supabase as any).from('queues')
       .select('ticket_number').eq('store_id', storeId)
       .gte('created_at', todayJst + 'T00:00:00+09:00')
       .order('ticket_number', { ascending: false }).limit(1)
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
       if (d.weight) details.weight = d.weight
       if (d.note)   details.note   = d.note
 
-      const { error: qErr } = await supabase.from('queues').insert({
+      const { error: qErr } = await (supabase as any).from('queues').insert({
         store_id: storeId, ticket_number: ticketNum, status: 'waiting',
         customer_name: tc.name.replace('【テスト】', ''),
         child_name: tc.child.name,
@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
       }
       if (p.arrived)                row.arrived_date   = p.arrived
       if (p.status === 'delivered') row.delivered_date = today
-      const { error: pErr } = await (supabase.from('purchase_orders') as any).insert(row)
+      const { error: pErr } = await ((supabase as any).from('purchase_orders') as any).insert(row)
       if (pErr) { console.error('[seed] purchase_orders insert error:', pErr.message, 'item:', p.item); continue }
       created.push(`取置き[${p.status}]: ${p.item}`)
     }
@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
       }
       if (r.completed)  row.completed_date  = r.completed
       if (r.delivered)  row.delivered_date  = r.delivered
-      const { error: rErr } = await supabase.from('repair_histories').insert(row)
+      const { error: rErr } = await (supabase as any).from('repair_histories').insert(row)
       if (rErr) { console.error('[seed] repair_histories insert error:', rErr.message, 'item:', r.item); continue }
       created.push(`${r.requestType}[${r.status}]: ${r.item}`)
     }

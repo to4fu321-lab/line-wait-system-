@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   let storeName = ''
 
   try {
-    const { data: storeData, error: storeErr } = await supabase
+    const { data: storeData, error: storeErr } = await (supabase as any)
       .from('stores')
       .select('name, notice_threshold')
       .eq('id', storeId)
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 
     if (storeErr) {
       console.warn('[notify-threshold] store fetch failed, retrying name only:', storeErr.message)
-      const { data: basicData, error: basicErr } = await supabase
+      const { data: basicData, error: basicErr } = await (supabase as any)
         .from('stores').select('name').eq('id', storeId).single()
       if (basicErr || !basicData) {
         return NextResponse.json({ ok: false, error: `store not found: ${basicErr?.message}` }, { status: 404 })

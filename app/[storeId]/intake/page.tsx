@@ -58,7 +58,7 @@ export default function CustomerIntakePage() {
         if (!profile?.userId) { setView('not_line'); return }
         setLineUserId(profile.userId)
 
-        const { data: list } = await supabase.from('customers')
+        const { data: list } = await (supabase as any).from('customers')
           .select('*')
           .eq('store_id', storeId)
           .eq('line_user_id', profile.userId)
@@ -89,7 +89,7 @@ export default function CustomerIntakePage() {
 
     let err: { message: string } | null = null
     if (intakeType === 'purchase') {
-      const res = await supabase.from('purchase_orders').insert({
+      const res = await (supabase as any).from('purchase_orders').insert({
         store_id:     storeId,
         customer_id:  customer.id,
         item_name:    itemName.trim(),
@@ -134,7 +134,7 @@ export default function CustomerIntakePage() {
     // 当日の受付番号があれば完了画面に表示
     let tn: number | null = null
     if (lineUserId) {
-      const { data: q } = await supabase.from('queues')
+      const { data: q } = await (supabase as any).from('queues')
         .select('ticket_number')
         .eq('store_id', storeId)
         .eq('line_user_id', lineUserId)

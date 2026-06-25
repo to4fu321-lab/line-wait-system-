@@ -10,6 +10,7 @@ import {
   CalendarDays, Pencil, AlertCircle, ChevronDown, ChevronUp,
   RotateCcw, ShoppingBag, Bell, Scissors, GraduationCap,
   Trash2, ArchiveRestore, Eye, EyeOff, QrCode, ScanLine, Sparkles,
+  Download,
 } from 'lucide-react'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import type {
@@ -112,6 +113,7 @@ export default function CRMPage() {
   const [groupStoreIds,     setGroupStoreIds]     = useState<string[]>([])
   const [storeNameMap,      setStoreNameMap]      = useState<Record<string, string>>({})
   const [reservationUrl,    setReservationUrl]    = useState<string | null>(null)
+  const [csvExporting,      setCsvExporting]      = useState(false)
 
   // 未対応統計
   const [stats, setStats] = useState({ repairReceived: 0, repairCompleted: 0, purchaseReceived: 0, purchaseInProgress: 0, purchaseArrived: 0 })
@@ -180,15 +182,15 @@ export default function CRMPage() {
       const term = qiCustomerSearch.trim()
       // 数字のみ（1〜4桁）は当日の受付番号として検索
       if (/^\d{1,4}$/.test(term)) {
-        const { data: qs } = await supabase.from('queues')
+        const { data: qs } = await (supabase as any).from('queues')
           .select('customer_id')
           .eq('store_id', storeId)
           .eq('ticket_number', parseInt(term, 10))
           .gte('created_at', getTodayStart())
           .not('customer_id', 'is', null)
-        const ids = [...new Set((qs ?? []).map(q => q.customer_id as string))]
+        const ids = Array.from(new Set((qs ?? []).map((q: any) => q.customer_id as string)))
         if (ids.length > 0) {
-          const { data } = await supabase.from('customers').select('*')
+          const { data } = await (supabase as any).from('customers').select('*')
             .in('id', ids).is('deleted_at', null)
           setQiFoundCustomers(data ?? [])
           setQiSearching(false)
@@ -196,7 +198,7 @@ export default function CRMPage() {
         }
         // 番号でヒットしなければ通常検索にフォールバック（電話番号の数字など）
       }
-      const { data } = await supabase.from('customers').select('*')
+      const { data } = await (supabase as any).from('customers').select('*')
         .eq('store_id', storeId).is('deleted_at', null)
         .or(`name.ilike.%${term}%,kana.ilike.%${term}%,tel.ilike.%${term}%`)
         .order('updated_at', { ascending: false }).limit(10)
@@ -209,7 +211,7 @@ export default function CRMPage() {
   const handleQiSelectCustomer = useCallback(async (customer: Customer) => {
     setQiCustomerId(customer.id)
     setQiCustomerName(customer.name)
-    const { data: kids } = await supabase.from('children').select('*')
+    const { data: kids } = await (supabase as any).from('children').select('*')
       .eq('customer_id', customer.id).order('name')
     const childArr = kids ?? []
     setQiChildren(childArr)
@@ -226,13 +228,13 @@ export default function CRMPage() {
     const cid = searchParams?.get('customer')
     if (!cid || !storeId) return
     ;(async () => {
-      const { data: cust } = await supabase.from('customers').select('*')
+      const { data: cust } = await (supabase as any).from('customers').select('*')
         .eq('id', cid).eq('store_id', storeId).is('deleted_at', null).single()
       if (!cust) return
       resetQi()
       setQiCustomerId(cust.id)
       setQiCustomerName(cust.name)
-      const { data: kids } = await supabase.from('children').select('*')
+      const { data: kids } = await (supabase as any).from('children').select('*')
         .eq('customer_id', cust.id).order('name')
       setQiChildren(kids ?? [])
       setShowQuickIntake(true)
@@ -258,7 +260,7 @@ export default function CRMPage() {
   // ── 初期ロード ──────────────────────────────────────────
   useEffect(() => {
     if (!storeId) return
-    ;(supabase.from('stores') as any)
+    ;((supabase as any).from('stores') as any)
       .select('name, group_id, alert_days_repair, alert_days_purchase, school_names, reservation_url')
       .eq('id', storeId).single()
       .then(async ({ data }: { data: any }) => {
@@ -269,7 +271,7 @@ export default function CRMPage() {
           setSchoolOptions(data.school_names)
         if (data?.reservation_url) setReservationUrl(data.reservation_url)
         if (data?.group_id) {
-          const { data: gStores } = await (supabase.from('stores') as any)
+          const { data: gStores } = await ((supabase as any).from('stores') as any)
             .select('id, name').eq('group_id', data.group_id)
           if (gStores && gStores.length > 1) {
             setGroupStoreIds(gStores.map((s: any) => s.id))
@@ -288,15 +290,15 @@ export default function CRMPage() {
   const fetchStats = useCallback(async () => {
     if (!storeId) return
     const [{ data: rData }, { data: pData }] = await Promise.all([
-      supabase.from('repair_histories').select('status').eq('store_id', storeId).in('status', ['received', 'completed']),
-      supabase.from('purchase_orders').select('status').eq('store_id', storeId).in('status', ['ordered', 'received', 'stocked', 'on_order', 'arrived']),
+      (supabase as any).from('repair_histories').select('status').eq('store_id', storeId).in('status', ['received', 'completed']),
+      (supabase as any).from('purchase_orders').select('status').eq('store_id', storeId).in('status', ['ordered', 'received', 'stocked', 'on_order', 'arrived']),
     ])
     setStats({
-      repairReceived:     (rData ?? []).filter(r => r.status === 'received').length,
-      repairCompleted:    (rData ?? []).filter(r => r.status === 'completed').length,
-      purchaseReceived:   (pData ?? []).filter(r => r.status === 'received' || r.status === 'ordered').length,
-      purchaseInProgress: (pData ?? []).filter(r => r.status === 'stocked' || r.status === 'on_order').length,
-      purchaseArrived:    (pData ?? []).filter(r => r.status === 'arrived').length,
+      repairReceived:     (rData ?? []).filter((r: any) => r.status === 'received').length,
+      repairCompleted:    (rData ?? []).filter((r: any) => r.status === 'completed').length,
+      purchaseReceived:   (pData ?? []).filter((r: any) => r.status === 'received' || r.status === 'ordered').length,
+      purchaseInProgress: (pData ?? []).filter((r: any) => r.status === 'stocked' || r.status === 'on_order').length,
+      purchaseArrived:    (pData ?? []).filter((r: any) => r.status === 'arrived').length,
     })
   }, [storeId])
 
@@ -307,7 +309,7 @@ export default function CRMPage() {
     setQiSaving(true)
     let err: { message: string } | null = null
     if (qiIntakeType === 'purchase') {
-      const res = await supabase.from('purchase_orders').insert({
+      const res = await (supabase as any).from('purchase_orders').insert({
         store_id: storeId, customer_id: qiCustomerId,
         child_id: qiChildId ?? null,
         item_name: qiItemName.trim(), maker: qiMaker.trim() || null,
@@ -340,7 +342,7 @@ export default function CRMPage() {
   const fetchAllCustomers = useCallback(async (opts?: { silent?: boolean }) => {
     if (!storeId || groupStoreIds.length === 0) return
     if (!opts?.silent) setAllLoading(true)  // 自動更新時はスピナーを出さない
-    const q = supabase.from('customers').select('*, children(school_name)').in('store_id', groupStoreIds)
+    const q = (supabase as any).from('customers').select('*, children(school_name)').in('store_id', groupStoreIds)
     const { data } = await (showDeleted ? q.not('deleted_at', 'is', null) : q.is('deleted_at', null))
       .order('kana', { ascending: true }).limit(500)
     setAllCustomers(data ?? [])
@@ -348,6 +350,61 @@ export default function CRMPage() {
   }, [storeId, showDeleted, groupStoreIds])
 
   useEffect(() => { fetchAllCustomers() }, [fetchAllCustomers])
+
+  // ── 顧客データ CSV ダウンロード ──
+  const handleDownloadCSV = useCallback(async () => {
+    if (!storeId || groupStoreIds.length === 0 || csvExporting) return
+    setCsvExporting(true)
+    try {
+      const { data } = await (supabase as any)
+        .from('customers')
+        .select('id, name, kana, tel, line_user_id, parent_name, created_at, children(name, school_name, grade, admission_year)')
+        .in('store_id', groupStoreIds)
+        .is('deleted_at', null)
+        .order('kana', { ascending: true })
+        .limit(2000)
+
+      const rows: string[][] = [
+        ['保護者名', 'フリガナ', '電話番号', 'LINE連携', 'お子様名', '学校名', '学年', '入学年度', '登録日'],
+      ]
+
+      for (const c of (data ?? [])) {
+        const kids = (c.children ?? []) as { name: string; school_name: string | null; grade: string | null; admission_year: number | null }[]
+        if (kids.length === 0) {
+          rows.push([
+            c.name ?? '', c.kana ?? '', c.tel ?? '', c.line_user_id ? '○' : '×',
+            '', '', '', '', c.created_at ? c.created_at.slice(0, 10) : '',
+          ])
+        } else {
+          kids.forEach((kid, idx) => {
+            rows.push([
+              idx === 0 ? (c.name ?? '') : '',
+              idx === 0 ? (c.kana ?? '') : '',
+              idx === 0 ? (c.tel ?? '') : '',
+              idx === 0 ? (c.line_user_id ? '○' : '×') : '',
+              kid.name ?? '',
+              kid.school_name ?? '',
+              kid.grade ?? '',
+              kid.admission_year != null ? String(kid.admission_year) : '',
+              idx === 0 ? (c.created_at ? c.created_at.slice(0, 10) : '') : '',
+            ])
+          })
+        }
+      }
+
+      const csvText = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\r\n')
+      const bom = '﻿'
+      const blob = new Blob([bom + csvText], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `crm_customers_${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setCsvExporting(false)
+    }
+  }, [storeId, groupStoreIds, csvExporting])
 
   // ── 新規登録などをリアルタイム反映（customers の変更を購読）──
   useEffect(() => {
@@ -372,7 +429,7 @@ export default function CRMPage() {
 
     const sIds = groupStoreIds.length > 0 ? groupStoreIds : [storeId]
     const baseQuery = () => {
-      const q2 = supabase.from('customers').select('*').in('store_id', sIds)
+      const q2 = (supabase as any).from('customers').select('*').in('store_id', sIds)
       return deleted ? q2.not('deleted_at', 'is', null) : q2.is('deleted_at', null)
     }
 
@@ -380,16 +437,16 @@ export default function CRMPage() {
       .or(`name.ilike.%${q}%,kana.ilike.%${q}%,tel.ilike.%${q.replace(/-/g, '')}%,parent_name.ilike.%${q}%`)
       .order('updated_at', { ascending: false }).limit(20)
 
-    const { data: childHits } = await supabase.from('children').select('customer_id, name').in('store_id', sIds)
+    const { data: childHits } = await (supabase as any).from('children').select('customer_id, name').in('store_id', sIds)
       .or(`name.ilike.%${q}%,kana.ilike.%${q}%,school_name.ilike.%${q}%`)
 
     // お子様マッチマップ（customerId → 最初にマッチしたお子様名）
     const matchMap: Record<string, string> = {}
     let merged = direct ?? []
     if (childHits && childHits.length > 0) {
-      childHits.forEach(ch => { if (!matchMap[ch.customer_id]) matchMap[ch.customer_id] = ch.name })
-      const ids = [...new Set(childHits.map(c => c.customer_id))]
-      const existingIds = new Set(merged.map(c => c.id))
+      childHits.forEach((ch: any) => { if (!matchMap[ch.customer_id]) matchMap[ch.customer_id] = ch.name })
+      const ids = Array.from(new Set(childHits.map((c: any) => c.customer_id as string)))
+      const existingIds = new Set(merged.map((c: any) => c.id))
       const newIds = ids.filter(id => !existingIds.has(id))
       if (newIds.length > 0) {
         const { data: fromChildren } = await baseQuery().in('id', newIds).order('updated_at', { ascending: false })
@@ -409,8 +466,8 @@ export default function CRMPage() {
     try {
       const [u, p, r] = await Promise.all([
         (supabase as any).from('uniform_orders').select('id', { count: 'exact', head: true }).eq('customer_id', deleteTarget.id),
-        supabase.from('purchase_orders').select('id', { count: 'exact', head: true }).eq('customer_id', deleteTarget.id),
-        supabase.from('repair_histories').select('id', { count: 'exact', head: true }).eq('customer_id', deleteTarget.id),
+        (supabase as any).from('purchase_orders').select('id', { count: 'exact', head: true }).eq('customer_id', deleteTarget.id),
+        (supabase as any).from('repair_histories').select('id', { count: 'exact', head: true }).eq('customer_id', deleteTarget.id),
       ])
       setRemainingOrders({ uniform: u.count ?? 0, purchase: p.count ?? 0, repair: r.count ?? 0 })
     } catch {
@@ -431,20 +488,20 @@ export default function CRMPage() {
     if (!deleteTarget || !deleteMode) return
     setDeleteLoading(true)
     if (deleteMode === 'soft') {
-      await supabase.from('customers').update({ deleted_at: new Date().toISOString() }).eq('id', deleteTarget.id)
+      await (supabase as any).from('customers').update({ deleted_at: new Date().toISOString() }).eq('id', deleteTarget.id)
     } else {
       // 子供IDを先に取得（children を参照する NO ACTION なFKの解除に必要）
-      const { data: kids } = await supabase.from('children').select('id').eq('customer_id', deleteTarget.id)
+      const { data: kids } = await (supabase as any).from('children').select('id').eq('customer_id', deleteTarget.id)
       const childIds = ((kids ?? []) as { id: string }[]).map(k => k.id)
       // .in() に空配列を渡さないためのダミー
       const childFilter = childIds.length > 0 ? childIds : ['00000000-0000-0000-0000-000000000000']
 
       // 1. 整理券・予約から顧客/子供の参照を外す（reservations / queues は NO ACTION のため事前解除が必須）
       const cleanups = await Promise.all([
-        supabase.from('queues').update({ customer_id: null, child_id: null }).eq('customer_id', deleteTarget.id),
-        supabase.from('queues').update({ child_id: null }).in('child_id', childFilter),
-        supabase.from('reservations').update({ customer_id: null, child_id: null }).eq('customer_id', deleteTarget.id),
-        supabase.from('reservations').update({ child_id: null }).in('child_id', childFilter),
+        (supabase as any).from('queues').update({ customer_id: null, child_id: null }).eq('customer_id', deleteTarget.id),
+        (supabase as any).from('queues').update({ child_id: null }).in('child_id', childFilter),
+        (supabase as any).from('reservations').update({ customer_id: null, child_id: null }).eq('customer_id', deleteTarget.id),
+        (supabase as any).from('reservations').update({ child_id: null }).in('child_id', childFilter),
       ])
       const cleanupErr = cleanups.find(c => c.error)?.error
       if (cleanupErr) { showToast('err', `削除失敗: ${cleanupErr.message}`); setDeleteLoading(false); return }
@@ -459,17 +516,17 @@ export default function CRMPage() {
 
       // 3. お直し履歴・購入注文を削除（child_id も NO ACTION のため顧客・子供の両方で確実に削除）
       await Promise.all([
-        supabase.from('repair_histories').delete().eq('customer_id', deleteTarget.id),
-        supabase.from('purchase_orders').delete().eq('customer_id', deleteTarget.id),
-        supabase.from('repair_histories').delete().in('child_id', childFilter),
-        supabase.from('purchase_orders').delete().in('child_id', childFilter),
+        (supabase as any).from('repair_histories').delete().eq('customer_id', deleteTarget.id),
+        (supabase as any).from('purchase_orders').delete().eq('customer_id', deleteTarget.id),
+        (supabase as any).from('repair_histories').delete().in('child_id', childFilter),
+        (supabase as any).from('purchase_orders').delete().in('child_id', childFilter),
       ])
 
       // 4. お子様を削除（measurements は child_id CASCADE で自動削除）
-      const { error: childErr } = await supabase.from('children').delete().eq('customer_id', deleteTarget.id)
+      const { error: childErr } = await (supabase as any).from('children').delete().eq('customer_id', deleteTarget.id)
       if (childErr) { showToast('err', `削除失敗: ${childErr.message}`); setDeleteLoading(false); return }
       // 5. 顧客本体を削除（uniform_orders は customer_id CASCADE で自動削除）
-      const { error: custErr } = await supabase.from('customers').delete().eq('id', deleteTarget.id)
+      const { error: custErr } = await (supabase as any).from('customers').delete().eq('id', deleteTarget.id)
       if (custErr) { showToast('err', `削除失敗: ${custErr.message}`); setDeleteLoading(false); return }
     }
     setCustomers(prev => prev.filter(c => c.id !== deleteTarget.id))
@@ -481,7 +538,7 @@ export default function CRMPage() {
 
   // ── 復元処理 ──────────────────────────────────────────
   const handleRestore = useCallback(async (customer: Customer) => {
-    await supabase.from('customers').update({ deleted_at: null }).eq('id', customer.id)
+    await (supabase as any).from('customers').update({ deleted_at: null }).eq('id', customer.id)
     setCustomers(prev => prev.filter(c => c.id !== customer.id))
     if (selectedCustomer?.id === customer.id) setSelectedCustomer(null)
   }, [selectedCustomer])
@@ -492,11 +549,11 @@ export default function CRMPage() {
     setDeleteChildLoading(true)
     // 関連レコードの child_id を NULL に（FK制約対策）
     await Promise.all([
-      supabase.from('repair_histories').update({ child_id: null }).eq('child_id', deleteChildTarget.id),
-      supabase.from('purchase_orders').update({ child_id: null }).eq('child_id', deleteChildTarget.id),
-      supabase.from('queues').update({ child_id: null }).eq('child_id', deleteChildTarget.id),
+      (supabase as any).from('repair_histories').update({ child_id: null }).eq('child_id', deleteChildTarget.id),
+      (supabase as any).from('purchase_orders').update({ child_id: null }).eq('child_id', deleteChildTarget.id),
+      (supabase as any).from('queues').update({ child_id: null }).eq('child_id', deleteChildTarget.id),
     ])
-    await supabase.from('children').delete().eq('id', deleteChildTarget.id)
+    await (supabase as any).from('children').delete().eq('id', deleteChildTarget.id)
     setCustomerChildren(prev => prev.filter(c => c.id !== deleteChildTarget.id))
     setDeleteChildTarget(null); setDeleteChildLoading(false)
   }, [deleteChildTarget])
@@ -507,7 +564,7 @@ export default function CRMPage() {
   }, [searchQuery, showDeleted, searchCustomers])
 
   const fetchCustomerChildren = useCallback(async (customerId: string) => {
-    const { data } = await supabase.from('children').select('*').eq('customer_id', customerId).order('created_at', { ascending: true })
+    const { data } = await (supabase as any).from('children').select('*').eq('customer_id', customerId).order('created_at', { ascending: true })
     setCustomerChildren(data ?? [])
   }, [])
 
@@ -519,7 +576,7 @@ export default function CRMPage() {
   // ── 未対応リスト fetch ──────────────────────────────
   const fetchRepairReceived = useCallback(async () => {
     if (!storeId) return; setRepairReceivedLoading(true)
-    const { data } = await supabase.from('repair_histories')
+    const { data } = await (supabase as any).from('repair_histories')
       .select('*, customer:customers(name, tel), child:children(name)').eq('store_id', storeId).eq('status', 'received')
       .order('received_date', { ascending: false })
     setRepairReceivedList((data ?? []) as RepairWithCustomer[]); setRepairReceivedLoading(false)
@@ -527,7 +584,7 @@ export default function CRMPage() {
 
   const fetchRepairCompleted = useCallback(async () => {
     if (!storeId) return; setRepairCompletedLoading(true)
-    const { data } = await supabase.from('repair_histories')
+    const { data } = await (supabase as any).from('repair_histories')
       .select('*, customer:customers(name, tel), child:children(name)').eq('store_id', storeId).eq('status', 'completed')
       .order('completed_date', { ascending: false })
     setRepairCompletedList((data ?? []) as RepairWithCustomer[]); setRepairCompletedLoading(false)
@@ -535,7 +592,7 @@ export default function CRMPage() {
 
   const fetchPurchaseReceived = useCallback(async () => {
     if (!storeId) return; setPurchaseReceivedLoading(true)
-    const { data } = await supabase.from('purchase_orders')
+    const { data } = await (supabase as any).from('purchase_orders')
       .select('*, customer:customers(name, tel), child:children(name)').eq('store_id', storeId).in('status', ['ordered', 'received'])
       .order('ordered_date', { ascending: false })
     setPurchaseReceivedList((data ?? []) as PurchaseWithCustomer[]); setPurchaseReceivedLoading(false)
@@ -543,7 +600,7 @@ export default function CRMPage() {
 
   const fetchPurchaseInProgress = useCallback(async () => {
     if (!storeId) return; setPurchaseInProgressLoading(true)
-    const { data } = await supabase.from('purchase_orders')
+    const { data } = await (supabase as any).from('purchase_orders')
       .select('*, customer:customers(name, tel), child:children(name)').eq('store_id', storeId).in('status', ['stocked', 'on_order'])
       .order('ordered_date', { ascending: false })
     setPurchaseInProgressList((data ?? []) as PurchaseWithCustomer[]); setPurchaseInProgressLoading(false)
@@ -551,7 +608,7 @@ export default function CRMPage() {
 
   const fetchPurchaseArrived = useCallback(async () => {
     if (!storeId) return; setPurchaseArrivedLoading(true)
-    const { data } = await supabase.from('purchase_orders')
+    const { data } = await (supabase as any).from('purchase_orders')
       .select('*, customer:customers(name, tel), child:children(name)').eq('store_id', storeId).eq('status', 'arrived')
       .order('arrived_date', { ascending: false })
     setPurchaseArrivedList((data ?? []) as PurchaseWithCustomer[]); setPurchaseArrivedLoading(false)
@@ -560,7 +617,7 @@ export default function CRMPage() {
   // ── お直しアクション ───────────────────────────────────
   const handleRepairComplete = useCallback(async (repairId: string) => {
     const today = new Date().toISOString().slice(0, 10)
-    const { error } = await supabase.from('repair_histories')
+    const { error } = await (supabase as any).from('repair_histories')
       .update({ status: 'completed', completed_date: today }).eq('id', repairId)
     if (error) { showToast('err', `完了処理失敗: ${error.message}`); return }
     setRepairReceivedList(prev => prev.filter(r => r.id !== repairId))
@@ -576,7 +633,7 @@ export default function CRMPage() {
       else if (!j.skipped)    msg = `完了済み・通知失敗: ${j.error ?? '不明'}`
     } catch { msg = '完了済み・通知APIエラー' }
     showToast('ok', msg, async () => {
-      await supabase.from('repair_histories')
+      await (supabase as any).from('repair_histories')
         .update({ status: 'received', completed_date: null, notified: false }).eq('id', repairId)
       fetchStats()
       if (showRepairReceived) fetchRepairReceived()
@@ -586,13 +643,13 @@ export default function CRMPage() {
 
   const handleRepairDeliver = useCallback(async (repairId: string) => {
     const today = new Date().toISOString().slice(0, 10)
-    const { error } = await supabase.from('repair_histories')
+    const { error } = await (supabase as any).from('repair_histories')
       .update({ status: 'delivered', delivered_date: today }).eq('id', repairId)
     if (error) { showToast('err', `受渡処理失敗: ${error.message}`); return }
     setRepairCompletedList(prev => prev.filter(r => r.id !== repairId))
     fetchStats()
     showToast('ok', '📦 お渡し済みにしました', async () => {
-      await supabase.from('repair_histories')
+      await (supabase as any).from('repair_histories')
         .update({ status: 'completed', delivered_date: null }).eq('id', repairId)
       fetchStats()
       if (showRepairCompleted) fetchRepairCompleted()
@@ -600,14 +657,14 @@ export default function CRMPage() {
   }, [showToast, fetchStats, showRepairCompleted, fetchRepairCompleted])
 
   const handleRepairRevert = useCallback(async (repairId: string) => {
-    const { error } = await supabase.from('repair_histories')
+    const { error } = await (supabase as any).from('repair_histories')
       .update({ status: 'received', completed_date: null, notified: false }).eq('id', repairId)
     if (error) { showToast('err', `戻し処理失敗: ${error.message}`); return }
     setRepairCompletedList(prev => prev.filter(r => r.id !== repairId))
     fetchStats()
     if (showRepairReceived) fetchRepairReceived()
     showToast('ok', '🔄 預かり中に戻しました', async () => {
-      await supabase.from('repair_histories')
+      await (supabase as any).from('repair_histories')
         .update({ status: 'completed' }).eq('id', repairId)
       fetchStats()
       if (showRepairCompleted) fetchRepairCompleted()
@@ -617,7 +674,7 @@ export default function CRMPage() {
   // ── 追加購入アクション ─────────────────────────────────
   const handlePurchaseStock = useCallback(async (orderId: string) => {
     const today = new Date().toISOString().slice(0, 10)
-    const { error } = await supabase.from('purchase_orders')
+    const { error } = await (supabase as any).from('purchase_orders')
       .update({ status: 'arrived', arrived_date: today }).eq('id', orderId)
     if (error) { showToast('err', `更新失敗: ${error.message}`); return }
     setPurchaseReceivedList(prev => prev.filter(o => o.id !== orderId))
@@ -634,7 +691,7 @@ export default function CRMPage() {
       else if (!j.skipped)    msg = `在庫確保済み・通知失敗: ${j.error ?? '不明'}`
     } catch { msg = '在庫確保済み・通知APIエラー' }
     showToast('ok', msg, async () => {
-      await supabase.from('purchase_orders')
+      await (supabase as any).from('purchase_orders')
         .update({ status: 'received', arrived_date: null, notified: false }).eq('id', orderId)
       fetchStats()
       if (showPurchaseReceived) fetchPurchaseReceived()
@@ -642,13 +699,13 @@ export default function CRMPage() {
   }, [showToast, fetchStats, showPurchaseReceived, showPurchaseArrived, fetchPurchaseReceived, fetchPurchaseArrived])
 
   const handlePurchaseBackOrder = useCallback(async (orderId: string) => {
-    const { error } = await supabase.from('purchase_orders').update({ status: 'on_order' }).eq('id', orderId)
+    const { error } = await (supabase as any).from('purchase_orders').update({ status: 'on_order' }).eq('id', orderId)
     if (error) { showToast('err', `更新失敗: ${error.message}`); return }
     setPurchaseReceivedList(prev => prev.filter(o => o.id !== orderId))
     fetchStats()
     if (showPurchaseInProgress) fetchPurchaseInProgress()
     showToast('ok', '✅ メーカー発注済みにしました', async () => {
-      await supabase.from('purchase_orders').update({ status: 'received' }).eq('id', orderId)
+      await (supabase as any).from('purchase_orders').update({ status: 'received' }).eq('id', orderId)
       fetchStats()
       if (showPurchaseReceived) fetchPurchaseReceived()
     })
@@ -656,7 +713,7 @@ export default function CRMPage() {
 
   const handlePurchaseArrive = useCallback(async (orderId: string) => {
     const today = new Date().toISOString().slice(0, 10)
-    const { error } = await supabase.from('purchase_orders')
+    const { error } = await (supabase as any).from('purchase_orders')
       .update({ status: 'arrived', arrived_date: today }).eq('id', orderId)
     if (error) { showToast('err', `入荷処理失敗: ${error.message}`); return }
     setPurchaseInProgressList(prev => prev.filter(o => o.id !== orderId))
@@ -672,7 +729,7 @@ export default function CRMPage() {
       else if (!j.skipped)    msg = `入荷連絡済み・通知失敗: ${j.error ?? '不明'}`
     } catch { msg = '入荷連絡済み・通知APIエラー' }
     showToast('ok', msg, async () => {
-      await supabase.from('purchase_orders')
+      await (supabase as any).from('purchase_orders')
         .update({ status: 'on_order', arrived_date: null, notified: false }).eq('id', orderId)
       fetchStats()
       if (showPurchaseInProgress) fetchPurchaseInProgress()
@@ -681,13 +738,13 @@ export default function CRMPage() {
 
   const handlePurchaseDeliver = useCallback(async (orderId: string) => {
     const today = new Date().toISOString().slice(0, 10)
-    const { error } = await supabase.from('purchase_orders')
+    const { error } = await (supabase as any).from('purchase_orders')
       .update({ status: 'delivered', delivered_date: today }).eq('id', orderId)
     if (error) { showToast('err', `受渡処理失敗: ${error.message}`); return }
     setPurchaseArrivedList(prev => prev.filter(o => o.id !== orderId))
     fetchStats()
     showToast('ok', '📦 お渡し済みにしました', async () => {
-      await supabase.from('purchase_orders')
+      await (supabase as any).from('purchase_orders')
         .update({ status: 'arrived', delivered_date: null }).eq('id', orderId)
       fetchStats()
       if (showPurchaseArrived) fetchPurchaseArrived()
@@ -695,14 +752,14 @@ export default function CRMPage() {
   }, [showToast, fetchStats, showPurchaseArrived, fetchPurchaseArrived])
 
   const handlePurchaseRevert = useCallback(async (orderId: string) => {
-    const { error } = await supabase.from('purchase_orders')
+    const { error } = await (supabase as any).from('purchase_orders')
       .update({ status: 'ordered', arrived_date: null, notified: false }).eq('id', orderId)
     if (error) { showToast('err', `戻し処理失敗: ${error.message}`); return }
     setPurchaseInProgressList(prev => prev.filter(o => o.id !== orderId))
     fetchStats()
     if (showPurchaseReceived) fetchPurchaseReceived()
     showToast('ok', '🔄 依頼受付に戻しました', async () => {
-      await supabase.from('purchase_orders').update({ status: 'on_order' }).eq('id', orderId)
+      await (supabase as any).from('purchase_orders').update({ status: 'on_order' }).eq('id', orderId)
       fetchStats()
       if (showPurchaseInProgress) fetchPurchaseInProgress()
     })
@@ -733,11 +790,11 @@ export default function CRMPage() {
   const fetchDeliveredHistory = useCallback(async () => {
     if (!storeId) return; setDeliveredLoading(true)
     const [{ data: rData }, { data: pData }] = await Promise.all([
-      supabase.from('repair_histories')
+      (supabase as any).from('repair_histories')
         .select('*, customer:customers(name, tel), child:children(name)')
         .eq('store_id', storeId).eq('status', 'delivered')
         .order('delivered_date', { ascending: false }).limit(50),
-      supabase.from('purchase_orders')
+      (supabase as any).from('purchase_orders')
         .select('*, customer:customers(name, tel), child:children(name)')
         .eq('store_id', storeId).eq('status', 'delivered')
         .order('delivered_date', { ascending: false }).limit(50),
@@ -804,6 +861,11 @@ export default function CRMPage() {
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-black text-gray-700">顧客管理</h2>
             <div className="flex items-center gap-2">
+              <button onClick={handleDownloadCSV} disabled={csvExporting || allLoading}
+                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border bg-emerald-50 border-emerald-200 text-emerald-700 disabled:opacity-50 hover:bg-emerald-100 transition-colors">
+                {csvExporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                CSV出力
+              </button>
               <button onClick={() => setShowQrModal(true)}
                 className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border bg-indigo-100 border-indigo-200 text-indigo-700">
                 <QrCode size={12} />新規登録QR
@@ -1089,7 +1151,7 @@ export default function CRMPage() {
                                   <button onClick={() => setEditingStaffNotes(false)}
                                     className="flex-1 py-1.5 rounded-xl text-xs font-bold bg-gray-100 text-gray-600">キャンセル</button>
                                   <button onClick={async () => {
-                                    const { data, error: err } = await supabase.from('customers')
+                                    const { data, error: err } = await (supabase as any).from('customers')
                                       .update({ staff_notes: staffNotesInput.trim() || null } as any)
                                       .eq('id', selectedCustomer.id).select().single()
                                     if (err) { showToast('err', '保存失敗'); return }

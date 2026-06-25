@@ -4,6 +4,10 @@ export interface School {
   name: string
   kana: string
   notes: string
+  order_deadline: string | null    // 発注締切日 (YYYY-MM-DD)
+  pickup_deadline: string | null   // 引渡し完了目標日 (YYYY-MM-DD)
+  measurement_start: string | null // 採寸受付開始日 (YYYY-MM-DD)
+  measurement_end: string | null   // 採寸受付終了日 (YYYY-MM-DD)
   created_at: string
   updated_at: string
   updated_by: string

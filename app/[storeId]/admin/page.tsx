@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   BellRing, CheckCheck, UserX, RefreshCw, Clock, Users,
-  Loader2, Store, Phone, User, GraduationCap,
+  Loader2, Store, Phone, User, GraduationCap, Package,
   ChevronRight, LayoutDashboard, X, MapPin, BellOff, Bell,
   CalendarDays, QrCode, ShoppingCart,
 } from 'lucide-react'
@@ -13,6 +13,8 @@ import { QrRegistrationModal } from './_components/QrRegistrationModal'
 import { StoreSelectScreen } from './_components/StoreSelectScreen'
 import type { StoreInfo } from './_components/StoreSelectScreen'
 import { resolveFeature } from '@/lib/features'
+import { SeasonDashboard } from './_components/SeasonDashboard'
+import { SchoolDeadlineAlert } from './_components/SchoolDeadlineAlert'
 import { PinScreen } from './_components/PinScreen'
 import { WaitingCard, CallingCard, HistoryCard } from './_components/QueueCards'
 import { supabase, getTodayStart } from '@/lib/supabase'
@@ -31,7 +33,7 @@ function urlBase64ToUint8Array(base64: string) {
   const pad = '='.repeat((4 - base64.length % 4) % 4)
   const b64 = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/')
   const raw = window.atob(b64)
-  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
+  return Uint8Array.from(Array.from(raw).map(c => c.charCodeAt(0)))
 }
 
 type AdminView  = 'loading' | 'select_store' | 'pin' | 'dashboard'
@@ -98,7 +100,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
 
   const fetchStoreStatus = useCallback(async () => {
     // is_open を必ず取得（別列の有無に影響されないよう独立クエリ）
-    const { data, error } = await supabase.from('stores')
+    const { data, error } = await (supabase as any).from('stores')
       .select('is_open')
       .eq('id', store.id).single()
     if (!error && data != null) {
@@ -117,7 +119,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
 
   const fetchQueues = useCallback(async () => {
     setRefreshing(true)
-    const { data } = await supabase.from('queues').select('*')
+    const { data } = await (supabase as any).from('queues').select('*')
       .eq('store_id', store.id).gte('created_at', getTodayStart())
       .order('ticket_number', { ascending: true })
     if (data) setQueues(data)
@@ -206,13 +208,13 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
   }
 
   const handleAction = async (id: string, status: QueueStatus) => {
-    const { error } = await supabase.from('queues').update({ status }).eq('id', id)
+    const { error } = await (supabase as any).from('queues').update({ status }).eq('id', id)
     if (error) { showToast('err', '更新失敗: ' + error.message); return }
     setQueues(prev => prev.map(q => q.id === id ? { ...q, status } : q))
     const labels: Record<QueueStatus, string> = { calling:'呼出', completed:'完了', cancelled:'不在', waiting:'待機に戻しました' }
     showToast('ok', labels[status])
     if (status === 'calling') {
-      const { data: freshTicket } = await supabase.from('queues')
+      const { data: freshTicket } = await (supabase as any).from('queues')
         .select('line_user_id, ticket_number, customer_name').eq('id', id).single()
       if (freshTicket?.line_user_id) {
         fetch('/api/notify', {
@@ -254,7 +256,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
   }, [store.id, router])
 
   const handleCheckIn = async (id: string) => {
-    const { error } = await supabase.from('queues').update({ checked_in: true }).eq('id', id)
+    const { error } = await (supabase as any).from('queues').update({ checked_in: true }).eq('id', id)
     if (error) { showToast('err', 'チェックイン失敗: ' + error.message); return }
     setQueues(prev => prev.map(q => q.id === id ? { ...q, checked_in: true } : q))
     showToast('ok', '代理チェックイン済みにしました')
@@ -266,7 +268,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     const schools = ['○○中学校', '△△高校', '□□学園', '◇◇学院', '星川中学校', '南高等学校']
     const genders = ['male', 'female', 'other'] as const
     const categories = ['fitting', 'pickup', 'other'] as const
-    const { data: last } = await supabase.from('queues')
+    const { data: last } = await (supabase as any).from('queues')
       .select('ticket_number').eq('store_id', store.id)
       .gte('created_at', getTodayStart())
       .order('ticket_number', { ascending: false }).limit(1).maybeSingle()
@@ -275,7 +277,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     const school   = schools[Math.floor(Math.random() * schools.length)]
     const gender   = genders[Math.floor(Math.random() * genders.length)]
     const category = categories[Math.floor(Math.random() * categories.length)]
-    const { error } = await supabase.from('queues').insert({
+    const { error } = await (supabase as any).from('queues').insert({
       store_id: store.id, ticket_number: nextNum, status: 'waiting',
       customer_name: name, school_name: school, child_name: null,
       category, gender, is_remote: false, checked_in: false,
@@ -443,6 +445,12 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
       <div className="flex-1 overflow-y-auto">
         <div className="p-4 space-y-4">
 
+          {/* 繁忙期シーズンダッシュボード */}
+          <SeasonDashboard storeId={store.id} />
+
+          {/* 学校別締切アラート */}
+          <SchoolDeadlineAlert storeId={store.id} />
+
           {/* 呼出中 — 最優先・フル幅 */}
           {callingTickets.length > 0 && (
             <div className="space-y-3">
@@ -464,6 +472,24 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
             <CalendarDays size={14} className="text-violet-600 shrink-0" />
             <span className="text-violet-700 text-xs font-bold">予約管理</span>
             <ChevronRight size={12} className="text-violet-500 ml-auto" />
+          </a>
+
+          {/* 在校生フォロー通知リンク */}
+          <a href={`/${store.id}/admin/followup`}
+            style={{ touchAction: 'manipulation' }}
+            className="flex items-center gap-2 px-3 py-2.5 bg-teal-50 border border-teal-200 rounded-xl active:opacity-70">
+            <GraduationCap size={14} className="text-teal-600 shrink-0" />
+            <span className="text-teal-700 text-xs font-bold">在校生フォロー通知</span>
+            <ChevronRight size={12} className="text-teal-500 ml-auto" />
+          </a>
+
+          {/* 発注数量集計リンク */}
+          <a href={`/${store.id}/admin/order-summary`}
+            style={{ touchAction: 'manipulation' }}
+            className="flex items-center gap-2 px-3 py-2.5 bg-orange-50 border border-orange-200 rounded-xl active:opacity-70">
+            <Package size={14} className="text-orange-600 shrink-0" />
+            <span className="text-orange-700 text-xs font-bold">発注数量集計</span>
+            <ChevronRight size={12} className="text-orange-500 ml-auto" />
           </a>
 
           {/* レジ（会計）クイックリンク — pos 機能ON時のみ */}
@@ -716,8 +742,8 @@ export default function StoreAdminPage() {
   }, [])
 
   useEffect(() => {
-    supabase.from('stores').select('id, name, pin, group_id, business_type, features').order('name', { ascending: true })
-      .then(({ data, error }) => {
+    (supabase as any).from('stores').select('id, name, pin, group_id, business_type, features').order('name', { ascending: true })
+      .then(({ data, error }: { data: any; error: any }) => {
         if (error || !data || data.length === 0) {
           setFetchError(error?.message ?? '店舗データが見つかりません'); setView('select_store'); return
         }

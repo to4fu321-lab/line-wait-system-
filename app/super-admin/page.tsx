@@ -194,7 +194,7 @@ function StoreCard({
   const [pin,     setPin]     = useState(store.pin ?? '')
   const [groupId, setGroupId] = useState(store.group_id ?? '')
   const [bizType, setBizType] = useState<'uniform' | 'takeout'>((store.business_type as 'uniform' | 'takeout') ?? 'uniform')
-  const [features, setFeatures] = useState<Record<string, boolean>>(store.features ?? {})
+  const [features, setFeatures] = useState<Record<string, unknown>>(store.features ?? {})
   const [saving,   setSaving]   = useState(false)
   const [msg,      setMsg]      = useState<{ ok: boolean; text: string } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
