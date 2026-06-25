@@ -9,12 +9,12 @@ import {
 import ColorPicker from '@/app/_components/ColorPicker'
 import { supabase } from '@/lib/supabase'
 import type { Store, BusinessType } from '@/types/database'
-import { PLAN_DEFS, ADDON_DEFAULT_OFF, type Plan, type FeatureKey } from '@/lib/features'
+import { PLAN_DEFS, ADDON_DEFAULT_OFF, AREA_DEFS, type Plan, type FeatureKey, type AreaCode } from '@/lib/features'
 
 // ── 細粒度フラグ（プランに加えて個別 on/off できる項目） ────────
 const GRANULAR_FEATURES: { key: FeatureKey; label: string; icon: string }[] = [
   { key: 'tab_queue',            label: '受付タブ',         icon: '🔢' },
-  { key: 'tab_repairs',          label: '案件タブ',         icon: '✂️' },
+  { key: 'tab_repairs',          label: 'お仕事タブ',       icon: '✂️' },
   { key: 'tab_inquiries',        label: '問合せタブ',       icon: '💬' },
   { key: 'tab_crm',              label: '顧客タブ',         icon: '👥' },
   { key: 'repairs_tab_purchase', label: '発注サブタブ',     icon: '📋' },
@@ -58,7 +58,7 @@ const GRANULAR_FEATURE_GROUPS: { label: string; keys: FeatureKey[] }[] = [
     keys: ['tab_queue', 'tab_repairs', 'tab_inquiries', 'tab_crm', 'today_tasks_ui'],
   },
   {
-    label: '案件・修理',
+    label: 'お仕事・修理',
     keys: ['repairs_tab_purchase', 'repairs_tab_arrival', 'repairs_tab_delivery',
            'repairs_ocr', 'repairs_master', 'repairs_dummy', 'sms_notify', 'pos'],
   },
@@ -361,11 +361,35 @@ function StoreCard({
             </div>
           </div>
 
+          {/* ── エリア選択（AIメッセージ用） ── */}
+          <div>
+            <p className="text-[10px] text-gray-400 mb-1.5 uppercase tracking-wider">🗾 エリア（AIシーズンメッセージ用）</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {(Object.entries(AREA_DEFS) as [AreaCode, typeof AREA_DEFS[AreaCode]][]).map(([code, def]) => {
+                const currentArea = (features.area as AreaCode | undefined) ?? 'central'
+                const selected = currentArea === code
+                return (
+                  <button key={code}
+                    onClick={() => setFeatures(prev => ({ ...prev, area: code }))}
+                    className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border text-left transition-all ${
+                      selected ? 'border-sky-500/60 bg-sky-500/10 text-sky-300' : 'border-gray-700 bg-gray-700/40 text-gray-500 hover:bg-gray-700'
+                    }`}>
+                    <span className="text-base leading-none">{def.emoji}</span>
+                    <div>
+                      <div className="text-[11px] font-black leading-none">{def.label}</div>
+                      <div className="text-[9px] opacity-70 leading-tight mt-0.5">{def.desc}</div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           {/* ── プラン選択 ── */}
           <div>
             <p className="text-[10px] text-gray-400 mb-2 uppercase tracking-wider">プラン（機能セット）</p>
             <div className="grid grid-cols-2 gap-1.5">
-              {(Object.entries(PLAN_DEFS) as [Plan, typeof PLAN_DEFS[Plan]][]).map(([key, def]) => {
+              {(Object.entries(PLAN_DEFS) as [Plan, typeof PLAN_DEFS[Plan]][]).filter(([, def]) => !def.hidden).map(([key, def]) => {
                 const currentPlan = (features._plan as Plan | undefined) ?? 'full'
                 const selected = currentPlan === key
                 return (
