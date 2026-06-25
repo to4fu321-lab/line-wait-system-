@@ -35,18 +35,17 @@ function urlBase64ToUint8Array(base64: string) {
   return Uint8Array.from(Array.from(raw).map(c => c.charCodeAt(0)))
 }
 
-type AdminView  = 'loading' | 'select_store' | 'pin' | 'dashboard'
-type HistoryTab = 'completed' | 'cancelled'
+type AdminView       = 'loading' | 'select_store' | 'pin' | 'dashboard'
+type FocusedSection  = 'calling' | 'waiting' | 'completed' | 'cancelled' | null
 
 // ============================================================
 // ダッシュボード
 // ============================================================
 function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; groupCode: string | null; onLogout: () => void }) {
   const router = useRouter()
-  const [queues,         setQueues]         = useState<Queue[]>([])
-  const [refreshing,     setRefreshing]     = useState(false)
-  const [historyTab,     setHistoryTab]     = useState<HistoryTab>('completed')
-  const [historyVisible, setHistoryVisible] = useState(false)
+  const [queues,          setQueues]          = useState<Queue[]>([])
+  const [refreshing,      setRefreshing]      = useState(false)
+  const [focusedSection,  setFocusedSection]  = useState<FocusedSection>(null)
   const [toast,          setToast]          = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [isOpen,         setIsOpen]         = useState<boolean | null>(null)
   const [notificationPlan, setNotificationPlan] = useState<'calling_only' | 'full'>('calling_only')
@@ -303,18 +302,14 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
 
   const waitingTickets = queues.filter(q => q.status === 'waiting').reverse()
   const callingTickets = queues.filter(q => q.status === 'calling').reverse()
-  const historyTickets = queues.filter(q => q.status === historyTab).reverse()
+  const historyStatus  = focusedSection === 'completed' || focusedSection === 'cancelled' ? focusedSection : 'completed'
+  const historyTickets = queues.filter(q => q.status === historyStatus).reverse()
   const remoteCount    = waitingTickets.filter(q => q.is_remote && !q.checked_in).length
   const completed      = queues.filter(q => q.status === 'completed').length
   const cancelledCount = queues.filter(q => q.status === 'cancelled').length
 
-  const toggleHistory = (tab: HistoryTab) => {
-    if (historyVisible && historyTab === tab) {
-      setHistoryVisible(false)
-    } else {
-      setHistoryTab(tab)
-      setHistoryVisible(true)
-    }
+  const toggleSection = (section: FocusedSection) => {
+    setFocusedSection(prev => prev === section ? null : section)
   }
 
   return (
@@ -403,32 +398,34 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
 
         {/* 行3: 状態バッジ 5つ（常時表示）— 完了・不在はタップで履歴展開 */}
         <div className="grid grid-cols-5 gap-1">
-          <div className="flex flex-col items-center gap-0.5 bg-blue-50 border border-blue-200 rounded-xl px-1 py-2.5">
+          <button onClick={() => toggleSection('waiting')} style={{ touchAction: 'manipulation' }}
+            className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2.5 active:scale-95 transition-all ${
+              focusedSection === 'waiting' ? 'bg-blue-100 border border-blue-400' : 'bg-blue-50 border border-blue-200'
+            }`}>
             <span className="text-blue-600 text-2xl font-black tabular-nums leading-none">{waitingTickets.length}</span>
             <span className="text-blue-500 text-[10px] font-bold mt-0.5">順番待ち</span>
-          </div>
-          <div className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2.5 ${
-            callingTickets.length > 0 ? 'bg-amber-50 border border-amber-300' : 'bg-gray-50 border border-gray-200'
-          }`}>
+          </button>
+          <button onClick={() => toggleSection('calling')} style={{ touchAction: 'manipulation' }}
+            className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2.5 active:scale-95 transition-all ${
+              focusedSection === 'calling'
+                ? 'bg-amber-100 border border-amber-400'
+                : callingTickets.length > 0 ? 'bg-amber-50 border border-amber-300' : 'bg-gray-50 border border-gray-200'
+            }`}>
             <span className={`text-2xl font-black tabular-nums leading-none ${callingTickets.length > 0 ? 'text-amber-600 animate-pulse' : 'text-gray-400'}`}>
               {callingTickets.length}
             </span>
             <span className={`text-[10px] font-bold mt-0.5 ${callingTickets.length > 0 ? 'text-amber-500' : 'text-gray-400'}`}>呼出中</span>
-          </div>
-          <button onClick={() => toggleHistory('completed')} style={{ touchAction: 'manipulation' }}
+          </button>
+          <button onClick={() => toggleSection('completed')} style={{ touchAction: 'manipulation' }}
             className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2.5 active:scale-95 transition-all ${
-              historyVisible && historyTab === 'completed'
-                ? 'bg-emerald-100 border border-emerald-300'
-                : 'bg-gray-50 border border-gray-200'
+              focusedSection === 'completed' ? 'bg-emerald-100 border border-emerald-300' : 'bg-gray-50 border border-gray-200'
             }`}>
             <span className="text-emerald-600 text-2xl font-black tabular-nums leading-none">{completed}</span>
             <span className="text-gray-400 text-[10px] font-bold mt-0.5">完了 ▾</span>
           </button>
-          <button onClick={() => toggleHistory('cancelled')} style={{ touchAction: 'manipulation' }}
+          <button onClick={() => toggleSection('cancelled')} style={{ touchAction: 'manipulation' }}
             className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2.5 active:scale-95 transition-all ${
-              historyVisible && historyTab === 'cancelled'
-                ? 'bg-gray-100 border border-gray-300'
-                : 'bg-gray-50 border border-gray-200'
+              focusedSection === 'cancelled' ? 'bg-gray-100 border border-gray-400' : 'bg-gray-50 border border-gray-200'
             }`}>
             <span className="text-gray-500 text-2xl font-black tabular-nums leading-none">{cancelledCount}</span>
             <span className="text-gray-400 text-[10px] font-bold mt-0.5">不在 ▾</span>
@@ -467,17 +464,62 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
           {/* 学校別締切アラート */}
           <SchoolDeadlineAlert storeId={store.id} />
 
-          {/* 履歴（完了・不在バッジのタップで表示）— コンテンツ先頭に表示 */}
-          {historyVisible && (
+          {/* 呼出中フォーカス */}
+          {focusedSection === 'calling' && (
+            <div className="space-y-3 animate-fade-in">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 border border-amber-300 rounded-xl">
+                  <BellRing size={14} className="text-amber-600 animate-pulse" />
+                  <span className="text-amber-700 font-black text-sm">呼出中</span>
+                  <span className="bg-amber-400 text-amber-950 text-xs font-black px-1.5 py-0.5 rounded-full">{callingTickets.length}</span>
+                </div>
+              </div>
+              {callingTickets.length === 0
+                ? <div className="text-center py-10 text-gray-400 bg-gray-50 rounded-2xl border border-gray-200">
+                    <BellRing size={32} className="mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">呼出中の方はいません</p>
+                  </div>
+                : callingTickets.map(t => <CallingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onGoToFitting={t.category === 'fitting' ? handleStartFitting : undefined} />)
+              }
+            </div>
+          )}
+
+          {/* 順番待ちフォーカス */}
+          {focusedSection === 'waiting' && (
+            <div className="space-y-3 animate-fade-in">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 border border-blue-300 rounded-xl">
+                  <Clock size={14} className="text-blue-600" />
+                  <span className="text-blue-700 font-black text-sm">順番待ち</span>
+                  <span className="bg-blue-400 text-blue-950 text-xs font-black px-1.5 py-0.5 rounded-full">{waitingTickets.length}</span>
+                </div>
+                <button onClick={addTestPerson} disabled={testLoading}
+                  className="ml-auto flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-xl text-gray-400 text-[10px] font-bold transition-colors disabled:opacity-50">
+                  {testLoading ? <Loader2 size={11} className="animate-spin" /> : <Users size={11} />}
+                  テスト追加
+                </button>
+              </div>
+              {waitingTickets.length === 0
+                ? <div className="text-center py-10 text-gray-400 bg-gray-50 rounded-2xl border border-gray-200">
+                    <Users size={32} className="mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">待ちはいません</p>
+                  </div>
+                : waitingTickets.map(t => <WaitingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onCheckIn={handleCheckIn} onStartFitting={t.category === 'fitting' ? handleStartFitting : undefined} />)
+              }
+            </div>
+          )}
+
+          {/* 完了・不在フォーカス */}
+          {(focusedSection === 'completed' || focusedSection === 'cancelled') && (
             <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden animate-fade-in">
               <div className="flex border-b border-gray-200">
                 {([
-                  { key: 'completed', label: '完了', color: 'text-emerald-600' },
-                  { key: 'cancelled', label: '不在', color: 'text-gray-500' },
-                ] as { key: HistoryTab; label: string; color: string }[]).map(tab => (
-                  <button key={tab.key} onClick={() => setHistoryTab(tab.key)}
+                  { key: 'completed' as const, label: '完了', color: 'text-emerald-600' },
+                  { key: 'cancelled' as const, label: '不在', color: 'text-gray-500' },
+                ]).map(tab => (
+                  <button key={tab.key} onClick={() => setFocusedSection(tab.key)}
                     className={`flex-1 py-3 text-sm font-bold transition-colors ${
-                      historyTab === tab.key ? `${tab.color} border-b-2 border-current bg-gray-50` : 'text-gray-400 hover:text-gray-600'
+                      focusedSection === tab.key ? `${tab.color} border-b-2 border-current bg-gray-50` : 'text-gray-400 hover:text-gray-600'
                     }`}>
                     {tab.label} ({queues.filter(q => q.status === tab.key).length})
                   </button>
@@ -492,49 +534,53 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
             </div>
           )}
 
-          {/* 呼出中 — 最優先・フル幅 */}
-          {callingTickets.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 border border-amber-300 rounded-xl">
-                  <BellRing size={14} className="text-amber-600 animate-pulse" />
-                  <span className="text-amber-700 font-black text-sm">呼出中</span>
-                  <span className="bg-amber-400 text-amber-950 text-xs font-black px-1.5 py-0.5 rounded-full">{callingTickets.length}</span>
-                </div>
-              </div>
-              {callingTickets.map(t => <CallingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onGoToFitting={t.category === 'fitting' ? handleStartFitting : undefined} />)}
-            </div>
-          )}
-
-          {/* 順番待ちリスト */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 border border-blue-300 rounded-xl">
-                <Clock size={14} className="text-blue-600" />
-                <span className="text-blue-700 font-black text-sm">順番待ち</span>
-                <span className="bg-blue-400 text-blue-950 text-xs font-black px-1.5 py-0.5 rounded-full">{waitingTickets.length}</span>
-              </div>
-              {callingTickets.length === 0 && (
-                <div className="ml-2 flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 border border-gray-200 rounded-xl text-gray-400 text-xs">
-                  <BellRing size={11} />
-                  <span>呼出中なし</span>
+          {/* 通常表示（何もフォーカスされていないとき） */}
+          {focusedSection === null && (
+            <>
+              {/* 呼出中 — 最優先・フル幅 */}
+              {callingTickets.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 border border-amber-300 rounded-xl">
+                      <BellRing size={14} className="text-amber-600 animate-pulse" />
+                      <span className="text-amber-700 font-black text-sm">呼出中</span>
+                      <span className="bg-amber-400 text-amber-950 text-xs font-black px-1.5 py-0.5 rounded-full">{callingTickets.length}</span>
+                    </div>
+                  </div>
+                  {callingTickets.map(t => <CallingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onGoToFitting={t.category === 'fitting' ? handleStartFitting : undefined} />)}
                 </div>
               )}
-              <button onClick={addTestPerson} disabled={testLoading}
-                className="ml-auto flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-xl text-gray-400 text-[10px] font-bold transition-colors disabled:opacity-50"
-                title="テスト用の人を追加">
-                {testLoading ? <Loader2 size={11} className="animate-spin" /> : <Users size={11} />}
-                テスト追加
-              </button>
-            </div>
-            {waitingTickets.length === 0 ? (
-              <div className="text-center py-10 text-gray-400 bg-gray-50 rounded-2xl border border-gray-200">
-                <Users size={32} className="mx-auto mb-2 opacity-30" />
-                <p className="text-sm">待ちはいません</p>
-              </div>
-            ) : waitingTickets.map(t => <WaitingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onCheckIn={handleCheckIn} onStartFitting={t.category === 'fitting' ? handleStartFitting : undefined} />)}
-          </div>
 
+              {/* 順番待ちリスト */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 border border-blue-300 rounded-xl">
+                    <Clock size={14} className="text-blue-600" />
+                    <span className="text-blue-700 font-black text-sm">順番待ち</span>
+                    <span className="bg-blue-400 text-blue-950 text-xs font-black px-1.5 py-0.5 rounded-full">{waitingTickets.length}</span>
+                  </div>
+                  {callingTickets.length === 0 && (
+                    <div className="ml-2 flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 border border-gray-200 rounded-xl text-gray-400 text-xs">
+                      <BellRing size={11} />
+                      <span>呼出中なし</span>
+                    </div>
+                  )}
+                  <button onClick={addTestPerson} disabled={testLoading}
+                    className="ml-auto flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-xl text-gray-400 text-[10px] font-bold transition-colors disabled:opacity-50"
+                    title="テスト用の人を追加">
+                    {testLoading ? <Loader2 size={11} className="animate-spin" /> : <Users size={11} />}
+                    テスト追加
+                  </button>
+                </div>
+                {waitingTickets.length === 0 ? (
+                  <div className="text-center py-10 text-gray-400 bg-gray-50 rounded-2xl border border-gray-200">
+                    <Users size={32} className="mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">待ちはいません</p>
+                  </div>
+                ) : waitingTickets.map(t => <WaitingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onCheckIn={handleCheckIn} onStartFitting={t.category === 'fitting' ? handleStartFitting : undefined} />)}
+              </div>
+            </>
+          )}
 
 
         </div>
