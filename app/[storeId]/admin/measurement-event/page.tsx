@@ -10,7 +10,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, CheckCircle2, Circle, Users, Package,
   ClipboardList, ChevronDown, ChevronUp, RefreshCw,
-  Plus, Trash2, CalendarDays
+  Plus, Trash2, CalendarDays, Clock, AlertCircle
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../_components/BottomNav'
@@ -57,6 +57,35 @@ const CATEGORY_CONFIG = {
 interface SchoolStat {
   school_name: string
   todayCount: number
+  orderDeadline?: string | null
+  pickupDeadline?: string | null
+}
+
+interface UpcomingDeadline {
+  school_name: string
+  deadline_type: 'order' | 'pickup'
+  deadline_date: string
+  days_left: number
+}
+
+function daysUntil(dateStr: string | null | undefined): number | null {
+  if (!dateStr) return null
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  return Math.ceil((new Date(dateStr).getTime() - today.getTime()) / 86400000)
+}
+
+function DeadlineBadge({ label, days }: { label: string; days: number }) {
+  const colorClass =
+    days === 0 ? 'bg-red-100 text-red-700' :
+    days <= 3  ? 'bg-red-50 text-red-600' :
+    days <= 7  ? 'bg-amber-100 text-amber-600' :
+    days <= 14 ? 'bg-yellow-50 text-yellow-600' :
+                 'bg-gray-100 text-gray-500'
+  return (
+    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${colorClass}`}>
+      {label} {days === 0 ? '今日！' : `あと${days}日`}
+    </span>
+  )
 }
 
 const STORAGE_KEY_PREFIX = 'measurement_checklist_'
@@ -68,6 +97,7 @@ export default function MeasurementEventPage() {
   const [items, setItems]           = useState<CheckItem[]>(DEFAULT_CHECKLIST)
   const [eventDate, setEventDate]   = useState(() => new Date().toISOString().split('T')[0])
   const [schoolStats, setSchoolStats] = useState<SchoolStat[]>([])
+  const [upcomingDeadlines, setUpcomingDeadlines] = useState<UpcomingDeadline[]>([])
   const [loadingStats, setLoadingStats] = useState(false)
   const [openCats, setOpenCats]     = useState<Set<string>>(new Set(['prep', 'event', 'post']))
   const [newItemText, setNewItemText] = useState('')
@@ -98,22 +128,14 @@ export default function MeasurementEventPage() {
     try { localStorage.setItem(storageKey, JSON.stringify(items)) } catch { /* ignore */ }
   }, [storageKey, items])
 
-  // 当日の予約数を学校別に取得
+  // 当日の来店数を学校別に取得 + 学校別締切日を取得
   const fetchSchoolStats = useCallback(async () => {
     if (!storeId || !eventDate) return
     setLoadingStats(true)
     try {
       const dayStart = `${eventDate}T00:00:00`
       const dayEnd   = `${eventDate}T23:59:59`
-      const { data } = await (supabase as any)
-        .from('reservations')
-        .select('school_name:customers(school_name)')
-        .eq('store_id', storeId)
-        .in('status', ['confirmed', 'arrived'])
-        .gte('reserved_at', dayStart)
-        .lte('reserved_at', dayEnd)
 
-      // キューの学校名も集計
       const { data: queueData } = await (supabase as any)
         .from('queues')
         .select('school_name')
@@ -126,9 +148,44 @@ export default function MeasurementEventPage() {
         if (q.school_name) counts[q.school_name] = (counts[q.school_name] ?? 0) + 1
       })
 
+      // 学校別締切日を取得（migration未適用でも graceful fallback）
+      let deadlineMap: Record<string, { orderDeadline: string | null; pickupDeadline: string | null }> = {}
+      const upcoming: UpcomingDeadline[] = []
+      try {
+        const { data: schoolsData } = await (supabase as any)
+          .from('schools')
+          .select('name, order_deadline, pickup_deadline')
+          .eq('store_id', storeId)
+        if (Array.isArray(schoolsData)) {
+          const today = new Date(); today.setHours(0, 0, 0, 0)
+          const in30  = new Date(today.getTime() + 30 * 86400000)
+          for (const s of schoolsData) {
+            deadlineMap[s.name] = { orderDeadline: s.order_deadline ?? null, pickupDeadline: s.pickup_deadline ?? null }
+            if (s.order_deadline) {
+              const d = new Date(s.order_deadline)
+              if (d >= today && d <= in30)
+                upcoming.push({ school_name: s.name, deadline_type: 'order', deadline_date: s.order_deadline,
+                  days_left: Math.ceil((d.getTime() - today.getTime()) / 86400000) })
+            }
+            if (s.pickup_deadline) {
+              const d = new Date(s.pickup_deadline)
+              if (d >= today && d <= in30)
+                upcoming.push({ school_name: s.name, deadline_type: 'pickup', deadline_date: s.pickup_deadline,
+                  days_left: Math.ceil((d.getTime() - today.getTime()) / 86400000) })
+            }
+          }
+        }
+      } catch { /* migration not yet applied — show stats without deadlines */ }
+
+      setUpcomingDeadlines(upcoming.sort((a, b) => a.days_left - b.days_left))
       setSchoolStats(
         Object.entries(counts)
-          .map(([school_name, todayCount]) => ({ school_name, todayCount }))
+          .map(([school_name, todayCount]) => ({
+            school_name,
+            todayCount,
+            orderDeadline:  deadlineMap[school_name]?.orderDeadline,
+            pickupDeadline: deadlineMap[school_name]?.pickupDeadline,
+          }))
           .sort((a, b) => b.todayCount - a.todayCount)
       )
     } catch { /* ignore */ }
@@ -222,10 +279,69 @@ export default function MeasurementEventPage() {
               </button>
             </div>
             <div className="space-y-1.5">
-              {schoolStats.map(s => (
-                <div key={s.school_name} className="flex items-center justify-between px-3 py-1.5 bg-gray-50 rounded-xl">
-                  <span className="text-xs font-bold text-gray-700 truncate flex-1">{s.school_name}</span>
-                  <span className="text-xs font-black text-indigo-600 ml-2 shrink-0">{s.todayCount}名</span>
+              {schoolStats.map(s => {
+                const orderDays   = daysUntil(s.orderDeadline)
+                const pickupDays  = daysUntil(s.pickupDeadline)
+                const hasDeadline = (orderDays !== null && orderDays >= 0) || (pickupDays !== null && pickupDays >= 0)
+                return (
+                  <div key={s.school_name} className="px-3 py-2 bg-gray-50 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-gray-700 truncate flex-1">{s.school_name}</span>
+                      <span className="text-xs font-black text-indigo-600 ml-2 shrink-0">{s.todayCount}名</span>
+                    </div>
+                    {hasDeadline && (
+                      <div className="flex gap-1.5 mt-1 flex-wrap">
+                        {orderDays !== null && orderDays >= 0 && (
+                          <DeadlineBadge label="発注締切" days={orderDays} />
+                        )}
+                        {pickupDays !== null && pickupDays >= 0 && (
+                          <DeadlineBadge label="引渡目標" days={pickupDays} />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 今後30日の締切カレンダー */}
+        {upcomingDeadlines.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Clock size={14} className="text-amber-500" />
+              <span className="text-sm font-bold text-gray-700">今後30日の締切</span>
+              {upcomingDeadlines.some(d => d.days_left <= 3) && (
+                <AlertCircle size={13} className="text-red-500 ml-1" />
+              )}
+            </div>
+            <div className="space-y-1.5">
+              {upcomingDeadlines.map((d, i) => (
+                <div key={i} className={`flex items-center justify-between px-3 py-2 rounded-xl ${
+                  d.days_left <= 3 ? 'bg-red-50' : d.days_left <= 7 ? 'bg-amber-50' : 'bg-gray-50'
+                }`}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs font-bold text-gray-700 truncate">{d.school_name}</span>
+                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md shrink-0 ${
+                      d.deadline_type === 'order'
+                        ? 'bg-blue-100 text-blue-600'
+                        : 'bg-emerald-100 text-emerald-600'
+                    }`}>
+                      {d.deadline_type === 'order' ? '発注' : '引渡'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    <span className="text-[10px] text-gray-400">{d.deadline_date}</span>
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                      d.days_left === 0 ? 'bg-red-100 text-red-700' :
+                      d.days_left <= 3 ? 'bg-red-50 text-red-600' :
+                      d.days_left <= 7 ? 'bg-amber-100 text-amber-600' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      {d.days_left === 0 ? '今日！' : `あと${d.days_left}日`}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>

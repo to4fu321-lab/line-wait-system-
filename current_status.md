@@ -1,6 +1,6 @@
 # 現在の進捗状況
 
-> 更新: 2026-06-24
+> 更新: 2026-06-25
 
 ---
 
@@ -40,6 +40,34 @@
 - 未通知が2件以上の場合、デリバリーページ上部に「まとめて通知」ボタン表示
 - 全未通知アイテムに順次 arrival-notify を呼び出してバッチ送信
 
+### ✅ サイクル10〜11: TypeScript ビルドエラー全件解消
+- 修正前 173件 → 修正後 0件
+- 対象: fitting/page.tsx, admin/page.tsx, repairs/_components/RepairCard.tsx,
+        reservations/page.tsx, details/page.tsx, kitchen/page.tsx,
+        takeout-admin/page.tsx, api/admin/seed-test-data/route.ts,
+        api/test/clear/route.ts, super-admin/page.tsx, crm-register/page.tsx
+- 主な修正パターン:
+  - `supabase.from(X)` → `(supabase as any).from(X)` (untyped tables)
+  - `.then(({ data }) =>` → `.then(({ data }: { data: any }) =>`
+  - `async function` inside `if {}` → `const fn = async () =>`
+  - `[...raw]` → `Array.from(raw)` for Uint8Array spread
+  - `Record<string, boolean>` → `Record<string, unknown>` for mixed features flag
+
+### ✅ サイクル12: CRM 顧客一覧 CSV出力
+- `app/[storeId]/admin/crm/page.tsx`
+- 「CSV出力」ボタン追加 → BOM+UTF-8、保護者+子供データをフラット展開
+- 最大2000件、かな順ソート
+
+### ✅ サイクル13: お直し・発注一覧 Excel出力
+- `app/[storeId]/admin/repairs/page.tsx`
+- 「Excel」ボタン追加 → xlsx ライブラリ、2シート（お直し一覧・発注一覧）
+
+### ✅ サイクル14: 採寸会ページに学校別締切日カウントダウン
+- `app/[storeId]/admin/measurement-event/page.tsx`
+- 学校別来店数カードに「発注締切」「引渡目標」バッジを追加（残日数カラーコード）
+- 「今後30日の締切」セクションを追加（全校の締切を日付順表示）
+- schools テーブル未マイグレーション時は graceful fallback（例外を捕捉して無視）
+
 ---
 
 ## 検証済み仮説サマリー
@@ -50,19 +78,23 @@
 | 入荷通知の電話かけは省力化できる | ✅ LINE一括通知で解消 |
 | 保護者が子供の学年・入学年度を自己更新できる | ✅ マイページ編集モーダルで解消 |
 | admission_year 未入力がフォロー通知の精度を下げていた | ✅ 保護者自己更新で改善 |
+| ビルドエラーがデプロイを阻害していた | ✅ 全173件解消、0エラー |
+| 顧客データのCSV出力で名簿作成が効率化できる | ✅ CRMページから即時ダウンロード |
+| スタッフが採寸会当日に締切日を確認したい | ✅ 残日数バッジ + 30日カレンダー |
 
 ---
 
 ## 次サイクルの候補
 
-1. **CRM TypeScript修正**: ECShopView・crm/page.tsx の `never[]` 型エラー修正（ビルド安定化）
-2. **採寸会ページ ↔ 学校締切日の統合**: measurement-event ページで当日の締切情報も表示
-3. **発注書テキストエクスポート改善**: order-summary でメーカー別に整形したテキストをコピー
-4. **来店分析ダッシュボード**: 学校別・月別の来店推移グラフ
+1. **発注数量集計の改善**: order-summary でメーカー別テキスト整形コピー（発注書直貼り用）
+2. **在校生フォロー通知の精度向上**: admission_year が揃ったので F-03 通知タイミングの再チューニング
+3. **採寸会 QR受付 → 自動学校振り分け**: school_name を URL パラメータで渡して自動セット
+4. **来店分析ダッシュボード**: 学校別・月別の来店推移グラフ（週次レポート用）
 
 ---
 
 ## 保留事項
 
 - SchoolDeadlineAlert DBマイグレーション: `supabase/migrations/20260624_school_deadlines.sql` を Supabase SQLエディタで手動実行が必要
+  - 実行前は採寸会ページの締切カウントダウンが非表示（graceful fallback）
 - F-08（発注書PDF出力）: 外部API連携が必要 → 将来検討
