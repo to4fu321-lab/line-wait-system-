@@ -56,6 +56,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
   const [showQrModal,    setShowQrModal]    = useState(false)
   const [pushStatus,     setPushStatus]     = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle')
   const [testLoading,    setTestLoading]    = useState(false)
+  const [todayReservations, setTodayReservations] = useState(0)
   const [openCloseModal, setOpenCloseModal] = useState<'opening' | 'closing' | null>(null)
   const [briefing,       setBriefing]       = useState<string | null>(null)
   const [briefingLoading,setBriefingLoading]= useState(false)
@@ -126,8 +127,22 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     setRefreshing(false)
   }, [store.id])
 
+  const fetchTodayReservations = useCallback(async () => {
+    try {
+      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+      const todayEnd   = new Date(); todayEnd.setHours(23, 59, 59, 999)
+      const { count } = await (supabase as any)
+        .from('reservations').select('id', { count: 'exact', head: true })
+        .eq('store_id', store.id)
+        .gte('reserved_at', todayStart.toISOString())
+        .lte('reserved_at', todayEnd.toISOString())
+        .in('status', ['confirmed', 'arrived'])
+      setTodayReservations(count ?? 0)
+    } catch { /* reservations table may not exist */ }
+  }, [store.id])
+
   useEffect(() => {
-    fetchStoreStatus(); fetchQueues()
+    fetchStoreStatus(); fetchQueues(); fetchTodayReservations()
     if (typeof window !== 'undefined' && 'Notification' in window && (window as any).Notification.permission === 'granted') {
       setupPush(store.id)
     }
@@ -137,7 +152,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
       .subscribe()
     const pollId = setInterval(() => { fetchQueues() }, 10000)
     return () => { supabase.removeChannel(channel); clearInterval(pollId) }
-  }, [store.id, fetchQueues, fetchStoreStatus])
+  }, [store.id, fetchQueues, fetchStoreStatus, fetchTodayReservations])
 
   const handleToggleOpen = async () => {
     if (isOpen === null) return
@@ -287,9 +302,9 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     else { showToast('ok', `テスト: ${name} (#${nextNum})を追加`); fetchQueues() }
   }, [store.id, fetchQueues, showToast])
 
-  const waitingTickets = queues.filter(q => q.status === 'waiting')
-  const callingTickets = queues.filter(q => q.status === 'calling')
-  const historyTickets = queues.filter(q => q.status === historyTab)
+  const waitingTickets = queues.filter(q => q.status === 'waiting').reverse()
+  const callingTickets = queues.filter(q => q.status === 'calling').reverse()
+  const historyTickets = queues.filter(q => q.status === historyTab).reverse()
   const remoteCount    = waitingTickets.filter(q => q.is_remote && !q.checked_in).length
   const completed      = queues.filter(q => q.status === 'completed').length
   const cancelledCount = queues.filter(q => q.status === 'cancelled').length
@@ -387,11 +402,11 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
           </div>
         )}
 
-        {/* 行3: 状態バッジ 4つ（常時表示）— 完了・不在はタップで履歴展開 */}
-        <div className="grid grid-cols-4 gap-1.5">
+        {/* 行3: 状態バッジ 5つ（常時表示）— 完了・不在はタップで履歴展開 */}
+        <div className="grid grid-cols-5 gap-1">
           <div className="flex flex-col items-center gap-0.5 bg-blue-50 border border-blue-200 rounded-xl px-1 py-2.5">
             <span className="text-blue-600 text-2xl font-black tabular-nums leading-none">{waitingTickets.length}</span>
-            <span className="text-blue-500 text-[10px] font-bold mt-0.5">待機</span>
+            <span className="text-blue-500 text-[10px] font-bold mt-0.5">順番待ち</span>
           </div>
           <div className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2.5 ${
             callingTickets.length > 0 ? 'bg-amber-50 border border-amber-300' : 'bg-gray-50 border border-gray-200'
@@ -419,6 +434,11 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
             <span className="text-gray-500 text-2xl font-black tabular-nums leading-none">{cancelledCount}</span>
             <span className="text-gray-400 text-[10px] font-bold mt-0.5">不在 ▾</span>
           </button>
+          <a href={`/${store.id}/admin/reservations`}
+            className="flex flex-col items-center gap-0.5 bg-indigo-50 border border-indigo-200 rounded-xl px-1 py-2.5 active:opacity-60">
+            <span className="text-indigo-600 text-2xl font-black tabular-nums leading-none">{todayReservations}</span>
+            <span className="text-indigo-400 text-[10px] font-bold mt-0.5">予約 ▸</span>
+          </a>
         </div>
 
         {/* 遠隔待ちバッジ（遠隔がいる時のみ） */}
@@ -465,12 +485,12 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
             </div>
           )}
 
-          {/* 待ちリスト */}
+          {/* 順番待ちリスト */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 border border-blue-300 rounded-xl">
                 <Clock size={14} className="text-blue-600" />
-                <span className="text-blue-700 font-black text-sm">待ち</span>
+                <span className="text-blue-700 font-black text-sm">順番待ち</span>
                 <span className="bg-blue-400 text-blue-950 text-xs font-black px-1.5 py-0.5 rounded-full">{waitingTickets.length}</span>
               </div>
               {callingTickets.length === 0 && (
