@@ -4,8 +4,10 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   RefreshCw, Loader2, ExternalLink, ShieldCheck, Scissors, Package,
   Plus, ChevronDown, ChevronUp, Palette, Pencil, Trash2, X, Check, Building2,
+  Download,
 } from 'lucide-react'
 import ColorPicker from '@/app/_components/ColorPicker'
+import { supabase } from '@/lib/supabase'
 import type { Store, BusinessType } from '@/types/database'
 import { PLAN_DEFS, ADDON_DEFAULT_OFF, type Plan, type FeatureKey } from '@/lib/features'
 
@@ -195,9 +197,10 @@ function StoreCard({
   const [groupId, setGroupId] = useState(store.group_id ?? '')
   const [bizType, setBizType] = useState<'uniform' | 'takeout'>((store.business_type as 'uniform' | 'takeout') ?? 'uniform')
   const [features, setFeatures] = useState<Record<string, unknown>>(store.features ?? {})
-  const [saving,   setSaving]   = useState(false)
-  const [msg,      setMsg]      = useState<{ ok: boolean; text: string } | null>(null)
+  const [saving,        setSaving]        = useState(false)
+  const [msg,           setMsg]           = useState<{ ok: boolean; text: string } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [csvExporting,  setCsvExporting]  = useState(false)
   const [welcomeMsg,       setWelcomeMsg]       = useState<string>((store as any).welcome_message ?? '')
   const [isTestMode,       setIsTestMode]       = useState<boolean>((store as any).is_test_mode ?? false)
   const [richmenuApplying, setRichmenuApplying] = useState(false)
@@ -213,6 +216,49 @@ function StoreCard({
       setMsg(null); setConfirmDelete(false)
     }
   }, [isEditing, store])
+
+  async function exportCSV() {
+    if (csvExporting) return
+    setCsvExporting(true)
+    try {
+      const { data } = await (supabase as any)
+        .from('customers')
+        .select('name, kana, tel, line_user_id, created_at, children(name, school_name, grade, admission_year)')
+        .eq('store_id', store.id)
+        .is('deleted_at', null)
+        .order('kana', { ascending: true })
+        .limit(5000)
+      const rows: string[][] = [
+        ['保護者名', 'フリガナ', '電話番号', 'LINE連携', 'お子様名', '学校名', '学年', '入学年度', '登録日'],
+      ]
+      for (const c of (data ?? [])) {
+        const kids = (c.children ?? []) as { name: string; school_name: string | null; grade: string | null; admission_year: number | null }[]
+        if (kids.length === 0) {
+          rows.push([c.name ?? '', c.kana ?? '', c.tel ?? '', c.line_user_id ? '○' : '×', '', '', '', '', c.created_at?.slice(0, 10) ?? ''])
+        } else {
+          kids.forEach((kid, idx) => {
+            rows.push([
+              idx === 0 ? (c.name ?? '') : '',
+              idx === 0 ? (c.kana ?? '') : '',
+              idx === 0 ? (c.tel ?? '') : '',
+              idx === 0 ? (c.line_user_id ? '○' : '×') : '',
+              kid.name ?? '', kid.school_name ?? '', kid.grade ?? '',
+              kid.admission_year != null ? String(kid.admission_year) : '',
+              idx === 0 ? (c.created_at?.slice(0, 10) ?? '') : '',
+            ])
+          })
+        }
+      }
+      const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n')
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a'); a.href = url
+      a.download = `${store.name}_customers_${new Date().toISOString().slice(0, 10)}.csv`
+      a.click(); URL.revokeObjectURL(url)
+    } finally {
+      setCsvExporting(false)
+    }
+  }
 
   async function save() {
     setSaving(true); setMsg(null)
@@ -537,6 +583,11 @@ function StoreCard({
                 <ShieldCheck size={11} />管理画面
               </button>
             </div>
+            <button onClick={exportCSV} disabled={csvExporting}
+              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold disabled:opacity-50">
+              {csvExporting ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />}
+              顧客データCSV出力
+            </button>
           </>
         )}
       </div>
