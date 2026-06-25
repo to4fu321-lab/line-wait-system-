@@ -26,6 +26,7 @@ import { EditModal } from './_components/EditModal'
 import { ArrivalCard } from './_components/ArrivalCard'
 import { InquiryTabCard } from './_components/InquiryTabCard'
 import { INQ_TYPE_LABELS } from './_components/constants'
+import { SeasonDashboard } from '../_components/SeasonDashboard'
 
 // ── Main Page ─────────────────────────────────────────────────
 type ActiveTab = 'repair' | 'purchase' | 'arrival' | 'delivery' | 'inquiries'
@@ -803,6 +804,7 @@ export default function RepairsPage() {
 
       {/* ── Body ────────────────────────────────────────────── */}
       <div className={`${isTablet ? 'px-6 pb-8' : 'max-w-2xl mx-auto px-4 pb-32'} pt-4 space-y-3`}>
+        <SeasonDashboard storeId={storeId} />
         {fetchError && (
           <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-xs text-red-600 flex items-center gap-2">
             <AlertCircle size={13} />DBエラー: {fetchError}
