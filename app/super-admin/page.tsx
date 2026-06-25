@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   RefreshCw, Loader2, ExternalLink, ShieldCheck, Scissors, Package,
   Plus, ChevronDown, ChevronUp, Palette, Pencil, Trash2, X, Check, Building2,
@@ -206,8 +206,12 @@ function StoreCard({
   const [richmenuApplying, setRichmenuApplying] = useState(false)
   const [richmenuMsg,      setRichmenuMsg]      = useState<{ ok: boolean; text: string } | null>(null)
 
+  // 編集パネルを「開いた瞬間だけ」初期化する（自動リフレッシュによる意図しないリセットを防ぐ）
+  const wasEditingRef = React.useRef(false)
   useEffect(() => {
-    if (isEditing) {
+    const justOpened = isEditing && !wasEditingRef.current
+    wasEditingRef.current = isEditing
+    if (justOpened) {
       setName(store.name); setPin(store.pin ?? '')
       setGroupId(store.group_id ?? '')
       setBizType((store.business_type as 'uniform' | 'takeout') ?? 'uniform')
