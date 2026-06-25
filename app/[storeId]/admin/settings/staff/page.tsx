@@ -3,11 +3,12 @@
 import React from 'react'
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { Bell, BellOff, Store, Clock, Loader2, Check, GraduationCap, Users, ChevronRight, Settings, ChevronDown, Scissors } from 'lucide-react'
+import { Bell, BellOff, Store, Clock, Loader2, Check, GraduationCap, Users, ChevronRight, Settings, ChevronDown, Scissors, CalendarDays, Monitor } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../../_components/BottomNav'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
+import { useDeviceMode } from '@/lib/useDeviceMode'
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BAmZx5b8ScrgrqWa822FdQhtfHV2CSyqvxNeQX-Ds1KsqztPPRtZRyBP_LaQZmCLejg8Ivd7Gu4cBxKtNwodb3o'
 
@@ -102,6 +103,7 @@ export default function StaffSettingsPage() {
 
   const { hasFeature } = useStoreFeatures(storeId)
   const isSimpleMode = !hasFeature('repairs_tab_purchase') && !hasFeature('repairs_tab_arrival')
+  const { setMode } = useDeviceMode()
 
   const [storeName,     setStoreName]     = useState('')
   const [loading,       setLoading]       = useState(true)
@@ -253,6 +255,35 @@ export default function StaffSettingsPage() {
             </div>
             <ChevronRight size={20} className="text-rose-400 shrink-0" />
           </Link>
+
+          {/* 📅 シフト管理 */}
+          {hasFeature('shift_management') && (
+            <Link href={`/${storeId}/admin/shifts`}
+              className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-blue-200 hover:border-blue-400 active:scale-[0.98] transition-all shadow-sm">
+              <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center shrink-0">
+                <CalendarDays size={28} className="text-blue-600" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-black text-lg text-blue-700">シフト管理</p>
+                <p className="text-sm text-gray-500 mt-0.5">スタッフのシフト・出勤管理</p>
+              </div>
+              <ChevronRight size={20} className="text-blue-400 shrink-0" />
+            </Link>
+          )}
+
+          {/* 💻 PCモード */}
+          <button
+            onClick={() => setMode('tablet')}
+            style={{ touchAction: 'manipulation' }}
+            className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-gray-200 hover:border-gray-400 active:scale-[0.98] transition-all shadow-sm w-full">
+            <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center shrink-0">
+              <Monitor size={28} className="text-gray-600" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-black text-lg text-gray-700">PCモードに切替</p>
+              <p className="text-sm text-gray-500 mt-0.5">タブレット・PCでの大画面表示に切替</p>
+            </div>
+          </button>
 
           {/* 🍀 かんたんLINEモード */}
           {hasFeature('kantan_line') && (
@@ -457,6 +488,31 @@ export default function StaffSettingsPage() {
 
         {/* 🏪 店舗・アカウント */}
         <Section emoji="🏪" title="店舗・アカウント" open={openSections.has('store')} onToggle={() => toggleSection('store')}>
+          {hasFeature('shift_management') && (
+            <Link href={`/${storeId}/admin/shifts`}
+              className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-gray-200 bg-gray-50 hover:bg-gray-100 active:scale-[0.98] transition-all">
+              <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
+                <CalendarDays size={26} className="text-blue-600" />
+              </div>
+              <div className="text-left flex-1">
+                <p className="font-black text-lg text-gray-700">シフト管理</p>
+                <p className="text-gray-500 text-sm mt-0.5">スタッフのシフト・出勤管理</p>
+              </div>
+              <ChevronRight size={18} className="text-gray-400 shrink-0" />
+            </Link>
+          )}
+          <button
+            onClick={() => setMode('tablet')}
+            style={{ touchAction: 'manipulation' }}
+            className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-gray-200 bg-gray-50 hover:bg-gray-100 active:scale-[0.98] transition-all">
+            <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center shrink-0">
+              <Monitor size={26} className="text-gray-600" />
+            </div>
+            <div className="text-left flex-1">
+              <p className="font-black text-lg text-gray-700">PCモードに切替</p>
+              <p className="text-gray-500 text-sm mt-0.5">タブレット・PCでの大画面表示に切替</p>
+            </div>
+          </button>
           <button
             onClick={() => {
               sessionStorage.removeItem('admin_auth')

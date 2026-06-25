@@ -6,7 +6,7 @@ import {
   Scissors, ShoppingBag, Loader2,
   Check, Package, Plus, AlertCircle, CheckCheck,
   History, Search, Database, ShoppingCart, PackageCheck,
-  MessageSquarePlus, Download,
+  MessageSquarePlus, Download, BarChart2,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../_components/BottomNav'
@@ -1027,6 +1027,10 @@ export default function RepairsPage() {
               <a href={`/${storeId}/admin/orders`}
                 className="shrink-0 flex items-center gap-1.5 px-3 py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold rounded-xl hover:bg-indigo-100 transition-colors whitespace-nowrap">
                 <Database size={12} />注文管理
+              </a>
+              <a href={`/${storeId}/admin/order-summary`}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-2.5 bg-orange-50 border border-orange-200 text-orange-700 text-xs font-bold rounded-xl hover:bg-orange-100 transition-colors whitespace-nowrap">
+                <BarChart2 size={12} />集計
               </a>
             </div>
 

@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   BellRing, CheckCheck, UserX, RefreshCw, Clock, Users,
-  Loader2, Store, Phone, User, GraduationCap, Package,
+  Loader2, Store, Phone, User,
   ChevronRight, LayoutDashboard, X, MapPin, BellOff, Bell,
-  CalendarDays, QrCode, ShoppingCart,
+  QrCode,
 } from 'lucide-react'
 import { BottomNav } from './_components/BottomNav'
 import { QrRegistrationModal } from './_components/QrRegistrationModal'
@@ -463,44 +463,6 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
               </div>
               {callingTickets.map(t => <CallingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onGoToFitting={t.category === 'fitting' ? handleStartFitting : undefined} />)}
             </div>
-          )}
-
-          {/* 予約管理クイックリンク */}
-          <a href={`/${store.id}/admin/reservations`}
-            style={{ touchAction: 'manipulation' }}
-            className="flex items-center gap-2 px-3 py-2.5 bg-violet-50 border border-violet-200 rounded-xl active:opacity-70">
-            <CalendarDays size={14} className="text-violet-600 shrink-0" />
-            <span className="text-violet-700 text-xs font-bold">予約管理</span>
-            <ChevronRight size={12} className="text-violet-500 ml-auto" />
-          </a>
-
-          {/* 在校生フォロー通知リンク */}
-          <a href={`/${store.id}/admin/followup`}
-            style={{ touchAction: 'manipulation' }}
-            className="flex items-center gap-2 px-3 py-2.5 bg-teal-50 border border-teal-200 rounded-xl active:opacity-70">
-            <GraduationCap size={14} className="text-teal-600 shrink-0" />
-            <span className="text-teal-700 text-xs font-bold">在校生フォロー通知</span>
-            <ChevronRight size={12} className="text-teal-500 ml-auto" />
-          </a>
-
-          {/* 発注数量集計リンク */}
-          <a href={`/${store.id}/admin/order-summary`}
-            style={{ touchAction: 'manipulation' }}
-            className="flex items-center gap-2 px-3 py-2.5 bg-orange-50 border border-orange-200 rounded-xl active:opacity-70">
-            <Package size={14} className="text-orange-600 shrink-0" />
-            <span className="text-orange-700 text-xs font-bold">発注数量集計</span>
-            <ChevronRight size={12} className="text-orange-500 ml-auto" />
-          </a>
-
-          {/* レジ（会計）クイックリンク — pos 機能ON時のみ */}
-          {resolveFeature('pos', store.features ?? {}) && (
-            <a href={`/${store.id}/admin/register`}
-              style={{ touchAction: 'manipulation' }}
-              className="flex items-center gap-2 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl active:opacity-70">
-              <ShoppingCart size={14} className="text-emerald-600 shrink-0" />
-              <span className="text-emerald-700 text-xs font-bold">🧾 レジ（会計）</span>
-              <ChevronRight size={12} className="text-emerald-500 ml-auto" />
-            </a>
           )}
 
           {/* 待ちリスト */}

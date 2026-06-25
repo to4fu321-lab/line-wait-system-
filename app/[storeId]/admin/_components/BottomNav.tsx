@@ -3,17 +3,18 @@
 import Link from 'next/link'
 import { useParams, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Timer, Search, Settings, ClipboardList, Monitor, CalendarDays } from 'lucide-react'
+import { Timer, Search, Settings, ClipboardList, ShoppingCart } from 'lucide-react'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { useDeviceMode } from '@/lib/useDeviceMode'
 
+
 const ALL_TABS = [
-  { id: 'repairs',  featureKey: 'tab_repairs', label: '案件', icon: ClipboardList, exact: false, path: (sid: string) => `/${sid}/admin/repairs` },
-  { id: 'queue',    featureKey: 'tab_queue',   label: '受付', icon: Timer,         exact: true,  path: (sid: string) => `/${sid}/admin` },
-  { id: 'crm',      featureKey: 'tab_crm',     label: '顧客',   icon: Search,         exact: false, path: (sid: string) => `/${sid}/admin/crm` },
-  { id: 'shifts',   featureKey: 'shift_management', label: 'シフト', icon: CalendarDays, exact: false, path: (sid: string) => `/${sid}/admin/shifts` },
-  { id: 'settings', featureKey: null,            label: '設定',  icon: Settings,      exact: false, path: (sid: string) => `/${sid}/admin/settings/staff` },
+  { id: 'repairs',  featureKey: 'tab_repairs', label: '案件',  icon: ClipboardList, exact: false, path: (sid: string) => `/${sid}/admin/repairs` },
+  { id: 'queue',    featureKey: 'tab_queue',   label: '受付',  icon: Timer,         exact: true,  path: (sid: string) => `/${sid}/admin` },
+  { id: 'crm',      featureKey: 'tab_crm',     label: '顧客',  icon: Search,        exact: false, path: (sid: string) => `/${sid}/admin/crm` },
+  { id: 'pos',      featureKey: 'pos',         label: 'レジ',  icon: ShoppingCart,  exact: false, path: (sid: string) => `/${sid}/admin/register` },
+  { id: 'settings', featureKey: null,           label: '設定',  icon: Settings,      exact: false, path: (sid: string) => `/${sid}/admin/settings/staff` },
 ] as const
 
 export function BottomNav() {
@@ -23,7 +24,7 @@ export function BottomNav() {
   const [queueBadge,  setQueueBadge]  = useState(0)
   const [repairBadge, setRepairBadge] = useState(0)
   const { hasFeature, loaded: featLoaded } = useStoreFeatures(storeId)
-  const { isTablet, setMode } = useDeviceMode()
+  const { isTablet } = useDeviceMode()
 
   useEffect(() => {
     if (!storeId) return
@@ -113,16 +114,6 @@ export function BottomNav() {
               </Link>
             )
           })}
-          {/* Tablet mode toggle */}
-          <button
-            onClick={() => setMode('tablet')}
-            style={{ touchAction: 'manipulation' }}
-            className="flex flex-col items-center justify-center gap-1 py-3 px-3 text-gray-300 active:text-gray-500 transition-none"
-            title="タブレットモードに切替"
-          >
-            <Monitor size={18} strokeWidth={1.5} />
-            <span className="text-[9px] leading-none font-medium">PCモード</span>
-          </button>
         </div>
       </nav>
     </>
