@@ -405,7 +405,7 @@ export default function RepairMasterPage() {
 
       {/* ヘッダ */}
       <div className="bg-gradient-to-r from-amber-600 to-orange-600 px-4 py-3.5 flex items-center gap-3 sticky top-0 z-30">
-        <Link href={`/${storeId}/admin/settings`} className="text-white/90"><ChevronLeft size={22} /></Link>
+        <Link href={`/${storeId}/admin/settings/staff`} className="text-white/90"><ChevronLeft size={22} /></Link>
         <Scissors size={18} className="text-white" />
         <h1 className="text-white font-black text-base">お直しマスタ（服種・項目・オプション）</h1>
       </div>

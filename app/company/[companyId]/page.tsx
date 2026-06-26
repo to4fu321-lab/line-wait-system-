@@ -195,7 +195,7 @@ function StoreCard({ s }: { s: StoreStats }) {
           className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold active:scale-95 transition-all">
           <Users size={12} />スタッフPIN
         </a>
-        <a href={`/${s.store.id}/admin/settings`} target="_blank" rel="noopener noreferrer"
+        <a href={`/${s.store.id}/admin/settings/staff`} target="_blank" rel="noopener noreferrer"
           className="col-span-3 flex items-center justify-center gap-1 py-2.5 rounded-xl bg-violet-600/20 border border-violet-500/30 text-violet-300 text-xs font-bold active:scale-95 transition-all">
           <Settings size={12} />設定
         </a>

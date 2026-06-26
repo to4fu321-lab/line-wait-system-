@@ -80,7 +80,7 @@ export default function KantanSettingsPage() {
   return (
     <div className="min-h-screen bg-gray-100 pb-10">
       <div className="bg-white border-b border-gray-200 px-5 py-4 flex items-center gap-3 sticky top-0 z-10">
-        <button onClick={() => router.push(`/${storeId}/admin/settings`)}
+        <button onClick={() => router.push(`/${storeId}/admin/settings/staff`)}
           className="text-gray-400 font-black text-xl active:scale-90 transition-all">←</button>
         <div>
           <h1 className="font-black text-gray-900">🍀 かんたんLINEモード</h1>

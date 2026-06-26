@@ -58,9 +58,13 @@ const GRANULAR_FEATURE_GROUPS: { label: string; keys: FeatureKey[] }[] = [
     keys: ['tab_queue', 'tab_repairs', 'tab_inquiries', 'tab_crm', 'today_tasks_ui'],
   },
   {
+    label: '🧾 レジ・会計',
+    keys: ['pos'],
+  },
+  {
     label: 'お仕事・修理',
     keys: ['repairs_tab_purchase', 'repairs_tab_arrival', 'repairs_tab_delivery',
-           'repairs_ocr', 'repairs_master', 'repairs_dummy', 'sms_notify', 'pos'],
+           'repairs_ocr', 'repairs_master', 'repairs_dummy', 'sms_notify'],
   },
   {
     label: 'LINE・スキャン',
