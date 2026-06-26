@@ -3,11 +3,12 @@
 import React from 'react'
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { Bell, BellOff, Store, Clock, Loader2, Check, GraduationCap, Users, ChevronRight, Settings, ChevronDown, Scissors } from 'lucide-react'
+import { Bell, BellOff, Store, Clock, Loader2, Check, GraduationCap, Users, ChevronRight, Settings, ChevronDown, Scissors, CalendarDays, Monitor } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../../_components/BottomNav'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
+import { useDeviceMode } from '@/lib/useDeviceMode'
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BAmZx5b8ScrgrqWa822FdQhtfHV2CSyqvxNeQX-Ds1KsqztPPRtZRyBP_LaQZmCLejg8Ivd7Gu4cBxKtNwodb3o'
 
@@ -15,7 +16,7 @@ function urlBase64ToUint8Array(base64: string) {
   const pad = '='.repeat((4 - base64.length % 4) % 4)
   const b64 = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/')
   const raw = window.atob(b64)
-  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
+  return Uint8Array.from(Array.from(raw).map(c => c.charCodeAt(0)))
 }
 
 type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
@@ -102,6 +103,7 @@ export default function StaffSettingsPage() {
 
   const { hasFeature } = useStoreFeatures(storeId)
   const isSimpleMode = !hasFeature('repairs_tab_purchase') && !hasFeature('repairs_tab_arrival')
+  const { setMode } = useDeviceMode()
 
   const [storeName,     setStoreName]     = useState('')
   const [loading,       setLoading]       = useState(true)
@@ -216,7 +218,7 @@ export default function StaffSettingsPage() {
         <div className="max-w-lg mx-auto px-4 py-5 space-y-4 pb-32">
 
           {/* ✂️ お直し項目・料金 */}
-          <Link href={`/${storeId}/admin/master?tab=presets`}
+          <Link href={`/${storeId}/admin/master/repair`}
             className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-indigo-200 hover:border-indigo-400 active:scale-[0.98] transition-all shadow-sm">
             <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center shrink-0">
               <Scissors size={28} className="text-indigo-600" />
@@ -227,6 +229,61 @@ export default function StaffSettingsPage() {
             </div>
             <ChevronRight size={20} className="text-indigo-400 shrink-0" />
           </Link>
+
+          {/* 👥 スタッフ（PIN確認・追加） */}
+          <Link href={`/${storeId}/admin/master?tab=staff`}
+            className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-emerald-200 hover:border-emerald-400 active:scale-[0.98] transition-all shadow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center shrink-0">
+              <Users size={28} className="text-emerald-600" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-black text-lg text-emerald-700">スタッフ</p>
+              <p className="text-sm text-gray-500 mt-0.5">スタッフの登録・PIN（個人番号）の確認</p>
+            </div>
+            <ChevronRight size={20} className="text-emerald-400 shrink-0" />
+          </Link>
+
+          {/* 🧵 お直し加工業者 */}
+          <Link href={`/${storeId}/admin/master/repair-vendors`}
+            className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-rose-200 hover:border-rose-400 active:scale-[0.98] transition-all shadow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-rose-100 flex items-center justify-center shrink-0 text-3xl">
+              🧵
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-black text-lg text-rose-700">お直し加工業者</p>
+              <p className="text-sm text-gray-500 mt-0.5">外注先の登録（受付でワンタップ選択）</p>
+            </div>
+            <ChevronRight size={20} className="text-rose-400 shrink-0" />
+          </Link>
+
+          {/* 📅 シフト管理 */}
+          {hasFeature('shift_management') && (
+            <Link href={`/${storeId}/admin/shifts`}
+              className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-blue-200 hover:border-blue-400 active:scale-[0.98] transition-all shadow-sm">
+              <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center shrink-0">
+                <CalendarDays size={28} className="text-blue-600" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-black text-lg text-blue-700">シフト管理</p>
+                <p className="text-sm text-gray-500 mt-0.5">スタッフのシフト・出勤管理</p>
+              </div>
+              <ChevronRight size={20} className="text-blue-400 shrink-0" />
+            </Link>
+          )}
+
+          {/* 💻 PCモード */}
+          <button
+            onClick={() => setMode('tablet')}
+            style={{ touchAction: 'manipulation' }}
+            className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-gray-200 hover:border-gray-400 active:scale-[0.98] transition-all shadow-sm w-full">
+            <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center shrink-0">
+              <Monitor size={28} className="text-gray-600" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-black text-lg text-gray-700">PCモードに切替</p>
+              <p className="text-sm text-gray-500 mt-0.5">タブレット・PCでの大画面表示に切替</p>
+            </div>
+          </button>
 
           {/* 🍀 かんたんLINEモード */}
           {hasFeature('kantan_line') && (
@@ -307,7 +364,7 @@ export default function StaffSettingsPage() {
         {/* 📋 マスタ管理 */}
         <Section emoji="📋" title="マスタ管理" open={openSections.has('master')} onToggle={() => toggleSection('master')}>
           <div className="grid grid-cols-2 gap-3">
-            <Link href={`/${storeId}/admin/master`}
+            <Link href={`/${storeId}/admin/master/manage`}
               className="flex flex-col gap-3 px-4 py-4 rounded-2xl bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 active:scale-[0.98] transition-all">
               <div className="flex items-center justify-between">
                 <div className="w-10 h-10 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center">
@@ -331,6 +388,32 @@ export default function StaffSettingsPage() {
               <div>
                 <p className="text-sm font-black text-violet-700">スタッフ</p>
                 <p className="text-xs text-violet-500 mt-0.5 leading-relaxed">スタッフ情報・役職・カラー</p>
+              </div>
+            </Link>
+            <Link href={`/${storeId}/admin/master/repair`}
+              className="flex flex-col gap-3 px-4 py-4 rounded-2xl bg-rose-50 border border-rose-200 hover:bg-rose-100 active:scale-[0.98] transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-rose-100 border border-rose-200 flex items-center justify-center">
+                  <Scissors size={20} className="text-rose-600" />
+                </div>
+                <ChevronRight size={14} className="text-rose-400" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-rose-700">お直しマスタ</p>
+                <p className="text-xs text-rose-500 mt-0.5 leading-relaxed">お直しの種類・料金・サイズ段階</p>
+              </div>
+            </Link>
+            <Link href={`/${storeId}/admin/master/repair-vendors`}
+              className="flex flex-col gap-3 px-4 py-4 rounded-2xl bg-pink-50 border border-pink-200 hover:bg-pink-100 active:scale-[0.98] transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-pink-100 border border-pink-200 flex items-center justify-center text-xl">
+                  🧵
+                </div>
+                <ChevronRight size={14} className="text-pink-400" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-pink-700">お直し加工業者</p>
+                <p className="text-xs text-pink-500 mt-0.5 leading-relaxed">外注先の登録（受付で選択）</p>
               </div>
             </Link>
           </div>
@@ -405,6 +488,31 @@ export default function StaffSettingsPage() {
 
         {/* 🏪 店舗・アカウント */}
         <Section emoji="🏪" title="店舗・アカウント" open={openSections.has('store')} onToggle={() => toggleSection('store')}>
+          {hasFeature('shift_management') && (
+            <Link href={`/${storeId}/admin/shifts`}
+              className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-gray-200 bg-gray-50 hover:bg-gray-100 active:scale-[0.98] transition-all">
+              <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
+                <CalendarDays size={26} className="text-blue-600" />
+              </div>
+              <div className="text-left flex-1">
+                <p className="font-black text-lg text-gray-700">シフト管理</p>
+                <p className="text-gray-500 text-sm mt-0.5">スタッフのシフト・出勤管理</p>
+              </div>
+              <ChevronRight size={18} className="text-gray-400 shrink-0" />
+            </Link>
+          )}
+          <button
+            onClick={() => setMode('tablet')}
+            style={{ touchAction: 'manipulation' }}
+            className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-gray-200 bg-gray-50 hover:bg-gray-100 active:scale-[0.98] transition-all">
+            <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center shrink-0">
+              <Monitor size={26} className="text-gray-600" />
+            </div>
+            <div className="text-left flex-1">
+              <p className="font-black text-lg text-gray-700">PCモードに切替</p>
+              <p className="text-gray-500 text-sm mt-0.5">タブレット・PCでの大画面表示に切替</p>
+            </div>
+          </button>
           <button
             onClick={() => {
               sessionStorage.removeItem('admin_auth')

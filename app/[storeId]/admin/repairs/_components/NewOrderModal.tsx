@@ -8,6 +8,8 @@ import {
 import { supabase } from '@/lib/supabase'
 import { compressImage } from './utils'
 import type { CustResult, CartItem } from './types'
+import { CustomerLinkSheet } from './CustomerLinkSheet'
+import { RecentCustomers, type RecentCust } from '../../_components/RecentCustomers'
 
 export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   storeId: string; onClose: () => void; onSave: () => void
@@ -15,6 +17,8 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
 }) {
   type OStep = 'customer' | 'products' | 'confirm'
   const [step,       setStep]       = useState<OStep>('customer')
+  const [confirmStep, setConfirmStep] = useState(0) // confirm内サブステップ
+  const [linkSheetOpen, setLinkSheetOpen] = useState(false) // 顧客インライン紐付け
   const [schools,    setSchools]    = useState<{ id: string; name: string }[]>([])
   const [schoolId,   setSchoolId]   = useState<string | null>(null)
   const [products,   setProducts]   = useState<{ id: string; item_name: string; category: string | null; gender: string | null; maker_code: string | null }[]>([])
@@ -28,6 +32,31 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   const [searching,     setSearching]     = useState(false)
   const [selectedCust,  setSelectedCust]  = useState<CustResult | null>(null)
   const [selectedChild, setSelectedChild] = useState<{ id: string; name: string; school_name: string | null } | null>(null)
+  // 電話番号で登録（いつでも・電話番号でOK）
+  const [phoneMode, setPhoneMode] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newTel, setNewTel] = useState('')
+  const [registering, setRegistering] = useState(false)
+
+  const handlePhoneRegister = async () => {
+    const tel = newTel.trim()
+    const digits = tel.replace(/[-\s]/g, '')
+    if (!newName.trim()) { onToast('err', 'お名前を入力してください'); return }
+    if (!/^\d{10,11}$/.test(digits)) { onToast('err', '電話番号は10〜11桁で入力してください'); return }
+    setRegistering(true)
+    const sel = 'id, name, tel, school_name, children:children(id, name, school_name)'
+    const { data: rows } = await (supabase as any).from('customers')
+      .select(sel).eq('store_id', storeId).eq('tel', tel).is('deleted_at', null).limit(1)
+    let cust: CustResult | undefined = rows?.[0]
+    if (!cust) {
+      const { data: c, error } = await (supabase as any).from('customers')
+        .insert({ store_id: storeId, name: newName.trim(), tel }).select(sel).single()
+      if (error) { setRegistering(false); onToast('err', error.message ?? '登録に失敗しました'); return }
+      cust = c as CustResult
+    }
+    setSelectedCust(cust!); setSelectedChild(null)
+    setShowReg(false); setPhoneMode(false); setNewName(''); setNewTel(''); setRegistering(false)
+  }
   const [showReg,       setShowReg]       = useState(false)
 
   const [priority,     setPriority]     = useState<'normal' | 'new_student'>('normal')
@@ -130,13 +159,12 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   }, [custSearch, storeId])
 
   const handleSave = async () => {
-    if (!selectedCust) return
     setSaving(true)
     const today = new Date().toISOString().slice(0, 10)
     const orderId = crypto.randomUUID()
     const { error: oErr } = await (supabase as any).from('uniform_orders').insert({
       id: orderId, store_id: storeId,
-      customer_id: selectedCust.id, child_id: selectedChild?.id ?? null,
+      customer_id: selectedCust?.id ?? null, child_id: selectedChild?.id ?? null,
       maker: maker.trim() || null,
       priority,
       status: 'confirmed', payment_status: prepaid ? 'paid' : 'unpaid',
@@ -165,6 +193,19 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   const stepLabels: Record<OStep, string> = { customer: '顧客選択', products: '商品選択', confirm: '確認・登録' }
   const steps: OStep[] = ['customer', 'products', 'confirm']
 
+  // confirm サブステップ（区分→納期→支払/メモ→確認）
+  const confirmStepDefs = [
+    { key: 'priority', label: '区分' },
+    { key: 'delivery', label: '納期' },
+    { key: 'pay',      label: '支払・メモ' },
+    { key: 'review',   label: '確認' },
+  ] as const
+  const curConfirmIdx = Math.min(confirmStep, confirmStepDefs.length - 1)
+  const curConfirmKey = confirmStepDefs[curConfirmIdx].key
+  const isLastConfirm = curConfirmKey === 'review'
+  const goBackConfirm = () => { if (curConfirmIdx <= 0) setStep('products'); else setConfirmStep(curConfirmIdx - 1) }
+  const goNextConfirm = () => { if (curConfirmIdx < confirmStepDefs.length - 1) setConfirmStep(curConfirmIdx + 1) }
+
   return (
     <div className="fixed inset-0 z-[60] bg-black/50 flex flex-col justify-end sm:justify-center sm:items-center sm:p-4">
       <div className="bg-white sm:rounded-3xl sm:max-w-lg w-full flex flex-col rounded-t-3xl overflow-hidden" style={{ maxHeight: '92dvh', paddingBottom: 'env(safe-area-inset-bottom)' }}>
@@ -173,7 +214,7 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
           <input ref={orderFileRef} type="file" accept="image/*" capture="environment" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleOcrOrder(f); e.target.value = '' }} />
           <div className="flex items-center gap-3 mb-3">
-            <button onClick={step === 'customer' ? onClose : () => setStep(step === 'confirm' ? 'products' : 'customer')}
+            <button onClick={step === 'customer' ? onClose : step === 'confirm' ? goBackConfirm : () => setStep('customer')}
               className="p-2 -ml-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-all">
               {step === 'customer' ? <X size={18} /> : <ChevronLeft size={18} />}
             </button>
@@ -181,13 +222,19 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
               <p className="font-black text-gray-900 text-sm">📋 制服・用品注文</p>
               <p className="text-xs text-gray-400 font-medium">{stepLabels[step]}</p>
             </div>
+            {step !== 'customer' && (
+              <button onClick={() => setLinkSheetOpen(true)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border max-w-[32%] truncate shrink-0 ${selectedCust ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-amber-50 border-amber-300 text-amber-700'}`}>
+                {selectedCust ? `👤 ${selectedChild?.name ?? selectedCust.name}` : '＋顧客'}
+              </button>
+            )}
             <button onClick={() => orderFileRef.current?.click()} disabled={ocrLoading}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-60 shrink-0">
               {ocrLoading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
               {ocrLoading ? '解析中...' : '伝票読取'}
             </button>
             {cart.length > 0 && step === 'products' && (
-              <button onClick={() => setStep('confirm')}
+              <button onClick={() => { setStep('confirm'); setConfirmStep(0) }}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-xl">
                 <ShoppingCart size={13} />{cart.length}点 次へ
               </button>
@@ -286,7 +333,7 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                       <p className="text-xs text-gray-500">{cart.length}点 合計</p>
                       <p className="font-black text-lg text-gray-900">¥{cartTotal.toLocaleString()}</p>
                     </div>
-                    <button onClick={() => setStep('confirm')}
+                    <button onClick={() => { setStep('confirm'); setConfirmStep(0) }}
                       className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-sm rounded-2xl active:scale-95 transition-all">
                       次へ →
                     </button>
@@ -308,16 +355,31 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                       className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-sm focus:border-indigo-500 focus:outline-none" />
                   </div>
                   {searching && <div className="text-center py-4"><Loader2 size={20} className="animate-spin text-indigo-400 mx-auto" /></div>}
+                  <RecentCustomers
+                    storeId={storeId}
+                    visible={custSearch.trim() === '' && !showReg}
+                    withChildren
+                    onPick={(c: RecentCust, ch) => { setSelectedCust({ id: c.id, name: c.name, tel: c.tel, school_name: c.school_name ?? null, children: c.children }); setSelectedChild(ch); setShowReg(false) }}
+                  />
                   <div className="space-y-2">
                     {custResults.map(c => (
-                      <button key={c.id} onClick={() => { setSelectedCust(c); setShowReg(false) }}
-                        className="w-full text-left px-4 py-3.5 bg-gray-50 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-300 rounded-2xl transition-all active:scale-[0.98]">
-                        <p className="font-black text-gray-900">{c.name}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{[c.school_name, c.tel].filter(Boolean).join(' · ')}</p>
-                        {c.children && c.children.length > 0 && (
-                          <p className="text-[10px] text-gray-400 mt-0.5">お子様: {c.children.map(ch => ch.name).join('、')}</p>
-                        )}
-                      </button>
+                      (c.children && c.children.length > 0) ? (
+                        // 子ども（生徒）を主役に表示。タップで保護者＋子を即リンク
+                        c.children.map(ch => (
+                          <button key={ch.id} onClick={() => { setSelectedCust(c); setSelectedChild(ch); setShowReg(false) }}
+                            className="w-full text-left px-4 py-3.5 bg-gray-50 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-300 rounded-2xl transition-all active:scale-[0.98]">
+                            {ch.school_name && <p className="text-[10px] font-black text-amber-600">{ch.school_name}</p>}
+                            <p className="font-black text-gray-900">{ch.name}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">保護者: {c.name}{c.tel ? ` · ${c.tel}` : ''}</p>
+                          </button>
+                        ))
+                      ) : (
+                        <button key={c.id} onClick={() => { setSelectedCust(c); setSelectedChild(null); setShowReg(false) }}
+                          className="w-full text-left px-4 py-3.5 bg-gray-50 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-300 rounded-2xl transition-all active:scale-[0.98]">
+                          <p className="font-black text-gray-900">{c.name}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{[c.school_name, c.tel].filter(Boolean).join(' · ')}</p>
+                        </button>
+                      )
                     ))}
                   </div>
                   {/* 新規顧客登録（常時表示） */}
@@ -328,8 +390,28 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                     </button>
                   )}
                   {showReg && (
-                    <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-4 text-center space-y-3">
-                      <p className="text-xs font-black text-indigo-800">お客様にQRを読み取ってもらってください</p>
+                    <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-4 space-y-3">
+                      {/* 電話番号で登録（いつでも・電話番号でOK） */}
+                      {phoneMode ? (
+                        <div className="space-y-2 text-left">
+                          <p className="text-xs font-black text-indigo-800">電話番号で登録・紐付け</p>
+                          <input className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-indigo-500" placeholder="お名前" value={newName} onChange={e => setNewName(e.target.value)} />
+                          <input className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-indigo-500" type="tel" inputMode="numeric" placeholder="電話番号（携帯可）" value={newTel} onChange={e => setNewTel(e.target.value)} />
+                          <div className="flex gap-2">
+                            <button onClick={() => { setPhoneMode(false); setNewName(''); setNewTel('') }} className="flex-1 py-2.5 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-bold">戻る</button>
+                            <button onClick={handlePhoneRegister} disabled={registering} className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-black flex items-center justify-center gap-1.5 disabled:opacity-50">
+                              {registering ? <Loader2 size={16} className="animate-spin" /> : '✓'}登録して選択
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button onClick={() => { setPhoneMode(true); if (!newName && custSearch && !/\d/.test(custSearch)) setNewName(custSearch.trim()) }}
+                          className="w-full py-3 rounded-xl bg-indigo-600 text-white text-sm font-black flex items-center justify-center gap-1.5">
+                          📞 電話番号で登録する
+                        </button>
+                      )}
+                      <div className="border-t border-indigo-200 pt-3 text-center space-y-3">
+                      <p className="text-xs font-black text-indigo-800">またはLINEで登録（QRを読み取ってもらう）</p>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=${encodeURIComponent(`https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || ''}/${storeId}`)}`}
@@ -343,11 +425,17 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                         className="w-full py-2 text-xs font-bold text-gray-600 border border-gray-200 rounded-xl hover:bg-white active:scale-[0.98]">
                         閉じる
                       </button>
+                      </div>
                     </div>
                   )}
                   {custSearch.length === 0 && !showReg && (
                     <p className="text-sm text-center text-gray-400 py-4">名前を入力して顧客を検索してください</p>
                   )}
+                  {/* 顧客は後で紐付け（先に商品選択でもOK） */}
+                  <button onClick={() => setStep('products')}
+                    className="w-full py-2.5 text-sm font-bold text-gray-500 rounded-2xl hover:bg-gray-50">
+                    顧客は後で紐付け → 先に商品を選ぶ
+                  </button>
                 </>
               ) : (
                 <>
@@ -394,6 +482,7 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
           {/* ── Step 3: 確認 ── */}
           {step === 'confirm' && (
             <div className="p-4 space-y-4">
+              {curConfirmKey === 'review' && (<>
               {/* カートサマリー */}
               <div className="bg-gray-50 rounded-2xl overflow-hidden">
                 <div className="px-4 py-2.5 border-b border-gray-200">
@@ -420,12 +509,18 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
               <div className="bg-gray-50 rounded-2xl px-4 py-3 flex items-center gap-2">
                 <User size={14} className="text-gray-400" />
                 <div>
-                  <p className="text-sm font-bold text-gray-900">{selectedCust?.name}</p>
+                  {selectedCust ? (
+                    <p className="text-sm font-bold text-gray-900">{selectedCust.name}</p>
+                  ) : (
+                    <button onClick={() => setStep('customer')} className="text-sm font-bold text-amber-600">＋ 顧客を紐付け（任意）</button>
+                  )}
                   {selectedChild && <p className="text-xs text-gray-500">お子様: {selectedChild.name}</p>}
                 </div>
               </div>
+              </>)}
 
               {/* 優先区分 */}
+              {curConfirmKey === 'priority' && (
               <div>
                 <label className="text-xs font-bold text-gray-600 block mb-1.5">注文区分</label>
                 <div className="flex gap-2">
@@ -443,16 +538,20 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                   ))}
                 </div>
               </div>
+              )}
 
               {/* メーカー */}
+              {curConfirmKey === 'pay' && (
               <div>
                 <label className="text-xs font-bold text-gray-600 block mb-1.5">発注メーカー</label>
                 <input type="text" value={maker} onChange={e => setMaker(e.target.value)}
                   placeholder="例: 菅公学生服、明石スクールユニフォームカンパニー"
                   className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
               </div>
+              )}
 
               {/* 希望お渡し日 */}
+              {curConfirmKey === 'delivery' && (
               <div>
                 <label className="text-xs font-bold text-gray-600 block mb-1.5">希望お渡し日</label>
                 <div className="flex gap-1.5 flex-wrap mb-2">
@@ -471,16 +570,20 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                   min={new Date().toISOString().slice(0, 10)}
                   className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
               </div>
+              )}
 
               {/* メモ */}
+              {curConfirmKey === 'pay' && (
               <div>
                 <label className="text-xs font-bold text-gray-600 block mb-1.5">備考・メモ</label>
                 <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
                   placeholder="申し送り事項など"
                   className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
               </div>
+              )}
 
               {/* 支払い */}
+              {curConfirmKey === 'pay' && (
               <button type="button" onClick={() => setPrepaid(v => !v)}
                 className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${prepaid ? 'border-emerald-500 bg-emerald-500/10' : 'border-red-400 bg-red-50'}`}>
                 <div className="text-left">
@@ -493,16 +596,35 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                   <div className={`w-5 h-5 bg-white rounded-full mt-0.5 shadow-lg transition-transform ${prepaid ? 'translate-x-6' : 'translate-x-0.5'}`} />
                 </div>
               </button>
+              )}
 
-              <button onClick={handleSave} disabled={saving || cart.length === 0}
-                className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50 shadow-lg shadow-indigo-500/25">
-                {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
-                注文を登録する（{cart.length}点 ¥{cartTotal.toLocaleString()}）
-              </button>
+              {/* フッターナビ（区分→納期→支払・メモ→確認） */}
+              <div className="flex gap-2 pt-1">
+                <button onClick={goBackConfirm} className="flex-1 py-3.5 rounded-2xl bg-white border-2 border-gray-200 text-gray-600 font-black">戻る</button>
+                {isLastConfirm ? (
+                  <button onClick={handleSave} disabled={saving || cart.length === 0}
+                    className="flex-[2] py-3.5 bg-indigo-600 text-white font-black rounded-2xl flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-indigo-500/25">
+                    {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+                    登録（{cart.length}点 ¥{cartTotal.toLocaleString()}）
+                  </button>
+                ) : (
+                  <button onClick={goNextConfirm} className="flex-[2] py-3.5 bg-indigo-600 text-white font-black rounded-2xl">次へ</button>
+                )}
+              </div>
             </div>
           )}
         </div>
       </div>
+      {linkSheetOpen && (
+        <CustomerLinkSheet
+          storeId={storeId}
+          selectedCust={selectedCust}
+          selectedChild={selectedChild}
+          onSelect={(c, ch) => { setSelectedCust(c); setSelectedChild(ch) }}
+          onClear={() => { setSelectedCust(null); setSelectedChild(null) }}
+          onClose={() => setLinkSheetOpen(false)}
+        />
+      )}
     </div>
   )
 }

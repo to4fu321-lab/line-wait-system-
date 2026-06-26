@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Loader2, ChevronDown, ChevronUp,
   Phone, User, Check, RotateCcw,
-  Banknote, Pencil, Truck, Trash2,
+  Banknote, Pencil, Truck, Trash2, Camera, X, ChevronRight,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { REPAIR_PHOTOS_BUCKET } from '@/types/repair'
+import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import {
   REPAIR_STATUS_LABELS, REPAIR_STATUS_COLORS,
   REQUEST_TYPE_LABELS, REQUEST_TYPE_COLORS,
@@ -31,6 +33,13 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [confirmVendor, setConfirmVendor] = useState(false)
   const [vendorName,    setVendorName]    = useState('')
+  const [completionPhotos, setCompletionPhotos] = useState<{ file: File; url: string }[]>([])
+  const [repairPhotos, setRepairPhotos] = useState<{ phase: string; url: string }[] | null>(null)
+  const [photosOpen,   setPhotosOpen]   = useState(false)
+  const photosLoadedRef = useRef(false)
+
+  const { hasFeature } = useStoreFeatures(storeId)
+  const smsEnabled = hasFeature('sms_notify') // アドオン未契約なら false → 電話連絡ステップ
 
   const reqType = (item.request_type ?? 'repair') as RequestType
   const name    = item.child?.name ?? item.customer?.name ?? '（顧客不明）'
@@ -41,6 +50,40 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
   const daysLeft   = deadlineDate ? Math.floor((deadlineDate.getTime() - today.getTime()) / 86400000) : null
   const isOverdue  = daysLeft !== null && daysLeft < 0
   const isDueSoon  = daysLeft !== null && daysLeft >= 0 && daysLeft <= 1
+
+  const pubUrl = (path: string) =>
+    supabase.storage.from(REPAIR_PHOTOS_BUCKET).getPublicUrl(path).data.publicUrl
+
+  async function uploadCompletionPhotos() {
+    for (let i = 0; i < completionPhotos.length; i++) {
+      const f = completionPhotos[i].file
+      const ext = f.name.split('.').pop() || 'jpg'
+      const path = `repairs/${storeId}/${item.id}/after_${Date.now()}_${i}.${ext}`
+      const { error } = await supabase.storage.from(REPAIR_PHOTOS_BUCKET).upload(path, f, { upsert: true })
+      if (!error) {
+        await (supabase as any).from('repair_photos').insert({
+          store_id: storeId, repair_id: item.id, phase: 'after', path, url: pubUrl(path),
+        })
+      }
+    }
+    setCompletionPhotos([])
+    photosLoadedRef.current = false  // invalidate cache so display refreshes
+    setRepairPhotos(null)
+  }
+
+  // lazy-load photos when card is expanded (full mode) or photos panel opened
+  useEffect(() => {
+    if ((!open && !photosOpen) || photosLoadedRef.current) return
+    photosLoadedRef.current = true
+    ;(async () => {
+      const { data } = await (supabase as any)
+        .from('repair_photos')
+        .select('phase, url')
+        .eq('repair_id', item.id)
+        .order('created_at', { ascending: true })
+      setRepairPhotos(data ?? [])
+    })()
+  }, [open, photosOpen, item.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function update(patch: Record<string, unknown>, msg: string, undoPatch?: Record<string, unknown>) {
     setLoading(true)
@@ -141,22 +184,25 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
     const reqNo = fmtReqNo('repair', item.request_no, item.id)
     const hasLine = !!item.customer?.line_user_id
     const hasTel  = !!item.customer?.tel
-    const notifyMode: 'line' | 'sms' | 'none' =
-      hasLine ? 'line' : hasTel ? 'sms' : 'none'
+    // SMSアドオン未契約(smsEnabled=false)で電話のみの顧客は「電話連絡」運用
+    const notifyMode: 'line' | 'sms' | 'phone_manual' | 'none' =
+      hasLine ? 'line' : hasTel ? (smsEnabled ? 'sms' : 'phone_manual') : 'none'
     const completeBtnLabel =
-      notifyMode === 'line' ? '✅ お直し完了・LINE通知する' :
-      notifyMode === 'sms'  ? '✅ お直し完了・SMS通知する' :
-                              '✅ お直し完了'
+      notifyMode === 'line'         ? '✅ お直し完了・LINE通知する' :
+      notifyMode === 'sms'          ? '✅ お直し完了・SMS通知する' :
+      notifyMode === 'phone_manual' ? '✅ お直し完了（電話連絡）' :
+                                      '✅ お直し完了'
     const confirmText =
       notifyMode === 'line' ? 'LINEで通知して完了にしますか？' :
       notifyMode === 'sms'  ? 'SMSで通知して完了にしますか？' :
                               '完了にしますか？（通知なし）'
     const completeToast =
-      notifyMode === 'line' ? '✅ お直し完了・LINEで通知しました' :
-      notifyMode === 'sms'  ? '✅ お直し完了・SMSで通知しました' :
-                              '✅ お直し完了にしました'
+      notifyMode === 'line'         ? '✅ お直し完了・LINEで通知しました' :
+      notifyMode === 'sms'          ? '✅ お直し完了・SMSで通知しました' :
+      notifyMode === 'phone_manual' ? '✅ お直し完了にしました' :
+                                      '✅ お直し完了にしました'
 
-    async function handlePaymentToggle() {
+    const handlePaymentToggle = async () => {
       const newPrepaid = !item.prepaid
       setLoading(true)
       const { error } = await (supabase as any).from('repair_histories')
@@ -177,14 +223,17 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       )
     }
 
-    async function handleSimpleComplete() {
+    const handleSimpleComplete = async () => {
       setLoading(true)
+      if (completionPhotos.length > 0) await uploadCompletionPhotos()
       const today = new Date().toISOString().slice(0, 10)
+      // 電話連絡運用は手動連絡済みなので notified:true で確定（SMS送信はしない）
+      const markNotified = notifyMode === 'phone_manual'
       const { error } = await (supabase as any).from('repair_histories')
-        .update({ status: 'completed', completed_date: today, work_started: true, updated_at: new Date().toISOString() })
+        .update({ status: 'completed', completed_date: today, work_started: true, ...(markNotified ? { notified: true } : {}), updated_at: new Date().toISOString() })
         .eq('id', item.id)
       if (error) { setLoading(false); onToast('err', '更新に失敗しました'); return }
-      if (notifyMode !== 'none') {
+      if (notifyMode === 'line' || notifyMode === 'sms') {
         try {
           const res = await fetch('/api/notify-repair', {
             method: 'POST',
@@ -218,7 +267,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       onToast('ok', completeToast)
     }
 
-    async function handleSendToVendor() {
+    const handleSendToVendor = async () => {
       setLoading(true)
       const { error } = await (supabase as any).from('repair_histories')
         .update({
@@ -235,7 +284,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       onToast('ok', '📤 外注に出しました')
     }
 
-    async function handleReturnFromVendor() {
+    const handleReturnFromVendor = async () => {
       setLoading(true)
       const { error } = await (supabase as any).from('repair_histories')
         .update({ work_started: true, updated_at: new Date().toISOString() })
@@ -246,7 +295,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       onToast('ok', '📥 外注品が戻りました')
     }
 
-    async function handleSimpleRevert() {
+    const handleSimpleRevert = async () => {
       setLoading(true)
       const { error } = await (supabase as any).from('repair_histories')
         .update({ status: 'received', work_started: false, completed_date: null, notified: false, sent_to_vendor_at: null, vendor_name: null, updated_at: new Date().toISOString() })
@@ -337,8 +386,36 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
 
           {/* メインアクション（完了） */}
           {confirmPrimary ? (
+            notifyMode === 'phone_manual' ? (
+              /* SMS未契約: 電話連絡をうながす2ステップ */
+              <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 px-3 py-2.5 space-y-2">
+                <p className="text-sm text-center text-emerald-800 font-black">📞 お客様へ電話連絡をしてください</p>
+                {item.customer?.tel && (
+                  <a href={`tel:${item.customer.tel}`}
+                    className="flex items-center justify-center gap-2 py-2 rounded-xl bg-white border-2 border-emerald-200 text-emerald-700 text-base font-black active:scale-95 transition-all"
+                    style={{ touchAction: 'manipulation' }}>
+                    <Phone size={16} /> {item.customer.tel} に発信
+                  </a>
+                )}
+                <CompletionPhotoCapture photos={completionPhotos} onAdd={f => setCompletionPhotos(cp => [...cp, f])} onRemove={i => setCompletionPhotos(cp => cp.filter((_, j) => j !== i))} />
+                <div className="flex gap-2">
+                  <button onClick={() => setConfirmPrimary(false)}
+                    className="flex-1 py-2 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-black active:scale-95 transition-all"
+                    style={{ touchAction: 'manipulation' }}>
+                    戻る
+                  </button>
+                  <button onClick={() => { setConfirmPrimary(false); handleSimpleComplete() }} disabled={loading}
+                    className="flex-1 py-2 rounded-xl bg-emerald-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md disabled:opacity-50"
+                    style={{ touchAction: 'manipulation' }}>
+                    {loading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                    電話連絡完了
+                  </button>
+                </div>
+              </div>
+            ) : (
             <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 px-3 py-2.5 space-y-2">
               <p className="text-sm text-center text-emerald-800 font-black">{confirmText}</p>
+              <CompletionPhotoCapture photos={completionPhotos} onAdd={f => setCompletionPhotos(cp => [...cp, f])} onRemove={i => setCompletionPhotos(cp => cp.filter((_, j) => j !== i))} />
               <div className="flex gap-2">
                 <button onClick={() => setConfirmPrimary(false)}
                   className="flex-1 py-2 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-black active:scale-95 transition-all"
@@ -353,6 +430,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                 </button>
               </div>
             </div>
+            )
           ) : (
             <button onClick={() => setConfirmPrimary(true)} disabled={loading}
               style={{ touchAction: 'manipulation' }}
@@ -405,6 +483,30 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
               {loading ? <Loader2 size={16} className="animate-spin" /> : '📥'}
               外注品が戻った → 作業へ
             </button>
+          )}
+
+          {/* 写真 (簡易表示) */}
+          <button onClick={() => setPhotosOpen(v => !v)}
+            className="flex items-center gap-1 text-[11px] text-gray-400 font-bold py-0.5">
+            <Camera size={11} className="shrink-0" />
+            写真{repairPhotos && repairPhotos.length > 0 ? ` (${repairPhotos.length})` : ''}
+            <ChevronRight size={10} className={`transition-transform ${photosOpen ? 'rotate-90' : ''}`} />
+          </button>
+          {photosOpen && (
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {repairPhotos == null ? (
+                <Loader2 size={14} className="animate-spin text-gray-300" />
+              ) : repairPhotos.length === 0 ? (
+                <p className="text-[10px] text-gray-300">写真なし</p>
+              ) : repairPhotos.map((p, i) => (
+                <div key={i} className="relative w-14 h-14 shrink-0">
+                  <img src={p.url} alt="" className="w-full h-full object-cover rounded-lg border" />
+                  <span className={`absolute bottom-0 left-0 right-0 text-center text-[8px] py-0.5 rounded-b-lg ${p.phase === 'after' ? 'bg-emerald-600/70 text-white' : 'bg-black/40 text-white'}`}>
+                    {p.phase === 'after' ? '完了時' : '受付時'}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
 
           {/* 下部ロウ: 電話 + 受付に戻す + 削除 */}
@@ -558,12 +660,17 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                   <p className="text-xs text-center text-gray-600 font-bold">
                     もう一度タップして確定します
                   </p>
+                  <CompletionPhotoCapture photos={completionPhotos} onAdd={f => setCompletionPhotos(cp => [...cp, f])} onRemove={i => setCompletionPhotos(cp => cp.filter((_, j) => j !== i))} />
                   <div className="flex gap-2">
                     <button onClick={() => setConfirmPrimary(false)}
                       className="flex-1 py-3 rounded-xl bg-white border border-gray-200 text-gray-600 text-sm font-bold active:scale-95 transition-all">
                       戻る
                     </button>
-                    <button onClick={() => { setConfirmPrimary(false); primaryBtn.onClick() }} disabled={loading}
+                    <button onClick={async () => {
+                      setConfirmPrimary(false)
+                      if (completionPhotos.length > 0) { setLoading(true); await uploadCompletionPhotos(); setLoading(false) }
+                      primaryBtn.onClick()
+                    }} disabled={loading}
                       className={`flex-1 py-3 rounded-xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-all shadow-sm ${primaryBtn.color}`}>
                       {loading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                       確定する
@@ -616,6 +723,23 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                   戻り予定: {fmtDate(item.expected_return_date)}
                 </span>
               )}
+            </div>
+          )}
+
+          {/* 写真（受付時 + 完了時） */}
+          {repairPhotos && repairPhotos.length > 0 && (
+            <div>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1.5">📸 写真</p>
+              <div className="flex flex-wrap gap-2">
+                {repairPhotos.map((p, i) => (
+                  <div key={i} className="relative w-20 h-20 shrink-0">
+                    <img src={p.url} alt="" className={`w-full h-full object-cover rounded-xl border-2 ${p.phase === 'after' ? 'border-emerald-400' : 'border-gray-200'}`} />
+                    <span className={`absolute bottom-0 left-0 right-0 text-center text-[8px] py-0.5 rounded-b-xl font-bold ${p.phase === 'after' ? 'bg-emerald-600/80 text-white' : 'bg-black/40 text-white'}`}>
+                      {p.phase === 'after' ? '完了時' : '受付時'}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -739,3 +863,49 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
     </div>
   )
 }
+
+// ── 完了写真撮影サブコンポーネント ──────────────────────────────────────────
+function CompletionPhotoCapture({
+  photos,
+  onAdd,
+  onRemove,
+}: {
+  photos: { file: File; url: string }[]
+  onAdd:  (p: { file: File; url: string }) => void
+  onRemove: (i: number) => void
+}) {
+  return (
+    <div className="space-y-1">
+      <p className="text-[10px] font-black text-gray-500">📸 完了写真（任意・価格参照・実績蓄積）</p>
+      <div className="flex flex-wrap gap-1.5">
+        {photos.map((p, i) => (
+          <div key={i} className="relative w-14 h-14 shrink-0">
+            <img src={p.url} alt="" className="w-full h-full object-cover rounded-xl border border-emerald-300" />
+            <button
+              type="button"
+              onClick={() => onRemove(i)}
+              className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 shadow">
+              <X size={10} />
+            </button>
+          </div>
+        ))}
+        <label className="w-14 h-14 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer active:bg-gray-50 shrink-0">
+          <Camera size={16} className="text-gray-400" />
+          <span className="text-[9px] text-gray-400 mt-0.5">撮影</span>
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={e => {
+              const f = e.target.files?.[0]
+              if (f) onAdd({ file: f, url: URL.createObjectURL(f) })
+              e.target.value = ''
+            }}
+          />
+        </label>
+      </div>
+    </div>
+  )
+}
+

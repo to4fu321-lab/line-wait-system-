@@ -167,7 +167,7 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
   }, [storeId])
 
   const loadSettings = useCallback(async () => {
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from('stores')
       .select('name, takeout_settings')
       .eq('id', storeId)
@@ -261,7 +261,7 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
 
   const insertTestOrder = async () => {
     unlockAudio()  // Realtimeで音が鳴る前に AudioContext を解除しておく
-    const { data: orderNumber } = await supabase
+    const { data: orderNumber } = await (supabase as any)
       .rpc('get_next_order_number', { p_store_id: storeId })
     if (!orderNumber) return
 
@@ -289,7 +289,7 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
       .single()
 
     if (order) {
-      await supabase.from('takeout_order_items').insert(
+      await (supabase as any).from('takeout_order_items').insert(
         items.map(i => ({
           order_id:   (order as { id: string }).id,
           name:       i.name,

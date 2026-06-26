@@ -102,7 +102,7 @@ export function NewIntakeForm({ customerId, childId, storeId, reservationUrl, on
     if (intakeType === 'repair' && !content.trim()) { setError('お直し内容を入力してください'); return }
     setLoading(true); setError(null)
     if (opt.isPurchase) {
-      const { error: err } = await supabase.from('purchase_orders').insert({
+      const { error: err } = await (supabase as any).from('purchase_orders').insert({
         store_id: storeId, customer_id: customerId,
         child_id: childId ?? null,
         item_name: itemName.trim(),

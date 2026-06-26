@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { getLiffBaseUrl, getLineToken } from '@/lib/line-config'
+import { pushCard } from '@/lib/line-flex'
 
 const TOKEN    = getLineToken('uniform')
 const LIFF_URL = getLiffBaseUrl('uniform')
@@ -45,43 +46,30 @@ export async function POST(req: NextRequest) {
   }
 
   const storeName  = store?.name ?? ''
-  const storeLabel = storeName ? `【${storeName}】` : ''
-  const itemLines  = (order.items as { item_name: string; quantity: number }[] ?? [])
-    .map(i => `・${i.item_name}${i.quantity > 1 ? ` ×${i.quantity}` : ''}`)
-    .join('\n')
-  const priceText  = order.total_amount != null ? `\n合計：¥${order.total_amount.toLocaleString()}` : ''
-  const notesText  = order.notes ? `\n備考：${order.notes}` : ''
-  const storeUrl   = store?.id ? `\n\n▼ 店舗ページ\n${LIFF_URL}/${store.id}` : ''
+  const bodyLines  = (order.items as { item_name: string; quantity: number }[] ?? [])
+    .map(i => `${i.item_name}${i.quantity > 1 ? ` ×${i.quantity}` : ''}`)
+  if (order.total_amount != null) bodyLines.push(`合計：¥${order.total_amount.toLocaleString()}`)
+  if (order.notes) bodyLines.push(`備考：${order.notes}`)
+  const storeUrl = store?.id ? `${LIFF_URL}/${store.id}` : undefined
 
-  const messageText =
-    `📋 制服のご注文を受け付けました！\n\n${storeLabel}\n${customer.name} 様\n\n` +
-    `${itemLines}${priceText}${notesText}\n\n` +
-    `商品の準備ができましたらご連絡いたします。\n` +
-    `しばらくお待ちください。${storeUrl}`
+  const result = await pushCard(TOKEN, customer.line_user_id, `制服ご注文受付 ${customer.name} 様`, {
+    kind: 'order',
+    title: '制服のご注文を受け付けました',
+    storeName: storeName || undefined,
+    customerName: customer.name,
+    bodyLines: bodyLines.length ? bodyLines : undefined,
+    steps: [{ label: 'ご注文受付' }, { label: '商品準備中' }, { label: '入荷・準備完了' }, { label: 'お渡し' }],
+    currentStep: 0,
+    note: '商品の準備ができましたらご連絡いたします。\nしばらくお待ちください。',
+    buttonLabel: storeUrl ? '店舗ページを開く' : undefined,
+    buttonUrl: storeUrl,
+  })
 
-  try {
-    const res = await fetch('https://api.line.me/v2/bot/message/push', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization:  `Bearer ${TOKEN}`,
-      },
-      body: JSON.stringify({
-        to:       customer.line_user_id,
-        messages: [{ type: 'text', text: messageText }],
-      }),
-    })
-
-    if (!res.ok) {
-      const err = await res.text()
-      console.error('[notify-uniform] LINE API Error:', err)
-      return NextResponse.json({ ok: false, error: `LINE API ${res.status}: ${err}` }, { status: 500 })
-    }
-
-    console.log(`[notify-uniform] 通知送信 order=${uniformOrderId} customer=${customer.name}`)
-    return NextResponse.json({ ok: true, notified: true })
-  } catch (e) {
-    console.error('[notify-uniform] LINE fetch error:', e)
-    return NextResponse.json({ ok: false, error: `LINE fetch error: ${String(e)}` }, { status: 500 })
+  if (!result.ok) {
+    console.error('[notify-uniform] LINE API Error:', result.error)
+    return NextResponse.json({ ok: false, error: `LINE API ${result.status ?? ''}: ${result.error}` }, { status: 500 })
   }
+
+  console.log(`[notify-uniform] 通知送信 order=${uniformOrderId} customer=${customer.name}`)
+  return NextResponse.json({ ok: true, notified: true })
 }

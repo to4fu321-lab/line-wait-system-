@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useParams } from 'next/navigation'
-import { Loader2, CheckCircle2, MessageCircle, AlertCircle, Plus, User, ChevronRight, ChevronDown } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { useParams, useRouter } from 'next/navigation'
+import { Loader2, CheckCircle2, MessageCircle, AlertCircle, Plus, User, ChevronRight, ChevronDown, ClipboardList } from 'lucide-react'
+import { supabase, getTodayStart } from '@/lib/supabase'
 import { initLiff, getLineProfile, openAddFriend } from '@/lib/liff'
+import { resolveFeature } from '@/lib/features'
 import type { Customer } from '@/types/crm'
 
 type View = 'loading' | 'add_friend' | 'existing' | 'new_form' | 'confirm' | 'done' | 'not_line'
@@ -30,12 +31,16 @@ function toKatakana(str: string): string {
 
 export default function CrmRegisterPage() {
   const { storeId } = useParams<{ storeId: string }>()
+  const router      = useRouter()
 
   const [view,            setView]            = useState<View>('loading')
   const [lineUserId,      setLineUserId]      = useState('')
   const [lineDisplayName, setLineDisplayName] = useState('')
   const [storeName,       setStoreName]       = useState('')
   const [existingList,    setExistingList]    = useState<Customer[]>([])
+  // 店舗機能フラグ（受付番号発行・セルフ依頼入力）
+  const [queueEnabled,      setQueueEnabled]      = useState(false)
+  const [selfIntakeEnabled, setSelfIntakeEnabled] = useState(false)
 
   // フォームフィールド
   const [name,            setName]            = useState('')
@@ -49,6 +54,8 @@ export default function CrmRegisterPage() {
   const [saving,          setSaving]          = useState(false)
   const [errorMsg,        setErrorMsg]        = useState('')
   const [doneName,        setDoneName]        = useState('')
+  const [ticketNumber,    setTicketNumber]    = useState<number | null>(null)
+  const [doneCustomerId,  setDoneCustomerId]  = useState<string | null>(null)
   const [confirmCustomer, setConfirmCustomer] = useState<Customer | null>(null)
   const [checking,        setChecking]        = useState(false)
   const [friendFailed,    setFriendFailed]    = useState(false)
@@ -105,8 +112,11 @@ export default function CrmRegisterPage() {
   useEffect(() => {
     if (!storeId) return
     ;(async () => {
-      const { data: sd } = await supabase.from('stores').select('name').eq('id', storeId).single()
+      const { data: sd } = await (supabase as any).from('stores').select('name, features').eq('id', storeId).single()
       if (sd?.name) setStoreName(sd.name)
+      const features = (sd?.features ?? {}) as Record<string, unknown>
+      setQueueEnabled(resolveFeature('tab_queue', features))
+      setSelfIntakeEnabled(resolveFeature('customer_self_intake', features))
 
       const liff = await initLiff()
       if (!liff) { setView('not_line'); return }
@@ -148,10 +158,92 @@ export default function CrmRegisterPage() {
     setChecking(false)
   }
 
+  // 受付チケットの確保:
+  // 当日の待機・呼出中チケットがあれば顧客を紐付けて番号を再利用、
+  // なければ新規発行（受付番号で店側端末に即時表示される）。
+  // 受付タブ非対応プランの店舗では受付番号は発行せず、
+  // 「誰が登録したか」を店側へ知らせる通知のみ送る。
+  const ensureTicket = async (cust: Customer): Promise<number | null> => {
+    if (!lineUserId) return null
+
+    if (!queueEnabled) {
+      // 受付番号の概念が無い店舗 → 新規登録の通知のみ（検索不要で誰か分かる）
+      fetch('/api/push-admin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storeId,
+          type:  'customer_register',
+          title: `📱 新規登録：${cust.name} 様`,
+          body:  `${cust.school_name ? `${cust.school_name} · ` : ''}お客様が登録を完了しました`,
+          url:   `/${storeId}/admin/crm`,
+        }),
+      }).catch(() => {})
+      return null
+    }
+
+    try {
+      const { data: existing } = await (supabase as any).from('queues')
+        .select('id, ticket_number')
+        .eq('store_id', storeId)
+        .eq('line_user_id', lineUserId)
+        .in('status', ['waiting', 'calling'])
+        .gte('created_at', getTodayStart())
+        .order('created_at', { ascending: false })
+
+      if (existing && existing.length > 0) {
+        await (supabase as any).from('queues')
+          .update({ customer_name: cust.name, customer_id: cust.id })
+          .in('id', existing.map((e: any) => e.id))
+        return existing[0].ticket_number
+      }
+
+      const { data: nextNum, error: numErr } = await (supabase as any)
+        .rpc('get_next_ticket_number', { p_store_id: storeId })
+      if (numErr || nextNum == null) return null
+
+      const { data: t, error } = await (supabase as any).from('queues').insert({
+        store_id:      storeId,
+        ticket_number: nextNum as number,
+        status:        'waiting',
+        customer_name: cust.name,
+        school_name:   cust.school_name ?? null,
+        category:      'other',
+        gender:        (cust.gender === 'male' || cust.gender === 'female') ? cust.gender : 'other',
+        line_user_id:  lineUserId,
+        is_remote:     false,
+        checked_in:    true,
+        customer_id:   cust.id,
+        details:       { source: 'crm_register' },
+      }).select('ticket_number').single()
+      if (error || !t) return null
+
+      // LINE・管理者端末への通知はベストエフォート
+      fetch('/api/notify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lineUserId, ticketNumber: t.ticket_number,
+          customerName: cust.name, storeId, type: 'registered',
+        }),
+      }).catch(() => {})
+      fetch('/api/push-admin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storeId,
+          type:  'queue_new',
+          title: `📱 新規登録 No.${String(t.ticket_number).padStart(3, '0')}`,
+          body:  `${cust.name} 様が登録完了しました`,
+          url:   `/${storeId}/admin`,
+        }),
+      }).catch(() => {})
+
+      return t.ticket_number
+    } catch { return null }
+  }
+
   const handleRegister = async () => {
     if (!name.trim() || !lineUserId) return
     setSaving(true); setErrorMsg('')
-    const { data: newCust, error } = await supabase.from('customers').insert({
+    const { data: newCust, error } = await (supabase as any).from('customers').insert({
       store_id:     storeId,
       name:         name.trim(),
       kana:         kana.trim() || null,
@@ -160,21 +252,18 @@ export default function CrmRegisterPage() {
       school_name:  finalSchool.trim() || null,
       line_user_id: lineUserId,
     }).select().single()
-    setSaving(false)
     if (error) {
+      setSaving(false)
       setErrorMsg(error.message.includes('unique')
         ? '同じお名前のお子様が既に登録されています'
         : '登録に失敗しました。もう一度お試しください。')
       return
     }
-    // 待機中・呼出中のチケット名をすぐ反映
-    if (newCust && lineUserId) {
-      await supabase.from('queues')
-        .update({ customer_name: name.trim(), customer_id: newCust.id })
-        .eq('store_id', storeId)
-        .eq('line_user_id', lineUserId)
-        .in('status', ['waiting', 'calling'])
-    }
+    // 当日チケットへの紐付け or 受付番号の新規発行
+    const tn = newCust ? await ensureTicket(newCust as Customer) : null
+    setSaving(false)
+    setTicketNumber(tn)
+    setDoneCustomerId(newCust?.id ?? null)
     setDoneName(name.trim())
     setView('done')
   }
@@ -184,8 +273,13 @@ export default function CrmRegisterPage() {
     setView('confirm')
   }
 
-  const handleConfirm = () => {
-    if (!confirmCustomer) return
+  const handleConfirm = async () => {
+    if (!confirmCustomer || saving) return
+    setSaving(true)
+    const tn = await ensureTicket(confirmCustomer)
+    setSaving(false)
+    setTicketNumber(tn)
+    setDoneCustomerId(confirmCustomer.id)
     setDoneName(confirmCustomer.name)
     setView('done')
   }
@@ -261,9 +355,9 @@ export default function CrmRegisterPage() {
           {confirmCustomer.kana && <p className="text-zinc-400 text-sm mt-1">{confirmCustomer.kana}</p>}
           {confirmCustomer.school_name && <p className="text-zinc-400 text-xs mt-1">{confirmCustomer.school_name}</p>}
         </div>
-        <button onClick={handleConfirm}
-          className="w-full bg-[#06C755] text-white text-lg font-black py-4 rounded-2xl active:scale-95 transition-transform shadow-lg shadow-green-200">
-          はい、これで進む
+        <button onClick={handleConfirm} disabled={saving}
+          className="w-full bg-[#06C755] text-white text-lg font-black py-4 rounded-2xl active:scale-95 transition-transform shadow-lg shadow-green-200 disabled:opacity-60 flex items-center justify-center gap-2">
+          {saving ? <><Loader2 size={20} className="animate-spin" />受付中...</> : 'はい、これで進む'}
         </button>
         <button onClick={() => { setConfirmCustomer(null); setView('existing') }}
           className="w-full text-zinc-400 text-sm py-2 hover:text-zinc-600 transition-colors">
@@ -276,15 +370,37 @@ export default function CrmRegisterPage() {
   // ── 完了 ──────────────────────────────────────
   if (view === 'done') return (
     <div className="min-h-[100dvh] bg-[#06C755] flex flex-col items-center justify-center px-6 text-white text-center gap-5">
-      <CheckCircle2 size={88} />
+      <CheckCircle2 size={72} />
       <div>
-        <h1 className="text-4xl font-black mb-2">確認しました！</h1>
+        <h1 className="text-3xl font-black mb-2">確認しました！</h1>
         <p className="text-2xl font-bold mb-1">{doneName} 様</p>
       </div>
-      <div className="bg-white/20 rounded-2xl px-6 py-4 text-green-100 text-base leading-relaxed">
-        <p className="font-bold">スタッフにお声がけください</p>
-        <p className="text-sm mt-1 opacity-80">お直しの受付を行います</p>
-      </div>
+
+      {ticketNumber != null ? (
+        <div className="bg-white rounded-3xl px-8 py-6 shadow-2xl w-full max-w-sm">
+          <p className="text-zinc-500 text-xs font-bold mb-1">受付番号</p>
+          <p className="ticket-number text-6xl font-black text-[#06C755] leading-none tracking-tight">
+            {String(ticketNumber).padStart(3, '0')}
+          </p>
+          <p className="text-zinc-500 text-sm mt-3 leading-relaxed">
+            この画面をスタッフにお見せください。<br />
+            店側の端末にも自動で表示されています。
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white/20 rounded-2xl px-6 py-4 text-green-100 text-base leading-relaxed">
+          <p className="font-bold">スタッフにお声がけください</p>
+          <p className="text-sm mt-1 opacity-80">受付を行います</p>
+        </div>
+      )}
+
+      {selfIntakeEnabled && doneCustomerId && (
+        <button
+          onClick={() => router.push(`/${storeId}/intake?c=${doneCustomerId}`)}
+          className="w-full max-w-sm bg-white/15 border-2 border-white/50 rounded-2xl py-4 flex items-center justify-center gap-2 text-white font-black text-base active:scale-[0.98] transition-all">
+          <ClipboardList size={18} />続けて依頼内容を入力する
+        </button>
+      )}
     </div>
   )
 

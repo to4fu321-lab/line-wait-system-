@@ -5,7 +5,8 @@ import { useEffect, useState, useCallback } from 'react'
 import {
   Settings, Loader2, Plus, Trash2, AlertCircle,
   CalendarDays, Clock, CheckCheck, LayoutDashboard, ChevronRight, Users,
-  PackageSearch, GraduationCap, ChevronDown,
+  PackageSearch, GraduationCap, ChevronDown, Shirt, Scissors,
+  Factory, Ruler, MessageSquare, Tag, Sparkles,
 } from 'lucide-react'
 import type { OrderSchedule, ScheduleType } from '../_components/OrderReminderBanner'
 import Link from 'next/link'
@@ -13,6 +14,7 @@ import { supabase } from '@/lib/supabase'
 import type { WaitThreshold } from '@/types/database'
 import { DEFAULT_THRESHOLDS } from '@/types/database'
 import { BottomNav } from '../_components/BottomNav'
+import TemplatePicker from '../_components/TemplatePicker'
 import { useSimpleMode } from '@/lib/useSimpleMode'
 
 type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
@@ -86,6 +88,8 @@ export default function SettingsPage() {
   const [saved,             setSaved]             = useState(false)
   const [saveError,         setSaveError]         = useState<string | null>(null)
   const [storeName,         setStoreName]         = useState('')
+  const [groupCode] = useState<string | null>(() =>
+    typeof window !== 'undefined' ? sessionStorage.getItem('admin_group_code') : null)
 
   const [openSections, setOpenSections] = useState<Set<string>>(new Set())
   const toggle = (id: string) => setOpenSections(prev => {
@@ -241,13 +245,13 @@ export default function SettingsPage() {
             <h1 className="text-base font-bold text-gray-900">設定</h1>
             {storeName && <p className="text-xs text-gray-500 truncate">{storeName}</p>}
           </div>
-          <button onClick={() => {
-            const gc = sessionStorage.getItem('admin_group_code')
-            window.location.href = gc ? `/company/${gc}` : '/super-admin'
-          }} title="総管理ダッシュボード"
-            className="p-2 rounded-xl bg-gray-200/60 border border-gray-300/50 hover:bg-gray-300/60 active:opacity-60 transition-all text-gray-600">
-            <LayoutDashboard size={16} />
-          </button>
+          {groupCode && (
+            <button onClick={() => { window.location.href = `/company/${groupCode}` }}
+              title="会社管理ダッシュボード"
+              className="p-2 rounded-xl bg-gray-200/60 border border-gray-300/50 hover:bg-gray-300/60 active:opacity-60 transition-all text-gray-600">
+              <LayoutDashboard size={16} />
+            </button>
+          )}
           <button onClick={handleSave} disabled={saving}
             className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl transition-all ${saved ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50'}`}>
             {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <CheckCheck size={14} /> : null}
@@ -291,7 +295,10 @@ export default function SettingsPage() {
         {/* ① 受付ページ設定 */}
         <Section id="reception" emoji="🔢" title="受付ページ設定" open={openSections.has('reception')} onToggle={() => toggle('reception')}>
           <div>
-            <label className="text-xs font-bold text-gray-600 mb-1.5 block">注意事項</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold text-gray-600 block">注意事項</label>
+              <TemplatePicker category="general" onInsert={t => setNoticeText(p => p ? p + '\n' + t : t)} />
+            </div>
             <p className="text-[11px] text-gray-400 mb-1.5">受付ページに表示される注意文（空欄でデフォルト表示）</p>
             <textarea value={noticeText} onChange={e => setNoticeText(e.target.value)} rows={3}
               placeholder="例: 混雑状況により、お時間をいただく場合がございます。&#10;ご了承のうえ、受付をお取りください。"
@@ -520,7 +527,10 @@ export default function SettingsPage() {
 
           {/* お直し持込注意事項 */}
           <div className="space-y-1.5">
-            <p className="text-xs font-bold text-gray-600">お直し持込 注意事項（顧客向けページ）</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold text-gray-600">お直し持込 注意事項（顧客向けページ）</p>
+              <TemplatePicker category="repair_note" onInsert={t => setRepairNotes(p => p ? p + '\n' + t : t)} />
+            </div>
             <p className="text-[10px] text-gray-400">リッチメニュー「依頼」から開くページに表示されます</p>
             <textarea
               value={repairNotes}
@@ -633,35 +643,37 @@ export default function SettingsPage() {
 
         {/* ⑤ マスタ管理 */}
         <Section id="master" emoji="📋" title="マスタ管理" open={openSections.has('master')} onToggle={() => toggle('master')}>
-          <p className="text-xs text-gray-400">学校・商品・スタッフなどの基本データを管理します</p>
-          <div className="grid grid-cols-2 gap-2">
-            <Link href={`/${storeId}/admin/master`}
-              className="flex flex-col gap-2 px-3 py-3.5 rounded-xl bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 active:opacity-70 transition-all">
-              <div className="flex items-center justify-between">
-                <div className="w-8 h-8 rounded-lg bg-indigo-100 border border-indigo-200 flex items-center justify-center">
-                  <GraduationCap size={15} className="text-indigo-600" />
-                </div>
-                <ChevronRight size={13} className="text-indigo-400" />
+          {([
+            { group: '基本マスタ', items: [
+              { href: `/${storeId}/admin/master/manage`,                   icon: GraduationCap, title: '学校・商品・価格',bg: 'bg-indigo-100', fg: 'text-indigo-600' },
+              { href: `/${storeId}/admin/master/manage`,                   icon: Shirt,         title: '商品マスタ',      bg: 'bg-sky-100',    fg: 'text-sky-600' },
+              { href: `/${storeId}/admin/master?tab=staff`,                icon: Users,         title: 'スタッフマスタ',  bg: 'bg-violet-100', fg: 'text-violet-600' },
+              { href: `/${storeId}/admin/master/repair`,                   icon: Scissors,      title: 'お直しマスタ',    bg: 'bg-rose-100',   fg: 'text-rose-600' },
+              { href: `/${storeId}/admin/master/processing`,               icon: Sparkles,      title: '新品加工オプション', bg: 'bg-fuchsia-100', fg: 'text-fuchsia-600' },
+            ] },
+            { group: 'その他マスタ', items: [
+              { href: `/${storeId}/admin/master/suppliers`, icon: Factory,        title: 'メーカー・仕入先',     bg: 'bg-amber-100', fg: 'text-amber-600' },
+              { href: `/${storeId}/admin/master/sizes`,     icon: Ruler,          title: 'サイズマスタ',         bg: 'bg-cyan-100',  fg: 'text-cyan-600' },
+              { href: `/${storeId}/admin/master/templates`, icon: MessageSquare,  title: '定型文テンプレート',   bg: 'bg-teal-100',  fg: 'text-teal-600' },
+              { href: `/${storeId}/admin/master/tags`,      icon: Tag,            title: '顧客タグ',             bg: 'bg-pink-100',  fg: 'text-pink-600' },
+            ] },
+          ] as const).map(({ group, items }) => (
+            <div key={group}>
+              <p className="text-[11px] font-bold text-gray-400 mb-1.5 px-1">{group}</p>
+              <div className="bg-white rounded-xl border border-gray-100 divide-y divide-gray-50 overflow-hidden">
+                {items.map(({ href, icon: Icon, title, bg, fg }) => (
+                  <Link key={title} href={href}
+                    className="flex items-center gap-3 px-3 py-2.5 active:bg-gray-50 transition-colors">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${bg}`}>
+                      <Icon size={14} className={fg} />
+                    </div>
+                    <span className="flex-1 text-sm font-bold text-gray-700">{title}</span>
+                    <ChevronRight size={15} className="text-gray-300" />
+                  </Link>
+                ))}
               </div>
-              <div>
-                <p className="text-xs font-bold text-indigo-700">学校・商品マスタ</p>
-                <p className="text-[10px] text-indigo-500 mt-0.5 leading-relaxed">学校ごとの商品・サイズ・価格を管理</p>
-              </div>
-            </Link>
-            <Link href={`/${storeId}/admin/master?tab=staff`}
-              className="flex flex-col gap-2 px-3 py-3.5 rounded-xl bg-violet-50 border border-violet-200 hover:bg-violet-100 active:opacity-70 transition-all">
-              <div className="flex items-center justify-between">
-                <div className="w-8 h-8 rounded-lg bg-violet-100 border border-violet-200 flex items-center justify-center">
-                  <Users size={15} className="text-violet-600" />
-                </div>
-                <ChevronRight size={13} className="text-violet-400" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-violet-700">スタッフマスタ</p>
-                <p className="text-[10px] text-violet-500 mt-0.5 leading-relaxed">スタッフ情報・役職・カラーを管理</p>
-              </div>
-            </Link>
-          </div>
+            </div>
+          ))}
         </Section>
 
         {/* ⑥ かんたんLINEモード */}

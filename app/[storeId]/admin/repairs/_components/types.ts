@@ -25,6 +25,19 @@ export interface RepairRow {
   is_rework: boolean
   rework_reason: string | null
   internal_memo: string | null
+  // ▼ お直しマスタ再構築で追加（服種>項目>オプション連携・価格モード）
+  garment_type_id?: string | null
+  item_id?: string | null
+  item_code?: string | null
+  garment_name?: string | null
+  base_price?: number | null
+  calculated_price?: number | null
+  final_price?: number | null
+  pricing_mode?: 'master' | 'adjusted' | 'manual'
+  quote_status?: 'fixed' | 'pending' | 'approved'
+  manual_reason?: string | null
+  selected_options?: import('@/types/repair').SelectedOptionSnapshot[]
+  inputs?: Record<string, string | number>
 }
 
 export interface PurchaseRow {
@@ -80,6 +93,7 @@ export interface DeliveryItem {
 
 export interface CustResult {
   id: string; name: string; tel: string | null; school_name: string | null
+  created_at?: string | null
   children?: { id: string; name: string; school_name: string | null }[]
 }
 

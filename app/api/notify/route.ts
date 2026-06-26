@@ -1,11 +1,12 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabase, getTodayStart } from '@/lib/supabase'
 import { getLiffBaseUrl, getLineToken, storeBizType } from '@/lib/line-config'
+import { pushCard, ogTicketUrl, resolveOrigin, type CardOptions } from '@/lib/line-flex'
 
 export async function POST(req: NextRequest) {
-  const { lineUserId, ticketNumber, customerName, storeName: rawStoreName, storeId, type } = await req.json()
+  const { lineUserId, ticketNumber, customerName, storeName: rawStoreName, storeId, type, queueId: rawQueueId } = await req.json()
 
   if (!lineUserId) {
     console.log(`[LINE通知スキップ] No.${ticketNumber} ${customerName} 様 – line_user_id が null`)
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
   // 店舗情報を取得（テストモード確認 + business_type でトークン選択）
   let bizType: ReturnType<typeof storeBizType> = 'uniform'
   if (storeId) {
-    const { data: st } = await (supabase.from('stores') as any)
+    const { data: st } = await ((supabase as any).from('stores') as any)
       .select('is_test_mode, business_type').eq('id', storeId).single()
     if (st?.is_test_mode) {
       console.log(`[LINE通知スキップ] テストモード中 No.${ticketNumber} ${customerName}`)
@@ -34,43 +35,80 @@ export async function POST(req: NextRequest) {
 
   let storeName = rawStoreName
   if (!storeName && storeId) {
-    const { data } = await supabase.from('stores').select('name').eq('id', storeId).single()
+    const { data } = await (supabase as any).from('stores').select('name').eq('id', storeId).single()
     storeName = data?.name ?? ''
   }
 
-  const paddedNum = String(ticketNumber).padStart(3, '0')
-  const storeUrl  = storeId ? `\n\n▼ 画面を開く\n${liffBase}/${storeId}\n\nURLを開き\n画面をスタッフにお見せください。` : ''
-  const storeLabel = storeName ? `【${storeName}】\n` : ''
+  // 進捗ページ用に queue id を解決（未指定なら ticket_number から当日分を逆引き）
+  let queueId: string | undefined = rawQueueId
+  if (!queueId && storeId && ticketNumber != null) {
+    const { data: q } = await supabase
+      .from('queues')
+      .select('id')
+      .eq('store_id', storeId)
+      .eq('ticket_number', ticketNumber)
+      .gte('created_at', getTodayStart())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    queueId = (q as { id?: string } | null)?.id
+  }
 
-  const messageText = type === 'registered'
-    ? `✅ 受付が完了しました！\n\n${storeLabel}整理番号：${paddedNum}\n${customerName} 様\n\n現在の待ち状況はこちらから確認できます👇\n${liffBase}/${storeId}`
-    : `🔔 お呼びしています！\n\n${storeLabel}整理番号：${paddedNum}\n${customerName} 様\n\nカウンターへお越しください。${storeUrl}`
+  const paddedNum = String(ticketNumber).padStart(3, '0')
+  const origin = resolveOrigin(req.url)
+  const progressUrl = queueId && storeId ? `${liffBase}/${storeId}/progress?queue=${queueId}` : (storeId ? `${liffBase}/${storeId}` : undefined)
+
+  const isRegistered = type === 'registered'
+  const kind = isRegistered ? 'registered' : 'call'
+  const imageUrl = ogTicketUrl(origin, {
+    no: paddedNum,
+    store: storeName || undefined,
+    label: '整理番号',
+    kind,
+  })
+
+  const card: CardOptions = isRegistered
+    ? {
+        kind: 'registered',
+        title: '受付が完了しました',
+        storeName,
+        numberLabel: '整理番号',
+        number: paddedNum,
+        customerName,
+        imageUrl,
+        steps: [{ label: '受付完了' }, { label: 'お呼び出し' }, { label: '完了' }],
+        currentStep: 0,
+        note: '順番になりましたらお呼び出しします。\n下のボタンから待ち状況を確認できます。',
+        buttonLabel: '待ち状況を見る',
+        buttonUrl: progressUrl,
+      }
+    : {
+        kind: 'call',
+        title: 'お呼び出し中です',
+        storeName,
+        numberLabel: '整理番号',
+        number: paddedNum,
+        customerName,
+        imageUrl,
+        steps: [{ label: '受付完了' }, { label: 'お呼び出し' }, { label: '完了' }],
+        currentStep: 1,
+        note: 'カウンターへお越しください。\nこの画面をスタッフにお見せください。',
+        buttonLabel: progressUrl ? '受付画面を開く' : undefined,
+        buttonUrl: progressUrl,
+      }
+
+  const altText = isRegistered
+    ? `受付完了 整理番号:${paddedNum} ${customerName ?? ''} 様`
+    : `お呼び出し 整理番号:${paddedNum} ${customerName ?? ''} 様`
 
   console.log(`[LINE通知送信] type=${type ?? 'calling'} No.${ticketNumber} ${customerName} userId=${lineUserId.slice(0, 8)}...`)
 
-  try {
-    const res = await fetch('https://api.line.me/v2/bot/message/push', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        to: lineUserId,
-        messages: [{ type: 'text', text: messageText }],
-      }),
-    })
-
-    if (!res.ok) {
-      const err = await res.text()
-      console.error(`[LINE API Error] status=${res.status}`, err)
-      return NextResponse.json({ ok: false, error: err }, { status: 500 })
-    }
-
-    console.log(`[LINE通知成功] No.${ticketNumber} ${customerName}`)
-    return NextResponse.json({ ok: true })
-  } catch (e) {
-    console.error('[LINE notify exception]', e)
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 })
+  const result = await pushCard(token, lineUserId, altText, card)
+  if (!result.ok) {
+    console.error(`[LINE API Error] status=${result.status}`, result.error)
+    return NextResponse.json({ ok: false, error: result.error }, { status: 500 })
   }
+
+  console.log(`[LINE通知成功] No.${ticketNumber} ${customerName}`)
+  return NextResponse.json({ ok: true })
 }

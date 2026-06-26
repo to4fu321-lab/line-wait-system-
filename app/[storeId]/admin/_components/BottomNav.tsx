@@ -3,16 +3,18 @@
 import Link from 'next/link'
 import { useParams, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Timer, Search, Settings, ClipboardList, Monitor } from 'lucide-react'
+import { Timer, Search, Settings, ClipboardList, ShoppingCart } from 'lucide-react'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { useDeviceMode } from '@/lib/useDeviceMode'
 
+
 const ALL_TABS = [
-  { id: 'repairs',  featureKey: 'tab_repairs', label: '案件', icon: ClipboardList, exact: false, path: (sid: string) => `/${sid}/admin/repairs` },
-  { id: 'queue',    featureKey: 'tab_queue',   label: '受付', icon: Timer,         exact: true,  path: (sid: string) => `/${sid}/admin` },
-  { id: 'crm',      featureKey: 'tab_crm',     label: '顧客',   icon: Search,         exact: false, path: (sid: string) => `/${sid}/admin/crm` },
-  { id: 'settings', featureKey: null,            label: '設定',  icon: Settings,      exact: false, path: (sid: string) => `/${sid}/admin/settings/staff` },
+  { id: 'repairs',  featureKey: 'tab_repairs', label: '案件',  icon: ClipboardList, exact: false, path: (sid: string) => `/${sid}/admin/repairs` },
+  { id: 'queue',    featureKey: 'tab_queue',   label: '受付',  icon: Timer,         exact: true,  path: (sid: string) => `/${sid}/admin` },
+  { id: 'crm',      featureKey: 'tab_crm',     label: '顧客',  icon: Search,        exact: false, path: (sid: string) => `/${sid}/admin/crm` },
+  { id: 'pos',      featureKey: 'pos',         label: 'レジ',  icon: ShoppingCart,  exact: false, path: (sid: string) => `/${sid}/admin/register` },
+  { id: 'settings', featureKey: null,           label: '設定',  icon: Settings,      exact: false, path: (sid: string) => `/${sid}/admin/settings/staff` },
 ] as const
 
 export function BottomNav() {
@@ -22,7 +24,7 @@ export function BottomNav() {
   const [queueBadge,  setQueueBadge]  = useState(0)
   const [repairBadge, setRepairBadge] = useState(0)
   const { hasFeature, loaded: featLoaded } = useStoreFeatures(storeId)
-  const { isTablet, setMode } = useDeviceMode()
+  const { isTablet } = useDeviceMode()
 
   useEffect(() => {
     if (!storeId) return
@@ -56,8 +58,15 @@ export function BottomNav() {
     t.featureKey === null || hasFeature(t.featureKey as Parameters<typeof hasFeature>[0])
   )
 
+  // today_tasks_ui ON のとき、案件タブを「やること」(/admin/today)へ差し替え
+  const todayOn = hasFeature('today_tasks_ui')
+  const tabPath = (tab: typeof ALL_TABS[number]) =>
+    todayOn && tab.id === 'repairs' ? `/${storeId}/admin/today` : tab.path(storeId)
+  const tabLabel = (tab: typeof ALL_TABS[number]) =>
+    todayOn && tab.id === 'repairs' ? 'やること' : tab.label
+
   function isActive(tab: typeof ALL_TABS[number]) {
-    const target = tab.path(storeId)
+    const target = tabPath(tab)
     if (tab.exact) return pathname === target || pathname === target + '/'
     return pathname.startsWith(target)
   }
@@ -81,7 +90,7 @@ export function BottomNav() {
             return (
               <Link
                 key={tab.id}
-                href={tab.path(storeId)}
+                href={tabPath(tab)}
                 prefetch={false}
                 style={{ touchAction: 'manipulation' }}
                 className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 relative transition-none ${
@@ -100,21 +109,11 @@ export function BottomNav() {
                   )}
                 </span>
                 <span className={`text-[10px] leading-none font-medium ${active ? 'text-indigo-600' : 'text-gray-400'}`}>
-                  {tab.label}
+                  {tabLabel(tab)}
                 </span>
               </Link>
             )
           })}
-          {/* Tablet mode toggle */}
-          <button
-            onClick={() => setMode('tablet')}
-            style={{ touchAction: 'manipulation' }}
-            className="flex flex-col items-center justify-center gap-1 py-3 px-3 text-gray-300 active:text-gray-500 transition-none"
-            title="タブレットモードに切替"
-          >
-            <Monitor size={18} strokeWidth={1.5} />
-            <span className="text-[9px] leading-none font-medium">PCモード</span>
-          </button>
         </div>
       </nav>
     </>

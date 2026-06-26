@@ -1,5 +1,5 @@
 {
-  "name": "line-queue-system",
+  "name": "uniform-shop-support-system",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -19,7 +19,8 @@
     "qrcode": "^1.5.4",
     "react": "^18",
     "react-dom": "^18",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^20",

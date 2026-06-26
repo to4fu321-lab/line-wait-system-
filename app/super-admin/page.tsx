@@ -1,18 +1,20 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   RefreshCw, Loader2, ExternalLink, ShieldCheck, Scissors, Package,
   Plus, ChevronDown, ChevronUp, Palette, Pencil, Trash2, X, Check, Building2,
+  Download,
 } from 'lucide-react'
 import ColorPicker from '@/app/_components/ColorPicker'
+import { supabase } from '@/lib/supabase'
 import type { Store, BusinessType } from '@/types/database'
-import { PLAN_DEFS, type Plan, type FeatureKey } from '@/lib/features'
+import { PLAN_DEFS, ADDON_DEFAULT_OFF, AREA_DEFS, type Plan, type FeatureKey, type AreaCode } from '@/lib/features'
 
 // ── 細粒度フラグ（プランに加えて個別 on/off できる項目） ────────
 const GRANULAR_FEATURES: { key: FeatureKey; label: string; icon: string }[] = [
   { key: 'tab_queue',            label: '受付タブ',         icon: '🔢' },
-  { key: 'tab_repairs',          label: '案件タブ',         icon: '✂️' },
+  { key: 'tab_repairs',          label: 'お仕事タブ',       icon: '✂️' },
   { key: 'tab_inquiries',        label: '問合せタブ',       icon: '💬' },
   { key: 'tab_crm',              label: '顧客タブ',         icon: '👥' },
   { key: 'repairs_tab_purchase', label: '発注サブタブ',     icon: '📋' },
@@ -34,26 +36,45 @@ const GRANULAR_FEATURES: { key: FeatureKey; label: string; icon: string }[] = [
   { key: 'line_parent_info',   label: 'LINE保護者情報投稿',       icon: '💚' },
   { key: 'line_coupon',        label: 'クーポン自動配布',         icon: '🎫' },
   { key: 'line_parent_rsv',    label: 'LINE採寸予約（保護者）',   icon: '📅' },
+  { key: 'customer_self_intake', label: 'お客様セルフ依頼入力',   icon: '📱' },
+  { key: 'customer_self_order',  label: 'お客様セルフ制服注文',   icon: '🛍️' },
+  { key: 'sms_notify',           label: 'SMS完了通知（アドオン）', icon: '📩' },
+  { key: 'today_tasks_ui',       label: '今日やること画面（β）',   icon: '📋' },
+  { key: 'pos',                  label: 'レジ（会計）',            icon: '🧾' },
+  { key: 'shift_management',     label: 'シフト管理（アドオン）',   icon: '📆' },
+  { key: 'shift_inter_store',    label: '店舗間ヘルプ（アドオン）', icon: '🤝' },
+  { key: 'shift_attendance',     label: '出退勤打刻',               icon: '⏰' },
+  { key: 'shift_leave',          label: '休暇申請',                 icon: '🏖️' },
+  { key: 'shift_swap',           label: 'シフト交換',               icon: '🔄' },
+  { key: 'staff_push',           label: 'スタッフPWA通知',          icon: '🔔' },
+  { key: 'shift_demand',         label: '試着連動・人員設計',       icon: '📊' },
+  { key: 'shift_dashboard',      label: '経営ダッシュボード',       icon: '📈' },
+  { key: 'shift_ai',             label: 'AIシフト（生成/補充/申請）', icon: '🤖' },
 ]
 
 const GRANULAR_FEATURE_GROUPS: { label: string; keys: FeatureKey[] }[] = [
   {
     label: 'タブ・ナビ',
-    keys: ['tab_queue', 'tab_repairs', 'tab_inquiries', 'tab_crm'],
+    keys: ['tab_queue', 'tab_repairs', 'tab_inquiries', 'tab_crm', 'today_tasks_ui'],
   },
   {
-    label: '案件・修理',
+    label: 'お仕事・修理',
     keys: ['repairs_tab_purchase', 'repairs_tab_arrival', 'repairs_tab_delivery',
-           'repairs_ocr', 'repairs_master', 'repairs_dummy'],
+           'repairs_ocr', 'repairs_master', 'repairs_dummy', 'sms_notify', 'pos'],
   },
   {
     label: 'LINE・スキャン',
-    keys: ['kantan_line', 'tray_scan', 'reservation', 'orders', 'takeout'],
+    keys: ['kantan_line', 'tray_scan', 'reservation', 'orders', 'takeout', 'customer_self_intake', 'customer_self_order'],
   },
   {
     label: '🏫 学校規定・採寸連携',
     keys: ['school_master', 'school_ocr', 'school_crm_card', 'school_measurement',
            'school_waiting', 'line_parent_info', 'line_coupon', 'line_parent_rsv'],
+  },
+  {
+    label: '📆 シフト管理',
+    keys: ['shift_management', 'shift_inter_store', 'shift_attendance', 'shift_leave',
+           'shift_swap', 'staff_push', 'shift_demand', 'shift_dashboard', 'shift_ai'],
   },
 ]
 
@@ -175,17 +196,22 @@ function StoreCard({
   const [pin,     setPin]     = useState(store.pin ?? '')
   const [groupId, setGroupId] = useState(store.group_id ?? '')
   const [bizType, setBizType] = useState<'uniform' | 'takeout'>((store.business_type as 'uniform' | 'takeout') ?? 'uniform')
-  const [features, setFeatures] = useState<Record<string, boolean>>(store.features ?? {})
-  const [saving,   setSaving]   = useState(false)
-  const [msg,      setMsg]      = useState<{ ok: boolean; text: string } | null>(null)
+  const [features, setFeatures] = useState<Record<string, unknown>>(store.features ?? {})
+  const [saving,        setSaving]        = useState(false)
+  const [msg,           setMsg]           = useState<{ ok: boolean; text: string } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [csvExporting,  setCsvExporting]  = useState(false)
   const [welcomeMsg,       setWelcomeMsg]       = useState<string>((store as any).welcome_message ?? '')
   const [isTestMode,       setIsTestMode]       = useState<boolean>((store as any).is_test_mode ?? false)
   const [richmenuApplying, setRichmenuApplying] = useState(false)
   const [richmenuMsg,      setRichmenuMsg]      = useState<{ ok: boolean; text: string } | null>(null)
 
+  // 編集パネルを「開いた瞬間だけ」初期化する（自動リフレッシュによる意図しないリセットを防ぐ）
+  const wasEditingRef = React.useRef(false)
   useEffect(() => {
-    if (isEditing) {
+    const justOpened = isEditing && !wasEditingRef.current
+    wasEditingRef.current = isEditing
+    if (justOpened) {
       setName(store.name); setPin(store.pin ?? '')
       setGroupId(store.group_id ?? '')
       setBizType((store.business_type as 'uniform' | 'takeout') ?? 'uniform')
@@ -194,6 +220,49 @@ function StoreCard({
       setMsg(null); setConfirmDelete(false)
     }
   }, [isEditing, store])
+
+  async function exportCSV() {
+    if (csvExporting) return
+    setCsvExporting(true)
+    try {
+      const { data } = await (supabase as any)
+        .from('customers')
+        .select('name, kana, tel, line_user_id, created_at, children(name, school_name, grade, admission_year)')
+        .eq('store_id', store.id)
+        .is('deleted_at', null)
+        .order('kana', { ascending: true })
+        .limit(5000)
+      const rows: string[][] = [
+        ['保護者名', 'フリガナ', '電話番号', 'LINE連携', 'お子様名', '学校名', '学年', '入学年度', '登録日'],
+      ]
+      for (const c of (data ?? [])) {
+        const kids = (c.children ?? []) as { name: string; school_name: string | null; grade: string | null; admission_year: number | null }[]
+        if (kids.length === 0) {
+          rows.push([c.name ?? '', c.kana ?? '', c.tel ?? '', c.line_user_id ? '○' : '×', '', '', '', '', c.created_at?.slice(0, 10) ?? ''])
+        } else {
+          kids.forEach((kid, idx) => {
+            rows.push([
+              idx === 0 ? (c.name ?? '') : '',
+              idx === 0 ? (c.kana ?? '') : '',
+              idx === 0 ? (c.tel ?? '') : '',
+              idx === 0 ? (c.line_user_id ? '○' : '×') : '',
+              kid.name ?? '', kid.school_name ?? '', kid.grade ?? '',
+              kid.admission_year != null ? String(kid.admission_year) : '',
+              idx === 0 ? (c.created_at?.slice(0, 10) ?? '') : '',
+            ])
+          })
+        }
+      }
+      const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n')
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a'); a.href = url
+      a.download = `${store.name}_customers_${new Date().toISOString().slice(0, 10)}.csv`
+      a.click(); URL.revokeObjectURL(url)
+    } finally {
+      setCsvExporting(false)
+    }
+  }
 
   async function save() {
     setSaving(true); setMsg(null)
@@ -292,11 +361,35 @@ function StoreCard({
             </div>
           </div>
 
+          {/* ── エリア選択（AIメッセージ用） ── */}
+          <div>
+            <p className="text-[10px] text-gray-400 mb-1.5 uppercase tracking-wider">🗾 エリア（AIシーズンメッセージ用）</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {(Object.entries(AREA_DEFS) as [AreaCode, typeof AREA_DEFS[AreaCode]][]).map(([code, def]) => {
+                const currentArea = (features.area as AreaCode | undefined) ?? 'central'
+                const selected = currentArea === code
+                return (
+                  <button key={code}
+                    onClick={() => setFeatures(prev => ({ ...prev, area: code }))}
+                    className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border text-left transition-all ${
+                      selected ? 'border-sky-500/60 bg-sky-500/10 text-sky-300' : 'border-gray-700 bg-gray-700/40 text-gray-500 hover:bg-gray-700'
+                    }`}>
+                    <span className="text-base leading-none">{def.emoji}</span>
+                    <div>
+                      <div className="text-[11px] font-black leading-none">{def.label}</div>
+                      <div className="text-[9px] opacity-70 leading-tight mt-0.5">{def.desc}</div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           {/* ── プラン選択 ── */}
           <div>
             <p className="text-[10px] text-gray-400 mb-2 uppercase tracking-wider">プラン（機能セット）</p>
             <div className="grid grid-cols-2 gap-1.5">
-              {(Object.entries(PLAN_DEFS) as [Plan, typeof PLAN_DEFS[Plan]][]).map(([key, def]) => {
+              {(Object.entries(PLAN_DEFS) as [Plan, typeof PLAN_DEFS[Plan]][]).filter(([, def]) => !def.hidden).map(([key, def]) => {
                 const currentPlan = (features._plan as Plan | undefined) ?? 'full'
                 const selected = currentPlan === key
                 return (
@@ -337,7 +430,10 @@ function StoreCard({
                       const f = GRANULAR_FEATURES.find(x => x.key === key)
                       if (!f) return null
                       const currentPlan = (features._plan as Plan | undefined) ?? 'full'
-                      const planDefault = PLAN_DEFS[currentPlan]?.features[f.key as FeatureKey]
+                      // アドオン/β機能は未設定=OFF（resolveFeature と一致させる）
+                      const planDefault = ADDON_DEFAULT_OFF.includes(f.key)
+                        ? false
+                        : PLAN_DEFS[currentPlan]?.features[f.key as FeatureKey]
                       const override = (features as Record<string, unknown>)[f.key]
                       const effective = override !== undefined ? (override as boolean) : (planDefault !== false)
                       const hasOverride = override !== undefined && override !== planDefault
@@ -515,6 +611,11 @@ function StoreCard({
                 <ShieldCheck size={11} />管理画面
               </button>
             </div>
+            <button onClick={exportCSV} disabled={csvExporting}
+              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold disabled:opacity-50">
+              {csvExporting ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />}
+              顧客データCSV出力
+            </button>
           </>
         )}
       </div>
@@ -657,10 +758,16 @@ function SuperDashboard() {
             <h1 className="text-2xl font-black">🏢 総管理ダッシュボード</h1>
             {lastUpdated && <p className="text-gray-500 text-xs mt-0.5">最終更新: {lastUpdated.toLocaleTimeString('ja-JP')}</p>}
           </div>
-          <button onClick={fetchAll} disabled={refreshing}
-            className="p-2 rounded-xl bg-gray-700 active:scale-90 transition-transform disabled:opacity-50">
-            <RefreshCw size={20} className={refreshing ? 'animate-spin' : ''} />
-          </button>
+          <div className="flex items-center gap-2">
+            <a href="/super-admin/feedback"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-700 hover:bg-gray-600 text-sm font-bold active:scale-95 transition-all">
+              📨 フィードバック
+            </a>
+            <button onClick={fetchAll} disabled={refreshing}
+              className="p-2 rounded-xl bg-gray-700 active:scale-90 transition-transform disabled:opacity-50">
+              <RefreshCw size={20} className={refreshing ? 'animate-spin' : ''} />
+            </button>
+          </div>
         </div>
 
         {fetchError && (
@@ -878,7 +985,7 @@ function SuperDashboard() {
                   <div className="space-y-2">
                     <input value={newGroupName} onChange={e => setNewGroupName(e.target.value)} placeholder="会社名"
                       className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />
-                    <input value={newGroupCode} onChange={e => setNewGroupCode(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} placeholder="URLコード（英数字）"
+                    <input value={newGroupCode} onChange={e => setNewGroupCode(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} placeholder="URLコード（任意・空欄可／英数字）"
                       className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />
                     <input value={newGroupPin} onChange={e => setNewGroupPin(e.target.value)} maxLength={4} inputMode="numeric" placeholder="会社PIN"
                       className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />

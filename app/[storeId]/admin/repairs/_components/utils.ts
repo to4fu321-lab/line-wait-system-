@@ -1,8 +1,8 @@
 import type { DeliveryItem } from './types'
 export { fmtDate, compressImage, todayJst } from '@/lib/adminUtils'
 
-export function fmtReqNo(kind: 'repair' | 'purchase', no: number | null, id: string): string {
-  const prefix = kind === 'repair' ? 'R' : 'P'
+export function fmtReqNo(kind: 'repair' | 'purchase' | 'inquiry', no: number | null, id: string): string {
+  const prefix = kind === 'repair' ? 'R' : kind === 'inquiry' ? 'I' : 'P'
   if (no != null) return `${prefix}-${String(no).padStart(4, '0')}`
   return `${prefix}-${id.replace(/-/g, '').substring(0, 4).toUpperCase()}`
 }

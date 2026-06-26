@@ -36,6 +36,7 @@ export interface Customer {
   category:     string | null
   created_at:   string
   updated_at:   string
+  deleted_at:   string | null
 }
 
 export interface RepairHistory {
@@ -153,7 +154,7 @@ export type RepairType =
   | 'waist'         // ウエスト調整
   | 'embroidery'    // 刺繍
   | 'button'        // ボタン
-  | 'tear'          // 修理・補修
+  | 'tear'          // 破れ補修
   | 'badge'         // 校章付け
   | 'size_exchange' // サイズ交換
   | 'other'         // その他
@@ -164,7 +165,7 @@ export const REPAIR_TYPE_LABELS: Record<RepairType, string> = {
   waist:        'ウエスト調整',
   embroidery:   '刺繍',
   button:       'ボタン',
-  tear:         '修理・補修',
+  tear:         '破れ補修',
   badge:        '校章付け',
   size_exchange:'サイズ交換',
   other:        'その他',
