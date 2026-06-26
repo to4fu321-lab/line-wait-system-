@@ -192,9 +192,6 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
 
   const stepLabels: Record<OStep, string> = { customer: '顧客選択', products: '商品選択', confirm: '確認・登録' }
   const steps: OStep[] = ['customer', 'products', 'confirm']
-  const progressPercent = step === 'confirm'
-    ? Math.round(((2 + curConfirmIdx + 1) / (2 + confirmStepDefs.length)) * 100)
-    : Math.round(((steps.indexOf(step) + 1) / (2 + confirmStepDefs.length)) * 100)
 
   // confirm サブステップ（区分→納期→支払/メモ→確認）
   const confirmStepDefs = [
@@ -206,6 +203,9 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   const curConfirmIdx = Math.min(confirmStep, confirmStepDefs.length - 1)
   const curConfirmKey = confirmStepDefs[curConfirmIdx].key
   const isLastConfirm = curConfirmKey === 'review'
+  const progressPercent = step === 'confirm'
+    ? Math.round(((2 + curConfirmIdx + 1) / (2 + confirmStepDefs.length)) * 100)
+    : Math.round(((steps.indexOf(step) + 1) / (2 + confirmStepDefs.length)) * 100)
   const goBackConfirm = () => { if (curConfirmIdx <= 0) setStep('products'); else setConfirmStep(curConfirmIdx - 1) }
   const goNextConfirm = () => { if (curConfirmIdx < confirmStepDefs.length - 1) setConfirmStep(curConfirmIdx + 1) }
 
