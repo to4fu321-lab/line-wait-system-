@@ -120,6 +120,26 @@ async function makeMenuPngTakeout(storeName: string): Promise<Buffer> {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
+
+  // ?debug=1 → 現在のリッチメニュー一覧と設定値を返す（更新しない）
+  if (searchParams.get('debug') === '1') {
+    const { liffBase, token, authHeader } = getConfig()
+    const base = `${liffBase}/line-home`
+    const previewUrls = {
+      order:   `${base}?action=order`,
+      queue:   `${base}?action=queue`,
+      reserve: `${base}?action=reserve`,
+      repair:  `${base}?action=repair`,
+    }
+    const listRes = await fetch(`${LINE_API}/richmenu/list`, { headers: authHeader })
+    const currentMenus = listRes.ok ? await listRes.json() : { error: await listRes.text() }
+    return NextResponse.json({
+      config: { liffBase, hasToken: !!token },
+      previewUrls,
+      currentMenus,
+    })
+  }
+
   const storeId   = searchParams.get('storeId')   ?? ''
   const storeName = searchParams.get('storeName')  ?? ''
   const fakeReq = { json: async () => ({ storeId, storeName }) } as unknown as NextRequest
