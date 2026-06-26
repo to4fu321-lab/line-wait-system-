@@ -37,13 +37,20 @@ git push origin main
 ## 作業開始前に必ず行うこと
 
 ```bash
-# 1. 最新を取得
-git checkout dev
+# 1. リモートブランチ情報を取得
+git fetch origin
+
+# 2. dev ブランチに切り替え（必ずこの手順で）
+git checkout -b dev origin/dev 2>/dev/null || git checkout dev
+
+# 3. 最新を取得
 git pull origin dev
 
-# 2. 作業中のタスクを確認
+# 4. 作業中のタスクを確認
 cat WORKING.md
 ```
+
+> **重要**: `dev` ブランチが「存在しない」と判断して `claude/` ブランチを作ってはいけません。必ず `git fetch origin` してから `origin/dev` を確認してください。
 
 `WORKING.md` に作業中のエントリがある場合は、**完了してから次の作業を開始**してください。
 
