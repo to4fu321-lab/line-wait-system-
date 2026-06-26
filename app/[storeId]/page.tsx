@@ -723,9 +723,9 @@ function ClosedView({ storeId, onOpen, onPurchase, onReserve }: {
 
   return (
     <div className="min-h-[100dvh] bg-zinc-950 flex flex-col items-center justify-center px-6 text-center">
-      <div className="text-7xl mb-5">🚪</div>
-      <h1 className="text-3xl font-black text-white mb-2">現在受付を停止しています</h1>
-      <p className="text-zinc-400 text-lg mb-8">店頭スタッフにお声がけください</p>
+      <div className="text-7xl mb-5">🕐</div>
+      <h1 className="text-3xl font-black text-white mb-2">順番待ち受付を停止中</h1>
+      <p className="text-zinc-400 text-base mb-8">採寸・ご購入の順番待ちは現在受付しておりません。<br />その他のサービスはご利用いただけます。</p>
 
       {(onPurchase || onReserve) && (
         <div className="w-full max-w-xs mb-8 space-y-3">
@@ -1538,7 +1538,7 @@ export default function CustomerPage() {
     </main>
   )
 
-  // ── 目的選択 ─────────────────────────────────────────
+  // ── サービス案内（旧: 目的選択） ──────────────────────────
   if (view === 'purpose') return (
     <main className="min-h-[100dvh] px-5 py-10 max-w-md mx-auto">
       <div className="text-center mb-8">
@@ -1554,36 +1554,59 @@ export default function CustomerPage() {
           </div>
         )}
         <p className="text-xs font-bold mb-1" style={{ color: theme.colors.primary }}>{theme.storeName}</p>
-        <h1 className="text-2xl font-black text-zinc-900">本日のご用件は？</h1>
-        <p className="text-zinc-500 text-sm mt-1">タップして選択してください</p>
+        <h1 className="text-2xl font-black text-zinc-900">ご利用ガイド</h1>
+        <p className="text-zinc-500 text-sm mt-1">ご利用になるサービスをお選びください</p>
       </div>
 
       <div className="space-y-4">
-        <button
-          onClick={() => { setIssueError(''); setView('confirm_queue') }}
-          className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all"
+        {/* 来店予約 */}
+        <a href={`/${storeId}/reserve`}
+          className="block w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all"
           style={cardStyle}>
           <div className="flex items-start gap-4">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0"
               style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})` }}>
-              📋
+              🗓️
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-black text-zinc-900 text-lg leading-tight">採寸・ご購入</p>
-              <p className="text-zinc-500 text-sm mt-0.5">順番待ちに並ぶ</p>
-              {waitingCount !== null && (
-                <div className="mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold"
-                  style={{ background: `rgb(${theme.colors.primaryRgb} / 0.1)`, color: theme.colors.primary }}>
-                  <Users size={13} />現在 {waitingCount}組 待ち
-                </div>
-              )}
+              <p className="font-black text-zinc-900 text-lg leading-tight">来店予約</p>
+              <p className="text-zinc-500 text-sm mt-0.5">ご希望の日時でご来店いただけます</p>
             </div>
             <div className="pt-1 shrink-0">
               <ChevronRight size={20} className="text-zinc-300" />
             </div>
           </div>
-        </button>
+        </a>
 
+        {/* 採寸・ご購入（順番待ち）— 順番待ち機能がある店舗のみ */}
+        {!isSimpleMode && (
+          <button
+            onClick={() => { setIssueError(''); setView('confirm_queue') }}
+            className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all"
+            style={cardStyle}>
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0"
+                style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})` }}>
+                📋
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-black text-zinc-900 text-lg leading-tight">採寸・ご購入</p>
+                <p className="text-zinc-500 text-sm mt-0.5">順番待ちに並ぶ</p>
+                {waitingCount !== null && (
+                  <div className="mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold"
+                    style={{ background: `rgb(${theme.colors.primaryRgb} / 0.1)`, color: theme.colors.primary }}>
+                    <Users size={13} />現在 {waitingCount}組 待ち
+                  </div>
+                )}
+              </div>
+              <div className="pt-1 shrink-0">
+                <ChevronRight size={20} className="text-zinc-300" />
+              </div>
+            </div>
+          </button>
+        )}
+
+        {/* お直し */}
         <button onClick={() => setView('repair_speak')}
           className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all"
           style={cardStyle}>
@@ -1602,6 +1625,7 @@ export default function CustomerPage() {
           </div>
         </button>
 
+        {/* ネット注文 */}
         <button onClick={() => setView('purchase_ec')}
           className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all"
           style={cardStyle}>
@@ -1611,8 +1635,8 @@ export default function CustomerPage() {
               🛍️
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-black text-zinc-900 text-lg leading-tight">お家でかんたんネット注文</p>
-              <p className="text-zinc-500 text-sm mt-0.5">在庫確認・取り置き</p>
+              <p className="font-black text-zinc-900 text-lg leading-tight">ネット注文</p>
+              <p className="text-zinc-500 text-sm mt-0.5">在庫確認・お取り置き・追加購入</p>
             </div>
             <div className="pt-1 shrink-0">
               <ChevronRight size={20} className="text-zinc-300" />
