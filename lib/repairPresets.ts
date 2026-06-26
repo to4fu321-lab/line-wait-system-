@@ -121,7 +121,7 @@ export const REPAIR_PRESET: PresetGarment[] = [
           ...buildSizeTier({ groupCode: 'dashi', group: '出し幅', min: 1, max: 5, step: 1 }),
         ],
       },
-      { code: 'tear', name: '補修・かけつぎ', icon: '🩹', base_price: 1000, price_unit: 'per_item', lead_time_days: 7 },
+      { code: 'tear', name: '破れ補修', icon: '🩹', base_price: 1000, price_unit: 'per_item', lead_time_days: 7 },
     ],
   },
   {
@@ -171,13 +171,13 @@ export const REPAIR_PRESET: PresetGarment[] = [
           { group_label: '色',   group_select: 'single', code: 'gold',   name: '金（+料金）', price_delta: 100 },
         ],
       },
-      { code: 'tear', name: '補修・かけつぎ', icon: '🩹', base_price: 1200, price_unit: 'per_item', lead_time_days: 7 },
+      { code: 'tear', name: '破れ補修', icon: '🩹', base_price: 1200, price_unit: 'per_item', lead_time_days: 7 },
     ],
   },
   {
     code: 'shirt', name: 'シャツ・ブラウス', icon: '👔',
     items: [
-      { code: 'tear',   name: '補修',           icon: '🩹', base_price: 800, price_unit: 'per_item', lead_time_days: 5 },
+      { code: 'tear',   name: '破れ補修',         icon: '🩹', base_price: 800, price_unit: 'per_item', lead_time_days: 5 },
       { code: 'button', name: 'ボタン付け替え', icon: '🔘', base_price: 300, price_unit: 'per_item', lead_time_days: 3 },
     ],
   },

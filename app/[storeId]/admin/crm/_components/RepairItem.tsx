@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import {
   Package, CheckCheck, Loader2, CalendarDays,
-  AlertCircle, RotateCcw, Scissors,
+  AlertCircle, RotateCcw, Scissors, Camera, ChevronRight,
 } from 'lucide-react'
 import {
   REPAIR_STATUS_LABELS, REPAIR_STATUS_COLORS,
@@ -12,6 +12,8 @@ import type { RepairHistory } from '@/types/crm'
 import type { RepairWithCustomer } from './types'
 import { fmtDate } from './utils'
 import { CustomerInfoPanel } from './CustomerForms'
+import { supabase } from '@/lib/supabase'
+import { REPAIR_PHOTOS_BUCKET } from '@/types/repair'
 
 export function RepairItem({ repair, showCustomer = false, storeId, onComplete, onDeliver, onRevert, alertDays }: {
   repair: RepairHistory | RepairWithCustomer
@@ -24,6 +26,18 @@ export function RepairItem({ repair, showCustomer = false, storeId, onComplete, 
 }) {
   const [loading,  setLoading]  = useState<string | null>(null)
   const [custOpen, setCustOpen] = useState(false)
+  const [photosOpen, setPhotosOpen] = useState(false)
+  const [photos, setPhotos] = useState<{ phase: string; url: string }[] | null>(null)
+
+  async function loadPhotos() {
+    if (photos !== null) return
+    const { data } = await (supabase as any)
+      .from('repair_photos')
+      .select('phase, url')
+      .eq('repair_id', repair.id)
+      .order('created_at', { ascending: true })
+    setPhotos(data ?? [])
+  }
   const customerName = showCustomer ? (repair as RepairWithCustomer).customer?.name : null
   const childName    = showCustomer ? (repair as RepairWithCustomer).child?.name    : null
   const isOverdue = alertDays != null && repair.status === 'completed' && repair.completed_date &&
@@ -89,6 +103,30 @@ export function RepairItem({ repair, showCustomer = false, storeId, onComplete, 
             {repair.completed_date && <span className="flex items-center gap-1"><CheckCheck size={10} />完了 {fmtDate(repair.completed_date)}</span>}
             {repair.delivered_date && <span className="flex items-center gap-1"><Package size={10} />お渡し {fmtDate(repair.delivered_date)}</span>}
           </div>
+          {/* 写真トグル */}
+          <button
+            onClick={() => { setPhotosOpen(v => !v); if (!photosOpen) loadPhotos() }}
+            className="flex items-center gap-1 text-[11px] text-gray-400 font-bold mt-1 active:opacity-70">
+            <Camera size={11} />写真
+            {photos && photos.length > 0 && <span className="text-[10px] text-indigo-400 font-black">({photos.length})</span>}
+            <ChevronRight size={10} className={`transition-transform ${photosOpen ? 'rotate-90' : ''}`} />
+          </button>
+          {photosOpen && (
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {photos == null ? (
+                <Loader2 size={14} className="animate-spin text-gray-300" />
+              ) : photos.length === 0 ? (
+                <p className="text-[10px] text-gray-300">写真なし</p>
+              ) : photos.map((p, i) => (
+                <div key={i} className="relative w-16 h-16 shrink-0">
+                  <img src={p.url} alt="" className={`w-full h-full object-cover rounded-xl border-2 ${p.phase === 'after' ? 'border-emerald-400' : 'border-gray-200'}`} />
+                  <span className={`absolute bottom-0 left-0 right-0 text-center text-[8px] py-0.5 rounded-b-xl font-bold ${p.phase === 'after' ? 'bg-emerald-600/80 text-white' : 'bg-black/40 text-white'}`}>
+                    {p.phase === 'after' ? '完了時' : '受付時'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

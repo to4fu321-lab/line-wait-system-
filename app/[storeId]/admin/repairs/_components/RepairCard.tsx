@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Loader2, ChevronDown, ChevronUp,
   Phone, User, Check, RotateCcw,
-  Banknote, Pencil, Truck, Trash2,
+  Banknote, Pencil, Truck, Trash2, Camera, X, ChevronRight,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { REPAIR_PHOTOS_BUCKET } from '@/types/repair'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import {
   REPAIR_STATUS_LABELS, REPAIR_STATUS_COLORS,
@@ -32,6 +33,10 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [confirmVendor, setConfirmVendor] = useState(false)
   const [vendorName,    setVendorName]    = useState('')
+  const [completionPhotos, setCompletionPhotos] = useState<{ file: File; url: string }[]>([])
+  const [repairPhotos, setRepairPhotos] = useState<{ phase: string; url: string }[] | null>(null)
+  const [photosOpen,   setPhotosOpen]   = useState(false)
+  const photosLoadedRef = useRef(false)
 
   const { hasFeature } = useStoreFeatures(storeId)
   const smsEnabled = hasFeature('sms_notify') // アドオン未契約なら false → 電話連絡ステップ
@@ -45,6 +50,40 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
   const daysLeft   = deadlineDate ? Math.floor((deadlineDate.getTime() - today.getTime()) / 86400000) : null
   const isOverdue  = daysLeft !== null && daysLeft < 0
   const isDueSoon  = daysLeft !== null && daysLeft >= 0 && daysLeft <= 1
+
+  const pubUrl = (path: string) =>
+    supabase.storage.from(REPAIR_PHOTOS_BUCKET).getPublicUrl(path).data.publicUrl
+
+  async function uploadCompletionPhotos() {
+    for (let i = 0; i < completionPhotos.length; i++) {
+      const f = completionPhotos[i].file
+      const ext = f.name.split('.').pop() || 'jpg'
+      const path = `repairs/${storeId}/${item.id}/after_${Date.now()}_${i}.${ext}`
+      const { error } = await supabase.storage.from(REPAIR_PHOTOS_BUCKET).upload(path, f, { upsert: true })
+      if (!error) {
+        await (supabase as any).from('repair_photos').insert({
+          store_id: storeId, repair_id: item.id, phase: 'after', path, url: pubUrl(path),
+        })
+      }
+    }
+    setCompletionPhotos([])
+    photosLoadedRef.current = false  // invalidate cache so display refreshes
+    setRepairPhotos(null)
+  }
+
+  // lazy-load photos when card is expanded (full mode) or photos panel opened
+  useEffect(() => {
+    if ((!open && !photosOpen) || photosLoadedRef.current) return
+    photosLoadedRef.current = true
+    ;(async () => {
+      const { data } = await (supabase as any)
+        .from('repair_photos')
+        .select('phase, url')
+        .eq('repair_id', item.id)
+        .order('created_at', { ascending: true })
+      setRepairPhotos(data ?? [])
+    })()
+  }, [open, photosOpen, item.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function update(patch: Record<string, unknown>, msg: string, undoPatch?: Record<string, unknown>) {
     setLoading(true)
@@ -186,6 +225,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
 
     const handleSimpleComplete = async () => {
       setLoading(true)
+      if (completionPhotos.length > 0) await uploadCompletionPhotos()
       const today = new Date().toISOString().slice(0, 10)
       // 電話連絡運用は手動連絡済みなので notified:true で確定（SMS送信はしない）
       const markNotified = notifyMode === 'phone_manual'
@@ -357,6 +397,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                     <Phone size={16} /> {item.customer.tel} に発信
                   </a>
                 )}
+                <CompletionPhotoCapture photos={completionPhotos} onAdd={f => setCompletionPhotos(cp => [...cp, f])} onRemove={i => setCompletionPhotos(cp => cp.filter((_, j) => j !== i))} />
                 <div className="flex gap-2">
                   <button onClick={() => setConfirmPrimary(false)}
                     className="flex-1 py-2 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-black active:scale-95 transition-all"
@@ -374,6 +415,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             ) : (
             <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 px-3 py-2.5 space-y-2">
               <p className="text-sm text-center text-emerald-800 font-black">{confirmText}</p>
+              <CompletionPhotoCapture photos={completionPhotos} onAdd={f => setCompletionPhotos(cp => [...cp, f])} onRemove={i => setCompletionPhotos(cp => cp.filter((_, j) => j !== i))} />
               <div className="flex gap-2">
                 <button onClick={() => setConfirmPrimary(false)}
                   className="flex-1 py-2 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-black active:scale-95 transition-all"
@@ -441,6 +483,30 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
               {loading ? <Loader2 size={16} className="animate-spin" /> : '📥'}
               外注品が戻った → 作業へ
             </button>
+          )}
+
+          {/* 写真 (簡易表示) */}
+          <button onClick={() => setPhotosOpen(v => !v)}
+            className="flex items-center gap-1 text-[11px] text-gray-400 font-bold py-0.5">
+            <Camera size={11} className="shrink-0" />
+            写真{repairPhotos && repairPhotos.length > 0 ? ` (${repairPhotos.length})` : ''}
+            <ChevronRight size={10} className={`transition-transform ${photosOpen ? 'rotate-90' : ''}`} />
+          </button>
+          {photosOpen && (
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {repairPhotos == null ? (
+                <Loader2 size={14} className="animate-spin text-gray-300" />
+              ) : repairPhotos.length === 0 ? (
+                <p className="text-[10px] text-gray-300">写真なし</p>
+              ) : repairPhotos.map((p, i) => (
+                <div key={i} className="relative w-14 h-14 shrink-0">
+                  <img src={p.url} alt="" className="w-full h-full object-cover rounded-lg border" />
+                  <span className={`absolute bottom-0 left-0 right-0 text-center text-[8px] py-0.5 rounded-b-lg ${p.phase === 'after' ? 'bg-emerald-600/70 text-white' : 'bg-black/40 text-white'}`}>
+                    {p.phase === 'after' ? '完了時' : '受付時'}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
 
           {/* 下部ロウ: 電話 + 受付に戻す + 削除 */}
@@ -594,12 +660,17 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                   <p className="text-xs text-center text-gray-600 font-bold">
                     もう一度タップして確定します
                   </p>
+                  <CompletionPhotoCapture photos={completionPhotos} onAdd={f => setCompletionPhotos(cp => [...cp, f])} onRemove={i => setCompletionPhotos(cp => cp.filter((_, j) => j !== i))} />
                   <div className="flex gap-2">
                     <button onClick={() => setConfirmPrimary(false)}
                       className="flex-1 py-3 rounded-xl bg-white border border-gray-200 text-gray-600 text-sm font-bold active:scale-95 transition-all">
                       戻る
                     </button>
-                    <button onClick={() => { setConfirmPrimary(false); primaryBtn.onClick() }} disabled={loading}
+                    <button onClick={async () => {
+                      setConfirmPrimary(false)
+                      if (completionPhotos.length > 0) { setLoading(true); await uploadCompletionPhotos(); setLoading(false) }
+                      primaryBtn.onClick()
+                    }} disabled={loading}
                       className={`flex-1 py-3 rounded-xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-all shadow-sm ${primaryBtn.color}`}>
                       {loading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                       確定する
@@ -652,6 +723,23 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                   戻り予定: {fmtDate(item.expected_return_date)}
                 </span>
               )}
+            </div>
+          )}
+
+          {/* 写真（受付時 + 完了時） */}
+          {repairPhotos && repairPhotos.length > 0 && (
+            <div>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1.5">📸 写真</p>
+              <div className="flex flex-wrap gap-2">
+                {repairPhotos.map((p, i) => (
+                  <div key={i} className="relative w-20 h-20 shrink-0">
+                    <img src={p.url} alt="" className={`w-full h-full object-cover rounded-xl border-2 ${p.phase === 'after' ? 'border-emerald-400' : 'border-gray-200'}`} />
+                    <span className={`absolute bottom-0 left-0 right-0 text-center text-[8px] py-0.5 rounded-b-xl font-bold ${p.phase === 'after' ? 'bg-emerald-600/80 text-white' : 'bg-black/40 text-white'}`}>
+                      {p.phase === 'after' ? '完了時' : '受付時'}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -775,3 +863,49 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
     </div>
   )
 }
+
+// ── 完了写真撮影サブコンポーネント ──────────────────────────────────────────
+function CompletionPhotoCapture({
+  photos,
+  onAdd,
+  onRemove,
+}: {
+  photos: { file: File; url: string }[]
+  onAdd:  (p: { file: File; url: string }) => void
+  onRemove: (i: number) => void
+}) {
+  return (
+    <div className="space-y-1">
+      <p className="text-[10px] font-black text-gray-500">📸 完了写真（任意・価格参照・実績蓄積）</p>
+      <div className="flex flex-wrap gap-1.5">
+        {photos.map((p, i) => (
+          <div key={i} className="relative w-14 h-14 shrink-0">
+            <img src={p.url} alt="" className="w-full h-full object-cover rounded-xl border border-emerald-300" />
+            <button
+              type="button"
+              onClick={() => onRemove(i)}
+              className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 shadow">
+              <X size={10} />
+            </button>
+          </div>
+        ))}
+        <label className="w-14 h-14 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer active:bg-gray-50 shrink-0">
+          <Camera size={16} className="text-gray-400" />
+          <span className="text-[9px] text-gray-400 mt-0.5">撮影</span>
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={e => {
+              const f = e.target.files?.[0]
+              if (f) onAdd({ file: f, url: URL.createObjectURL(f) })
+              e.target.value = ''
+            }}
+          />
+        </label>
+      </div>
+    </div>
+  )
+}
+
