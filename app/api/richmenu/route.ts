@@ -133,10 +133,14 @@ export async function GET(req: NextRequest) {
     }
     const listRes = await fetch(`${LINE_API}/richmenu/list`, { headers: authHeader })
     const currentMenus = listRes.ok ? await listRes.json() : { error: await listRes.text() }
+    // LIFF アプリ設定（エンドポイントURL確認用）
+    const liffRes = await fetch('https://api.line.me/liff/v1/apps', { headers: authHeader })
+    const liffApps = liffRes.ok ? await liffRes.json() : { error: await liffRes.text() }
     return NextResponse.json({
       config: { liffBase, hasToken: !!token },
       previewUrls,
       currentMenus,
+      liffApps,
     })
   }
 
