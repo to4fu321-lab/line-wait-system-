@@ -308,24 +308,34 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
 
     const canRevert = item.work_started || !!item.sent_to_vendor_at
 
-    return (
-      <div className={`rounded-2xl overflow-hidden shadow-sm ${
-        isOverdue ? 'border-2 border-red-400' : isDueSoon ? 'border-2 border-amber-400' : 'border border-gray-200'
-      } bg-white`}>
-        {/* 受付番号ヘッダー */}
-        <div className={`px-3 py-1 flex items-center justify-between ${isOverdue ? 'bg-red-600' : 'bg-indigo-600'}`}>
-          <span className="text-indigo-300 text-[10px] font-bold">受付番号</span>
-          <span className="text-white text-base font-black font-mono tracking-wider">{reqNo}</span>
-        </div>
+    const leftBorderColor =
+      isOverdue            ? 'border-l-red-500' :
+      isDueSoon            ? 'border-l-amber-500' :
+      item.sent_to_vendor_at ? 'border-l-orange-400' :
+      item.work_started    ? 'border-l-emerald-400' : 'border-l-indigo-400'
 
-        <div className="px-3 py-2 space-y-1.5">
-          {/* 顧客名 + 受付日（1行） */}
+    return (
+      <div className={`bg-white rounded-2xl shadow-sm border border-gray-100 border-l-4 ${leftBorderColor}`}>
+        <div className="p-4 space-y-3">
+          {/* バッジ + 受付番号 */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`text-xs font-black px-2.5 py-1.5 rounded-lg ${REQUEST_TYPE_COLORS[reqType]}`}>
+                {REQUEST_TYPE_LABELS[reqType]}
+              </span>
+              {isOverdue && <span className="text-xs font-black text-red-600">⚠️ 期限超過</span>}
+              {isDueSoon && !isOverdue && <span className="text-xs font-black text-amber-600">⚠️ 明日まで</span>}
+            </div>
+            <span className="text-[10px] font-black text-indigo-400 font-mono shrink-0">{reqNo}</span>
+          </div>
+
+          {/* 顧客名 + 受付日 */}
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               {item.child?.school_name && (
                 <p className="text-xs font-black text-amber-600 leading-none mb-0.5">{item.child.school_name}</p>
               )}
-              <p className="text-lg font-black text-gray-900 leading-tight">{name}</p>
+              <p className="text-xl font-black text-gray-900 leading-tight">{name}</p>
               {item.child?.name && item.customer?.name && (
                 <p className="text-[11px] text-gray-400">保護者: {item.customer.name}</p>
               )}
@@ -333,7 +343,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             <span className="text-[11px] text-gray-400 shrink-0 pt-0.5">受付 {fmtDate(item.received_date)}</span>
           </div>
 
-          {/* アイテム・内容（ボックスなし・コンパクト） */}
+          {/* アイテム・内容 */}
           <div>
             {item.item_name && item.content && item.item_name !== item.content && (
               <p className="text-[11px] text-gray-400 font-bold leading-none mb-0.5">{item.item_name}</p>
@@ -434,7 +444,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
           ) : (
             <button onClick={() => setConfirmPrimary(true)} disabled={loading}
               style={{ touchAction: 'manipulation' }}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-black text-base rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50">
+              className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-black text-base rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 transition-all disabled:opacity-50">
               {loading ? <Loader2 size={18} className="animate-spin" /> : '✅'}
               {completeBtnLabel}
             </button>

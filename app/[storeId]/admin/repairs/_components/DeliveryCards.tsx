@@ -78,21 +78,26 @@ export function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRev
 
   // ── Simple mode card ──────────────────────────────────────────
   if (isSimpleMode) {
+    const kindBorder = item.kind === 'purchase' ? 'border-l-orange-400' : 'border-l-indigo-400'
+    const kindBadge  = item.kind === 'purchase'
+      ? 'bg-orange-100 text-orange-700'
+      : 'bg-indigo-100 text-indigo-700'
+    const kindLabel  = item.kind === 'purchase' ? '📦 追加購入' : '✂️ お直し'
     return (
-      <div className="rounded-2xl overflow-hidden shadow-sm border-2 border-indigo-100 bg-white">
-        {/* 受付番号ヘッダー */}
-        <div className="px-4 py-2.5 flex items-center justify-between bg-indigo-600">
-          <span className="text-indigo-200 text-xs font-bold">受付番号</span>
-          <span className="text-white text-2xl font-black font-mono tracking-wider">{reqNo}</span>
-        </div>
-
+      <div className={`bg-white rounded-2xl shadow-sm border border-gray-100 border-l-4 ${kindBorder}`}>
         <div className="p-4 space-y-3">
+          {/* バッジ + 受付番号 */}
+          <div className="flex items-center justify-between gap-2">
+            <span className={`text-xs font-black px-2.5 py-1.5 rounded-lg ${kindBadge}`}>{kindLabel}</span>
+            <span className="text-[10px] font-black text-indigo-400 font-mono shrink-0">{reqNo}</span>
+          </div>
+
           {/* 学校名 + お客様名 */}
           <div>
             {item.child?.school_name && (
               <p className="text-amber-600 text-base font-black mb-0.5">{item.child.school_name}</p>
             )}
-            <p className="text-gray-900 text-2xl font-black leading-tight">{studentName}</p>
+            <p className="text-gray-900 text-xl font-black leading-tight">{studentName}</p>
           </div>
 
           {/* アイテム・内容 */}
@@ -154,7 +159,7 @@ export function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRev
             <button
               onClick={() => setSimpleConfirm(true)}
               disabled={!!loading}
-              className="w-full py-4 rounded-2xl font-black text-base bg-gradient-to-r from-indigo-600 to-violet-600 text-white active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-md shadow-indigo-900/20 disabled:opacity-50">
+              className="w-full py-5 rounded-2xl font-black text-base bg-gradient-to-r from-indigo-600 to-violet-600 text-white active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-md shadow-indigo-900/20 disabled:opacity-50">
               <Package size={20} />📦 お渡し済みにする
             </button>
           )}
