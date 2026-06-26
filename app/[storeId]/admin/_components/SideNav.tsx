@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useParams, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Timer, Search, Settings, ClipboardList, Smartphone, Ruler, ShoppingCart, CalendarDays, HelpCircle } from 'lucide-react'
+import { Timer, Search, Settings, ClipboardList, Smartphone, Ruler, ShoppingCart, CalendarDays } from 'lucide-react'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { useDeviceMode } from '@/lib/useDeviceMode'
@@ -15,8 +15,7 @@ const ALL_TABS = [
   { id: 'pos',      featureKey: 'pos',          label: 'レジ',     icon: ShoppingCart,  exact: false, path: (sid: string) => `/${sid}/admin/register` },
   { id: 'shifts',   featureKey: 'shift_management', label: 'シフト', icon: CalendarDays, exact: false, path: (sid: string) => `/${sid}/admin/shifts` },
   { id: 'fitting',  featureKey: null,           label: '採寸受付', icon: Ruler,         exact: false, path: (sid: string) => `/${sid}/admin/fitting` },
-  { id: 'qa',       featureKey: null,           label: 'Q&A',      icon: HelpCircle,    exact: false, path: (sid: string) => `/${sid}/admin/qa` },
-  { id: 'settings', featureKey: null,           label: '設定',     icon: Settings,      exact: false, path: (sid: string) => `/${sid}/admin/settings/staff` },
+{ id: 'settings', featureKey: null,           label: '設定',     icon: Settings,      exact: false, path: (sid: string) => `/${sid}/admin/settings/staff` },
 ] as const
 
 export function SideNav() {
