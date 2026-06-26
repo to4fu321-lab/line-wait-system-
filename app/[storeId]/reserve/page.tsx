@@ -3,9 +3,10 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { resolveFeature } from '@/lib/features'
 import {
   CalendarDays, Clock, User, FileText, Check,
-  Loader2, ChevronLeft, ChevronRight, GraduationCap, Plus, X,
+  Loader2, ChevronLeft, ChevronRight, GraduationCap, Plus, X, ShoppingBag,
 } from 'lucide-react'
 
 // 採寸サービスかどうかの判定
@@ -77,12 +78,22 @@ type SlotInfo = {
   available: boolean
 }
 
+// reservation_settings 未登録の店舗用デフォルト枠（admin/settings の DEFAULT_RESV と同値）
+const DEFAULT_SETTINGS: ReservationSetting[] = [
+  { id: 'default-uniform', service_type: 'uniform', label: '制服採寸', duration_min: 60,
+    start_time: '10:00', end_time: '17:00', is_active: true,
+    slots_sun: 0, slots_mon: 2, slots_tue: 2, slots_wed: 2, slots_thu: 2, slots_fri: 2, slots_sat: 3 },
+  { id: 'default-jersey', service_type: 'jersey', label: 'ジャージ採寸', duration_min: 30,
+    start_time: '10:00', end_time: '17:00', is_active: true,
+    slots_sun: 0, slots_mon: 2, slots_tue: 2, slots_wed: 2, slots_thu: 2, slots_fri: 2, slots_sat: 3 },
+]
+
 // ============================================================
 // シンプルフォールバックフォーム（reservation_settings 未対応時）
 // ============================================================
-function FallbackForm({ storeId, storeName }: { storeId: string; storeName: string }) {
+function FallbackForm({ storeId, storeName, initialName, selfOrderEnabled }: { storeId: string; storeName: string; initialName?: string; selfOrderEnabled?: boolean }) {
   const [step, setStep] = useState<'form' | 'done'>('form')
-  const [name, setName] = useState('')
+  const [name, setName] = useState(initialName ?? '')
   const [date, setDate] = useState('')
   const [note, setNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -99,6 +110,17 @@ function FallbackForm({ storeId, storeName }: { storeId: string; storeName: stri
         </div>
         <h1 className="text-xl font-black text-white mb-2">予約を受け付けました</h1>
         <p className="text-zinc-400 text-sm">ご来店予約を承りました。</p>
+
+        {/* 予約のお客様もそのままスマホから制服注文を入力できる（店舗設定でON/OFF） */}
+        {selfOrderEnabled && (
+          <>
+            <a href={`/${storeId}?action=purchase`}
+              className="mt-7 w-full max-w-xs flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-2xl transition-colors">
+              <ShoppingBag size={18} />制服を注文する
+            </a>
+            <p className="text-zinc-600 text-xs mt-2">サイズ・数量を選んでご注文いただけます</p>
+          </>
+        )}
       </div>
     )
   }
@@ -168,6 +190,7 @@ export default function ReservePage() {
   // 全体の状態
   const [pageState, setPageState] = useState<'loading' | 'slot' | 'fallback' | 'done' | 'error'>('loading')
   const [storeName, setStoreName] = useState('')
+  const [selfOrderEnabled, setSelfOrderEnabled] = useState(true)
   const [lineUserId, setLineUserId] = useState<string | null>(null)
   const [settings, setSettings] = useState<ReservationSetting[]>([])
 
@@ -216,35 +239,14 @@ export default function ReservePage() {
       // ストア名
       try {
         const { data: store } = await (supabase as any)
-          .from('stores').select('name').eq('id', storeId).single()
-        if (store) setStoreName(store.name ?? '')
+          .from('stores').select('name, features').eq('id', storeId).single()
+        if (store) {
+          setStoreName(store.name ?? '')
+          setSelfOrderEnabled(resolveFeature('customer_self_order', (store.features ?? {}) as Record<string, unknown>))
+        }
       } catch { /* ignore */ }
 
-      // reservation_settings を取得（失敗したらフォールバック）
-      let fetchedSettings: ReservationSetting[] = []
-      try {
-        const { data, error } = await (supabase as any)
-          .from('reservation_settings')
-          .select('*')
-          .eq('store_id', storeId)
-          .eq('is_active', true)
-          .order('label')
-        if (error) throw error
-        fetchedSettings = data ?? []
-      } catch {
-        setPageState('fallback')
-        return
-      }
-
-      if (fetchedSettings.length === 0) {
-        // 設定なし → フォールバック
-        setPageState('fallback')
-        return
-      }
-
-      setSettings(fetchedSettings)
-
-      // LIFF
+      // LIFF（フォールバック表示時も顧客名を反映できるよう、設定取得より先に実行）
       try {
         const liffModule = await import('@line/liff')
         const liff = liffModule.default
@@ -266,6 +268,25 @@ export default function ReservePage() {
         }
       } catch { /* LIFF not available */ }
 
+      // reservation_settings を取得（テーブル自体がない場合のみフォールバック）
+      let fetchedSettings: ReservationSetting[] = []
+      try {
+        const { data, error } = await (supabase as any)
+          .from('reservation_settings')
+          .select('*')
+          .eq('store_id', storeId)
+          .eq('is_active', true)
+          .order('label')
+        if (error) throw error
+        fetchedSettings = data ?? []
+      } catch {
+        setPageState('fallback')
+        return
+      }
+
+      // 設定未登録の店舗はデフォルト枠でスロットUIを表示
+      setSettings(fetchedSettings.length > 0 ? fetchedSettings : DEFAULT_SETTINGS)
+
       setPageState('slot')
     }
     init()
@@ -283,12 +304,12 @@ export default function ReservePage() {
     if (cust) {
       setCustomerId(cust.id)
       if (cust.name) setName(cust.name) // 採寸サービス選択時も登録名で上書き
-      const { data: kids } = await supabase.from('children').select('id, name, school_name, school_id, grade, gender')
+      const { data: kids } = await (supabase as any).from('children').select('id, name, school_name, school_id, grade, gender')
         .eq('customer_id', cust.id).order('created_at')
       setChildren((kids ?? []) as ChildRow[])
     }
     // 学校マスターを取得
-    const { data: sc } = await supabase.from('schools').select('id, name')
+    const { data: sc } = await (supabase as any).from('schools').select('id, name')
       .eq('store_id', storeId).eq('active', true).order('sort_order')
     setSchools((sc ?? []) as SchoolRow[])
     setLoadingChildren(false)
@@ -342,7 +363,7 @@ export default function ReservePage() {
       const dayEnd   = `${selectedDate}T23:59:59+09:00`
       const { data: reservations } = await (supabase as any)
         .from('reservations')
-        .select('reserved_at, service_type')
+        .select('reserved_at, service_type, purpose')
         .eq('store_id', storeId)
         .gte('reserved_at', dayStart)
         .lte('reserved_at', dayEnd)
@@ -365,6 +386,8 @@ export default function ReservePage() {
 
         let overlapCount = 0
         for (const r of (reservations ?? [])) {
+          // 試着室(採寸)を使う予約のみ枠を消費する
+          if (!isFittingService(r.service_type ?? '', r.purpose ?? '')) continue
           const jstTime = new Date(new Date(r.reserved_at).getTime() + 9 * 3600000)
             .toISOString().slice(11, 16)
           const [rh, rm] = jstTime.split(':').map(Number)
@@ -447,7 +470,7 @@ export default function ReservePage() {
   }
 
   if (pageState === 'fallback') {
-    return <FallbackForm storeId={storeId} storeName={storeName} />
+    return <FallbackForm storeId={storeId} storeName={storeName} initialName={name} selfOrderEnabled={selfOrderEnabled} />
   }
 
   if (pageState === 'error') {
@@ -480,6 +503,17 @@ export default function ReservePage() {
           {dateLabel}{selectedTime && ` ${selectedTime}〜`}
         </p>
         <p className="text-zinc-600 text-xs mt-4">※ 確認のご連絡をお送りする場合があります</p>
+
+        {/* 予約のお客様もそのままスマホから制服注文を入力できる（店舗設定でON/OFF） */}
+        {selfOrderEnabled && (
+          <>
+            <a href={`/${storeId}?action=purchase`}
+              className="mt-7 w-full max-w-xs flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-2xl transition-colors">
+              <ShoppingBag size={18} />制服を注文する
+            </a>
+            <p className="text-zinc-600 text-xs mt-2">サイズ・数量を選んでご注文いただけます</p>
+          </>
+        )}
       </div>
     )
   }
@@ -604,7 +638,7 @@ export default function ReservePage() {
                         if (!ncName.trim() || !customerId) return
                         setNcSaving(true)
                         const schoolName = schools.find(s => s.id === ncSchoolId)?.name ?? null
-                        const { data } = await supabase.from('children').insert({
+                        const { data } = await (supabase as any).from('children').insert({
                           customer_id: customerId, store_id: storeId,
                           name: ncName.trim(), school_id: ncSchoolId || null,
                           school_name: schoolName, grade: ncGrade || null, gender: ncGender || null,

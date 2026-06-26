@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { getLineToken } from '@/lib/line-config'
+import { pushCard } from '@/lib/line-flex'
 
 const TOKEN      = getLineToken('uniform')
 const TWILIO_SID   = process.env.TWILIO_ACCOUNT_SID  ?? ''
@@ -58,28 +59,22 @@ export async function POST(req: NextRequest) {
 
   // ── LINE通知 ────────────────────────────────────────────────
   if (lineUserId) {
-    const msgText =
-      `✂️ お直しが完了しました！\n\n${storeLabel}\n${customerName} 様\n\n` +
-      `${itemName}${reqText}\n\n` +
-      `お控えの依頼番号をお伝えください。\nスタッフがお渡しの準備をしてお待ちしております。`
-    try {
-      const res = await fetch('https://api.line.me/v2/bot/message/push', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
-        body: JSON.stringify({ to: lineUserId, messages: [{ type: 'text', text: msgText }] }),
-      })
-      if (!res.ok) {
-        const err = await res.text()
-        console.error('[notify-repair] LINE error:', err)
-        return NextResponse.json({ ok: false, error: `LINE ${res.status}` }, { status: 500 })
-      }
-      await supabase.from('repair_histories').update({ notified: true }).eq('id', repairId)
-      console.log('[notify-repair] LINE sent:', repairId)
-      return NextResponse.json({ ok: true, channel: 'line' })
-    } catch (e) {
-      console.error('[notify-repair] LINE exception:', e)
-      return NextResponse.json({ ok: false, error: String(e) }, { status: 500 })
+    const bodyLines = [itemName, reqNo ? `依頼番号：${reqNo}` : null].filter(Boolean) as string[]
+    const result = await pushCard(TOKEN, lineUserId, `お直し完了 ${customerName} 様`, {
+      kind: 'ready',
+      title: 'お直しが完了しました',
+      storeName: storeName || undefined,
+      customerName: customerName || undefined,
+      bodyLines: bodyLines.length ? bodyLines : undefined,
+      note: 'お控えの依頼番号をお伝えください。\nスタッフがお渡しの準備をしてお待ちしております。',
+    })
+    if (!result.ok) {
+      console.error('[notify-repair] LINE error:', result.error)
+      return NextResponse.json({ ok: false, error: `LINE ${result.status ?? ''}` }, { status: 500 })
     }
+    await (supabase as any).from('repair_histories').update({ notified: true }).eq('id', repairId)
+    console.log('[notify-repair] LINE sent:', repairId)
+    return NextResponse.json({ ok: true, channel: 'line' })
   }
 
   // ── SMS通知 ─────────────────────────────────────────────────
@@ -94,7 +89,7 @@ export async function POST(req: NextRequest) {
       `${reqText}\nお受け取りにお越しください。`
     try {
       await sendSms(tel, smsText)
-      await supabase.from('repair_histories').update({ notified: true }).eq('id', repairId)
+      await (supabase as any).from('repair_histories').update({ notified: true }).eq('id', repairId)
       console.log('[notify-repair] SMS sent:', repairId, toE164Japan(tel))
       return NextResponse.json({ ok: true, channel: 'sms' })
     } catch (e) {

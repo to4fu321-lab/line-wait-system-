@@ -6,19 +6,18 @@ import {
   Scissors, ShoppingBag, Loader2,
   Check, Package, Plus, AlertCircle, CheckCheck,
   History, Search, Database, ShoppingCart, PackageCheck,
-  MessageSquarePlus,
+  MessageSquarePlus, Download, BarChart2,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../_components/BottomNav'
 import { InquiryModal, type InquiryRow, type InquiryType, type InquiryStatus } from '../_components/InquiryModal'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { useDeviceMode } from '@/lib/useDeviceMode'
-import { rawToItem, todayJst } from './_components/utils'
+import { rawToItem, todayJst, fmtReqNo } from './_components/utils'
 import { useSimpleMode } from '@/lib/useSimpleMode'
 import type { RepairRow, PurchaseRow, UniformOrderRow, DeliveryItem } from './_components/types'
 import { Toast } from './_components/Toast'
 import { NewRepairModal } from './_components/NewRepairModal'
-import { SimpleReceiptModal } from './_components/SimpleReceiptModal'
 import { NewOrderModal } from './_components/NewOrderModal'
 import { RepairCard } from './_components/RepairCard'
 import { MakerOrderPanel, UniformMakerOrderPanel } from './_components/PurchaseOrderPanel'
@@ -27,6 +26,7 @@ import { EditModal } from './_components/EditModal'
 import { ArrivalCard } from './_components/ArrivalCard'
 import { InquiryTabCard } from './_components/InquiryTabCard'
 import { INQ_TYPE_LABELS } from './_components/constants'
+import { SeasonDashboard } from '../_components/SeasonDashboard'
 
 // ── Main Page ─────────────────────────────────────────────────
 type ActiveTab = 'repair' | 'purchase' | 'arrival' | 'delivery' | 'inquiries'
@@ -64,7 +64,6 @@ export default function RepairsPage() {
   const [searchText,     setSearchText]     = useState('')
   const [dummyLoading,   setDummyLoading]   = useState(false)
   const [showNewRepair,      setShowNewRepair]      = useState(false)
-  const [showSimpleReceipt,  setShowSimpleReceipt]  = useState(false)
   const [showNewOrder,    setShowNewOrder]    = useState(false)
   const [batchSelected,  setBatchSelected]  = useState<Set<string>>(new Set())
   const [batchUpdating,  setBatchUpdating]  = useState(false)
@@ -86,6 +85,7 @@ export default function RepairsPage() {
   const [handoverNote,    setHandoverNote]    = useState('')
   const [confirmingOC,    setConfirmingOC]    = useState(false)
   const [storeName, setStoreName] = useState('')
+  const [exporting,       setExporting]       = useState(false)
 
   const showToast = useCallback((type: 'ok' | 'err', msg: string, onUndo?: () => Promise<void>) => {
     setToast({ type, msg, onUndo })
@@ -201,7 +201,7 @@ export default function RepairsPage() {
         .eq('store_id', storeId).not('status', 'in', '("delivered")')
         .order('created_at', { ascending: true }),
       (supabase as any).from('inquiries')
-        .select('id,customer_name,content,type,is_urgent,due_date,status,response_method,response_notes,responded_at,received_by,handled_by,created_at')
+        .select('id,request_no,customer_name,customer_id,content,type,is_urgent,due_date,status,response_method,response_notes,responded_at,received_by,handled_by,created_at')
         .eq('store_id', storeId)
         .order('created_at', { ascending: true }),
     ])
@@ -434,10 +434,10 @@ export default function RepairsPage() {
     ? repairs.filter(r => pendingRepairIds.has(r.id))
     : sortedSubTab
   ).filter(r =>
-    matchSearch([r.content, r.item_name, r.child?.name, r.customer?.name, r.child?.school_name, r.slip_number])
+    matchSearch([r.content, r.item_name, r.child?.name, r.customer?.name, r.child?.school_name, r.slip_number, fmtReqNo('repair', r.request_no, r.id), r.request_no != null ? String(r.request_no) : null])
   )
   const filteredPurchases = purchases.filter(p =>
-    matchSearch([p.item_name, p.maker, p.notes, p.child?.name, p.customer?.name, p.child?.school_name])
+    matchSearch([p.item_name, p.maker, p.notes, p.child?.name, p.customer?.name, p.child?.school_name, fmtReqNo('purchase', p.request_no, p.id), p.request_no != null ? String(p.request_no) : null])
   )
   const filteredPurchaseUnordered = filteredPurchases.filter(p => ['received', 'ordered'].includes(p.status))
   const filteredPurchaseOnOrder   = filteredPurchases.filter(p => p.status === 'on_order')
@@ -490,6 +490,65 @@ export default function RepairsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredArrival, batchSelected, fetchAll, showToast])
 
+  // ── Excel出力 ──────────────────────────────────────────────
+  const exportExcel = useCallback(async () => {
+    if (exporting) return
+    setExporting(true)
+    try {
+      const XLSX = await import('xlsx')
+      const STATUS_JP: Record<string, string> = {
+        received: '受付中', in_progress: '作業中', completed: '完了', delivered: '渡し済み', cancelled: 'キャンセル',
+        ordered: '依頼受付', on_order: '発注済み', stocked: '確保済み', arrived: '入荷済み',
+      }
+      const REQ_JP: Record<string, string> = {
+        repair: 'お直し', repair_consult: '相談', inquiry: '問合せ', payment_pending: '入金待ち', embroidery: '刺繍',
+      }
+      const today = new Date().toISOString().slice(0, 10)
+
+      const repairSheet = XLSX.utils.json_to_sheet(repairs.map(r => ({
+        '伝票番号':     r.slip_number ?? '',
+        '受付No':       r.request_no ?? '',
+        'お客様':       r.customer?.name ?? '',
+        'お子様':       r.child?.name ?? '',
+        '学校':         r.child?.school_name ?? '',
+        '種別':         REQ_JP[r.request_type ?? ''] ?? r.request_type ?? '',
+        '品目':         r.item_name,
+        '内容':         r.content,
+        '受付日':       r.received_date,
+        '希望完了日':   r.desired_completion_date ?? '',
+        '完了日':       r.completed_date ?? '',
+        '状態':         STATUS_JP[r.status] ?? r.status,
+        '価格':         r.price ?? '',
+        '支払':         r.prepaid ? '前払済' : '未払',
+        '外注先':       r.vendor_name ?? '',
+        '備考':         r.notes ?? '',
+      })))
+
+      const purchaseSheet = XLSX.utils.json_to_sheet(purchases.map(p => ({
+        'お客様':       p.customer?.name ?? '',
+        'お子様':       p.child?.name ?? '',
+        '学校':         p.child?.school_name ?? '',
+        'メーカー':     p.maker ?? '',
+        '品目':         p.item_name,
+        '状態':         STATUS_JP[p.status] ?? p.status,
+        '受付日':       p.ordered_date,
+        '入荷日':       p.arrived_date ?? '',
+        '価格':         p.price ?? '',
+        '備考':         p.notes ?? '',
+      })))
+
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, repairSheet, 'お直し一覧')
+      XLSX.utils.book_append_sheet(wb, purchaseSheet, '発注一覧')
+      XLSX.writeFile(wb, `repairs_${today}.xlsx`)
+    } catch (e) {
+      showToast('err', 'Excel出力に失敗しました')
+      console.error(e)
+    } finally {
+      setExporting(false)
+    }
+  }, [repairs, purchases, exporting, showToast])
+
   // ダッシュボード counts
   const repairNotStarted  = repairs.filter(r => r.request_type === 'repair' && !r.work_started)
   const repairInProgress  = repairs.filter(r => r.request_type === 'repair' && r.work_started)
@@ -528,12 +587,12 @@ export default function RepairsPage() {
     waiting.length
 
   const filteredWaiting = [...waitingUnpaid, ...waitingPaid].filter(i =>
-    matchSearch([i.item_name, i.sub_label, i.child?.name, i.customer?.name, i.child?.school_name, i.slip_number])
+    matchSearch([i.item_name, i.sub_label, i.child?.name, i.customer?.name, i.child?.school_name, i.slip_number, fmtReqNo(i.kind, i.request_no, i.id), i.request_no != null ? String(i.request_no) : null])
   )
 
   const filteredUniformOrders = uniformOrders
     .filter(o => o.status === 'confirmed')
-    .filter(o => matchSearch([o.maker, o.customer?.name, o.child?.name, o.child?.school_name, ...(o.items?.map(i => i.item_name) ?? [])]))
+    .filter(o => matchSearch([o.maker, o.customer?.name, o.child?.name, o.child?.school_name, ...(o.items?.map(i => i.item_name) ?? []), (o as any).request_no != null ? fmtReqNo('purchase', (o as any).request_no, o.id) : null, (o as any).request_no != null ? String((o as any).request_no) : null]))
 
   const pendingInqAll = inquiries
     .filter(i => i.status === 'pending')
@@ -566,6 +625,12 @@ export default function RepairsPage() {
               </button>
             )}
             <div className="flex-1" />
+            <button onClick={exportExcel} disabled={exporting || loading}
+              className="flex items-center gap-1 px-2 py-1.5 bg-emerald-50 hover:bg-emerald-100 active:scale-95 text-emerald-700 border border-emerald-200 text-[10px] font-bold rounded-lg transition-all disabled:opacity-50"
+              title="お直し・発注一覧をExcel出力">
+              {exporting ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />}
+              {!exporting && <span>Excel</span>}
+            </button>
             {hasFeature('repairs_dummy') && (
               <button onClick={generateDummy} disabled={dummyLoading}
                 className="flex items-center gap-1 px-2 py-1.5 bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-400 text-[10px] font-bold rounded-lg transition-all disabled:opacity-50"
@@ -587,7 +652,7 @@ export default function RepairsPage() {
                 {isTablet && '制服注文'}
               </button>
             )}
-            <button onClick={() => isSimpleMode ? setShowSimpleReceipt(true) : setShowNewRepair(true)}
+            <button onClick={() => setShowNewRepair(true)}
               className={`flex items-center justify-center gap-1.5 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-indigo-600/20 ${isTablet ? 'px-3' : 'px-2.5'}`}>
               <Scissors size={13} />
               {isTablet && 'お直し'}
@@ -739,6 +804,7 @@ export default function RepairsPage() {
 
       {/* ── Body ────────────────────────────────────────────── */}
       <div className={`${isTablet ? 'px-6 pb-8' : 'max-w-2xl mx-auto px-4 pb-32'} pt-4 space-y-3`}>
+        <SeasonDashboard storeId={storeId} />
         {fetchError && (
           <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-xs text-red-600 flex items-center gap-2">
             <AlertCircle size={13} />DBエラー: {fetchError}
@@ -963,6 +1029,10 @@ export default function RepairsPage() {
               <a href={`/${storeId}/admin/orders`}
                 className="shrink-0 flex items-center gap-1.5 px-3 py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold rounded-xl hover:bg-indigo-100 transition-colors whitespace-nowrap">
                 <Database size={12} />注文管理
+              </a>
+              <a href={`/${storeId}/admin/order-summary`}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-2.5 bg-orange-50 border border-orange-200 text-orange-700 text-xs font-bold rounded-xl hover:bg-orange-100 transition-colors whitespace-nowrap">
+                <BarChart2 size={12} />集計
               </a>
             </div>
 
@@ -1246,13 +1316,6 @@ export default function RepairsPage() {
           onSave={fetchAll}
           onToast={showToast}
           showOcr={true}
-        />
-      )}
-      {showSimpleReceipt && (
-        <SimpleReceiptModal
-          storeId={storeId}
-          onClose={() => setShowSimpleReceipt(false)}
-          onCreated={() => { setShowSimpleReceipt(false); fetchAll() }}
         />
       )}
       {showNewOrder && (

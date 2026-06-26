@@ -191,14 +191,18 @@ function StoreCard({ s }: { s: StoreStats }) {
           className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-zinc-700/50 border border-zinc-600/50 text-zinc-300 text-xs font-bold active:scale-95 transition-all">
           <ExternalLink size={12} />顧客管理
         </a>
+        <a href={`/${s.store.id}/admin/master?tab=staff`} target="_blank" rel="noopener noreferrer"
+          className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold active:scale-95 transition-all">
+          <Users size={12} />スタッフPIN
+        </a>
         <a href={`/${s.store.id}/admin/settings`} target="_blank" rel="noopener noreferrer"
-          className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-violet-600/20 border border-violet-500/30 text-violet-300 text-xs font-bold active:scale-95 transition-all">
+          className="col-span-3 flex items-center justify-center gap-1 py-2.5 rounded-xl bg-violet-600/20 border border-violet-500/30 text-violet-300 text-xs font-bold active:scale-95 transition-all">
           <Settings size={12} />設定
         </a>
       </div>
       <a href={`/${s.store.id}/admin`} target="_blank" rel="noopener noreferrer"
         className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-amber-600/20 border border-amber-500/30 text-amber-300 text-xs font-bold active:scale-95 transition-all w-full">
-        <ShieldCheck size={12} />店舗管理（全機能）
+        <ShieldCheck size={12} />スタッフ画面を開く
       </a>
     </div>
   )
@@ -313,12 +317,6 @@ function CompanyDashboard({
             <p>この会社に店舗が登録されていません</p>
           </div>
         )}
-
-        <div className="flex justify-center pt-2">
-          <a href="/super-admin" className="text-zinc-600 text-xs hover:text-zinc-400 transition-colors">
-            総管理ダッシュボードへ
-          </a>
-        </div>
       </div>
     </div>
   )

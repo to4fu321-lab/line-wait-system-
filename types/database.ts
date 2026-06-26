@@ -52,6 +52,9 @@ export interface Queue {
   details: Record<string, unknown> | null
   is_remote: boolean
   checked_in: boolean
+  customer_id: string | null
+  child_id: string | null
+  customer_kana: string | null
   created_at: string
 }
 
@@ -68,15 +71,19 @@ export interface Database {
         Row: Queue
         Insert: {
           id?: string; store_id: string; ticket_number: number; status?: QueueStatus
-          school_name: string; customer_name: string; child_name?: string | null
+          school_name?: string | null; customer_name: string; child_name?: string | null
           category: QueueCategory; gender: Gender; line_user_id?: string | null
           details?: Record<string, unknown> | null; created_at?: string
+          is_remote?: boolean; checked_in?: boolean
+          customer_id?: string | null; child_id?: string | null; customer_kana?: string | null
         }
         Update: {
           id?: string; store_id?: string; ticket_number?: number; status?: QueueStatus
-          school_name?: string; customer_name?: string; child_name?: string | null
+          school_name?: string | null; customer_name?: string; child_name?: string | null
           category?: QueueCategory; gender?: Gender; line_user_id?: string | null
           details?: Record<string, unknown> | null; created_at?: string
+          is_remote?: boolean; checked_in?: boolean
+          customer_id?: string | null; child_id?: string | null; customer_kana?: string | null
         }
         Relationships: []
       }

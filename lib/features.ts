@@ -31,6 +31,8 @@ export type FeatureKey =
   | 'line_parent_info'     // LINE保護者情報投稿
   | 'line_coupon'          // クーポン自動配布
   | 'line_parent_rsv'      // LINE採寸予約（保護者）
+  | 'customer_self_intake' // お客様セルフ依頼入力（登録後に自分のスマホで依頼内容を入力）
+  | 'customer_self_order'  // お客様セルフ制服注文（採寸完了・予約後に自分のスマホで制服を注文）
   // ── 既存フラグ（後方互換）──────────────
   | 'queue'
   | 'crm'
@@ -40,6 +42,22 @@ export type FeatureKey =
   | 'products'
   | 'purchase_orders'
   | 'takeout'
+  // ── 通知アドオン（既定OFF・契約時のみON）──
+  | 'sms_notify'           // SMS完了通知（未契約時は電話連絡ステップに切替）
+  // ── UI（β・既定OFF）──
+  | 'today_tasks_ui'       // 「今日やること」スタッフ向けトップ画面
+  // ── レジ（アドオン・既定OFF）──
+  | 'pos'                  // 簡易レジ（会計・レシート/領収書）
+  // ── シフト管理（アドオン・既定OFF）──
+  | 'shift_management'     // シフト管理（店長作成・公開・人件費＋スタッフ希望提出・メッセージ）
+  | 'shift_inter_store'    // 店舗間スタッフヘルプ（同一グループ内で応援を募集→応募→確定）
+  | 'shift_attendance'     // 出退勤打刻（スタッフ打刻・予定vs実績の勤怠管理）
+  | 'shift_leave'          // 休暇申請（有給/欠勤等の種別付き申請・承認）
+  | 'shift_swap'           // シフト交換申請（スタッフ間の交代）
+  | 'staff_push'           // スタッフ向けPWAプッシュ通知（公開/欠員/メッセージ/承認）
+  | 'shift_demand'         // 試着予約連動の必要人員算出・人員設計
+  | 'shift_dashboard'      // 経営ダッシュボード（出勤率/人件費率/充足率/店舗別）
+  | 'shift_ai'             // AI（自動シフト生成・欠員補充候補・自然言語チャット申請）
 
 // ── プラン定義 ─────────────────────────────────────────────────
 export const PLAN_DEFS: Record<Plan, {
@@ -244,6 +262,13 @@ export function resolveFeature(
   if (key in planDef.features) {
     return planDef.features[key as keyof typeof planDef.features] !== false
   }
+  // アドオン機能（契約時のみON）はプラン未定義でも既定OFF
+  if (ADDON_DEFAULT_OFF.includes(key)) return false
   // 未定義 = 有効（後方互換）
   return true
 }
+
+// 契約時のみ有効化するアドオン/β機能。明示設定が無ければ常にOFF。
+export const ADDON_DEFAULT_OFF: FeatureKey[] = ['sms_notify', 'today_tasks_ui', 'pos',
+  'shift_management', 'shift_inter_store',
+  'shift_attendance', 'shift_leave', 'shift_swap', 'staff_push', 'shift_demand', 'shift_dashboard', 'shift_ai']

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Loader2, CheckCheck, ChevronLeft, Sparkles } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fmtReqNo } from './utils'
 import type { InquiryRow, InquiryStatus, ResponseMethod } from '../../_components/InquiryModal'
 import {
   INQ_TYPE_LABELS, INQ_TYPE_BADGE, INQ_TYPE_BORDER,
@@ -24,6 +25,7 @@ export function InquiryTabCard({ item, onEdit, onStatusChange, isSimpleMode = fa
 
   const today = new Date(); today.setHours(0,0,0,0)
   const isOverdue = item.due_date && item.status !== 'completed' && new Date(item.due_date) < today
+  const reqNo = fmtReqNo('inquiry', item.request_no, item.id)
 
   async function advanceStatus(e: React.MouseEvent) {
     e.stopPropagation()
@@ -97,7 +99,10 @@ export function InquiryTabCard({ item, onEdit, onStatusChange, isSimpleMode = fa
                 {INQ_STATUS_LABELS[item.status]}
               </span>
             </div>
-            {item.customer_name && <p className="text-xl font-black text-gray-800 mb-2">{item.customer_name}</p>}
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] font-black text-indigo-400 font-mono shrink-0">{reqNo}</span>
+              {item.customer_name && <p className="text-xl font-black text-gray-800">{item.customer_name}</p>}
+            </div>
             <p className="text-base text-gray-600 leading-relaxed mb-3 line-clamp-2">{item.content}</p>
             {item.response_notes && <p className="text-sm text-gray-400 mb-3 leading-relaxed">💬 {item.response_notes}</p>}
             {item.response_method && (
@@ -269,6 +274,7 @@ export function InquiryTabCard({ item, onEdit, onStatusChange, isSimpleMode = fa
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+            <span className="text-[10px] font-black text-indigo-400 font-mono mr-1">{reqNo}</span>
             {item.customer_name && <span className="text-xs font-bold text-gray-700">{item.customer_name}</span>}
             {isOverdue && <span className="text-[10px] font-black text-red-600">期限超過</span>}
             {item.due_date && !isOverdue && item.status !== 'completed' && (

@@ -4,15 +4,16 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   BellRing, CheckCheck, UserX, RefreshCw, Clock, Users,
-  Loader2, Store, Phone, User, GraduationCap,
+  Loader2, Store, Phone, User,
   ChevronRight, LayoutDashboard, X, MapPin, BellOff, Bell,
-  CalendarDays, QrCode,
+  QrCode,
 } from 'lucide-react'
 import { BottomNav } from './_components/BottomNav'
 import { QrRegistrationModal } from './_components/QrRegistrationModal'
 import { StoreSelectScreen } from './_components/StoreSelectScreen'
 import type { StoreInfo } from './_components/StoreSelectScreen'
 import { resolveFeature } from '@/lib/features'
+import { SchoolDeadlineAlert } from './_components/SchoolDeadlineAlert'
 import { PinScreen } from './_components/PinScreen'
 import { WaitingCard, CallingCard, HistoryCard } from './_components/QueueCards'
 import { supabase, getTodayStart } from '@/lib/supabase'
@@ -24,32 +25,36 @@ import {
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BAmZx5b8ScrgrqWa822FdQhtfHV2CSyqvxNeQX-Ds1KsqztPPRtZRyBP_LaQZmCLejg8Ivd7Gu4cBxKtNwodb3o'
 
+// サンプルグループ（本店/支店A）。総管理への導線はこのサンプル店舗からのみ残す
+const SAMPLE_GROUP_ID = '00000000-0000-0000-0000-000000000001'
+
 function urlBase64ToUint8Array(base64: string) {
   const pad = '='.repeat((4 - base64.length % 4) % 4)
   const b64 = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/')
   const raw = window.atob(b64)
-  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
+  return Uint8Array.from(Array.from(raw).map(c => c.charCodeAt(0)))
 }
 
-type AdminView  = 'loading' | 'select_store' | 'pin' | 'dashboard'
-type HistoryTab = 'completed' | 'cancelled'
+type AdminView       = 'loading' | 'select_store' | 'pin' | 'dashboard'
+type FocusedSection  = 'calling' | 'waiting' | 'completed' | 'cancelled' | null
 
 // ============================================================
 // ダッシュボード
 // ============================================================
 function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; groupCode: string | null; onLogout: () => void }) {
   const router = useRouter()
-  const [queues,         setQueues]         = useState<Queue[]>([])
-  const [refreshing,     setRefreshing]     = useState(false)
-  const [historyTab,     setHistoryTab]     = useState<HistoryTab>('completed')
-  const [historyVisible, setHistoryVisible] = useState(false)
+  const [queues,          setQueues]          = useState<Queue[]>([])
+  const [refreshing,      setRefreshing]      = useState(false)
+  const [focusedSection,  setFocusedSection]  = useState<FocusedSection>(null)
   const [toast,          setToast]          = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
   const [isOpen,         setIsOpen]         = useState<boolean | null>(null)
   const [notificationPlan, setNotificationPlan] = useState<'calling_only' | 'full'>('calling_only')
   const [isTestMode,     setIsTestMode]     = useState(false)
+  const [tcShowReception, setTcShowReception] = useState(false)
   const [showQrModal,    setShowQrModal]    = useState(false)
   const [pushStatus,     setPushStatus]     = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle')
   const [testLoading,    setTestLoading]    = useState(false)
+  const [todayReservations, setTodayReservations] = useState(0)
   const [openCloseModal, setOpenCloseModal] = useState<'opening' | 'closing' | null>(null)
   const [briefing,       setBriefing]       = useState<string | null>(null)
   const [briefingLoading,setBriefingLoading]= useState(false)
@@ -94,7 +99,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
 
   const fetchStoreStatus = useCallback(async () => {
     // is_open を必ず取得（別列の有無に影響されないよう独立クエリ）
-    const { data, error } = await supabase.from('stores')
+    const { data, error } = await (supabase as any).from('stores')
       .select('is_open')
       .eq('id', store.id).single()
     if (!error && data != null) {
@@ -102,25 +107,40 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     }
     // オプション列は別途取得（存在しない列でエラーになっても is_open に影響させない）
     const { data: opts } = await (supabase as any).from('stores')
-      .select('notification_plan, is_test_mode')
+      .select('notification_plan, is_test_mode, timecard_settings')
       .eq('id', store.id).single()
     if (opts) {
       if (opts.notification_plan) setNotificationPlan(opts.notification_plan)
       if (opts.is_test_mode != null) setIsTestMode(opts.is_test_mode)
+      setTcShowReception(opts.timecard_settings?.show_on_reception !== false)
     }
   }, [store.id])
 
   const fetchQueues = useCallback(async () => {
     setRefreshing(true)
-    const { data } = await supabase.from('queues').select('*')
+    const { data } = await (supabase as any).from('queues').select('*')
       .eq('store_id', store.id).gte('created_at', getTodayStart())
       .order('ticket_number', { ascending: true })
     if (data) setQueues(data)
     setRefreshing(false)
   }, [store.id])
 
+  const fetchTodayReservations = useCallback(async () => {
+    try {
+      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+      const todayEnd   = new Date(); todayEnd.setHours(23, 59, 59, 999)
+      const { count } = await (supabase as any)
+        .from('reservations').select('id', { count: 'exact', head: true })
+        .eq('store_id', store.id)
+        .gte('reserved_at', todayStart.toISOString())
+        .lte('reserved_at', todayEnd.toISOString())
+        .in('status', ['confirmed', 'arrived'])
+      setTodayReservations(count ?? 0)
+    } catch { /* reservations table may not exist */ }
+  }, [store.id])
+
   useEffect(() => {
-    fetchStoreStatus(); fetchQueues()
+    fetchStoreStatus(); fetchQueues(); fetchTodayReservations()
     if (typeof window !== 'undefined' && 'Notification' in window && (window as any).Notification.permission === 'granted') {
       setupPush(store.id)
     }
@@ -130,7 +150,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
       .subscribe()
     const pollId = setInterval(() => { fetchQueues() }, 10000)
     return () => { supabase.removeChannel(channel); clearInterval(pollId) }
-  }, [store.id, fetchQueues, fetchStoreStatus])
+  }, [store.id, fetchQueues, fetchStoreStatus, fetchTodayReservations])
 
   const handleToggleOpen = async () => {
     if (isOpen === null) return
@@ -201,13 +221,13 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
   }
 
   const handleAction = async (id: string, status: QueueStatus) => {
-    const { error } = await supabase.from('queues').update({ status }).eq('id', id)
+    const { error } = await (supabase as any).from('queues').update({ status }).eq('id', id)
     if (error) { showToast('err', '更新失敗: ' + error.message); return }
     setQueues(prev => prev.map(q => q.id === id ? { ...q, status } : q))
     const labels: Record<QueueStatus, string> = { calling:'呼出', completed:'完了', cancelled:'不在', waiting:'待機に戻しました' }
     showToast('ok', labels[status])
     if (status === 'calling') {
-      const { data: freshTicket } = await supabase.from('queues')
+      const { data: freshTicket } = await (supabase as any).from('queues')
         .select('line_user_id, ticket_number, customer_name').eq('id', id).single()
       if (freshTicket?.line_user_id) {
         fetch('/api/notify', {
@@ -249,7 +269,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
   }, [store.id, router])
 
   const handleCheckIn = async (id: string) => {
-    const { error } = await supabase.from('queues').update({ checked_in: true }).eq('id', id)
+    const { error } = await (supabase as any).from('queues').update({ checked_in: true }).eq('id', id)
     if (error) { showToast('err', 'チェックイン失敗: ' + error.message); return }
     setQueues(prev => prev.map(q => q.id === id ? { ...q, checked_in: true } : q))
     showToast('ok', '代理チェックイン済みにしました')
@@ -261,7 +281,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     const schools = ['○○中学校', '△△高校', '□□学園', '◇◇学院', '星川中学校', '南高等学校']
     const genders = ['male', 'female', 'other'] as const
     const categories = ['fitting', 'pickup', 'other'] as const
-    const { data: last } = await supabase.from('queues')
+    const { data: last } = await (supabase as any).from('queues')
       .select('ticket_number').eq('store_id', store.id)
       .gte('created_at', getTodayStart())
       .order('ticket_number', { ascending: false }).limit(1).maybeSingle()
@@ -270,7 +290,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     const school   = schools[Math.floor(Math.random() * schools.length)]
     const gender   = genders[Math.floor(Math.random() * genders.length)]
     const category = categories[Math.floor(Math.random() * categories.length)]
-    const { error } = await supabase.from('queues').insert({
+    const { error } = await (supabase as any).from('queues').insert({
       store_id: store.id, ticket_number: nextNum, status: 'waiting',
       customer_name: name, school_name: school, child_name: null,
       category, gender, is_remote: false, checked_in: false,
@@ -280,20 +300,16 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     else { showToast('ok', `テスト: ${name} (#${nextNum})を追加`); fetchQueues() }
   }, [store.id, fetchQueues, showToast])
 
-  const waitingTickets = queues.filter(q => q.status === 'waiting')
-  const callingTickets = queues.filter(q => q.status === 'calling')
-  const historyTickets = queues.filter(q => q.status === historyTab)
+  const waitingTickets = queues.filter(q => q.status === 'waiting').reverse()
+  const callingTickets = queues.filter(q => q.status === 'calling').reverse()
+  const historyStatus  = focusedSection === 'completed' || focusedSection === 'cancelled' ? focusedSection : 'completed'
+  const historyTickets = queues.filter(q => q.status === historyStatus).reverse()
   const remoteCount    = waitingTickets.filter(q => q.is_remote && !q.checked_in).length
   const completed      = queues.filter(q => q.status === 'completed').length
   const cancelledCount = queues.filter(q => q.status === 'cancelled').length
 
-  const toggleHistory = (tab: HistoryTab) => {
-    if (historyVisible && historyTab === tab) {
-      setHistoryVisible(false)
-    } else {
-      setHistoryTab(tab)
-      setHistoryVisible(true)
-    }
+  const toggleSection = (section: FocusedSection) => {
+    setFocusedSection(prev => prev === section ? null : section)
   }
 
   return (
@@ -344,16 +360,31 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
               className="p-2 rounded-xl bg-gray-100 border border-gray-200 hover:bg-gray-200 active:opacity-60 transition-all text-gray-500">
               <QrCode size={16} />
             </button>
-            <a href={`/${store.id}/takeout-admin`}
-              title="テイクアウト管理"
-              className="p-2 rounded-xl bg-gray-100 border border-gray-200 hover:bg-gray-200 active:opacity-60 transition-all text-gray-500 text-base leading-none flex items-center justify-center">
-              🥡
-            </a>
-            <a href={groupCode ? `/company/${groupCode}` : '/super-admin'}
-              title={groupCode ? '会社管理ダッシュボード' : '総管理ダッシュボード'}
-              className="p-2 rounded-xl bg-gray-100 border border-gray-200 hover:bg-gray-200 active:opacity-60 transition-all text-gray-500">
-              <LayoutDashboard size={16} />
-            </a>
+            {resolveFeature('takeout', store.features ?? {}) && (
+              <a href={`/${store.id}/takeout-admin`}
+                title="テイクアウト管理"
+                className="p-2 rounded-xl bg-gray-100 border border-gray-200 hover:bg-gray-200 active:opacity-60 transition-all text-gray-500 text-base leading-none flex items-center justify-center">
+                🥡
+              </a>
+            )}
+            {resolveFeature('shift_attendance', store.features ?? {}) && tcShowReception && (
+              <a href={`/${store.id}/timecard`} target="_blank" rel="noopener noreferrer"
+                title="タイムカード"
+                className="p-2 rounded-xl bg-gray-100 border border-gray-200 hover:bg-gray-200 active:opacity-60 transition-all text-gray-500 text-base leading-none flex items-center justify-center">
+                🕐
+              </a>
+            )}
+            {groupCode ? (
+              <a href={`/company/${groupCode}`} title="会社管理ダッシュボード"
+                className="p-2 rounded-xl bg-gray-100 border border-gray-200 hover:bg-gray-200 active:opacity-60 transition-all text-gray-500">
+                <LayoutDashboard size={16} />
+              </a>
+            ) : store.group_id === SAMPLE_GROUP_ID ? (
+              <a href="/super-admin" title="総管理ダッシュボード"
+                className="p-2 rounded-xl bg-gray-100 border border-gray-200 hover:bg-gray-200 active:opacity-60 transition-all text-gray-500">
+                <LayoutDashboard size={16} />
+              </a>
+            ) : null}
           </div>
         </div>
 
@@ -365,38 +396,45 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
           </div>
         )}
 
-        {/* 行3: 状態バッジ 4つ（常時表示）— 完了・不在はタップで履歴展開 */}
-        <div className="grid grid-cols-4 gap-1.5">
-          <div className="flex flex-col items-center gap-0.5 bg-blue-50 border border-blue-200 rounded-xl px-1 py-2.5">
+        {/* 行3: 状態バッジ 5つ（常時表示）— 完了・不在はタップで履歴展開 */}
+        <div className="grid grid-cols-5 gap-1">
+          <button onClick={() => toggleSection('waiting')} style={{ touchAction: 'manipulation' }}
+            className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2.5 active:scale-95 transition-all ${
+              focusedSection === 'waiting' ? 'bg-blue-100 border border-blue-400' : 'bg-blue-50 border border-blue-200'
+            }`}>
             <span className="text-blue-600 text-2xl font-black tabular-nums leading-none">{waitingTickets.length}</span>
-            <span className="text-blue-500 text-[10px] font-bold mt-0.5">待機</span>
-          </div>
-          <div className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2.5 ${
-            callingTickets.length > 0 ? 'bg-amber-50 border border-amber-300' : 'bg-gray-50 border border-gray-200'
-          }`}>
+            <span className="text-blue-500 text-[10px] font-bold mt-0.5">順番待ち</span>
+          </button>
+          <button onClick={() => toggleSection('calling')} style={{ touchAction: 'manipulation' }}
+            className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2.5 active:scale-95 transition-all ${
+              focusedSection === 'calling'
+                ? 'bg-amber-100 border border-amber-400'
+                : callingTickets.length > 0 ? 'bg-amber-50 border border-amber-300' : 'bg-gray-50 border border-gray-200'
+            }`}>
             <span className={`text-2xl font-black tabular-nums leading-none ${callingTickets.length > 0 ? 'text-amber-600 animate-pulse' : 'text-gray-400'}`}>
               {callingTickets.length}
             </span>
             <span className={`text-[10px] font-bold mt-0.5 ${callingTickets.length > 0 ? 'text-amber-500' : 'text-gray-400'}`}>呼出中</span>
-          </div>
-          <button onClick={() => toggleHistory('completed')} style={{ touchAction: 'manipulation' }}
+          </button>
+          <button onClick={() => toggleSection('completed')} style={{ touchAction: 'manipulation' }}
             className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2.5 active:scale-95 transition-all ${
-              historyVisible && historyTab === 'completed'
-                ? 'bg-emerald-100 border border-emerald-300'
-                : 'bg-gray-50 border border-gray-200'
+              focusedSection === 'completed' ? 'bg-emerald-100 border border-emerald-300' : 'bg-gray-50 border border-gray-200'
             }`}>
             <span className="text-emerald-600 text-2xl font-black tabular-nums leading-none">{completed}</span>
             <span className="text-gray-400 text-[10px] font-bold mt-0.5">完了 ▾</span>
           </button>
-          <button onClick={() => toggleHistory('cancelled')} style={{ touchAction: 'manipulation' }}
+          <button onClick={() => toggleSection('cancelled')} style={{ touchAction: 'manipulation' }}
             className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2.5 active:scale-95 transition-all ${
-              historyVisible && historyTab === 'cancelled'
-                ? 'bg-gray-100 border border-gray-300'
-                : 'bg-gray-50 border border-gray-200'
+              focusedSection === 'cancelled' ? 'bg-gray-100 border border-gray-400' : 'bg-gray-50 border border-gray-200'
             }`}>
             <span className="text-gray-500 text-2xl font-black tabular-nums leading-none">{cancelledCount}</span>
             <span className="text-gray-400 text-[10px] font-bold mt-0.5">不在 ▾</span>
           </button>
+          <a href={`/${store.id}/admin/reservations`}
+            className="flex flex-col items-center gap-0.5 bg-indigo-50 border border-indigo-200 rounded-xl px-1 py-2.5 active:opacity-60">
+            <span className="text-indigo-600 text-2xl font-black tabular-nums leading-none">{todayReservations}</span>
+            <span className="text-indigo-400 text-[10px] font-bold mt-0.5">予約 ▸</span>
+          </a>
         </div>
 
         {/* 遠隔待ちバッジ（遠隔がいる時のみ） */}
@@ -423,9 +461,12 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
       <div className="flex-1 overflow-y-auto">
         <div className="p-4 space-y-4">
 
-          {/* 呼出中 — 最優先・フル幅 */}
-          {callingTickets.length > 0 && (
-            <div className="space-y-3">
+          {/* 学校別締切アラート */}
+          <SchoolDeadlineAlert storeId={store.id} />
+
+          {/* 呼出中フォーカス */}
+          {focusedSection === 'calling' && (
+            <div className="space-y-3 animate-fade-in">
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 border border-amber-300 rounded-xl">
                   <BellRing size={14} className="text-amber-600 animate-pulse" />
@@ -433,65 +474,58 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
                   <span className="bg-amber-400 text-amber-950 text-xs font-black px-1.5 py-0.5 rounded-full">{callingTickets.length}</span>
                 </div>
               </div>
-              {callingTickets.map(t => <CallingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onGoToFitting={t.category === 'fitting' ? handleStartFitting : undefined} />)}
+              {callingTickets.length === 0
+                ? <div className="text-center py-10 text-gray-400 bg-gray-50 rounded-2xl border border-gray-200">
+                    <BellRing size={32} className="mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">呼出中の方はいません</p>
+                  </div>
+                : callingTickets.map(t => <CallingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onGoToFitting={t.category === 'fitting' ? handleStartFitting : undefined} />)
+              }
             </div>
           )}
 
-          {/* 予約管理クイックリンク */}
-          <a href={`/${store.id}/admin/reservations`}
-            style={{ touchAction: 'manipulation' }}
-            className="flex items-center gap-2 px-3 py-2.5 bg-violet-50 border border-violet-200 rounded-xl active:opacity-70">
-            <CalendarDays size={14} className="text-violet-600 shrink-0" />
-            <span className="text-violet-700 text-xs font-bold">予約管理</span>
-            <ChevronRight size={12} className="text-violet-500 ml-auto" />
-          </a>
-
-          {/* 待ちリスト */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 border border-blue-300 rounded-xl">
-                <Clock size={14} className="text-blue-600" />
-                <span className="text-blue-700 font-black text-sm">待ち</span>
-                <span className="bg-blue-400 text-blue-950 text-xs font-black px-1.5 py-0.5 rounded-full">{waitingTickets.length}</span>
-              </div>
-              {callingTickets.length === 0 && (
-                <div className="ml-2 flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 border border-gray-200 rounded-xl text-gray-400 text-xs">
-                  <BellRing size={11} />
-                  <span>呼出中なし</span>
+          {/* 順番待ちフォーカス */}
+          {focusedSection === 'waiting' && (
+            <div className="space-y-3 animate-fade-in">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 border border-blue-300 rounded-xl">
+                  <Clock size={14} className="text-blue-600" />
+                  <span className="text-blue-700 font-black text-sm">順番待ち</span>
+                  <span className="bg-blue-400 text-blue-950 text-xs font-black px-1.5 py-0.5 rounded-full">{waitingTickets.length}</span>
                 </div>
-              )}
-              <button onClick={addTestPerson} disabled={testLoading}
-                className="ml-auto flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-xl text-gray-400 text-[10px] font-bold transition-colors disabled:opacity-50"
-                title="テスト用の人を追加">
-                {testLoading ? <Loader2 size={11} className="animate-spin" /> : <Users size={11} />}
-                テスト追加
-              </button>
-            </div>
-            {waitingTickets.length === 0 ? (
-              <div className="text-center py-10 text-gray-400 bg-gray-50 rounded-2xl border border-gray-200">
-                <Users size={32} className="mx-auto mb-2 opacity-30" />
-                <p className="text-sm">待ちはいません</p>
+                <button onClick={addTestPerson} disabled={testLoading}
+                  className="ml-auto flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-xl text-gray-400 text-[10px] font-bold transition-colors disabled:opacity-50">
+                  {testLoading ? <Loader2 size={11} className="animate-spin" /> : <Users size={11} />}
+                  テスト追加
+                </button>
               </div>
-            ) : waitingTickets.map(t => <WaitingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onCheckIn={handleCheckIn} onStartFitting={t.category === 'fitting' ? handleStartFitting : undefined} />)}
-          </div>
+              {waitingTickets.length === 0
+                ? <div className="text-center py-10 text-gray-400 bg-gray-50 rounded-2xl border border-gray-200">
+                    <Users size={32} className="mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">待ちはいません</p>
+                  </div>
+                : waitingTickets.map(t => <WaitingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onCheckIn={handleCheckIn} onStartFitting={t.category === 'fitting' ? handleStartFitting : undefined} />)
+              }
+            </div>
+          )}
 
-          {/* 履歴（完了・不在バッジのタップで表示） */}
-          {historyVisible && (
+          {/* 完了・不在フォーカス */}
+          {(focusedSection === 'completed' || focusedSection === 'cancelled') && (
             <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden animate-fade-in">
               <div className="flex border-b border-gray-200">
                 {([
-                  { key: 'completed', label: '完了', color: 'text-emerald-600' },
-                  { key: 'cancelled', label: '不在', color: 'text-gray-500' },
-                ] as { key: HistoryTab; label: string; color: string }[]).map(tab => (
-                  <button key={tab.key} onClick={() => setHistoryTab(tab.key)}
+                  { key: 'completed' as const, label: '完了', color: 'text-emerald-600' },
+                  { key: 'cancelled' as const, label: '不在', color: 'text-gray-500' },
+                ]).map(tab => (
+                  <button key={tab.key} onClick={() => setFocusedSection(tab.key)}
                     className={`flex-1 py-3 text-sm font-bold transition-colors ${
-                      historyTab === tab.key ? `${tab.color} border-b-2 border-current bg-gray-50` : 'text-gray-400 hover:text-gray-600'
+                      focusedSection === tab.key ? `${tab.color} border-b-2 border-current bg-gray-50` : 'text-gray-400 hover:text-gray-600'
                     }`}>
                     {tab.label} ({queues.filter(q => q.status === tab.key).length})
                   </button>
                 ))}
               </div>
-              <div className="p-3 space-y-2 max-h-80 overflow-y-auto">
+              <div className="p-3 space-y-2">
                 {historyTickets.length === 0
                   ? <div className="text-center py-8 text-gray-400 text-sm">該当する受付はありません</div>
                   : historyTickets.map(t => <HistoryCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} />)
@@ -499,6 +533,55 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
               </div>
             </div>
           )}
+
+          {/* 通常表示（何もフォーカスされていないとき） */}
+          {focusedSection === null && (
+            <>
+              {/* 呼出中 — 最優先・フル幅 */}
+              {callingTickets.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 border border-amber-300 rounded-xl">
+                      <BellRing size={14} className="text-amber-600 animate-pulse" />
+                      <span className="text-amber-700 font-black text-sm">呼出中</span>
+                      <span className="bg-amber-400 text-amber-950 text-xs font-black px-1.5 py-0.5 rounded-full">{callingTickets.length}</span>
+                    </div>
+                  </div>
+                  {callingTickets.map(t => <CallingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onGoToFitting={t.category === 'fitting' ? handleStartFitting : undefined} />)}
+                </div>
+              )}
+
+              {/* 順番待ちリスト */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 border border-blue-300 rounded-xl">
+                    <Clock size={14} className="text-blue-600" />
+                    <span className="text-blue-700 font-black text-sm">順番待ち</span>
+                    <span className="bg-blue-400 text-blue-950 text-xs font-black px-1.5 py-0.5 rounded-full">{waitingTickets.length}</span>
+                  </div>
+                  {callingTickets.length === 0 && (
+                    <div className="ml-2 flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 border border-gray-200 rounded-xl text-gray-400 text-xs">
+                      <BellRing size={11} />
+                      <span>呼出中なし</span>
+                    </div>
+                  )}
+                  <button onClick={addTestPerson} disabled={testLoading}
+                    className="ml-auto flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-xl text-gray-400 text-[10px] font-bold transition-colors disabled:opacity-50"
+                    title="テスト用の人を追加">
+                    {testLoading ? <Loader2 size={11} className="animate-spin" /> : <Users size={11} />}
+                    テスト追加
+                  </button>
+                </div>
+                {waitingTickets.length === 0 ? (
+                  <div className="text-center py-10 text-gray-400 bg-gray-50 rounded-2xl border border-gray-200">
+                    <Users size={32} className="mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">待ちはいません</p>
+                  </div>
+                ) : waitingTickets.map(t => <WaitingCard key={t.id} ticket={t} storeId={store.id} onAction={handleAction} onCheckIn={handleCheckIn} onStartFitting={t.category === 'fitting' ? handleStartFitting : undefined} />)}
+              </div>
+            </>
+          )}
+
 
         </div>
       </div>
@@ -685,8 +768,8 @@ export default function StoreAdminPage() {
   }, [])
 
   useEffect(() => {
-    supabase.from('stores').select('id, name, pin, group_id, business_type, features').order('name', { ascending: true })
-      .then(({ data, error }) => {
+    (supabase as any).from('stores').select('id, name, pin, group_id, business_type, features').order('name', { ascending: true })
+      .then(({ data, error }: { data: any; error: any }) => {
         if (error || !data || data.length === 0) {
           setFetchError(error?.message ?? '店舗データが見つかりません'); setView('select_store'); return
         }
@@ -717,10 +800,11 @@ export default function StoreAdminPage() {
   }, [storeId, loadGroupCode])
 
   const handleSelectStore = (s: StoreInfo) => { setSelectedStore(s); setView('pin') }
-  const handleAuth = () => {
+  const handleAuth = (role: 'owner' | 'staff') => {
     if (selectedStore) {
       sessionStorage.setItem('admin_store_id', selectedStore.id)
       sessionStorage.setItem('admin_auth', '1')
+      sessionStorage.setItem('admin_role', role)
       loadGroupCode(selectedStore)
       if (selectedStore.business_type === 'takeout') {
         router.replace(`/${selectedStore.id}/kitchen`)
@@ -734,7 +818,7 @@ export default function StoreAdminPage() {
     setView('dashboard')
   }
   const handleLogout = () => {
-    sessionStorage.removeItem('admin_auth'); sessionStorage.removeItem('admin_store_id')
+    sessionStorage.removeItem('admin_auth'); sessionStorage.removeItem('admin_store_id'); sessionStorage.removeItem('admin_role')
     setSelectedStore(null); setView('select_store')
   }
 
@@ -754,7 +838,9 @@ export default function StoreAdminPage() {
     </>
   )
   if (view === 'pin' && selectedStore) return (
-    <PinScreen storeName={selectedStore.name} storePin={selectedStore.pin} storeId={selectedStore.id} onAuth={handleAuth} onBack={() => setView('select_store')} />
+    <PinScreen storeName={selectedStore.name} storePin={selectedStore.pin}
+      ownerPin={String(selectedStore.features?.owner_pin ?? '')}
+      storeId={selectedStore.id} onAuth={handleAuth} onBack={() => setView('select_store')} />
   )
   if (view === 'dashboard' && selectedStore) return (
     <AdminDashboard store={selectedStore} groupCode={groupCode} onLogout={handleLogout} />

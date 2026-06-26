@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   CheckCircle2, MessageCircle, Loader2, Clock,
-  ChevronRight, Users, AlertCircle, Plus, GraduationCap, Pencil,
+  ChevronRight, Users, AlertCircle, Plus, GraduationCap, Pencil, ShoppingBag, User,
 } from 'lucide-react'
 import ECShopView from './ECShopView'
 import { supabase, getTodayStart } from '@/lib/supabase'
@@ -391,11 +391,11 @@ function WaitingCustomerEditForm({
     if (!name.trim()) return
     setSaving(true)
     const [custResult, childResult] = await Promise.all([
-      (supabase.from('customers') as any)
+      ((supabase as any).from('customers') as any)
         .update({ name: name.trim(), kana: kana.trim() || null, tel: tel.trim() || null })
         .eq('id', customer.id).select().single(),
       selectedChild
-        ? (supabase.from('children') as any)
+        ? ((supabase as any).from('children') as any)
             .update({ name: childName.trim() || selectedChild.name, kana: childKana.trim() || null, school_name: schoolName.trim() || null, grade: grade || null })
             .eq('id', selectedChild.id).select().single()
         : Promise.resolve({ data: null, error: null }),
@@ -486,7 +486,7 @@ function ChildEditInline({ child, schools, gradeOptions, onSaved, onClose }: {
     if (!name.trim()) return
     setSaving(true)
     const school = schools.find(s => s.id === schoolId)
-    const { data, error } = await (supabase.from('children') as any)
+    const { data, error } = await ((supabase as any).from('children') as any)
       .update({ name: name.trim(), school_id: school?.id ?? null, school_name: school?.name ?? null, grade: grade || null, gender: gender || null })
       .eq('id', child.id).select().single()
     setSaving(false)
@@ -578,10 +578,10 @@ function WaitingFirstChildForm({
     setSaving(true); setError('')
     try {
       const [custResult, childResult] = await Promise.all([
-        (supabase.from('customers') as any)
+        ((supabase as any).from('customers') as any)
           .update({ name: parent.name.trim(), kana: parent.kana.trim() || null, tel: tel.trim() || null })
           .eq('id', customer.id).select().single(),
-        supabase.from('children').insert({
+        (supabase as any).from('children').insert({
           customer_id: customer.id, store_id: storeId,
           name: child.name.trim(), kana: child.kana.trim() || null,
           school_id: resolvedSchoolId || null, school_name: resolvedSchoolName.trim() || null,
@@ -602,7 +602,7 @@ function WaitingFirstChildForm({
           gender:        gender || null,
         }
         if (heightCm) qUpdate.details = { height: heightCm, ...(weightKg ? { weight: weightKg } : {}) }
-        await supabase.from('queues').update(qUpdate).eq('id', ticketId)
+        await (supabase as any).from('queues').update(qUpdate).eq('id', ticketId)
       }
       onSaved(updatedCust, newChild)
     } catch (e) {
@@ -704,7 +704,7 @@ function ClosedView({ storeId, onOpen }: { storeId: string; onOpen: () => void }
   const checkNow = useCallback(async () => {
     setChecking(true)
     try {
-      const { data } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
+      const { data } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
       if (data?.is_open === true) { onOpen(); return }
     } finally {
       setChecking(false)
@@ -769,6 +769,7 @@ export default function CustomerPage() {
   const [allowRemote, setAllowRemote] = useState(false)
   const [arrivalModal, setArrivalModal] = useState(false)
   const [isSimpleMode, setIsSimpleMode] = useState(false)
+  const [selfOrderEnabled, setSelfOrderEnabled] = useState(true)
 
   const allowRemoteRef = useRef(false)
   const pendingHeightWeightRef = useRef<{ height: string; weight: string } | null>(null)
@@ -785,12 +786,13 @@ export default function CustomerPage() {
   useEffect(() => {
     if (!storeId) return
     ;(async () => { try {
-      const { data: sd } = await (supabase.from('stores') as any)
+      const { data: sd } = await ((supabase as any).from('stores') as any)
         .select('is_open, wait_thresholds, notification_plan, active_fittings, business_type, school_names, allow_remote, features').eq('id', storeId).single()
       if (sd?.business_type === 'takeout') { router.replace(`/${storeId}/order`); return }
       const featuresData = (sd?.features ?? {}) as Record<string, unknown>
       const isSimple = !resolveFeature('tab_queue', featuresData)
       if (sd?.features) setIsSimpleMode(isSimple)
+      setSelfOrderEnabled(resolveFeature('customer_self_order', featuresData))
       if (sd && Array.isArray(sd.wait_thresholds) && sd.wait_thresholds.length > 0)
         setWaitThresholds(sd.wait_thresholds as WaitThreshold[])
       if (sd?.notification_plan) notificationPlanRef.current = sd.notification_plan
@@ -799,7 +801,7 @@ export default function CustomerPage() {
       if (Array.isArray(sd?.school_names) && sd.school_names.length > 0) setStoreSchoolOptions(sd.school_names)
 
       // schoolsテーブルから学校マスターを取得（UIドロップダウン用）
-      const { data: schoolRows } = await supabase.from('schools')
+      const { data: schoolRows } = await (supabase as any).from('schools')
         .select('id, name').eq('store_id', storeId).eq('active', true).order('sort_order')
       if (schoolRows && schoolRows.length > 0) {
         setSchools(schoolRows as { id: string; name: string }[])
@@ -814,7 +816,7 @@ export default function CustomerPage() {
       const savedId   = localStorage.getItem(ticketKey)
       const savedDate = localStorage.getItem(dateKey)
       if (savedId && savedDate === new Date().toDateString()) {
-        const { data: t } = await supabase.from('queues').select('*').eq('id', savedId).single()
+        const { data: t } = await (supabase as any).from('queues').select('*').eq('id', savedId).single()
         if (t) {
           setTicket(t)
           setView(
@@ -826,13 +828,13 @@ export default function CustomerPage() {
           // チケット復元時も既存顧客を読み込む（二重登録防止）
           if (profile?.userId) {
             try {
-              const { data: custRows } = await supabase.from('customers')
+              const { data: custRows } = await (supabase as any).from('customers')
                 .select('*').eq('store_id', storeId).eq('line_user_id', profile.userId)
                 .order('created_at', { ascending: false }).limit(1)
               const cust = custRows?.[0] && !custRows[0].deleted_at ? custRows[0] : null
               if (cust) {
                 setCustomer(cust)
-                const { data: childList } = await supabase.from('children')
+                const { data: childList } = await (supabase as any).from('children')
                   .select('*').eq('customer_id', cust.id).order('created_at', { ascending: true })
                 const kids = childList ?? []
                 setChildren(kids)
@@ -857,7 +859,7 @@ export default function CustomerPage() {
         // action=queue の場合は待ち人数を取得してから confirm_queue へ直接遷移
         if (action === 'queue') {
           try {
-            const { count } = await supabase.from('queues')
+            const { count } = await (supabase as any).from('queues')
               .select('*', { count: 'exact', head: true })
               .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
             setWaitingCount(count ?? 0)
@@ -889,13 +891,13 @@ export default function CustomerPage() {
       // 既存顧客チェック
       let cust: Customer | null = null
       try {
-        const { data: custRows } = await supabase.from('customers')
+        const { data: custRows } = await (supabase as any).from('customers')
           .select('*').eq('store_id', storeId).eq('line_user_id', profile.userId)
           .order('created_at', { ascending: false }).limit(1)
         cust = custRows?.[0] && !custRows[0].deleted_at ? custRows[0] : null
         if (cust) {
           setCustomer(cust)
-          const { data: childList } = await supabase.from('children')
+          const { data: childList } = await (supabase as any).from('children')
             .select('*').eq('customer_id', cust.id).order('created_at', { ascending: true })
           const kids = childList ?? []
           setChildren(kids)
@@ -904,7 +906,7 @@ export default function CustomerPage() {
       } catch { /* 顧客情報が取れなくても続行 */ }
 
       if (sd?.is_open === false) { setView('closed'); return }
-      const { count } = await supabase.from('queues')
+      const { count } = await (supabase as any).from('queues')
         .select('*', { count: 'exact', head: true })
         .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
       setWaitingCount(count ?? 0)
@@ -924,7 +926,7 @@ export default function CustomerPage() {
 
   // ── チケット購読 ──────────────────────────────────────
   const fetchWaitingAhead = useCallback(async (t: Queue) => {
-    const { count } = await supabase.from('queues')
+    const { count } = await (supabase as any).from('queues')
       .select('*', { count: 'exact', head: true })
       .eq('store_id', storeId).in('status', ['waiting', 'calling'])
       .lt('ticket_number', t.ticket_number).gte('created_at', getTodayStart())
@@ -943,7 +945,7 @@ export default function CustomerPage() {
       if (!t) return
       fetchWaitingAhead(t)
       // realtime 取りこぼし補完: ステータスをポーリングで確認
-      const { data } = await supabase.from('queues').select('status').eq('id', t.id).single()
+      const { data } = await (supabase as any).from('queues').select('status').eq('id', t.id).single()
       if (data && data.status !== t.status) {
         setTicket(prev => prev ? { ...prev, status: data.status } : prev)
         if (data.status === 'calling')   { setView('queue_calling');   playAlertSound(); if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([300,100,300,100,300]) }
@@ -990,13 +992,13 @@ export default function CustomerPage() {
 
       // 顧客情報を取得（任意）
       try {
-        const { data: custRows } = await supabase.from('customers')
+        const { data: custRows } = await (supabase as any).from('customers')
           .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId)
           .order('created_at', { ascending: false }).limit(1)
         const cust = custRows?.[0] && !custRows[0].deleted_at ? custRows[0] : null
         if (cust) {
           setCustomer(cust)
-          const { data: childList } = await supabase.from('children')
+          const { data: childList } = await (supabase as any).from('children')
             .select('*').eq('customer_id', cust.id).order('created_at', { ascending: true })
           const kids = childList ?? []
           setChildren(kids)
@@ -1004,9 +1006,9 @@ export default function CustomerPage() {
         }
       } catch { /* 顧客情報は任意 */ }
 
-      const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
+      const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
       if (sd?.is_open === false) { setView('closed'); return }
-      const { count } = await supabase.from('queues')
+      const { count } = await (supabase as any).from('queues')
         .select('*', { count: 'exact', head: true })
         .eq('store_id', storeId).in('status', ['waiting', 'calling'])
         .gte('created_at', getTodayStart())
@@ -1030,18 +1032,18 @@ export default function CustomerPage() {
     if (!userId) { setRegisterError('LINE認証に失敗しました。LINEアプリから開き直してください。'); return }
     setSubmitting(true); setRegisterError('')
     try {
-      const { data: existingRows } = await supabase.from('customers')
+      const { data: existingRows } = await (supabase as any).from('customers')
         .select('*').eq('store_id', storeId).eq('line_user_id', userId)
         .order('created_at', { ascending: false }).limit(1)
       const existing = existingRows?.[0] && !existingRows[0].deleted_at ? existingRows[0] : null
       let cust
       if (existing) {
-        const { data: updated } = await (supabase.from('customers') as any)
+        const { data: updated } = await ((supabase as any).from('customers') as any)
           .update({ name: name.trim(), tel: tel || null, deleted_at: null })
           .eq('id', existing.id).select().single()
         cust = updated ?? existing
       } else {
-        const { data: newCust } = await (supabase.from('customers') as any).insert({
+        const { data: newCust } = await ((supabase as any).from('customers') as any).insert({
           store_id: storeId, line_user_id: userId,
           name: name.trim(), tel: tel || null,
         }).select().single()
@@ -1079,20 +1081,20 @@ export default function CustomerPage() {
     setSubmitting(true)
     setRegisterError('')
     try {
-      const { data: existingRows } = await supabase.from('customers')
+      const { data: existingRows } = await (supabase as any).from('customers')
         .select('*').eq('store_id', storeId).eq('line_user_id', userId)
         .order('created_at', { ascending: false }).limit(1)
       const existing = existingRows?.[0] && !existingRows[0].deleted_at ? existingRows[0] : null
 
       let cust
       if (existing) {
-        const { data: updated, error: updateErr } = await supabase.from('customers').update({
+        const { data: updated, error: updateErr } = await (supabase as any).from('customers').update({
           name: d.parentName, kana: d.parentKana || null, tel: d.tel || null, deleted_at: null,
         }).eq('id', existing.id).select().single()
         if (updateErr) throw new Error(updateErr.message)
         cust = updated ?? existing
       } else {
-        const { data: newCust, error: insertErr } = await supabase.from('customers').insert({
+        const { data: newCust, error: insertErr } = await (supabase as any).from('customers').insert({
           store_id: storeId, line_user_id: userId,
           name: d.parentName, kana: d.parentKana || null, tel: d.tel || null,
         }).select().single()
@@ -1102,7 +1104,7 @@ export default function CustomerPage() {
       if (!cust) throw new Error('登録に失敗しました（不明なエラー）')
       setCustomer(cust)
 
-      const { data: newChild, error: childErr } = await supabase.from('children').insert({
+      const { data: newChild, error: childErr } = await (supabase as any).from('children').insert({
         customer_id: cust.id, store_id: storeId,
         name: d.childName, kana: d.childKana || null,
         school_id: d.schoolId || null, school_name: d.schoolName || null,
@@ -1114,14 +1116,14 @@ export default function CustomerPage() {
       setChildren(updatedChildren)
       if (newChild) setSelectedChild(newChild)
 
-      const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
+      const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
       if (sd?.is_open === false) { setView('closed'); return }
 
       // 順番待ち登録から来た場合は待ち人数確認画面へ（身長体重は発券時に付与）
       if (pendingAction === 'queue') {
         if (d.heightCm) pendingHeightWeightRef.current = { height: d.heightCm, weight: d.weightKg }
         setPendingAction(null)
-        const { count: qCount } = await supabase.from('queues')
+        const { count: qCount } = await (supabase as any).from('queues')
           .select('*', { count: 'exact', head: true })
           .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
         setWaitingCount(qCount ?? 0)
@@ -1140,13 +1142,13 @@ export default function CustomerPage() {
           school_name:   d.schoolName || null,
         }
         if (d.heightCm) qUpdate.details = { height: d.heightCm, ...(d.weightKg ? { weight: d.weightKg } : {}) }
-        await supabase.from('queues').update(qUpdate).eq('id', ticketRef.current.id)
+        await (supabase as any).from('queues').update(qUpdate).eq('id', ticketRef.current.id)
         setTicket(prev => prev ? { ...prev, customer_name: d.parentName, child_name: newChild?.name ?? prev.child_name } : prev)
         setQueueRegDone(true)
         return
       }
 
-      const { count } = await supabase.from('queues')
+      const { count } = await (supabase as any).from('queues')
         .select('*', { count: 'exact', head: true })
         .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
       setWaitingCount(count ?? 0)
@@ -1165,7 +1167,7 @@ export default function CustomerPage() {
     if (!customer) return
     setSubmitting(true)
     try {
-      const { data: newChild } = await supabase.from('children').insert({
+      const { data: newChild } = await (supabase as any).from('children').insert({
         customer_id: customer.id, store_id: storeId,
         name: d.childName, kana: d.childKana || null,
         school_id: d.schoolId || null, school_name: d.schoolName || null,
@@ -1184,12 +1186,12 @@ export default function CustomerPage() {
             school_name: d.schoolName || null,
           }
           if (d.heightCm) qUpdate.details = { height: d.heightCm, ...(d.weightKg ? { weight: d.weightKg } : {}) }
-          await supabase.from('queues').update(qUpdate).eq('id', ticketRef.current.id)
+          await (supabase as any).from('queues').update(qUpdate).eq('id', ticketRef.current.id)
           setTicket(prev => prev ? { ...prev, child_name: newChild.name, child_id: newChild.id } : prev)
           return
         }
-        const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
-        const { count } = await supabase.from('queues')
+        const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
+        const { count } = await (supabase as any).from('queues')
           .select('*', { count: 'exact', head: true })
           .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
         setWaitingCount(count ?? 0)
@@ -1204,10 +1206,10 @@ export default function CustomerPage() {
     if (issuing) return
     setIssuing(true)
     try {
-      const { data: nextNum } = await supabase.rpc('get_next_ticket_number', { p_store_id: storeId })
+      const { data: nextNum } = await (supabase as any).rpc('get_next_ticket_number', { p_store_id: storeId })
       const hw = pendingHeightWeightRef.current
       pendingHeightWeightRef.current = null
-      const { data: t, error } = await supabase.from('queues').insert({
+      const { data: t, error } = await (supabase as any).from('queues').insert({
         store_id:      storeId,
         ticket_number: nextNum as number,
         status:        'waiting',
@@ -1252,13 +1254,13 @@ export default function CustomerPage() {
       // queue_waiting 移行時に顧客・お子様を同期（未設定時の取得 + 既存顧客の再同期）
       try {
         if (!customer && lineProfile?.userId) {
-          const { data: rows } = await supabase.from('customers')
+          const { data: rows } = await (supabase as any).from('customers')
             .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId)
             .order('created_at', { ascending: false }).limit(1)
           const found = rows?.[0] && !(rows[0] as Customer).deleted_at ? rows[0] as Customer : null
           if (found) {
             setCustomer(found)
-            const { data: childList } = await supabase.from('children')
+            const { data: childList } = await (supabase as any).from('children')
               .select('*').eq('customer_id', found.id).order('created_at', { ascending: true })
             const kids = (childList ?? []) as Child[]
             setChildren(kids)
@@ -1266,7 +1268,7 @@ export default function CustomerPage() {
           }
         } else if (customer?.id) {
           // 既存顧客のお子様リストを再取得（追加・変更を反映）
-          const { data: childList } = await supabase.from('children')
+          const { data: childList } = await (supabase as any).from('children')
             .select('*').eq('customer_id', customer.id).order('created_at', { ascending: true })
           const kids = (childList ?? []) as Child[]
           setChildren(kids)
@@ -1292,7 +1294,7 @@ export default function CustomerPage() {
   const handleCancel = async () => {
     if (!ticketRef.current) return
     setCancelLoading(true)
-    await supabase.from('queues').update({ status: 'cancelled' }).eq('id', ticketRef.current.id)
+    await (supabase as any).from('queues').update({ status: 'cancelled' }).eq('id', ticketRef.current.id)
     localStorage.removeItem(ticketKey); localStorage.removeItem(dateKey)
     setCancelModal(false); setCancelLoading(false)
     setView('queue_self_cancelled')
@@ -1302,9 +1304,9 @@ export default function CustomerPage() {
     localStorage.removeItem(ticketKey); localStorage.removeItem(dateKey)
     setTicket(null); setWaitingAhead(0); setIssuing(false)
     if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null }
-    const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
+    const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
     if (sd?.is_open === false) { setView('closed'); return }
-    const { count } = await supabase.from('queues')
+    const { count } = await (supabase as any).from('queues')
       .select('*', { count: 'exact', head: true })
       .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
     setWaitingCount(count ?? 0)
@@ -1380,9 +1382,9 @@ export default function CustomerPage() {
           <button key={child.id}
             onClick={async () => {
               setSelectedChild(child)
-              const { data: sd } = await supabase.from('stores').select('is_open').eq('id', storeId).single()
+              const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
               if (sd && !sd.is_open) { setView('closed'); return }
-              const { count } = await supabase.from('queues')
+              const { count } = await (supabase as any).from('queues')
                 .select('*', { count: 'exact', head: true })
                 .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
               setWaitingCount(count ?? 0)
@@ -1588,10 +1590,16 @@ export default function CustomerPage() {
         </button>
 
         {customer && (
-          <button onClick={() => setView('welcome')}
-            className="w-full py-3 text-zinc-400 text-sm text-center active:opacity-60 transition-opacity">
-            ← お子様を選び直す
-          </button>
+          <div className="flex flex-col items-center gap-1">
+            <a href={`/${storeId}/mypage`}
+              className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-2xl border border-zinc-200 bg-white/70 text-zinc-600 active:opacity-70 transition-opacity">
+              <User size={14} />マイページ（注文・お直し確認）<ChevronRight size={13} />
+            </a>
+            <button onClick={() => setView('welcome')}
+              className="w-full py-2.5 text-zinc-400 text-sm text-center active:opacity-60 transition-opacity">
+              ← お子様を選び直す
+            </button>
+          </div>
         )}
       </div>
     </main>
@@ -1766,7 +1774,7 @@ export default function CustomerPage() {
                             onSaved={async updated => {
                               setCustomer(updated)
                               if (ticket?.id) {
-                                await supabase.from('queues').update({ customer_name: updated.name, customer_id: customer.id }).eq('id', ticket.id)
+                                await (supabase as any).from('queues').update({ customer_name: updated.name, customer_id: customer.id }).eq('id', ticket.id)
                                 setTicket(prev => prev ? { ...prev, customer_name: updated.name } : prev)
                               }
                             }}
@@ -1795,7 +1803,7 @@ export default function CustomerPage() {
                                 onClick={async () => {
                                   setSelectedChild(child)
                                   if (ticket?.id) {
-                                    await supabase.from('queues').update({ child_name: child.name, child_id: child.id, school_name: child.school_name ?? null, gender: child.gender ?? 'other' }).eq('id', ticket.id)
+                                    await (supabase as any).from('queues').update({ child_name: child.name, child_id: child.id, school_name: child.school_name ?? null, gender: child.gender ?? 'other' }).eq('id', ticket.id)
                                   }
                                 }}>
                                 <GraduationCap size={15} className={`shrink-0 ${isSelected ? 'text-indigo-500' : 'text-zinc-400'}`} />
@@ -1818,7 +1826,7 @@ export default function CustomerPage() {
                                       setSelectedChild(updated)
                                       setChildren(prev => prev.map(c => c.id === updated.id ? updated : c))
                                       if (ticket?.id) {
-                                        await supabase.from('queues').update({ school_name: updated.school_name ?? null, child_name: updated.name, gender: updated.gender ?? 'other' }).eq('id', ticket.id)
+                                        await (supabase as any).from('queues').update({ school_name: updated.school_name ?? null, child_name: updated.name, gender: updated.gender ?? 'other' }).eq('id', ticket.id)
                                       }
                                     }}
                                     onClose={() => setWaitingEditMode(null)} />
@@ -1909,7 +1917,7 @@ export default function CustomerPage() {
                         </button>
                         <button
                           onClick={async () => {
-                            await supabase.from('queues').update({ checked_in: true }).eq('id', ticket.id)
+                            await (supabase as any).from('queues').update({ checked_in: true }).eq('id', ticket.id)
                             setTicket(prev => prev ? { ...prev, checked_in: true } : prev)
                             setArrivalModal(false)
                           }}
@@ -1976,7 +1984,7 @@ export default function CustomerPage() {
       </div>
       <div className="px-6 pb-10">
         <button onClick={async () => {
-          await supabase.from('queues').update({ status: 'completed' }).eq('id', ticket.id)
+          await (supabase as any).from('queues').update({ status: 'completed' }).eq('id', ticket.id)
           setView('queue_completed')
         }} className="w-full bg-emerald-500 text-white text-xl font-black py-5 rounded-2xl shadow-xl active:scale-95 transition-all">
           ✅ スタッフから案内を受けました
@@ -1995,11 +2003,27 @@ export default function CustomerPage() {
         <h2 className="text-3xl font-black text-zinc-900 mb-2">ご対応完了</h2>
         <p className="text-zinc-500 text-base">ありがとうございました！</p>
       </div>
-      <button onClick={handleReset}
-        className="px-8 py-4 rounded-2xl text-white font-black active:scale-95 transition-transform"
-        style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`, boxShadow: `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.45)` }}>
-        最初に戻る
-      </button>
+
+      {/* 採寸・対面後に、お客様のスマホからそのまま制服注文を入力（店舗設定でON/OFF） */}
+      <div className="w-full max-w-xs space-y-3">
+        {selfOrderEnabled && (
+          <>
+            <button onClick={() => setView('purchase_ec')}
+              className="w-full px-8 py-4 rounded-2xl text-white font-black flex items-center justify-center gap-2 active:scale-95 transition-transform"
+              style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.45)` }}>
+              <ShoppingBag size={18} />制服を注文する
+            </button>
+            <p className="text-zinc-400 text-xs leading-relaxed">
+              サイズ・数量をお選びいただけます。<br />ご自宅からの追加注文もこちらから。
+            </p>
+          </>
+        )}
+        <button onClick={handleReset}
+          className={`w-full px-8 py-3 rounded-2xl font-bold text-sm active:scale-95 transition-transform ${selfOrderEnabled ? 'border-2 border-zinc-200 text-zinc-500' : 'text-white font-black py-4'}`}
+          style={selfOrderEnabled ? undefined : { background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`, boxShadow: `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.45)` }}>
+          最初に戻る
+        </button>
+      </div>
     </div>
   )
 

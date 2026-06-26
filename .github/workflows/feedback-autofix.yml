@@ -1,0 +1,70 @@
+name: Feedback Auto-Triage & Fix
+
+# 現場フィードバックから自動作成された Issue（ラベル: feedback）を
+# Claude が読み取り、軽微で安全なものは修正ブランチ＋PRを自動作成、
+# 判断が要るものはトリアージコメント＋ needs-decision ラベルを付ける。
+#
+# 必要な準備（リポジトリ側）:
+#   1. Settings → Secrets and variables → Actions に ANTHROPIC_API_KEY を登録
+#   2. Settings → Actions → General → Workflow permissions で
+#      「Allow GitHub Actions to create and approve pull requests」を有効化
+on:
+  issues:
+    types: [opened, labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "手動実行する Issue 番号"
+        required: true
+
+concurrency:
+  group: feedback-autofix-${{ github.event.issue.number || github.event.inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  triage-and-fix:
+    # feedback ラベルが付いている Issue のときだけ実行（手動実行は常に許可）
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issues' && github.event.action == 'opened' &&
+        contains(toJSON(github.event.issue.labels.*.name), 'feedback')) ||
+      (github.event_name == 'issues' && github.event.action == 'labeled' &&
+        github.event.label.name == 'feedback')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claude triage & fix
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: "--allowed-tools Bash,Edit,Write,Read,Grep,Glob"
+          prompt: |
+            あなたはこのリポジトリ（Next.js 14 / Supabase / Tailwind）の保守担当です。
+            対象 Issue: #${{ github.event.issue.number || github.event.inputs.issue_number }}
+
+            手順:
+            1. `gh issue view ${{ github.event.issue.number || github.event.inputs.issue_number }}` で内容を読む。
+               これは店頭スタッフからの「要望/不具合/質問」フィードバックです（本文に画面URL `page_url` あり）。
+            2. 内容を分類し、対応方針を決める:
+               - 【質問】コードに関係しない質問 → Issue にていねいに日本語で回答コメントし、`question` ラベルで完了。PRは作らない。
+               - 【軽微で安全な修正】文言・ラベル・色・小さなUI不具合・明確な小バグなど、影響範囲が狭く自明なもの
+                 → 新しいブランチ `auto/feedback-${{ github.event.issue.number || github.event.inputs.issue_number }}` を作成し、
+                   最小限の変更を実装。可能なら `npm run build` で確認。`Closes #<番号>` を含む PR を作成。
+                   既存のコード規約・周辺の書き方に合わせること。
+               - 【判断・設計が必要 / 影響が広い / 不明確】
+                 → コードは変更せず、Issue に「原因の推定・対応案・必要な確認事項」を日本語でコメントし、
+                   `needs-decision` ラベルを付けて終了。
+            3. 厳守事項:
+               - DBマイグレーションの本番適用、シークレット・環境変数の変更、破壊的操作、検知回避は行わない。
+               - 大規模リファクタや仕様変更を伴うものは自動修正しない（needs-decision へ）。
+               - 不確実なときは「直さずトリアージ」を選ぶ。安全側に倒す。
+               - 返信・コメントは日本語で簡潔に。

@@ -336,9 +336,11 @@ export function ChildCard({
   }
 
   async function deleteOrder(orderId: string) {
+    // 採寸データがこの注文を参照していると FK 制約で削除できないため先に解除（measurements.order_id は NO ACTION）
+    await (supabase as any).from('measurements').update({ order_id: null }).eq('order_id', orderId)
     await (supabase as any).from('uniform_order_items').delete().eq('order_id', orderId)
     const { error } = await (supabase as any).from('uniform_orders').delete().eq('id', orderId)
-    if (error) { showToast('err', '削除に失敗しました'); return }
+    if (error) { showToast('err', `削除に失敗しました: ${error.message}`); return }
     setUniformOrders(prev => prev.filter(o => o.id !== orderId))
     showToast('ok', '注文を削除しました')
   }

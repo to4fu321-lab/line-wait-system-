@@ -135,7 +135,7 @@ function MenuManager({ storeId }: { storeId: string }) {
     if (!name) return
     setAdding(true)
     const maxOrder = menus.reduce((m, i) => Math.max(m, i.sort_order), 0)
-    await supabase.from('menus').insert({
+    await (supabase as any).from('menus').insert({
       store_id: storeId, name, price, is_available: true, sort_order: maxOrder + 1,
       station_type:   newStationType   || null,
       cook_minutes:   newCookMins      ? parseInt(newCookMins)   : null,
@@ -157,7 +157,7 @@ function MenuManager({ storeId }: { storeId: string }) {
 
   const saveEdit = async () => {
     if (!editId) return
-    await supabase.from('menus').update({
+    await (supabase as any).from('menus').update({
       name:           editName.trim(),
       price:          parseInt(editPrice) || 0,
       station_type:   editStationType   || null,
@@ -169,12 +169,12 @@ function MenuManager({ storeId }: { storeId: string }) {
   }
 
   const toggleAvailable = async (menu: Menu) => {
-    await supabase.from('menus').update({ is_available: !menu.is_available }).eq('id', menu.id)
+    await (supabase as any).from('menus').update({ is_available: !menu.is_available }).eq('id', menu.id)
     setMenus(prev => prev.map(m => m.id === menu.id ? { ...m, is_available: !m.is_available } : m))
   }
 
   const deleteMenu = async (id: string) => {
-    await supabase.from('menus').delete().eq('id', id)
+    await (supabase as any).from('menus').delete().eq('id', id)
     setDeleteId(null)
     await load()
   }
@@ -349,7 +349,7 @@ function StationManager({ storeId }: { storeId: string }) {
 
   const saveEdit = async () => {
     if (!editId || !editName.trim()) return
-    await supabase.from('kitchen_stations')
+    await (supabase as any).from('kitchen_stations')
       .update({ name: editName.trim(), station_type: editType, capacity: parseInt(editCapacity) || 10 } as never)
       .eq('id', editId)
     setEditId(null)
@@ -359,7 +359,7 @@ function StationManager({ storeId }: { storeId: string }) {
   const add = async () => {
     if (!newName.trim()) return
     setAdding(true)
-    await supabase.from('kitchen_stations').insert({
+    await (supabase as any).from('kitchen_stations').insert({
       store_id: storeId, name: newName.trim(),
       station_type: newType, capacity: parseInt(newCapacity) || 10, is_active: true,
     })
@@ -369,12 +369,12 @@ function StationManager({ storeId }: { storeId: string }) {
   }
 
   const toggleActive = async (s: KitchenStation) => {
-    await supabase.from('kitchen_stations').update({ is_active: !s.is_active }).eq('id', s.id)
+    await (supabase as any).from('kitchen_stations').update({ is_active: !s.is_active }).eq('id', s.id)
     setStations(prev => prev.map(st => st.id === s.id ? { ...st, is_active: !s.is_active } : st))
   }
 
   const del = async (id: string) => {
-    await supabase.from('kitchen_stations').delete().eq('id', id)
+    await (supabase as any).from('kitchen_stations').delete().eq('id', id)
     await load()
   }
 
@@ -542,7 +542,7 @@ function SettingsTab({ storeId }: { storeId: string }) {
 
   const save = async () => {
     setSaving(true)
-    await supabase.from('stores').update({ takeout_settings: settings } as never).eq('id', storeId)
+    await (supabase as any).from('stores').update({ takeout_settings: settings } as never).eq('id', storeId)
     setSaving(false); setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -746,8 +746,8 @@ export default function TakeoutAdminPage({ params }: { params: { storeId: string
   const [tab,       setTab]       = useState<Tab>('menus')
 
   useEffect(() => {
-    supabase.from('stores').select('name, pin').eq('id', storeId).single()
-      .then(({ data }) => {
+    (supabase as any).from('stores').select('name, pin').eq('id', storeId).single()
+      .then(({ data }: { data: any }) => {
         if (!data) return
         const d = data as { name: string; pin: string }
         setStoreName(d.name); setStorePin(d.pin)

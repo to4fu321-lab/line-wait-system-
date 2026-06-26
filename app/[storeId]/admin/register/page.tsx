@@ -1,0 +1,683 @@
+'use client'
+
+// ============================================================================
+//  レジ（POS） v2 — モバイルファースト設計
+//  フロー: 顧客選択(任意) → 商品追加 → カートシート → 支払確認 → レシート
+// ============================================================================
+
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useParams } from 'next/navigation'
+import Link from 'next/link'
+import {
+  ChevronLeft, Search, Plus, Minus, Trash2, Loader2, X, Printer,
+  ShoppingCart, User, Scissors, Package, Tag, Check, UserPlus,
+  ChevronRight, RotateCcw,
+} from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { useStoreFeatures } from '@/lib/useStoreFeatures'
+import { BottomNav } from '../_components/BottomNav'
+import {
+  PAYMENT_METHODS, PAYMENT_METHOD_LABELS, PAYMENT_METHOD_ICONS,
+  calcTax, lineTotal, makeSaleNumber,
+  type PaymentMethod, type CartLine,
+} from '@/types/sales'
+
+const yen = (n: number) => `¥${Math.round(n).toLocaleString()}`
+
+type ProductRow  = { id: string; name: string; price: number; category: string | null }
+type CustomerRow = { id: string; name: string; tel: string | null; school_name: string | null }
+type UnpaidRepair = { id: string; label: string; price: number }
+type UnpaidOrder  = { id: string; label: string; price: number }
+
+type PosScreen = 'pos' | 'cart' | 'payment' | 'receipt'
+
+export default function RegisterPage() {
+  const params  = useParams<{ storeId: string }>()
+  const storeId = params?.storeId ?? ''
+  const { hasFeature, loaded: featLoaded } = useStoreFeatures(storeId)
+
+  // ── マスタ ──────────────────────────────────────────────────
+  const [storeName,    setStoreName]    = useState('')
+  const [taxRate,      setTaxRate]      = useState(10)
+  const [taxInclusive, setTaxInclusive] = useState(true)
+  const [products,     setProducts]     = useState<ProductRow[]>([])
+  const [customers,    setCustomers]    = useState<CustomerRow[]>([])
+  const [loading,      setLoading]      = useState(true)
+
+  // ── 顧客 ──────────────────────────────────────────────────
+  const [custMode,      setCustMode]      = useState<'walkin' | 'search'>('walkin')
+  const [walkInName,    setWalkInName]    = useState('')
+  const [custQuery,     setCustQuery]     = useState('')
+  const [selectedCust,  setSelectedCust]  = useState<CustomerRow | null>(null)
+  const [unpaidRepairs, setUnpaidRepairs] = useState<UnpaidRepair[]>([])
+  const [unpaidOrders,  setUnpaidOrders]  = useState<UnpaidOrder[]>([])
+  const [custLoading,   setCustLoading]   = useState(false)
+
+  // ── 商品 ──────────────────────────────────────────────────
+  const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  const [prodQuery,      setProdQuery]      = useState('')
+
+  // ── カート ────────────────────────────────────────────────
+  const [cart,   setCart]   = useState<CartLine[]>([])
+
+  // ── 手入力 ────────────────────────────────────────────────
+  const [manName,  setManName]  = useState('')
+  const [manPrice, setManPrice] = useState('')
+
+  // ── 支払 ──────────────────────────────────────────────────
+  const [payment,      setPayment]      = useState<PaymentMethod>('cash')
+  const [cashReceived, setCashReceived] = useState('')
+  const [note,         setNote]         = useState('')
+  const [saving,       setSaving]       = useState(false)
+
+  // ── 画面遷移 ──────────────────────────────────────────────
+  const [screen, setScreen] = useState<PosScreen>('pos')
+  const [receiptData, setReceiptData] = useState<null | {
+    saleNumber: string; createdAt: Date; lines: CartLine[]
+    subtotal: number; tax: number; total: number; taxRate: number
+    payment: PaymentMethod; cashReceived: number | null; change: number | null
+    custName: string | null
+  }>(null)
+  const [receiptKind, setReceiptKind] = useState<'receipt' | 'invoice'>('receipt')
+
+  // ── Toast ──────────────────────────────────────────────────
+  const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showToast = (ok: boolean, text: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    setToast({ ok, text })
+    toastTimer.current = setTimeout(() => setToast(null), 2600)
+  }
+
+  // ── 初期ロード ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!storeId) return
+    ;(async () => {
+      const db = supabase as any
+      const [{ data: store }, { data: prods }, { data: custs }] = await Promise.all([
+        db.from('stores').select('name, tax_rate, tax_inclusive').eq('id', storeId).single(),
+        db.from('products')
+          .select('id, name, base_price_tax_in, base_price_tax_out, category, active')
+          .eq('store_id', storeId).eq('active', true).order('category').order('name'),
+        db.from('customers').select('id, name, tel, school_name').eq('store_id', storeId).order('name'),
+      ])
+      if (store) {
+        setStoreName(store.name ?? '')
+        if (store.tax_rate != null) setTaxRate(Number(store.tax_rate))
+        if (store.tax_inclusive != null) setTaxInclusive(!!store.tax_inclusive)
+      }
+      setProducts(((prods ?? []) as any[]).map(p => ({
+        id: p.id, name: p.name, category: p.category,
+        price: Number(p.base_price_tax_in ?? p.base_price_tax_out ?? 0),
+      })))
+      setCustomers((custs ?? []) as CustomerRow[])
+      setLoading(false)
+    })()
+  }, [storeId])
+
+  // ── 顧客選択 → 未払い取得 ─────────────────────────────────
+  const selectCustomer = useCallback(async (c: CustomerRow) => {
+    setSelectedCust(c); setCustQuery(''); setCustLoading(true)
+    const db = supabase as any
+    const [{ data: reps }, { data: ords }] = await Promise.all([
+      db.from('repair_histories').select('id, item_name, content, price, payment_status')
+        .eq('store_id', storeId).eq('customer_id', c.id),
+      db.from('uniform_orders').select('id, total_amount, payment_status, order_number')
+        .eq('store_id', storeId).eq('customer_id', c.id),
+    ])
+    setUnpaidRepairs(((reps ?? []) as any[])
+      .filter(r => r.payment_status !== 'paid' && (r.price ?? 0) > 0)
+      .map(r => ({ id: r.id, label: r.item_name || r.content || 'お直し', price: r.price ?? 0 })))
+    setUnpaidOrders(((ords ?? []) as any[])
+      .filter(o => o.payment_status !== 'paid' && (o.total_amount ?? 0) > 0)
+      .map(o => ({ id: o.id, label: `制服注文 ${o.order_number ?? ''}`.trim(), price: o.total_amount ?? 0 })))
+    setCustLoading(false)
+  }, [storeId])
+
+  const clearCustomer = () => {
+    setSelectedCust(null); setUnpaidRepairs([]); setUnpaidOrders([])
+    setWalkInName(''); setCustQuery('')
+  }
+
+  // ── カート操作 ──────────────────────────────────────────────
+  const addLine = (l: Omit<CartLine, 'key'>) => {
+    setCart(prev => {
+      if (l.source_id && prev.some(x => x.source_type === l.source_type && x.source_id === l.source_id)) return prev
+      return [...prev, { ...l, key: `${Date.now()}_${Math.random().toString(36).slice(2, 6)}` }]
+    })
+  }
+  const setQty   = (key: string, qty: number) => setCart(prev => prev.map(l => l.key === key ? { ...l, qty: Math.max(1, qty) } : l))
+  const removeLine = (key: string) => setCart(prev => prev.filter(l => l.key !== key))
+  const clearAll   = () => { setCart([]); setCashReceived(''); setNote(''); setPayment('cash'); clearCustomer(); setScreen('pos') }
+
+  // ── 集計 ────────────────────────────────────────────────────
+  const grossSum = useMemo(() => cart.reduce((s, l) => s + lineTotal(l), 0), [cart])
+  const { subtotal, tax, total } = useMemo(() => calcTax(grossSum, taxRate, taxInclusive), [grossSum, taxRate, taxInclusive])
+  const received = Number(cashReceived) || 0
+  const change   = payment === 'cash' ? received - total : null
+
+  // ── 商品フィルタ ─────────────────────────────────────────
+  const categories = useMemo(() => {
+    const set = new Set(products.map(p => p.category).filter(Boolean) as string[])
+    return Array.from(set).sort()
+  }, [products])
+
+  const filteredProducts = useMemo(() => {
+    let list = products
+    if (activeCategory) list = list.filter(p => p.category === activeCategory)
+    const q = prodQuery.trim()
+    if (q) list = list.filter(p => p.name.includes(q) || (p.category ?? '').includes(q))
+    return list.slice(0, 60)
+  }, [products, activeCategory, prodQuery])
+
+  const filteredCustomers = useMemo(() => {
+    const q = custQuery.trim()
+    if (!q) return [] as CustomerRow[]
+    return customers.filter(c => c.name.includes(q) || (c.tel ?? '').includes(q)).slice(0, 8)
+  }, [customers, custQuery])
+
+  const custDisplayName = selectedCust?.name ?? (walkInName.trim() || null)
+
+  // ── 会計確定 ────────────────────────────────────────────────
+  const checkout = async () => {
+    if (cart.length === 0) return showToast(false, '明細がありません')
+    if (payment === 'cash' && received < total) return showToast(false, '預かり金額が不足しています')
+    setSaving(true)
+    const db = supabase as any
+    try {
+      const start = new Date(); start.setHours(0, 0, 0, 0)
+      const { count } = await db.from('sales').select('id', { count: 'exact', head: true })
+        .eq('store_id', storeId).gte('created_at', start.toISOString())
+      const saleNumber = makeSaleNumber((count ?? 0) + 1)
+
+      const { data: sale, error: saleErr } = await db.from('sales').insert({
+        store_id: storeId, sale_number: saleNumber,
+        customer_id: selectedCust?.id ?? null,
+        subtotal, tax, total, tax_rate: taxRate, tax_inclusive: taxInclusive,
+        payment_method: payment,
+        cash_received: payment === 'cash' ? received : null,
+        change: payment === 'cash' ? Math.max(0, received - total) : null,
+        status: 'completed',
+        note: [note.trim(), !selectedCust && walkInName.trim() ? `来客: ${walkInName.trim()}` : ''].filter(Boolean).join(' / ') || null,
+      }).select('id').single()
+      if (saleErr || !sale) throw saleErr || new Error('sale insert failed')
+
+      await db.from('sale_items').insert(cart.map(l => ({
+        sale_id: sale.id, store_id: storeId,
+        source_type: l.source_type, source_id: l.source_id,
+        name: l.name, unit_price: l.unit_price, qty: l.qty, line_total: lineTotal(l),
+      })))
+
+      const repairIds = cart.filter(l => l.source_type === 'repair' && l.source_id).map(l => l.source_id)
+      const orderIds  = cart.filter(l => l.source_type === 'order'  && l.source_id).map(l => l.source_id)
+      if (repairIds.length) await db.from('repair_histories').update({ payment_status: 'paid' }).in('id', repairIds)
+      if (orderIds.length)  await db.from('uniform_orders').update({ payment_status: 'paid' }).in('id', orderIds)
+
+      setReceiptData({
+        saleNumber, createdAt: new Date(), lines: [...cart],
+        subtotal, tax, total, taxRate,
+        payment, cashReceived: payment === 'cash' ? received : null,
+        change: payment === 'cash' ? Math.max(0, received - total) : null,
+        custName: custDisplayName,
+      })
+      setReceiptKind('receipt')
+      setCart([]); setCashReceived(''); setNote(''); clearCustomer()
+      setScreen('receipt')
+    } catch (e) {
+      showToast(false, `会計に失敗しました: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ── 機能ガード ───────────────────────────────────────────
+  if (featLoaded && !hasFeature('pos')) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-3 px-6 text-center">
+        <ShoppingCart size={36} className="text-gray-300" />
+        <p className="text-gray-500 font-bold">レジ（会計）機能は無効です</p>
+        <Link href={`/${storeId}/admin`} className="mt-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-bold">管理画面へ戻る</Link>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><Loader2 size={32} className="animate-spin text-gray-300" /></div>
+  }
+
+  // ============================================================
+  // レシート画面
+  // ============================================================
+  if (screen === 'receipt' && receiptData) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <div className="sticky top-0 z-30 bg-white border-b px-4 py-3 flex items-center gap-3">
+          <div className="flex gap-2">
+            {(['receipt', 'invoice'] as const).map(k => (
+              <button key={k} onClick={() => setReceiptKind(k)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold ${receiptKind === k ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                {k === 'receipt' ? 'レシート' : '領収書'}
+              </button>
+            ))}
+          </div>
+          <div className="flex-1" />
+          <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 rounded-xl text-xs font-bold text-gray-600">
+            <Printer size={14} />印刷
+          </button>
+          <button onClick={clearAll} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 rounded-xl text-xs font-bold text-white">
+            <RotateCcw size={14} />次の会計
+          </button>
+        </div>
+
+        <div id="receipt-print" className="flex-1 max-w-sm mx-auto w-full p-5 text-gray-900" style={{ fontFamily: 'monospace' }}>
+          <div className="text-center mb-4">
+            <p className="font-black text-lg">{storeName || 'お店'}</p>
+            <p className="text-sm text-gray-500">{receiptKind === 'invoice' ? '領収書' : 'レシート'}</p>
+          </div>
+          {receiptKind === 'invoice' && (
+            <p className="text-base font-bold mb-3">{receiptData.custName ? `${receiptData.custName} 様` : '上様'}</p>
+          )}
+          <p className="text-xs text-gray-400 mb-1">{receiptData.saleNumber}</p>
+          <p className="text-xs text-gray-400 mb-3">{receiptData.createdAt.toLocaleString('ja-JP')}</p>
+          <div className="border-t border-dashed my-3" />
+          {receiptData.lines.map(l => (
+            <div key={l.key} className="flex justify-between text-sm py-0.5">
+              <span className="truncate pr-2">{l.name}{l.qty > 1 ? ` ×${l.qty}` : ''}</span>
+              <span className="shrink-0">{yen(lineTotal(l))}</span>
+            </div>
+          ))}
+          <div className="border-t border-dashed my-3" />
+          <div className="space-y-1 text-sm">
+            <div className="flex justify-between text-gray-500"><span>小計（税抜）</span><span>{yen(receiptData.subtotal)}</span></div>
+            <div className="flex justify-between text-gray-500"><span>消費税（{receiptData.taxRate}%）</span><span>{yen(receiptData.tax)}</span></div>
+            <div className="flex justify-between font-black text-base mt-1"><span>合計</span><span>{yen(receiptData.total)}</span></div>
+            <div className="flex justify-between"><span>{PAYMENT_METHOD_LABELS[receiptData.payment]}</span><span>{receiptData.cashReceived != null ? yen(receiptData.cashReceived) : ''}</span></div>
+            {receiptData.change != null && <div className="flex justify-between"><span>おつり</span><span>{yen(receiptData.change)}</span></div>}
+          </div>
+          <p className="text-center text-xs text-gray-400 mt-6">ありがとうございました</p>
+        </div>
+
+        <BottomNav />
+        <style>{`@media print { body * { visibility: hidden !important } #receipt-print, #receipt-print * { visibility: visible !important } #receipt-print { position: absolute; left: 0; top: 0; width: 80mm } }`}</style>
+      </div>
+    )
+  }
+
+  // ============================================================
+  // 支払確認画面
+  // ============================================================
+  if (screen === 'payment') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        {/* ヘッダー */}
+        <div className="sticky top-0 z-30 bg-white border-b px-4 py-3 flex items-center gap-3">
+          <button onClick={() => setScreen('cart')} className="p-1 -ml-1 text-gray-500"><ChevronLeft size={22} /></button>
+          <h1 className="font-black text-base">お支払い</h1>
+          <div className="flex-1" />
+          <span className="text-xl font-black text-gray-900">{yen(total)}</span>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-36">
+          {/* 支払方法 */}
+          <div className="bg-white rounded-2xl p-4 shadow-sm">
+            <p className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">お支払い方法</p>
+            <div className="grid grid-cols-3 gap-2">
+              {PAYMENT_METHODS.map(m => (
+                <button key={m} onClick={() => setPayment(m)}
+                  className={`flex flex-col items-center gap-1 py-3 rounded-2xl border-2 transition-all ${payment === m ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-white'}`}>
+                  <span className="text-2xl">{PAYMENT_METHOD_ICONS[m]}</span>
+                  <span className={`text-[11px] font-bold ${payment === m ? 'text-indigo-600' : 'text-gray-500'}`}>{PAYMENT_METHOD_LABELS[m]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 現金: お預かり */}
+          {payment === 'cash' && (
+            <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
+              <p className="text-xs font-black text-gray-400 uppercase tracking-wider">お預かり金額</p>
+              <input
+                type="number" inputMode="numeric"
+                value={cashReceived} onChange={e => setCashReceived(e.target.value)}
+                placeholder="0"
+                className="w-full text-right text-3xl font-black text-gray-900 border border-gray-200 rounded-2xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+              />
+              <div className="grid grid-cols-4 gap-2">
+                {[total, 1000, 5000, 10000].map((v, i) => (
+                  <button key={i} onClick={() => setCashReceived(String(v))}
+                    className="py-2.5 rounded-xl bg-gray-100 text-gray-700 text-xs font-bold active:scale-95">
+                    {i === 0 ? 'ちょうど' : yen(v)}
+                  </button>
+                ))}
+              </div>
+              {change != null && (
+                <div className={`flex items-center justify-between rounded-2xl px-4 py-3 ${change >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                  <span className="font-bold text-sm text-gray-600">おつり</span>
+                  <span className={`text-2xl font-black ${change >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{yen(Math.max(0, change))}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* メモ */}
+          <div className="bg-white rounded-2xl p-4 shadow-sm">
+            <p className="text-xs font-black text-gray-400 uppercase tracking-wider mb-2">メモ（任意）</p>
+            <input
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500"
+              placeholder="備考など" value={note} onChange={e => setNote(e.target.value)}
+            />
+          </div>
+
+          {/* 合計確認 */}
+          <div className="bg-white rounded-2xl p-4 shadow-sm space-y-2 text-sm">
+            {custDisplayName && (
+              <div className="flex justify-between text-gray-500">
+                <span>お客様</span><span className="font-bold text-gray-800">{custDisplayName}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-gray-500"><span>小計（税抜）</span><span>{yen(subtotal)}</span></div>
+            <div className="flex justify-between text-gray-500"><span>消費税（{taxRate}%）</span><span>{yen(tax)}</span></div>
+            <div className="flex justify-between font-black text-2xl text-gray-900 pt-2 border-t"><span>合計</span><span>{yen(total)}</span></div>
+          </div>
+        </div>
+
+        {/* 会計ボタン */}
+        <div className="fixed bottom-0 inset-x-0 p-4 bg-white border-t" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
+          <button onClick={checkout} disabled={saving || (payment === 'cash' && received < total)}
+            className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-black text-lg flex items-center justify-center gap-2 disabled:opacity-40 active:scale-[0.98] transition-all shadow-lg shadow-indigo-600/30">
+            {saving ? <Loader2 size={22} className="animate-spin" /> : <Check size={22} />}
+            {yen(total)} を会計する
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ============================================================
+  // カートシート画面
+  // ============================================================
+  if (screen === 'cart') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <div className="sticky top-0 z-30 bg-white border-b px-4 py-3 flex items-center gap-3">
+          <button onClick={() => setScreen('pos')} className="p-1 -ml-1 text-gray-500"><ChevronLeft size={22} /></button>
+          <h1 className="font-black text-base">カート</h1>
+          <span className="text-xs text-gray-400">{cart.length}点</span>
+          <div className="flex-1" />
+          {cart.length > 0 && (
+            <button onClick={() => setCart([])} className="text-xs text-gray-400 hover:text-red-500">クリア</button>
+          )}
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-2 pb-40">
+          {cart.length === 0 ? (
+            <div className="text-center py-16 text-gray-400">
+              <ShoppingCart size={40} className="mx-auto mb-3 opacity-30" />
+              <p className="text-sm">カートは空です</p>
+            </div>
+          ) : (
+            <>
+              {cart.map(l => (
+                <div key={l.key} className="bg-white rounded-2xl px-4 py-3 flex items-center gap-3 shadow-sm">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-gray-900 text-sm truncate">{l.name}</p>
+                    <p className="text-xs text-gray-400">{yen(l.unit_price)}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setQty(l.key, l.qty - 1)}
+                      className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center active:scale-95">
+                      <Minus size={14} />
+                    </button>
+                    <span className="w-8 text-center font-black text-gray-900">{l.qty}</span>
+                    <button onClick={() => setQty(l.key, l.qty + 1)}
+                      className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center active:scale-95">
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                  <span className="text-sm font-black text-gray-900 w-16 text-right">{yen(lineTotal(l))}</span>
+                  <button onClick={() => removeLine(l.key)} className="p-1 text-gray-300 hover:text-red-500 ml-1">
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              ))}
+
+              {/* 小計 */}
+              <div className="bg-white rounded-2xl p-4 shadow-sm mt-2 space-y-1.5 text-sm">
+                <div className="flex justify-between text-gray-400"><span>小計（税抜）</span><span>{yen(subtotal)}</span></div>
+                <div className="flex justify-between text-gray-400"><span>消費税（{taxRate}%）</span><span>{yen(tax)}</span></div>
+                <div className="flex justify-between font-black text-xl text-gray-900 pt-2 border-t"><span>合計</span><span>{yen(total)}</span></div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="fixed bottom-0 inset-x-0 p-4 bg-white border-t" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
+          <button onClick={() => setScreen('payment')} disabled={cart.length === 0}
+            className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-black text-base flex items-center justify-center gap-2 disabled:opacity-40 active:scale-[0.98] transition-all">
+            <ChevronRight size={20} />
+            支払いへ進む
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ============================================================
+  // メイン POS 画面
+  // ============================================================
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom) + 72px)' }}>
+      {toast && (
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[80] px-5 py-3 rounded-2xl text-white text-sm font-bold shadow-2xl whitespace-nowrap ${toast.ok ? 'bg-gray-900' : 'bg-red-600'}`}>
+          {toast.text}
+        </div>
+      )}
+
+      {/* ヘッダー */}
+      <div className="sticky top-0 z-30 bg-white border-b px-4 py-3 flex items-center gap-2" style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
+        <Link href={`/${storeId}/admin`} className="p-1 -ml-1 text-gray-400"><ChevronLeft size={22} /></Link>
+        <ShoppingCart size={18} className="text-indigo-500" />
+        <h1 className="font-black text-base flex-1 text-gray-900">{storeName || 'レジ'}</h1>
+        <span className="text-[11px] text-gray-400">{taxInclusive ? '内税' : '外税'} {taxRate}%</span>
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-lg mx-auto px-4 py-3 space-y-3">
+
+          {/* ── 顧客セクション ────────────────────────────────── */}
+          <div className="bg-white rounded-2xl p-3 shadow-sm">
+            {/* モード切替 */}
+            <div className="flex gap-1 mb-3">
+              <button onClick={() => setCustMode('walkin')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all ${custMode === 'walkin' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                <UserPlus size={13} />当日来客
+              </button>
+              <button onClick={() => setCustMode('search')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all ${custMode === 'search' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                <User size={13} />登録顧客
+              </button>
+            </div>
+
+            {/* 当日来客 */}
+            {custMode === 'walkin' && !selectedCust && (
+              <input
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500"
+                placeholder="お名前（任意）"
+                value={walkInName} onChange={e => setWalkInName(e.target.value)}
+              />
+            )}
+
+            {/* 登録顧客検索 */}
+            {custMode === 'search' && !selectedCust && (
+              <div className="relative">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500"
+                  placeholder="名前・電話で検索" value={custQuery} onChange={e => setCustQuery(e.target.value)} />
+                {filteredCustomers.length > 0 && (
+                  <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                    {filteredCustomers.map(c => (
+                      <button key={c.id} onClick={() => selectCustomer(c)}
+                        className="w-full text-left px-3 py-2.5 hover:bg-indigo-50 border-b border-gray-100 last:border-0 text-sm">
+                        <span className="font-bold text-gray-800">{c.name}</span>
+                        {c.school_name && <span className="text-gray-400 ml-1.5 text-xs">{c.school_name}</span>}
+                        {c.tel && <span className="text-gray-400 ml-1.5 text-xs">{c.tel}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 選択済み顧客 */}
+            {selectedCust && (
+              <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2.5">
+                <User size={16} className="text-indigo-500 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-gray-900 text-sm">{selectedCust.name}</p>
+                  {selectedCust.school_name && <p className="text-xs text-gray-400">{selectedCust.school_name}</p>}
+                </div>
+                {custLoading && <Loader2 size={14} className="animate-spin text-gray-400" />}
+                <button onClick={clearCustomer} className="p-1 text-gray-400"><X size={16} /></button>
+              </div>
+            )}
+
+            {/* 未払いアイテム */}
+            {(unpaidRepairs.length > 0 || unpaidOrders.length > 0) && (
+              <div className="mt-2 space-y-1.5">
+                <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider">未払い（タップで追加）</p>
+                {unpaidRepairs.map(r => (
+                  <button key={r.id}
+                    onClick={() => addLine({ source_type: 'repair', source_id: r.id, name: `お直し: ${r.label}`, unit_price: r.price, qty: 1 })}
+                    className={`w-full flex items-center gap-2 border rounded-xl px-3 py-2.5 text-sm active:scale-[0.98] transition-all ${
+                      cart.some(l => l.source_type === 'repair' && l.source_id === r.id)
+                        ? 'bg-gray-100 border-gray-200 opacity-50'
+                        : 'bg-amber-50 border-amber-200 hover:bg-amber-100'
+                    }`}>
+                    <Scissors size={13} className="text-amber-500 shrink-0" />
+                    <span className="flex-1 text-left text-gray-700 truncate">{r.label}</span>
+                    <span className="font-bold text-gray-900">{yen(r.price)}</span>
+                    {cart.some(l => l.source_type === 'repair' && l.source_id === r.id)
+                      ? <Check size={14} className="text-emerald-500" />
+                      : <Plus size={14} className="text-amber-500" />}
+                  </button>
+                ))}
+                {unpaidOrders.map(o => (
+                  <button key={o.id}
+                    onClick={() => addLine({ source_type: 'order', source_id: o.id, name: o.label, unit_price: o.price, qty: 1 })}
+                    className={`w-full flex items-center gap-2 border rounded-xl px-3 py-2.5 text-sm active:scale-[0.98] transition-all ${
+                      cart.some(l => l.source_type === 'order' && l.source_id === o.id)
+                        ? 'bg-gray-100 border-gray-200 opacity-50'
+                        : 'bg-teal-50 border-teal-200 hover:bg-teal-100'
+                    }`}>
+                    <Package size={13} className="text-teal-500 shrink-0" />
+                    <span className="flex-1 text-left text-gray-700 truncate">{o.label}</span>
+                    <span className="font-bold text-gray-900">{yen(o.price)}</span>
+                    {cart.some(l => l.source_type === 'order' && l.source_id === o.id)
+                      ? <Check size={14} className="text-emerald-500" />
+                      : <Plus size={14} className="text-teal-500" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── 手入力 ──────────────────────────────────────── */}
+          <div className="bg-white rounded-2xl p-3 shadow-sm">
+            <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider mb-2">手入力</p>
+            <div className="flex gap-2">
+              <input className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500"
+                placeholder="品名" value={manName} onChange={e => setManName(e.target.value)} />
+              <input className="w-28 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500 text-right"
+                type="number" inputMode="numeric" placeholder="金額" value={manPrice} onChange={e => setManPrice(e.target.value)} />
+              <button
+                onClick={() => {
+                  if (!manName.trim() || !(Number(manPrice) > 0)) return
+                  addLine({ source_type: 'manual', source_id: null, name: manName.trim(), unit_price: Number(manPrice), qty: 1 })
+                  setManName(''); setManPrice('')
+                }}
+                className="w-11 h-11 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 active:scale-95">
+                <Plus size={20} />
+              </button>
+            </div>
+          </div>
+
+          {/* ── 商品マスタ ──────────────────────────────────── */}
+          <div className="bg-white rounded-2xl p-3 shadow-sm">
+            <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider mb-2">商品マスタ</p>
+
+            {/* カテゴリタブ */}
+            {categories.length > 0 && (
+              <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2 scrollbar-none">
+                <button onClick={() => setActiveCategory(null)}
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap ${!activeCategory ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                  すべて
+                </button>
+                {categories.map(cat => (
+                  <button key={cat} onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
+                    className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap ${activeCategory === cat ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                    <Tag size={10} />{cat}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* 検索 */}
+            <div className="relative mb-2">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
+                placeholder="商品名で検索" value={prodQuery} onChange={e => setProdQuery(e.target.value)} />
+            </div>
+
+            {/* 商品グリッド */}
+            {filteredProducts.length === 0 ? (
+              <p className="text-center text-gray-400 text-xs py-6">
+                {products.length === 0 ? '商品マスタが未登録です' : '該当なし'}
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-1.5">
+                {filteredProducts.map(p => {
+                  const inCart = cart.some(l => l.source_type === 'product' && l.source_id === p.id)
+                  return (
+                    <button key={p.id}
+                      onClick={() => addLine({ source_type: 'product', source_id: p.id, name: p.name, unit_price: p.price, qty: 1 })}
+                      className={`text-left rounded-xl px-3 py-2.5 border active:scale-[0.97] transition-all ${inCart ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white hover:border-indigo-200 hover:bg-gray-50'}`}>
+                      <p className="text-xs font-bold text-gray-800 truncate leading-snug">{p.name}</p>
+                      {p.category && <p className="text-[10px] text-gray-400 truncate">{p.category}</p>}
+                      <p className="text-indigo-600 font-black text-sm mt-1">{yen(p.price)}</p>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+        </div>
+      </div>
+
+      {/* ── カートバー（固定） ──────────────────────────────── */}
+      <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] inset-x-0 px-4 pb-2 z-20">
+        <button
+          onClick={() => setScreen(cart.length > 0 ? 'cart' : 'pos')}
+          disabled={cart.length === 0}
+          className={`w-full max-w-lg mx-auto flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl transition-all ${
+            cart.length > 0
+              ? 'bg-indigo-600 text-white active:scale-[0.98]'
+              : 'bg-gray-200 text-gray-400 cursor-default'
+          }`}>
+          <ShoppingCart size={20} />
+          <span className="font-black flex-1 text-left">
+            {cart.length > 0 ? `${cart.length}点` : 'カートは空'}
+          </span>
+          {cart.length > 0 && (
+            <>
+              <span className="font-black text-lg">{yen(total)}</span>
+              <ChevronRight size={18} />
+            </>
+          )}
+        </button>
+      </div>
+
+      <BottomNav />
+    </div>
+  )
+}
