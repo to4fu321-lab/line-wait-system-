@@ -19,6 +19,7 @@ export interface RepairRow {
   embroidery_text: string | null
   embroidery_color: string | null
   embroidery_pos: string | null
+  vendor_id: string | null
   vendor_name: string | null
   sent_to_vendor_at: string | null
   expected_return_date: string | null

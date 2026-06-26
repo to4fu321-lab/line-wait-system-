@@ -134,6 +134,7 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   const [manualContent, setManualContent] = useState('')
   const [manualConfirmed, setManualConfirmed] = useState(false)
   const [deadline, setDeadline] = useState('')
+  const [vendorId, setVendorId] = useState<string | null>(null)
   const [vendorName, setVendorName] = useState('')
   const [memo, setMemo] = useState('')
   const [photos, setPhotos] = useState<{ file: File; url: string }[]>([])
@@ -308,6 +309,7 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
       price: finalPrice, final_price: finalPrice,
       prepaid: false, notified: false, work_started: false,
       internal_memo: memo || null,
+      vendor_id: vendorId || null,
       vendor_name: vendorName || null,
       // ▼ 新マスタ連携
       garment_type_id: item.garment_type_id, item_id: item.id, item_code: item.code,
@@ -767,16 +769,16 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                           </div>
                           <div>
                             <label className="text-xs font-bold text-gray-600 block mb-1.5">加工業者（外注先・任意）</label>
-                            <input className={INPUT} value={vendorName} onChange={e => setVendorName(e.target.value)} placeholder={vendors.length > 0 ? '下から選択／内製は空欄' : '内製なら空欄'} />
+                            <input className={INPUT} value={vendorName} onChange={e => { setVendorName(e.target.value); setVendorId(null) }} placeholder={vendors.length > 0 ? '下から選択／内製は空欄' : '内製なら空欄'} />
                           </div>
                         </div>
                         {vendors.length > 0 && (
                           <div className="flex flex-wrap gap-2">
-                            <button type="button" onClick={() => setVendorName('')}
+                            <button type="button" onClick={() => { setVendorName(''); setVendorId(null) }}
                               className={`px-3 py-2 rounded-full text-sm font-bold border-2 ${vendorName === '' ? 'bg-gray-700 text-white border-gray-700' : 'bg-white border-gray-200 text-gray-600'}`}>内製</button>
                             {vendors.map(v => (
-                              <button type="button" key={v.id} onClick={() => setVendorName(v.name)}
-                                className={`px-3 py-2 rounded-full text-sm font-bold border-2 ${vendorName === v.name ? 'bg-amber-500 text-white border-amber-500' : 'bg-white border-gray-200 text-gray-700'}`}>{v.name}</button>
+                              <button type="button" key={v.id} onClick={() => { setVendorName(v.name); setVendorId(v.id) }}
+                                className={`px-3 py-2 rounded-full text-sm font-bold border-2 ${vendorId === v.id ? 'bg-amber-500 text-white border-amber-500' : 'bg-white border-gray-200 text-gray-700'}`}>{v.name}</button>
                             ))}
                           </div>
                         )}

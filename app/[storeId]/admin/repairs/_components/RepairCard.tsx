@@ -33,6 +33,9 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [confirmVendor, setConfirmVendor] = useState(false)
   const [vendorName,    setVendorName]    = useState('')
+  const [vendorId,      setVendorId]      = useState<string | null>(null)
+  const [expectedReturn, setExpectedReturn] = useState('')
+  const [vendors,       setVendors]       = useState<{ id: string; name: string }[]>([])
   const [completionPhotos, setCompletionPhotos] = useState<{ file: File; url: string }[]>([])
   const [repairPhotos, setRepairPhotos] = useState<{ phase: string; url: string }[] | null>(null)
   const [photosOpen,   setPhotosOpen]   = useState(false)
@@ -70,6 +73,14 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
     photosLoadedRef.current = false  // invalidate cache so display refreshes
     setRepairPhotos(null)
   }
+
+  // 外注確認パネルが開いたときに業者マスタを読み込む
+  useEffect(() => {
+    if (!confirmVendor || vendors.length > 0) return
+    ;(supabase as any).from('repair_vendors')
+      .select('id, name').eq('store_id', storeId).eq('active', true).order('sort_order')
+      .then(({ data }: { data: { id: string; name: string }[] | null }) => setVendors(data ?? []))
+  }, [confirmVendor, storeId, vendors.length])
 
   // lazy-load photos when card is expanded (full mode) or photos panel opened
   useEffect(() => {
@@ -272,13 +283,15 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       const { error } = await (supabase as any).from('repair_histories')
         .update({
           sent_to_vendor_at: new Date().toISOString().slice(0, 10),
+          vendor_id: vendorId || null,
           vendor_name: vendorName.trim() || null,
+          expected_return_date: expectedReturn || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', item.id)
       setLoading(false)
       setConfirmVendor(false)
-      setVendorName('')
+      setVendorName(''); setVendorId(null); setExpectedReturn('')
       if (error) { onToast('err', '外注登録に失敗しました'); return }
       onRefresh()
       onToast('ok', '📤 外注に出しました')
@@ -453,17 +466,40 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
           {/* 外注ボタン */}
           {!item.sent_to_vendor_at && (
             confirmVendor ? (
-              <div className="rounded-xl border-2 border-orange-300 bg-orange-50 px-3 py-2.5 space-y-2">
-                <p className="text-sm font-black text-orange-800 text-center">外注に出しますか？</p>
+              <div className="rounded-xl border-2 border-orange-300 bg-orange-50 px-3 py-2.5 space-y-2.5">
+                <p className="text-sm font-black text-orange-800 text-center">📤 外注に出す</p>
+                {/* 業者マスタ選択 */}
+                {vendors.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    <button type="button" onClick={() => { setVendorName(''); setVendorId(null) }}
+                      className={`px-2.5 py-1 rounded-full text-xs font-bold border-2 transition-all ${vendorName === '' ? 'bg-gray-700 text-white border-gray-700' : 'bg-white border-gray-200 text-gray-600'}`}>
+                      未定
+                    </button>
+                    {vendors.map(v => (
+                      <button type="button" key={v.id} onClick={() => { setVendorName(v.name); setVendorId(v.id) }}
+                        className={`px-2.5 py-1 rounded-full text-xs font-bold border-2 transition-all ${vendorId === v.id ? 'bg-amber-500 text-white border-amber-500' : 'bg-white border-gray-200 text-gray-700'}`}>
+                        {v.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {/* 直接入力（マスタ外の業者） */}
                 <input
                   value={vendorName}
-                  onChange={e => setVendorName(e.target.value)}
-                  placeholder="業者・仕立て屋名（任意）"
+                  onChange={e => { setVendorName(e.target.value); setVendorId(null) }}
+                  placeholder={vendors.length > 0 ? 'または業者名を直接入力' : '業者・仕立て屋名（任意）'}
                   className="w-full px-3 py-2 rounded-xl border border-orange-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
                   style={{ touchAction: 'manipulation' }}
                 />
+                {/* 戻り予定日 */}
+                <div>
+                  <label className="text-[10px] font-bold text-orange-700 block mb-1">戻り予定日（任意）</label>
+                  <input type="date" value={expectedReturn} onChange={e => setExpectedReturn(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-orange-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
+                    style={{ touchAction: 'manipulation' }} />
+                </div>
                 <div className="flex gap-2">
-                  <button onClick={() => { setConfirmVendor(false); setVendorName('') }}
+                  <button onClick={() => { setConfirmVendor(false); setVendorName(''); setVendorId(null); setExpectedReturn('') }}
                     style={{ touchAction: 'manipulation' }}
                     className="flex-1 py-2 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-black active:scale-95 transition-all">
                     戻る
