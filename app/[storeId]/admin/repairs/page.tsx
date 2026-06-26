@@ -638,25 +638,6 @@ export default function RepairsPage() {
                 {dummyLoading ? <Loader2 size={11} className="animate-spin" /> : <Database size={11} />}
               </button>
             )}
-            {!isSimpleMode && (
-              <button onClick={() => { setEditInquiry(null); setShowInqModal(true) }}
-                className={`flex items-center justify-center gap-1.5 py-2 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-violet-600/20 ${isTablet ? 'px-3' : 'px-2.5'}`}>
-                <MessageSquarePlus size={13} />
-                {isTablet && '問合せ'}
-              </button>
-            )}
-            {!isSimpleMode && (
-              <button onClick={() => setShowNewOrder(true)}
-                className={`flex items-center justify-center gap-1.5 py-2 bg-teal-600 hover:bg-teal-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-teal-600/20 ${isTablet ? 'px-3' : 'px-2.5'}`}>
-                <ShoppingCart size={13} />
-                {isTablet && '制服注文'}
-              </button>
-            )}
-            <button onClick={() => setShowNewRepair(true)}
-              className={`flex items-center justify-center gap-1.5 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-sm shadow-indigo-600/20 ${isTablet ? 'px-3' : 'px-2.5'}`}>
-              <Scissors size={13} />
-              {isTablet && 'お直し'}
-            </button>
           </div>
 
           {/* Dashboard card — simple mode: two big tiles */}
@@ -797,6 +778,30 @@ export default function RepairsPage() {
               )
             })()}
           </div>
+          )}
+
+          {/* 受付ボタン行 */}
+          {simpleModeLoaded && (
+            <div className="flex gap-2 mt-3">
+              <button onClick={() => setShowNewRepair(true)}
+                style={{ touchAction: 'manipulation' }}
+                className="flex-1 flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white active:scale-[0.97] transition-all shadow-sm shadow-indigo-600/25">
+                <Scissors size={22} />
+                <span className="text-xs font-black">✂️ お直し受付</span>
+              </button>
+              <button onClick={() => setShowNewOrder(true)}
+                style={{ touchAction: 'manipulation' }}
+                className="flex-1 flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl bg-teal-600 hover:bg-teal-500 text-white active:scale-[0.97] transition-all shadow-sm shadow-teal-600/25">
+                <ShoppingCart size={22} />
+                <span className="text-xs font-black">📦 追加購入</span>
+              </button>
+              <button onClick={() => { setEditInquiry(null); setShowInqModal(true) }}
+                style={{ touchAction: 'manipulation' }}
+                className="flex-1 flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white active:scale-[0.97] transition-all shadow-sm shadow-violet-600/25">
+                <MessageSquarePlus size={22} />
+                <span className="text-xs font-black">💬 問合せ受付</span>
+              </button>
+            </div>
           )}
 
         </div>
