@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase'
 import type { School, SchoolProduct, SchoolProductVariant } from '@/types/master'
 import type { LiffProfile } from '@/lib/liff'
 import { GRADE_OPTIONS } from '@/types/crm'
+import { resolveFeature } from '@/lib/features'
 
 interface CartItem {
   variantId:   string
@@ -50,6 +51,7 @@ export default function ECShopView({
   const [loadingVar,   setLoadingVar]   = useState<string | null>(null)
   const [dataLoading,  setDataLoading]  = useState(true)
   const [noSchool,     setNoSchool]     = useState(false)
+  const [planGated,    setPlanGated]    = useState(false)
 
   // 選択中の学校
   const [activeSchoolId,   setActiveSchoolId]   = useState<string | null>(null)
@@ -83,6 +85,17 @@ export default function ECShopView({
   useEffect(() => {
     ;(async () => {
       setDataLoading(true)
+
+      // プランチェック: products・customer_self_order が両方 ON の場合のみ利用可能
+      const { data: storeRow } = await (supabase as any)
+        .from('stores').select('features').eq('id', storeId).single()
+      const featuresData = (storeRow?.features ?? {}) as Record<string, unknown>
+      if (!resolveFeature('products', featuresData) || !resolveFeature('customer_self_order', featuresData)) {
+        setPlanGated(true)
+        setDataLoading(false)
+        return
+      }
+
       const { data: schoolData } = await (supabase as any)
         .from('schools').select('*').eq('store_id', storeId).eq('active', true).order('sort_order')
       const schoolList: School[] = schoolData ?? []
@@ -207,6 +220,29 @@ export default function ECShopView({
   }
 
   // ── 未登録 ─────────────────────────────────────────────────
+  if (planGated) return (
+    <main className="min-h-screen flex flex-col items-center justify-center px-6 text-center gap-6 pb-10">
+      <div className="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl"
+        style={{ background: `linear-gradient(135deg, ${theme.colors.primary}22, ${theme.colors.accent}22)` }}>
+        🔒
+      </div>
+      <div>
+        <p className="text-xs font-bold mb-2" style={{ color: theme.colors.primary }}>{storeName}</p>
+        <h2 className="text-xl font-black text-zinc-900 mb-3 leading-snug">
+          この機能は現在のプランでは<br />ご利用いただけません
+        </h2>
+        <p className="text-zinc-500 text-sm leading-relaxed">
+          ネット注文・商品カタログ機能は<br />上位プランでご利用いただけます。<br />
+          詳しくは店頭スタッフにお問い合わせください。
+        </p>
+      </div>
+      <button onClick={onBack}
+        className="px-6 py-2.5 rounded-2xl border border-zinc-200 text-zinc-500 text-sm font-bold active:opacity-60 transition-opacity">
+        ← 戻る
+      </button>
+    </main>
+  )
+
   if (!customerId) return (
     <main className="min-h-screen flex flex-col items-center justify-center px-6 text-center gap-6 pb-10">
       <div className="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl bg-gray-100">🛍️</div>
