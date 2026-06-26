@@ -9,7 +9,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
-  Loader2, ChevronLeft, ChevronRight, User, Check, X, Search, Camera, AlertTriangle, Scissors,
+  Loader2, ChevronLeft, ChevronRight, User, Check, X, Search, Camera, AlertTriangle,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { RepairType } from '@/types/crm'
@@ -421,338 +421,437 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   const goBackBuild = () => { if (curBuildIdx <= 0) setStep('customer'); else setBuildStep(curBuildIdx - 1) }
   const goNextBuild = () => { if (canNextBuild && curBuildIdx < buildStepDefs.length - 1) setBuildStep(curBuildIdx + 1) }
 
+  // Step info for progress bar and header
+  const currentStepNum = step === 'customer' ? 0 : curBuildIdx + 1
+  const totalSteps = 1 + buildStepDefs.length
+  const stepLabel = step === 'customer' ? '顧客' : (buildStepDefs[curBuildIdx]?.label ?? '')
+
   return (
-    <div className="fixed inset-0 z-[60] bg-black/40 flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[94vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        {/* ヘッダ */}
-        <div className="sticky top-0 bg-white border-b px-4 py-3 flex items-center gap-2 z-10">
-          {step === 'build' && <button onClick={goBackBuild} className="p-1 text-gray-400"><ChevronLeft size={20} /></button>}
-          <Scissors size={18} className="text-amber-500" />
-          <h2 className="font-black text-gray-900 flex-1">お直し受付{step === 'build' && buildStepDefs[curBuildIdx] ? `・${buildStepDefs[curBuildIdx].label}（${curBuildIdx + 1}/${buildStepDefs.length}）` : ''}</h2>
-          {step === 'build' && (
-            <button onClick={() => setLinkSheetOpen(true)}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border max-w-[40%] truncate ${selectedCust ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-amber-50 border-amber-300 text-amber-700'}`}>
-              {selectedCust ? `👤 ${selectedChild?.name ?? selectedCust.name}` : '＋顧客を紐付け'}
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-end sm:items-center justify-center" onClick={onClose}>
+      <div
+        className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[95dvh] flex flex-col"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* ヘッダー */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100 shrink-0">
+          <div className="flex items-center gap-3">
+            {step === 'build' && (
+              <button onClick={goBackBuild}
+                className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors active:scale-95">
+                <ChevronLeft size={22} className="text-gray-600" />
+              </button>
+            )}
+            <div>
+              <h2 className="text-lg font-black text-gray-800">✂️ お直し受付</h2>
+              <p className="text-sm text-gray-400">{stepLabel}　{currentStepNum + 1} / {totalSteps}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {step === 'build' && (
+              <button onClick={() => setLinkSheetOpen(true)}
+                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border max-w-[36%] truncate ${
+                  selectedCust ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-amber-50 border-amber-300 text-amber-700'
+                }`}>
+                {selectedCust ? `👤 ${selectedChild?.name ?? selectedCust.name}` : '＋顧客を紐付け'}
+              </button>
+            )}
+            <OcrCaptureButton onResult={handleOcr} onError={m => onToast('err', m)} />
+            <button onClick={onClose} className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">
+              <X size={22} className="text-gray-600" />
             </button>
-          )}
-          <OcrCaptureButton onResult={handleOcr} onError={m => onToast('err', m)} />
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100"><X size={20} /></button>
+          </div>
         </div>
 
-        {/* ── 顧客選択 ── */}
-        {step === 'customer' && (
-          <div className="p-4 space-y-3">
-            {selectedCust ? (
-              <div className="space-y-3">
-                <div className="bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-3 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center"><User size={18} className="text-indigo-600" /></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-black text-gray-900">{selectedCust.name}</p>
-                    {selectedCust.tel && <p className="text-xs text-gray-500">{selectedCust.tel}</p>}
-                  </div>
-                  <button onClick={() => { setSelectedCust(null); setSelectedChild(null) }} className="p-1.5 text-gray-400"><X size={15} /></button>
-                </div>
-                {selectedCust.children && selectedCust.children.length > 0 && (
-                  <div>
-                    <label className="text-xs font-bold text-gray-600 block mb-2">お子様（任意）</label>
-                    <div className="flex flex-wrap gap-2">
-                      <button onClick={() => setSelectedChild(null)} className={`px-3 py-2 rounded-xl text-xs font-bold border-2 ${!selectedChild ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-600'}`}>選択しない</button>
-                      {selectedCust.children.map(ch => (
-                        <button key={ch.id} onClick={() => setSelectedChild(ch)} className={`px-3 py-2 rounded-xl text-xs font-bold border-2 ${selectedChild?.id === ch.id ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-600'}`}>{ch.name}</button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <button onClick={() => setStep('build')} className="w-full py-3.5 bg-indigo-600 text-white font-black rounded-2xl flex items-center justify-center gap-2"><Check size={18} />お直し内容へ進む</button>
-              </div>
-            ) : (
-              <>
-                <div className="relative">
-                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input autoFocus className={INPUT + ' pl-9'} placeholder="お名前・電話・学校で検索" value={custSearch} onChange={e => setCustSearch(e.target.value)} />
-                  {searching && <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-gray-300" />}
-                </div>
-                <RecentCustomers storeId={storeId} visible={custSearch.trim() === '' && !showReg} withChildren onPick={pickRecent} />
-                <div className="space-y-1.5">
-                  {custResults.map(c => (
-                    (c.children && c.children.length > 0) ? (
-                      // 子ども（生徒）を主役に表示。タップで保護者＋子を即リンク
-                      c.children.map(ch => (
-                        <button key={ch.id} onClick={() => { setSelectedCust(c); setSelectedChild(ch) }} className="w-full text-left bg-white border border-gray-200 rounded-xl px-4 py-3 hover:border-indigo-300">
-                          {ch.school_name && <p className="text-[11px] font-black text-amber-600 leading-none mb-0.5">{ch.school_name}</p>}
-                          <p className="font-bold text-gray-900">{ch.name}</p>
-                          <p className="text-xs text-gray-400">保護者: {c.name}{c.tel ? ` / ${c.tel}` : ''}</p>
-                        </button>
-                      ))
-                    ) : (
-                      <button key={c.id} onClick={() => { setSelectedCust(c); setSelectedChild(null) }} className="w-full text-left bg-white border border-gray-200 rounded-xl px-4 py-3 hover:border-indigo-300">
-                        <p className="font-bold text-gray-900">{c.name}</p>
-                        <p className="text-xs text-gray-400">{[c.tel, c.school_name].filter(Boolean).join(' / ')}</p>
-                      </button>
-                    )
-                  ))}
-                  {custSearch && !searching && custResults.length === 0 && <p className="text-center text-sm text-gray-400 py-4">該当なし。新規登録できます。</p>}
-                </div>
+        {/* プログレスバー */}
+        <div className="h-2 bg-gray-100 shrink-0">
+          <div className="h-full bg-amber-500 transition-all duration-300 rounded-full"
+            style={{ width: `${((currentStepNum + 1) / totalSteps) * 100}%` }} />
+        </div>
 
-                {/* 新規顧客を登録（LINE / 電話番号） */}
-                {!showReg ? (
-                  <button onClick={() => { setShowReg(true); if (!newName && custSearch && !/\d/.test(custSearch)) setNewName(custSearch.trim()) }}
-                    className="w-full py-3 rounded-2xl border-2 border-dashed border-indigo-300 text-indigo-600 text-sm font-bold flex items-center justify-center gap-1.5">
-                    ➕ 新規顧客を登録する
-                  </button>
-                ) : (
-                  <div className="rounded-2xl border-2 border-indigo-200 bg-indigo-50/50 p-3 space-y-3">
-                    {/* 電話番号で登録 */}
-                    {phoneMode ? (
-                      <div className="space-y-2">
-                        <p className="text-xs font-black text-indigo-800">電話番号で登録・紐付け</p>
-                        <input className={INPUT} placeholder="お名前" value={newName} onChange={e => setNewName(e.target.value)} />
-                        <input className={INPUT} type="tel" inputMode="numeric" placeholder="電話番号（携帯可）" value={newTel} onChange={e => setNewTel(e.target.value)} />
-                        <div className="flex gap-2">
-                          <button onClick={() => { setPhoneMode(false); setNewTel('') }} className="flex-1 py-2.5 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-bold">戻る</button>
-                          <button onClick={handlePhoneRegister} disabled={registering} className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-black flex items-center justify-center gap-1.5 disabled:opacity-50">
-                            {registering ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}登録して選択
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button onClick={() => setPhoneMode(true)} className="w-full py-3 rounded-xl bg-indigo-600 text-white text-sm font-black flex items-center justify-center gap-1.5">
-                        📞 電話番号で登録する
-                      </button>
-                    )}
-                    {/* LINEで登録（QR） */}
-                    <div className="border-t border-indigo-200 pt-3 text-center space-y-2">
-                      <p className="text-xs font-black text-indigo-800">またはLINEで登録（QRを読み取ってもらう）</p>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=${encodeURIComponent(`https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || ''}/${storeId}`)}`}
-                        alt="受付QR" width={180} height={180}
-                        className="mx-auto rounded-xl bg-white p-1 shadow-sm"
-                      />
-                      <p className="text-[10px] text-indigo-500 leading-relaxed">LINE登録後、上の検索欄でお名前を検索してください</p>
-                    </div>
-                    <button onClick={() => { setShowReg(false); setPhoneMode(false); setNewTel('') }}
-                      className="w-full py-2 text-xs font-bold text-gray-600 border border-gray-200 rounded-xl hover:bg-white">閉じる</button>
-                  </div>
-                )}
+        {/* コンテンツ */}
+        <div className="flex-1 overflow-y-auto px-5 py-6">
 
-                {/* 顧客は後で紐付け（先に内容入力でもOK） */}
-                <button onClick={() => setStep('build')}
-                  className="w-full py-2.5 text-sm font-bold text-gray-500 rounded-2xl hover:bg-gray-50">
-                  顧客は後で紐付け → 先に内容を入力
-                </button>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* ── お直し内容 ── */}
-        {step === 'build' && (
-          <div className="p-4 space-y-4">
-            {/* 服種 */}
-            {curBuildKey === 'garment' && (
+          {/* ── 顧客選択 ── */}
+          {step === 'customer' && (
             <div>
-              <p className="text-[11px] font-black text-gray-400 mb-1.5">① 服種を選択</p>
-              <div className="flex flex-wrap gap-2">
-                {garments.map(g => (
-                  <button key={g.id} onClick={() => setGarmentId(g.id)} className={`px-3 py-2 rounded-xl text-sm font-bold border-2 inline-flex items-center gap-1 ${garmentId === g.id ? 'bg-amber-500 text-white border-amber-500' : 'bg-white border-gray-200 text-gray-700'}`}><RepairIcon icon={g.icon} /> {g.name}</button>
-                ))}
-              </div>
-            </div>
-            )}
+              <p className="text-xl font-black text-gray-800 mb-1">どなたのお直しですか？</p>
+              <p className="text-sm text-gray-500 mb-5">お名前・電話番号・学校で検索できます</p>
 
-            {/* 項目 */}
-            {curBuildKey === 'item' && (
-            <div>
-              <p className="text-[11px] font-black text-gray-400 mb-1.5">② 項目を選択</p>
-              <div className="grid grid-cols-2 gap-2">
-                {items.map(it => (
-                  <button key={it.id} onClick={() => selectItem(it)} className={`text-left p-3 rounded-xl border-2 ${item?.id === it.id ? 'bg-amber-50 border-amber-400' : 'bg-white border-gray-200'}`}>
-                    <p className="font-bold text-gray-900 text-sm inline-flex items-center gap-1"><RepairIcon icon={it.icon} /> {it.name}</p>
-                    <p className="text-indigo-600 font-black text-sm mt-0.5">{it.requires_quote ? '見積もり' : `¥${it.base_price.toLocaleString()}`}</p>
-                  </button>
-                ))}
-                {items.length === 0 && <p className="col-span-2 text-center text-xs text-gray-400 py-4">この服種の項目がありません</p>}
-              </div>
-              <RefPhotoStrip photos={refPhotos} loading={refLoading} open={refOpen} onToggle={() => setRefOpen(v => !v)} />
-            </div>
-            )}
-
-            {item && (
-              <>
-                {/* 採寸・特殊ケース */}
-                {curBuildKey === 'measure' && (<>
-                {manuals.map((m, i) => (
-                  <div key={i} className={`rounded-xl p-3 border-2 ${m.severity === 'danger' ? 'bg-red-50 border-red-300' : m.severity === 'warn' ? 'bg-amber-50 border-amber-300' : 'bg-blue-50 border-blue-200'}`}>
-                    <p className="font-black text-sm flex items-center gap-1 text-gray-800"><AlertTriangle size={14} className={m.severity === 'danger' ? 'text-red-500' : 'text-amber-500'} />{m.title}</p>
-                    <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">{m.body}</p>
-                    {m.images.length > 0 && (
-                      <div className="flex gap-2 mt-2 flex-wrap">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        {m.images.map((img, j) => <img key={j} src={pubUrl(img.path)} alt="" className="w-20 h-20 object-cover rounded-lg border" />)}
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {hasDanger && (
-                  <label className="flex items-center gap-2 text-sm font-bold text-red-600 bg-red-50 rounded-xl px-3 py-2">
-                    <input type="checkbox" checked={manualConfirmed} onChange={e => setManualConfirmed(e.target.checked)} />内容を確認しました
-                  </label>
-                )}
-
-                {/* 採寸 */}
-                {(item.measurements ?? []).length > 0 && (
-                  <div>
-                    <p className="text-[11px] font-black text-gray-400 mb-1.5">採寸・入力</p>
-                    <div className="space-y-2">{item.measurements.map(m => renderMeasurement(m.key, m.label, m.unit, !!m.required))}</div>
-                  </div>
-                )}
-                </>)}
-
-                {/* オプション */}
-                {curBuildKey === 'options' && (
-                  <div>
-                    <p className="text-[11px] font-black text-gray-400 mb-1.5">③ オプション</p>
-                    <div className="space-y-2.5">
-                      {groupedOptions.map(([gl, opts]) => (
-                        <div key={gl}>
-                          {!gl.startsWith('__single_') && <p className="text-xs font-bold text-gray-500 mb-1">{gl}{opts[0].group_select === 'single' ? '（択一）' : ''}</p>}
-                          <div className="flex flex-wrap gap-1.5">
-                            {opts.map(o => (
-                              <button key={o.id} onClick={() => toggleOption(o)} className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${optSel[o.id] ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-700'}`}>
-                                {o.name}{o.price_delta !== 0 && <span className="ml-1 opacity-80">{o.price_delta > 0 ? '+' : ''}{o.price_delta}</span>}{o.requires_quote && '※'}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
+              {selectedCust ? (
+                <div className="space-y-3">
+                  <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl px-4 py-4 flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center">
+                      <User size={22} className="text-indigo-600" />
                     </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-lg text-gray-900">{selectedCust.name}</p>
+                      {selectedCust.tel && <p className="text-xs text-gray-500 mt-0.5">{selectedCust.tel}</p>}
+                    </div>
+                    <button onClick={() => { setSelectedCust(null); setSelectedChild(null) }} className="p-1.5 text-gray-400 hover:text-gray-600"><X size={18} /></button>
                   </div>
-                )}
-
-                {/* 価格 */}
-                {curBuildKey === 'price' && (<>
-                {/* 個別見積もり: その他の品名/内容 */}
-                {pricingMode === 'manual' && item.code === 'other' && (
-                  <div className="space-y-2 bg-rose-50 border border-rose-200 rounded-xl p-3">
-                    <p className="text-xs font-black text-rose-600">個別見積もり（マスタにない特殊対応）</p>
-                    <input className={INPUT} placeholder="品名（例: 学ラン 襟交換）" value={manualItemName} onChange={e => setManualItemName(e.target.value)} />
-                    <textarea className={INPUT} rows={2} placeholder="内容・メモ" value={manualContent} onChange={e => setManualContent(e.target.value)} />
-                  </div>
-                )}
-
-                {/* 価格 */}
-                <div className="bg-gray-50 rounded-2xl p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-gray-500">基本 ¥{item.base_price.toLocaleString()}（{PRICE_UNIT_LABELS[item.price_unit]}）</span>
-                    <span className="text-2xl font-black text-indigo-600">{pricingMode === 'master' ? `¥${calculated.toLocaleString()}` : (finalPrice != null ? `¥${finalPrice.toLocaleString()}` : '見積もり待ち')}</span>
-                  </div>
-                  {/* 価格モード切替 */}
-                  <div className="flex gap-1.5">
-                    {(['master', 'adjusted', 'manual'] as PricingMode[]).map(pm => (
-                      <button key={pm} onClick={() => setPricingMode(pm)} className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold border ${pricingMode === pm ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-500 border-gray-200'}`}>{PRICING_MODE_LABELS[pm]}</button>
-                    ))}
-                  </div>
-                  {pricingMode !== 'master' && (
-                    <div className="space-y-1.5">
-                      <input type="number" className={INPUT} placeholder={mustQuote ? '金額（未定なら空欄＝見積もり待ち）' : '金額を入力'} value={overridePrice} onChange={e => setOverridePrice(e.target.value)} />
-                      <input className={INPUT} placeholder="理由（例: 常連割引 / 難物加算）" value={manualReason} onChange={e => setManualReason(e.target.value)} />
+                  {selectedCust.children && selectedCust.children.length > 0 && (
+                    <div>
+                      <label className="text-xs font-bold text-gray-600 block mb-2">お子様（任意）</label>
+                      <div className="flex flex-wrap gap-2">
+                        <button onClick={() => setSelectedChild(null)} className={`px-3 py-2 rounded-xl text-sm font-bold border-2 ${!selectedChild ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-600'}`}>選択しない</button>
+                        {selectedCust.children.map(ch => (
+                          <button key={ch.id} onClick={() => setSelectedChild(ch)} className={`px-3 py-2 rounded-xl text-sm font-bold border-2 ${selectedChild?.id === ch.id ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-600'}`}>{ch.name}</button>
+                        ))}
+                      </div>
                     </div>
                   )}
-                  {mustQuote && pricingMode === 'master' && <p className="text-[11px] text-rose-500 font-bold">※要見積もり項目です。金額確定後に「価格調整/個別見積もり」で入力してください</p>}
                 </div>
-                </>)}
-
-                {/* 写真 */}
-                {curBuildKey === 'photo' && (
-                <div>
-                  <label className="text-[11px] font-black text-gray-400 block mb-1">受付時の写真（状態の記録）</label>
-                  <div className="flex flex-wrap gap-2">
-                    {photos.map((p, i) => (
-                      <div key={i} className="relative">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={p.url} alt="" className="w-16 h-16 object-cover rounded-lg border" />
-                        <button onClick={() => setPhotos(photos.filter((_, j) => j !== i))} className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5"><X size={12} /></button>
-                      </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input autoFocus
+                      className="w-full border-2 border-gray-200 rounded-2xl pl-11 pr-4 py-4 text-lg focus:border-indigo-400 focus:outline-none"
+                      placeholder="お名前・電話・学校で検索"
+                      value={custSearch} onChange={e => setCustSearch(e.target.value)} />
+                    {searching && <Loader2 size={18} className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-gray-300" />}
+                  </div>
+                  <RecentCustomers storeId={storeId} visible={custSearch.trim() === '' && !showReg} withChildren onPick={pickRecent} />
+                  <div className="space-y-2">
+                    {custResults.map(c => (
+                      (c.children && c.children.length > 0) ? (
+                        c.children.map(ch => (
+                          <button key={ch.id} onClick={() => { setSelectedCust(c); setSelectedChild(ch) }}
+                            className="w-full text-left bg-white border-2 border-gray-200 rounded-2xl px-4 py-3 hover:border-indigo-300 active:scale-[0.98] transition-all">
+                            {ch.school_name && <p className="text-[11px] font-black text-amber-600 leading-none mb-0.5">{ch.school_name}</p>}
+                            <p className="font-bold text-gray-900">{ch.name}</p>
+                            <p className="text-xs text-gray-400">保護者: {c.name}{c.tel ? ` / ${c.tel}` : ''}</p>
+                          </button>
+                        ))
+                      ) : (
+                        <button key={c.id} onClick={() => { setSelectedCust(c); setSelectedChild(null) }}
+                          className="w-full text-left bg-white border-2 border-gray-200 rounded-2xl px-4 py-3 hover:border-indigo-300 active:scale-[0.98] transition-all">
+                          <p className="font-bold text-gray-900">{c.name}</p>
+                          <p className="text-xs text-gray-400">{[c.tel, c.school_name].filter(Boolean).join(' / ')}</p>
+                        </button>
+                      )
                     ))}
-                    <label className="w-16 h-16 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer text-gray-400">
-                      <Camera size={18} />
-                      <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) setPhotos([...photos, { file: f, url: URL.createObjectURL(f) }]) }} />
-                    </label>
-                  </div>
-                  <p className="text-[11px] text-gray-400 mt-1">任意です。不要ならそのまま「次へ」。</p>
-                  <RefPhotoStrip photos={refPhotos} loading={refLoading} open={refOpen} onToggle={() => setRefOpen(v => !v)} />
-                </div>
-                )}
-
-                {/* 納期・外注・メモ */}
-                {curBuildKey === 'memo' && (<>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[11px] font-black text-gray-400 block mb-1">仕上がり希望日</label>
-                    <input type="date" className={INPUT} value={deadline} onChange={e => setDeadline(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-black text-gray-400 block mb-1">加工業者（外注先・任意）</label>
-                    {vendors.length === 0 ? (
-                      <input className={INPUT} value={vendorName} onChange={e => setVendorName(e.target.value)} placeholder="内製なら空欄" />
-                    ) : (
-                      <input className={INPUT} value={vendorName} onChange={e => setVendorName(e.target.value)} placeholder="下から選択／内製は空欄" />
+                    {custSearch && !searching && custResults.length === 0 && (
+                      <p className="text-center text-sm text-gray-400 py-4">該当なし。新規登録できます。</p>
                     )}
                   </div>
-                </div>
-                {vendors.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    <button type="button" onClick={() => setVendorName('')}
-                      className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 ${vendorName === '' ? 'bg-gray-700 text-white border-gray-700' : 'bg-white border-gray-200 text-gray-600'}`}>内製</button>
-                    {vendors.map(v => (
-                      <button type="button" key={v.id} onClick={() => setVendorName(v.name)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 ${vendorName === v.name ? 'bg-amber-500 text-white border-amber-500' : 'bg-white border-gray-200 text-gray-700'}`}>{v.name}</button>
-                    ))}
-                  </div>
-                )}
-                <textarea className={INPUT} rows={2} placeholder="社内メモ（任意）" value={memo} onChange={e => setMemo(e.target.value)} />
-                </>)}
 
-                {/* 確認 */}
-                {curBuildKey === 'confirm' && (
-                <div className="space-y-2">
-                  <p className="text-[11px] font-black text-gray-400">内容を確認して受付</p>
-                  <div className="rounded-2xl border border-gray-200 text-sm divide-y">
-                    {[
-                      ['お客様', selectedCust ? `${selectedCust.name}${selectedChild ? ` / ${selectedChild.name}` : ''}` : '未紐付け（上部の「顧客」から登録してください）'],
-                      ['服種・項目', `${garments.find(g => g.id === garmentId)?.name ?? ''} / ${item.name}`],
-                      ['金額', pricingMode === 'master' ? `¥${calculated.toLocaleString()}` : (finalPrice != null ? `¥${finalPrice.toLocaleString()}` : '見積もり待ち')],
-                      ...(deadline ? [['仕上がり希望', deadline]] : []),
-                      ...(vendorName ? [['外注先', vendorName]] : []),
-                      ...(memo ? [['メモ', memo]] : []),
-                    ].map(([k, v]) => (
-                      <div key={k} className="flex gap-3 px-3 py-2">
-                        <span className="text-gray-400 font-bold w-20 shrink-0">{k}</span>
-                        <span className="text-gray-900 font-bold flex-1 break-words">{v}</span>
+                  {/* 新規顧客を登録 */}
+                  {!showReg ? (
+                    <button onClick={() => { setShowReg(true); if (!newName && custSearch && !/\d/.test(custSearch)) setNewName(custSearch.trim()) }}
+                      className="w-full py-4 rounded-2xl border-2 border-dashed border-indigo-300 text-indigo-600 font-bold flex items-center justify-center gap-2">
+                      ➕ 新規顧客を登録する
+                    </button>
+                  ) : (
+                    <div className="rounded-2xl border-2 border-indigo-200 bg-indigo-50/50 p-4 space-y-3">
+                      {phoneMode ? (
+                        <div className="space-y-2">
+                          <p className="text-sm font-black text-indigo-800">電話番号で登録・紐付け</p>
+                          <input className={INPUT} placeholder="お名前" value={newName} onChange={e => setNewName(e.target.value)} />
+                          <input className={INPUT} type="tel" inputMode="numeric" placeholder="電話番号（携帯可）" value={newTel} onChange={e => setNewTel(e.target.value)} />
+                          <div className="flex gap-2">
+                            <button onClick={() => { setPhoneMode(false); setNewTel('') }} className="flex-1 py-3 rounded-xl bg-white border-2 border-gray-200 text-gray-600 font-bold">戻る</button>
+                            <button onClick={handlePhoneRegister} disabled={registering} className="flex-1 py-3 rounded-xl bg-indigo-600 text-white font-black flex items-center justify-center gap-1.5 disabled:opacity-50">
+                              {registering ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}登録して選択
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button onClick={() => setPhoneMode(true)} className="w-full py-3 rounded-xl bg-indigo-600 text-white font-black flex items-center justify-center gap-2">
+                          📞 電話番号で登録する
+                        </button>
+                      )}
+                      <div className="border-t border-indigo-200 pt-3 text-center space-y-2">
+                        <p className="text-xs font-black text-indigo-800">またはLINEで登録（QRを読み取ってもらう）</p>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=${encodeURIComponent(`https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || ''}/${storeId}`)}`}
+                          alt="受付QR" width={180} height={180}
+                          className="mx-auto rounded-xl bg-white p-1 shadow-sm"
+                        />
+                        <p className="text-[10px] text-indigo-500 leading-relaxed">LINE登録後、上の検索欄でお名前を検索してください</p>
                       </div>
-                    ))}
-                  </div>
+                      <button onClick={() => { setShowReg(false); setPhoneMode(false); setNewTel('') }}
+                        className="w-full py-2 text-sm font-bold text-gray-600 border border-gray-200 rounded-xl hover:bg-white">閉じる</button>
+                    </div>
+                  )}
                 </div>
-                )}
-
-              </>
-            )}
-
-            {/* フッターナビ（全サブステップ共通） */}
-            <div className="flex gap-2 pt-1">
-              <button onClick={goBackBuild} className="flex-1 py-3 rounded-2xl bg-white border-2 border-gray-200 text-gray-600 font-black">戻る</button>
-              {isLastBuild ? (
-                <button onClick={handleSave} disabled={saving} className="flex-[2] py-3 bg-amber-500 text-white font-black rounded-2xl flex items-center justify-center gap-2 disabled:opacity-50">
-                  {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}受付する
-                </button>
-              ) : (
-                <button onClick={goNextBuild} disabled={!canNextBuild} className="flex-[2] py-3 bg-indigo-600 text-white font-black rounded-2xl disabled:opacity-40">次へ</button>
               )}
             </div>
-          </div>
-        )}
+          )}
+
+          {/* ── お直し内容（build steps） ── */}
+          {step === 'build' && (
+            <div>
+              {/* 服種 */}
+              {curBuildKey === 'garment' && (
+                <div>
+                  <p className="text-xl font-black text-gray-800 mb-1">どの服ですか？</p>
+                  <p className="text-sm text-gray-500 mb-5">服の種類を選んでください</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {garments.map(g => (
+                      <button key={g.id} onClick={() => setGarmentId(g.id)}
+                        className={`flex flex-col items-center justify-center gap-2 py-7 rounded-2xl border-2 active:scale-95 transition-all ${
+                          garmentId === g.id ? 'bg-amber-50 border-amber-400' : 'bg-white border-gray-200'
+                        }`}>
+                        <span className="text-3xl leading-none"><RepairIcon icon={g.icon} /></span>
+                        <span className="text-base font-black text-gray-800">{g.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 項目 */}
+              {curBuildKey === 'item' && (
+                <div>
+                  <p className="text-xl font-black text-gray-800 mb-1">お直し内容は？</p>
+                  <p className="text-sm text-gray-500 mb-5">項目をタップして選んでください</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {items.map(it => (
+                      <button key={it.id} onClick={() => selectItem(it)}
+                        className={`text-left p-4 rounded-2xl border-2 active:scale-95 transition-all ${
+                          item?.id === it.id ? 'bg-amber-50 border-amber-400' : 'bg-white border-gray-200'
+                        }`}>
+                        <p className="font-bold text-gray-900 flex items-center gap-1.5"><RepairIcon icon={it.icon} /> {it.name}</p>
+                        <p className="text-amber-600 font-black mt-1">{it.requires_quote ? '見積もり' : `¥${it.base_price.toLocaleString()}`}</p>
+                      </button>
+                    ))}
+                    {items.length === 0 && <p className="col-span-2 text-center text-sm text-gray-400 py-6">この服種の項目がありません</p>}
+                  </div>
+                  <RefPhotoStrip photos={refPhotos} loading={refLoading} open={refOpen} onToggle={() => setRefOpen(v => !v)} />
+                </div>
+              )}
+
+              {item && (
+                <>
+                  {/* 採寸・特殊ケース */}
+                  {curBuildKey === 'measure' && (
+                    <div>
+                      <p className="text-xl font-black text-gray-800 mb-1">採寸・注意事項</p>
+                      <p className="text-sm text-gray-500 mb-5">内容を確認して入力してください</p>
+                      <div className="space-y-4">
+                        {manuals.map((m, i) => (
+                          <div key={i} className={`rounded-2xl p-4 border-2 ${m.severity === 'danger' ? 'bg-red-50 border-red-300' : m.severity === 'warn' ? 'bg-amber-50 border-amber-300' : 'bg-blue-50 border-blue-200'}`}>
+                            <p className="font-black flex items-center gap-2 text-gray-800 mb-2">
+                              <AlertTriangle size={16} className={m.severity === 'danger' ? 'text-red-500' : 'text-amber-500'} />{m.title}
+                            </p>
+                            <p className="text-sm text-gray-600 whitespace-pre-wrap">{m.body}</p>
+                            {m.images.length > 0 && (
+                              <div className="flex gap-2 mt-3 flex-wrap">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                {m.images.map((img, j) => <img key={j} src={pubUrl(img.path)} alt="" className="w-20 h-20 object-cover rounded-xl border" />)}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {hasDanger && (
+                          <label className="flex items-center gap-3 text-base font-bold text-red-600 bg-red-50 rounded-2xl px-4 py-3">
+                            <input type="checkbox" checked={manualConfirmed} onChange={e => setManualConfirmed(e.target.checked)} className="w-5 h-5" />内容を確認しました
+                          </label>
+                        )}
+                        {(item.measurements ?? []).length > 0 && (
+                          <div>
+                            <p className="text-sm font-black text-gray-500 mb-3">採寸・入力</p>
+                            <div className="space-y-3">{item.measurements.map(m => renderMeasurement(m.key, m.label, m.unit, !!m.required))}</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* オプション */}
+                  {curBuildKey === 'options' && (
+                    <div>
+                      <p className="text-xl font-black text-gray-800 mb-1">オプションは？</p>
+                      <p className="text-sm text-gray-500 mb-5">追加オプションを選んでください（任意）</p>
+                      <div className="space-y-4">
+                        {groupedOptions.map(([gl, opts]) => (
+                          <div key={gl}>
+                            {!gl.startsWith('__single_') && (
+                              <p className="text-sm font-bold text-gray-500 mb-2">{gl}{opts[0].group_select === 'single' ? '（択一）' : ''}</p>
+                            )}
+                            <div className="flex flex-wrap gap-2">
+                              {opts.map(o => (
+                                <button key={o.id} onClick={() => toggleOption(o)}
+                                  className={`px-4 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${
+                                    optSel[o.id] ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-700'
+                                  }`}>
+                                  {o.name}{o.price_delta !== 0 && <span className="ml-1 opacity-80">{o.price_delta > 0 ? '+' : ''}{o.price_delta}</span>}{o.requires_quote && '※'}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 価格 */}
+                  {curBuildKey === 'price' && (
+                    <div>
+                      <p className="text-xl font-black text-gray-800 mb-1">金額の確認</p>
+                      <p className="text-sm text-gray-500 mb-5">変更が必要な場合は価格モードを切り替えてください</p>
+                      <div className="space-y-4">
+                        {pricingMode === 'manual' && item.code === 'other' && (
+                          <div className="space-y-2 bg-rose-50 border-2 border-rose-200 rounded-2xl p-4">
+                            <p className="text-sm font-black text-rose-600">個別見積もり（マスタにない特殊対応）</p>
+                            <input className={INPUT} placeholder="品名（例: 学ラン 襟交換）" value={manualItemName} onChange={e => setManualItemName(e.target.value)} />
+                            <textarea className={INPUT} rows={2} placeholder="内容・メモ" value={manualContent} onChange={e => setManualContent(e.target.value)} />
+                          </div>
+                        )}
+                        <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-gray-500">基本 ¥{item.base_price.toLocaleString()}（{PRICE_UNIT_LABELS[item.price_unit]}）</span>
+                            <span className="text-3xl font-black text-amber-600">
+                              {pricingMode === 'master' ? `¥${calculated.toLocaleString()}` : (finalPrice != null ? `¥${finalPrice.toLocaleString()}` : '見積もり待ち')}
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            {(['master', 'adjusted', 'manual'] as PricingMode[]).map(pm => (
+                              <button key={pm} onClick={() => setPricingMode(pm)}
+                                className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 ${
+                                  pricingMode === pm ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-500 border-gray-200'
+                                }`}>{PRICING_MODE_LABELS[pm]}</button>
+                            ))}
+                          </div>
+                          {pricingMode !== 'master' && (
+                            <div className="space-y-2">
+                              <input type="number" className={INPUT} placeholder={mustQuote ? '金額（未定なら空欄＝見積もり待ち）' : '金額を入力'} value={overridePrice} onChange={e => setOverridePrice(e.target.value)} />
+                              <input className={INPUT} placeholder="理由（例: 常連割引 / 難物加算）" value={manualReason} onChange={e => setManualReason(e.target.value)} />
+                            </div>
+                          )}
+                          {mustQuote && pricingMode === 'master' && (
+                            <p className="text-xs text-rose-500 font-bold">※要見積もり項目です。金額確定後に「価格調整/個別見積もり」で入力してください</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 写真 */}
+                  {curBuildKey === 'photo' && (
+                    <div>
+                      <p className="text-xl font-black text-gray-800 mb-1">受付写真（任意）</p>
+                      <p className="text-sm text-gray-500 mb-5">状態の記録として撮影できます。不要ならそのまま「次へ」。</p>
+                      <div className="flex flex-wrap gap-3">
+                        {photos.map((p, i) => (
+                          <div key={i} className="relative">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={p.url} alt="" className="w-20 h-20 object-cover rounded-2xl border-2 border-gray-200" />
+                            <button onClick={() => setPhotos(photos.filter((_, j) => j !== i))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"><X size={12} /></button>
+                          </div>
+                        ))}
+                        <label className="w-20 h-20 rounded-2xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer text-gray-400 gap-1">
+                          <Camera size={22} />
+                          <span className="text-[10px] font-bold">撮影</span>
+                          <input type="file" accept="image/*" capture="environment" className="hidden"
+                            onChange={e => { const f = e.target.files?.[0]; if (f) setPhotos([...photos, { file: f, url: URL.createObjectURL(f) }]) }} />
+                        </label>
+                      </div>
+                      <RefPhotoStrip photos={refPhotos} loading={refLoading} open={refOpen} onToggle={() => setRefOpen(v => !v)} />
+                    </div>
+                  )}
+
+                  {/* 納期・外注・メモ */}
+                  {curBuildKey === 'memo' && (
+                    <div>
+                      <p className="text-xl font-black text-gray-800 mb-1">仕上がり日・メモ</p>
+                      <p className="text-sm text-gray-500 mb-5">希望日と外注先・メモを入力してください</p>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs font-bold text-gray-600 block mb-1.5">仕上がり希望日</label>
+                            <input type="date" className={INPUT} value={deadline} onChange={e => setDeadline(e.target.value)} />
+                          </div>
+                          <div>
+                            <label className="text-xs font-bold text-gray-600 block mb-1.5">加工業者（外注先・任意）</label>
+                            <input className={INPUT} value={vendorName} onChange={e => setVendorName(e.target.value)} placeholder={vendors.length > 0 ? '下から選択／内製は空欄' : '内製なら空欄'} />
+                          </div>
+                        </div>
+                        {vendors.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            <button type="button" onClick={() => setVendorName('')}
+                              className={`px-3 py-2 rounded-full text-sm font-bold border-2 ${vendorName === '' ? 'bg-gray-700 text-white border-gray-700' : 'bg-white border-gray-200 text-gray-600'}`}>内製</button>
+                            {vendors.map(v => (
+                              <button type="button" key={v.id} onClick={() => setVendorName(v.name)}
+                                className={`px-3 py-2 rounded-full text-sm font-bold border-2 ${vendorName === v.name ? 'bg-amber-500 text-white border-amber-500' : 'bg-white border-gray-200 text-gray-700'}`}>{v.name}</button>
+                            ))}
+                          </div>
+                        )}
+                        <textarea className={INPUT} rows={3} placeholder="社内メモ（任意）" value={memo} onChange={e => setMemo(e.target.value)} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 確認 */}
+                  {curBuildKey === 'confirm' && (
+                    <div>
+                      <p className="text-xl font-black text-gray-800 mb-1">内容を確認してください</p>
+                      <p className="text-sm text-gray-500 mb-5">問題なければ「受付する」を押してください</p>
+                      <div className="bg-gray-50 rounded-2xl p-5 space-y-4">
+                        {[
+                          { label: 'お客様', value: selectedCust ? `${selectedCust.name}${selectedChild ? ` / ${selectedChild.name}` : ''}` : '未紐付け（後で登録できます）' },
+                          { label: '服種・項目', value: `${garments.find(g => g.id === garmentId)?.name ?? ''} / ${item.name}` },
+                          { label: '金額', value: pricingMode === 'master' ? `¥${calculated.toLocaleString()}` : (finalPrice != null ? `¥${finalPrice.toLocaleString()}` : '見積もり待ち') },
+                          ...(deadline ? [{ label: '仕上がり希望', value: deadline }] : []),
+                          ...(vendorName ? [{ label: '外注先', value: vendorName }] : []),
+                          ...(memo ? [{ label: 'メモ', value: memo }] : []),
+                        ].map(({ label, value }) => (
+                          <div key={label} className="flex flex-col gap-1 border-b border-gray-200 last:border-0 pb-4 last:pb-0">
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+                            <p className="text-lg font-bold text-gray-800 leading-relaxed break-words">{value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* フッター */}
+        <div className="px-5 py-4 border-t border-gray-100 shrink-0">
+          {step === 'customer' ? (
+            selectedCust ? (
+              <button onClick={() => setStep('build')}
+                style={{ touchAction: 'manipulation' }}
+                className="w-full py-5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xl font-black transition-colors active:scale-[0.98] flex items-center justify-center gap-2">
+                <Check size={22} />お直し内容へ進む
+              </button>
+            ) : (
+              <button onClick={() => setStep('build')}
+                style={{ touchAction: 'manipulation' }}
+                className="w-full py-4 rounded-2xl border-2 border-gray-300 text-gray-500 font-bold transition-colors active:scale-[0.98]">
+                顧客は後で紐付け → 次へ
+              </button>
+            )
+          ) : isLastBuild ? (
+            <button onClick={handleSave} disabled={saving}
+              style={{ touchAction: 'manipulation' }}
+              className="w-full py-5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-white text-xl font-black disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.98]">
+              {saving ? <Loader2 size={22} className="animate-spin" /> : <Check size={22} />}受付する
+            </button>
+          ) : (
+            <div className="flex gap-3">
+              <button onClick={goBackBuild}
+                style={{ touchAction: 'manipulation' }}
+                className="flex-1 py-5 rounded-2xl bg-white border-2 border-gray-200 text-gray-600 font-black active:scale-[0.98]">
+                戻る
+              </button>
+              <button onClick={goNextBuild} disabled={!canNextBuild}
+                style={{ touchAction: 'manipulation' }}
+                className="flex-[2] py-5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xl font-black disabled:opacity-40 active:scale-[0.98]">
+                次へ →
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+
       {linkSheetOpen && (
         <CustomerLinkSheet
           storeId={storeId}
