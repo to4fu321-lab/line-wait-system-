@@ -6,6 +6,7 @@ import {
   User, Check, X, Search, Camera, ScanLine, Plus, ShoppingCart,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { resolveFeature } from '@/lib/features'
 import { compressImage } from './utils'
 import type { CustResult, CartItem } from './types'
 import { CustomerLinkSheet } from './CustomerLinkSheet'
@@ -66,6 +67,7 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   const [prepaid,      setPrepaid]      = useState(false)
   const [saving,       setSaving]       = useState(false)
   const [ocrLoading,   setOcrLoading]   = useState(false)
+  const [planGated,    setPlanGated]    = useState(false)
   const [ocrWarnings,  setOcrWarnings]  = useState<string[]>([])
   const orderFileRef = useRef<HTMLInputElement>(null)
 
@@ -101,8 +103,15 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   }
 
   useEffect(() => {
-    ;(supabase as any).from('schools').select('id, name').eq('store_id', storeId).eq('active', true).order('sort_order')
-      .then(({ data }: { data: typeof schools }) => setSchools(data ?? []))
+    ;(async () => {
+      const { data: storeRow } = await (supabase as any)
+        .from('stores').select('features').eq('id', storeId).single()
+      const featuresData = (storeRow?.features ?? {}) as Record<string, unknown>
+      if (!resolveFeature('products', featuresData)) { setPlanGated(true); return }
+      const { data } = await (supabase as any).from('schools')
+        .select('id, name').eq('store_id', storeId).eq('active', true).order('sort_order')
+      setSchools(data ?? [])
+    })()
   }, [storeId])
 
   useEffect(() => {
@@ -257,8 +266,20 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
 
+          {/* プランゲート */}
+          {planGated && (
+            <div className="flex flex-col items-center justify-center h-full px-6 text-center gap-5 py-16">
+              <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center text-3xl">🔒</div>
+              <div>
+                <h3 className="text-lg font-black text-gray-800 mb-2">この機能は現在のプランでは<br />ご利用いただけません</h3>
+                <p className="text-sm text-gray-500 leading-relaxed">制服・用品注文機能は上位プランで<br />ご利用いただけます。</p>
+              </div>
+              <button onClick={onClose} className="px-6 py-2.5 rounded-2xl border border-gray-200 text-gray-500 text-sm font-bold active:opacity-60 transition-opacity">閉じる</button>
+            </div>
+          )}
+
           {/* OCR 警告バナー（注文モーダル） */}
-          {ocrWarnings.length > 0 && (
+          {!planGated && ocrWarnings.length > 0 && (
             <div className="mx-5 mt-4 bg-amber-50 border border-amber-300 rounded-2xl px-4 py-3 space-y-1">
               <p className="text-xs font-black text-amber-700 flex items-center gap-1.5"><ScanLine size={13} />確認が必要な箇所</p>
               {ocrWarnings.map((w, i) => <p key={i} className="text-xs text-amber-600 pl-4">・{w}</p>)}
@@ -266,7 +287,7 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
           )}
 
           {/* ── Step 1: 商品選択 ── */}
-          {step === 'products' && (
+          {!planGated && step === 'products' && (
             <div className="flex flex-col h-full">
               <div className="px-5 pt-5 pb-3">
                 <p className="text-xl font-black text-gray-800">商品を選択してください</p>
@@ -332,7 +353,7 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
           )}
 
           {/* ── Step 2: 顧客選択 ── */}
-          {step === 'customer' && (
+          {!planGated && step === 'customer' && (
             <div className="px-5 py-6 space-y-3">
               <p className="text-xl font-black text-gray-800 mb-1">どのお客様ですか？</p>
               {!selectedCust ? (
@@ -455,7 +476,7 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
           )}
 
           {/* ── Step 3: 確認 ── */}
-          {step === 'confirm' && (
+          {!planGated && step === 'confirm' && (
             <div className="px-5 py-6 space-y-4">
               <p className="text-xl font-black text-gray-800 mb-1">
                 {curConfirmKey === 'priority' ? '注文区分は？' :
