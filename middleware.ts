@@ -18,9 +18,10 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // ── ① LINEブラウザで / にアクセス ─────────────────────
-  // liff.state にサブパスがあればそちらへ、なければ既定店舗のホームへ
-  if (path === '/' && isLine) {
+  // ── LINEブラウザ共通: liff.state を最優先処理 ──────────────────────
+  // LIFF endpoint URL が /storeId に設定されている場合でも正しくルーティングできるよう
+  // path に関わらず liff.state を検出したらそちらへリダイレクト
+  if (isLine) {
     const liffState = request.nextUrl.searchParams.get('liff.state')
     if (liffState) {
       const decoded = decodeURIComponent(liffState)
@@ -28,12 +29,15 @@ export function middleware(request: NextRequest) {
       if (uuidMatch) {
         return NextResponse.redirect(new URL(decoded, request.url))
       }
-      // /line-home?action=... → action パラメータを保持してリダイレクト
       if (decoded.startsWith('/line-home')) {
         return NextResponse.redirect(new URL(decoded, request.url))
       }
     }
-    // line_user_id で登録済み店舗へ。未登録はQRスキャン案内
+  }
+
+  // ── ① LINEブラウザで / にアクセス ─────────────────────
+  // liff.state なし → 店舗選択ページへ
+  if (path === '/' && isLine) {
     return NextResponse.redirect(new URL('/line-home', request.url))
   }
 
