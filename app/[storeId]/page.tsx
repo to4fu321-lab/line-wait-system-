@@ -698,7 +698,12 @@ function WaitingFirstChildForm({
 }
 
 // ── 受付停止中ビュー（自動再チェック付き） ──────────────────
-function ClosedView({ storeId, onOpen }: { storeId: string; onOpen: () => void }) {
+function ClosedView({ storeId, onOpen, onPurchase, onReserve }: {
+  storeId: string
+  onOpen: () => void
+  onPurchase?: () => void
+  onReserve?: () => void
+}) {
   const [checking, setChecking] = useState(false)
 
   const checkNow = useCallback(async () => {
@@ -721,6 +726,32 @@ function ClosedView({ storeId, onOpen }: { storeId: string; onOpen: () => void }
       <div className="text-7xl mb-5">🚪</div>
       <h1 className="text-3xl font-black text-white mb-2">現在受付を停止しています</h1>
       <p className="text-zinc-400 text-lg mb-8">店頭スタッフにお声がけください</p>
+
+      {(onPurchase || onReserve) && (
+        <div className="w-full max-w-xs mb-8 space-y-3">
+          {onPurchase && (
+            <button onClick={onPurchase}
+              className="w-full flex items-center gap-4 bg-white/10 hover:bg-white/15 active:scale-95 transition-all rounded-2xl px-5 py-4 text-left">
+              <span className="text-3xl">🛍️</span>
+              <div>
+                <p className="text-white font-black text-base leading-tight">ネット注文</p>
+                <p className="text-zinc-400 text-sm">24時間受付中</p>
+              </div>
+            </button>
+          )}
+          {onReserve && (
+            <button onClick={onReserve}
+              className="w-full flex items-center gap-4 bg-white/10 hover:bg-white/15 active:scale-95 transition-all rounded-2xl px-5 py-4 text-left">
+              <span className="text-3xl">🗓️</span>
+              <div>
+                <p className="text-white font-black text-base leading-tight">来店予約</p>
+                <p className="text-zinc-400 text-sm">24時間受付中</p>
+              </div>
+            </button>
+          )}
+        </div>
+      )}
+
       <button
         onClick={checkNow}
         disabled={checking}
@@ -2101,7 +2132,12 @@ export default function CustomerPage() {
   )
 
   if (view === 'closed') return (
-    <ClosedView storeId={storeId} onOpen={() => setView('purpose')} />
+    <ClosedView
+      storeId={storeId}
+      onOpen={() => setView('purpose')}
+      onPurchase={() => setView('purchase_ec')}
+      onReserve={() => router.push(`/${storeId}/reserve`)}
+    />
   )
 
   if (view === 'purchase_ec') return (
