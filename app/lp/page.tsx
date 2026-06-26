@@ -18,24 +18,57 @@ export default function LandingPage({ searchParams }: { searchParams?: { preview
   if (!LP_PUBLIC && searchParams?.preview !== '1') notFound()
 
   return (
-    <main className="min-h-screen bg-white text-zinc-900 antialiased">
-      {/* Nav */}
-      <header className="mx-auto flex h-16 max-w-5xl items-center justify-between px-5">
-        <span className="text-[17px] font-black tracking-tight">{BRAND}</span>
-        <a href={START} className="rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-black active:scale-95">
-          無料で始める
-        </a>
-      </header>
+    <main className="relative min-h-screen overflow-x-hidden text-zinc-900 antialiased">
+      {/* ===== Global atmospheric background ===== */}
+      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10">
+        <div className="absolute inset-0 bg-gradient-to-b from-zinc-50 via-white to-indigo-50/60" />
+        <div className="absolute -left-40 top-[-10rem] h-[40rem] w-[40rem] animate-float-slow rounded-full bg-indigo-300/40 blur-[140px]" />
+        <div className="absolute -right-40 top-[20rem] h-[38rem] w-[38rem] animate-float-slower rounded-full bg-violet-300/40 blur-[140px]" />
+        <div className="absolute bottom-[-12rem] left-1/3 h-[34rem] w-[34rem] animate-float-slow rounded-full bg-sky-200/40 blur-[140px]" />
+        <div
+          className="absolute inset-0 opacity-[0.4]"
+          style={{
+            backgroundImage:
+              'linear-gradient(to right, rgba(99,102,241,0.07) 1px, transparent 1px), linear-gradient(to bottom, rgba(99,102,241,0.07) 1px, transparent 1px)',
+            backgroundSize: '48px 48px',
+            maskImage: 'radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%)',
+            WebkitMaskImage: 'radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%)',
+          }}
+        />
+      </div>
 
-      {/* Hero */}
-      <section className="relative overflow-hidden border-b border-zinc-100">
-        <div aria-hidden className="pointer-events-none absolute -right-32 -top-32 -z-10 h-[34rem] w-[34rem] rounded-full bg-indigo-100 blur-[120px]" />
-        <div className="mx-auto grid max-w-5xl items-center gap-12 px-5 py-14 lg:grid-cols-[1.1fr_0.9fr] lg:py-20">
-          <div className="text-center lg:text-left">
-            <p className="text-sm font-bold tracking-wide text-indigo-600">学生服専門店のための トータルDX</p>
-            <h1 className="mt-4 text-[2.3rem] font-black leading-[1.12] tracking-tight sm:text-[3.1rem]">
+      {/* ===== Floating glass nav ===== */}
+      <div className="sticky top-0 z-50 px-3 pt-3 sm:px-5 sm:pt-4">
+        <header className="mx-auto flex h-14 max-w-5xl items-center justify-between rounded-2xl border border-white/60 bg-white/60 px-4 shadow-lg shadow-indigo-900/5 backdrop-blur-xl sm:px-5">
+          <span className="flex items-center gap-2 text-[17px] font-black tracking-tight text-zinc-900">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-600 to-violet-600 text-sm text-white shadow-md shadow-indigo-500/30">ミ</span>
+            {BRAND}
+          </span>
+          <a
+            href={START}
+            className="group inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/25 transition-all hover:shadow-xl hover:shadow-indigo-500/40 active:scale-95"
+          >
+            無料で始める <Arrow />
+          </a>
+        </header>
+      </div>
+
+      {/* ===== Hero ===== */}
+      <section className="relative">
+        <div className="mx-auto grid max-w-5xl items-center gap-12 px-5 pb-16 pt-12 lg:grid-cols-[1.1fr_0.9fr] lg:pb-24 lg:pt-20">
+          <div className="animate-rise-in text-center lg:text-left">
+            <span className="inline-flex items-center gap-2 rounded-full border border-indigo-200/70 bg-white/70 px-3.5 py-1.5 text-xs font-bold tracking-wide text-indigo-700 shadow-sm backdrop-blur-md">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-500 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-indigo-600" />
+              </span>
+              学生服専門店のための トータルDX
+            </span>
+            <h1 className="mt-5 text-[2.4rem] font-black leading-[1.1] tracking-tight text-zinc-900 sm:text-[3.25rem]">
               「仕上がりました」の連絡が、<br />
-              <span className="text-indigo-600">ワンタップ。</span>
+              <span className="bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 bg-clip-text text-transparent animate-gradient-pan">
+                ワンタップ。
+              </span>
             </h1>
             <p className="mx-auto mt-6 max-w-lg text-[17px] leading-relaxed text-zinc-600 lg:mx-0">
               電話が繋がらない、何度もかけ直す——そんな手間はもう要りません。
@@ -47,27 +80,32 @@ export default function LandingPage({ searchParams }: { searchParams?: { preview
               <span className="whitespace-nowrap">Plaza・Platform・Plan・Plus</span> をひとつに。
             </p>
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row lg:items-start">
-              <a href={START} className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-zinc-900 px-8 py-4 font-bold text-white shadow-lg shadow-zinc-900/15 transition-all hover:bg-black active:scale-[0.98] sm:w-auto">
+              <a
+                href={START}
+                className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 px-8 py-4 font-bold text-white shadow-xl shadow-indigo-500/30 transition-all hover:shadow-2xl hover:shadow-indigo-500/45 active:scale-[0.98] sm:w-auto"
+              >
                 {TRIAL_DAYS}日間 無料で始める <Arrow />
               </a>
               <span className="text-sm text-zinc-500">クレカ不要・メール登録なし・今すぐ使えます</span>
             </div>
           </div>
 
-          <div className="relative mx-auto w-full max-w-[16rem]">
-            <div className="absolute inset-0 -z-10 translate-y-6 scale-90 rounded-[3rem] bg-indigo-200/40 blur-2xl" />
-            <PhoneFrame><MockContactScreen /></PhoneFrame>
+          <div className="animate-rise-in relative mx-auto w-full max-w-[16rem] [animation-delay:150ms]">
+            <div aria-hidden className="absolute inset-0 -z-10 translate-y-8 scale-90 rounded-[3rem] bg-gradient-to-br from-indigo-400/50 to-violet-400/50 blur-3xl" />
+            <div className="animate-phone-float">
+              <PhoneFrame><MockContactScreen /></PhoneFrame>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* 連絡の Before / After（主役）*/}
+      {/* ===== 連絡の Before / After（主役）===== */}
       <section className="mx-auto max-w-5xl px-5 py-16">
-        <h2 className="text-center text-2xl font-black tracking-tight sm:text-[2rem]">
+        <h2 className="text-balance text-center text-2xl font-black tracking-tight text-zinc-900 sm:text-[2rem]">
           お客様への連絡、これだけ変わります。
         </h2>
         <div className="mt-10 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-3xl border border-zinc-200 bg-zinc-50 p-7">
+          <div className="rounded-3xl border border-white/70 bg-white/50 p-7 shadow-lg shadow-zinc-900/5 backdrop-blur-xl">
             <p className="text-xs font-black tracking-widest text-zinc-400">これまで（お電話）</p>
             <ul className="mt-5 space-y-4">
               {[
@@ -82,9 +120,10 @@ export default function LandingPage({ searchParams }: { searchParams?: { preview
               ))}
             </ul>
           </div>
-          <div className="rounded-3xl border-2 border-indigo-200 bg-white p-7 shadow-xl shadow-indigo-100">
-            <p className="text-xs font-black tracking-widest text-indigo-600">これから（ワンタップ）</p>
-            <ul className="mt-5 space-y-4">
+          <div className="relative overflow-hidden rounded-3xl border border-indigo-200/80 bg-gradient-to-br from-white/90 to-indigo-50/80 p-7 shadow-2xl shadow-indigo-200/50 backdrop-blur-xl">
+            <div aria-hidden className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-indigo-400/30 blur-2xl" />
+            <p className="relative text-xs font-black tracking-widest text-indigo-600">これから（ワンタップ）</p>
+            <ul className="relative mt-5 space-y-4">
               {[
                 '一覧から選んでワンタップで送信完了',
                 'LINEで確実に届く。お客様は好きな時間に確認',
@@ -100,44 +139,62 @@ export default function LandingPage({ searchParams }: { searchParams?: { preview
         </div>
       </section>
 
-      {/* 3つの価値（②ラク・③再来店）*/}
-      <section className="border-y border-zinc-100 bg-zinc-50/60">
-        <div className="mx-auto grid max-w-5xl gap-10 px-5 py-16 sm:grid-cols-3">
+      {/* ===== 3つの価値（②ラク・③再来店）===== */}
+      <section className="mx-auto max-w-5xl px-5 py-16">
+        <div className="grid gap-5 sm:grid-cols-3">
           {[
             ['とにかくラク', '連絡も受付もお直し管理もワンタップ。1人でも、繁忙期に人が増えても、同じ画面でまわる。'],
             ['確実につながる', '電話の「繋がらない」ストレスがゼロ。お客様も、好きな時間に受け取れて助かる。'],
             ['再来店につながる', 'LINEでお客様とつながり、次の制服シーズンや買い替えのときも、忘れられないお店に。'],
           ].map(([t, d], i) => (
-            <div key={t}>
-              <span className="text-3xl font-black text-indigo-200">0{i + 1}</span>
-              <p className="mt-2 text-lg font-black">{t}</p>
+            <div
+              key={t}
+              className="group rounded-3xl border border-white/70 bg-white/55 p-6 shadow-lg shadow-zinc-900/5 backdrop-blur-xl transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-200/50"
+            >
+              <span className="bg-gradient-to-br from-indigo-500 to-violet-500 bg-clip-text text-3xl font-black text-transparent">
+                0{i + 1}
+              </span>
+              <p className="mt-2 text-lg font-black text-zinc-900">{t}</p>
               <p className="mt-1.5 text-sm leading-relaxed text-zinc-500">{d}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* CTA（無料体験）*/}
+      {/* ===== CTA（無料体験）===== */}
       <section className="px-5 py-16">
-        <div className="relative mx-auto max-w-4xl overflow-hidden rounded-[2rem] bg-zinc-900 px-6 py-14 text-center">
-          <div aria-hidden className="pointer-events-none absolute -left-16 -top-16 h-56 w-56 rounded-full bg-indigo-500/40 blur-3xl" />
+        <div className="relative mx-auto max-w-4xl overflow-hidden rounded-[2.5rem] border border-white/10 bg-zinc-950 px-6 py-14 text-center shadow-2xl shadow-indigo-900/30">
+          <div aria-hidden className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 animate-float-slow rounded-full bg-indigo-500/40 blur-3xl" />
+          <div aria-hidden className="pointer-events-none absolute -bottom-24 -right-16 h-64 w-64 animate-float-slower rounded-full bg-violet-500/40 blur-3xl" />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-30"
+            style={{
+              backgroundImage:
+                'linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px)',
+              backgroundSize: '40px 40px',
+            }}
+          />
           <div className="relative">
             <p className="text-sm font-bold text-indigo-300">クレカ不要・メール登録なし・今すぐ使える</p>
-            <h2 className="mt-2 text-2xl font-black text-white sm:text-3xl">{TRIAL_DAYS}日間、無料ではじめる。</h2>
+            <h2 className="mt-2 text-balance text-2xl font-black text-white sm:text-3xl">{TRIAL_DAYS}日間、無料ではじめる。</h2>
             <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-zinc-300">
               お店の名前を入れるだけ。すぐに使えるお店の画面ができます。今の紙と並行で、無理なく試せます。
             </p>
-            <a href={START} className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 font-bold text-zinc-900 transition-transform hover:scale-[1.02] active:scale-95">
+            <a
+              href={START}
+              className="group mt-8 inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 font-bold text-zinc-900 shadow-xl shadow-black/20 transition-transform hover:scale-[1.03] active:scale-95"
+            >
               今すぐ無料で始める <Arrow />
             </a>
           </div>
         </div>
       </section>
 
-      <footer className="border-t border-zinc-100">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-6 text-xs text-zinc-400">
+      <footer className="border-t border-white/60 bg-white/40 backdrop-blur-md">
+        <div className="mx-auto flex max-w-5xl flex-col items-center gap-2 px-5 py-6 text-xs text-zinc-400 sm:flex-row sm:justify-between">
           <span className="font-black text-zinc-700">{BRAND}</span>
-          <span>学生服専門店のためのトータルDX ／ 店 × Plaza・Platform・Plan・Plus</span>
+          <span className="text-center sm:text-right">学生服専門店のためのトータルDX ／ 店 × Plaza・Platform・Plan・Plus</span>
         </div>
       </footer>
     </main>
@@ -150,7 +207,7 @@ function Arrow() {
 }
 function Check() {
   return (
-    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white">
+    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-sm shadow-indigo-500/40">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
     </span>
   )
@@ -164,7 +221,7 @@ function Cross() {
 }
 function PhoneFrame({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative mx-auto w-full rounded-[2.25rem] border border-zinc-200 bg-zinc-900 p-2 shadow-2xl shadow-zinc-900/25">
+    <div className="relative mx-auto w-full rounded-[2.25rem] border border-zinc-700/50 bg-zinc-900 p-2 shadow-2xl shadow-indigo-900/40 ring-1 ring-white/10">
       <div className="absolute left-1/2 top-2 z-10 h-4 w-24 -translate-x-1/2 rounded-b-2xl bg-zinc-900" />
       <div className="overflow-hidden rounded-[1.75rem] bg-zinc-50">{children}</div>
     </div>
