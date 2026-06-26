@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Pencil, Trash2, Loader2, Check, X } from 'lucide-react'
+import { ArrowLeft, Plus, Pencil, Trash2, Loader2, Check, X, Camera } from 'lucide-react'
 
 // ============================================================
 // 汎用マスタCRUDコンポーネント
@@ -31,12 +31,13 @@ interface SimpleMasterProps {
   secondaryKeys?: string[] // 一覧の副情報に使うフィールド
   emptyHint?: string
   seedDefaults?: Row[] // 初回（マスタが空）に一度だけ投入する初期データ
+  ocrMapping?: { nameKey?: string; telKey?: string } // OCRで自動入力するフィールドのキー
 }
 
 type Row = Record<string, any>
 
 export default function SimpleMaster({
-  table, title, emoji, headerGrad, fields, primaryKey, secondaryKeys = [], emptyHint, seedDefaults,
+  table, title, emoji, headerGrad, fields, primaryKey, secondaryKeys = [], emptyHint, seedDefaults, ocrMapping,
 }: SimpleMasterProps) {
   const { storeId } = useParams<{ storeId: string }>()
   const router = useRouter()
@@ -48,6 +49,39 @@ export default function SimpleMaster({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [saving, setSaving]   = useState(false)
   const [toast, setToast]     = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const ocrRef = useRef<HTMLInputElement>(null)
+
+  const handleOcr = async (file: File) => {
+    if (!ocrMapping) return
+    setOcrLoading(true)
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      const res = await fetch('/api/ocr-receipt', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64 }),
+      })
+      const json = await res.json()
+      if (!json.ok) { showToast('err', 'OCR失敗'); return }
+      setForm((prev: Row | null) => {
+        if (!prev) return prev
+        const next = { ...prev }
+        if (ocrMapping.nameKey && json.name) next[ocrMapping.nameKey] = json.name
+        if (ocrMapping.telKey  && json.tel)  next[ocrMapping.telKey]  = json.tel
+        return next
+      })
+      showToast('ok', '📷 読み取りました')
+    } catch {
+      showToast('err', 'OCRエラー')
+    } finally {
+      setOcrLoading(false)
+    }
+  }
 
   const showToast = (kind: 'ok' | 'err', msg: string) => {
     setToast({ kind, msg }); setTimeout(() => setToast(null), 2200)
@@ -153,9 +187,22 @@ export default function SimpleMaster({
         {/* 入力フォーム */}
         {form && (
           <div className="bg-white rounded-2xl border-2 border-indigo-200 shadow-sm p-4 space-y-3">
+            {ocrMapping && (
+              <input ref={ocrRef} type="file" accept="image/*" capture="environment" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleOcr(f); e.target.value = '' }} />
+            )}
             <div className="flex items-center justify-between">
               <p className="text-sm font-bold text-gray-800">{editingId ? '編集' : '新規追加'}</p>
-              <button onClick={closeForm} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X size={16} /></button>
+              <div className="flex items-center gap-1.5">
+                {ocrMapping && (
+                  <button onClick={() => ocrRef.current?.click()} disabled={ocrLoading}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-60">
+                    {ocrLoading ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} />}
+                    {ocrLoading ? '解析中...' : '名刺読取'}
+                  </button>
+                )}
+                <button onClick={closeForm} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X size={16} /></button>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-2.5">
               {fields.map(f => (

@@ -192,6 +192,9 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
 
   const stepLabels: Record<OStep, string> = { customer: '顧客選択', products: '商品選択', confirm: '確認・登録' }
   const steps: OStep[] = ['customer', 'products', 'confirm']
+  const progressPercent = step === 'confirm'
+    ? Math.round(((2 + curConfirmIdx + 1) / (2 + confirmStepDefs.length)) * 100)
+    : Math.round(((steps.indexOf(step) + 1) / (2 + confirmStepDefs.length)) * 100)
 
   // confirm サブステップ（区分→納期→支払/メモ→確認）
   const confirmStepDefs = [
@@ -207,51 +210,56 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   const goNextConfirm = () => { if (curConfirmIdx < confirmStepDefs.length - 1) setConfirmStep(curConfirmIdx + 1) }
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black/50 flex flex-col justify-end sm:justify-center sm:items-center sm:p-4">
-      <div className="bg-white sm:rounded-3xl sm:max-w-lg w-full flex flex-col rounded-t-3xl overflow-hidden" style={{ maxHeight: '92dvh', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <>
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-end">
+      <div className="bg-white rounded-t-3xl w-full flex flex-col" style={{ maxHeight: '95dvh', paddingBottom: 'env(safe-area-inset-bottom)' }}>
         {/* Header */}
-        <div className="px-4 pt-4 pb-3 border-b border-gray-100 shrink-0">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100 shrink-0">
           <input ref={orderFileRef} type="file" accept="image/*" capture="environment" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleOcrOrder(f); e.target.value = '' }} />
-          <div className="flex items-center gap-3 mb-3">
+          <div className="flex items-center gap-3">
             <button onClick={step === 'customer' ? onClose : step === 'confirm' ? goBackConfirm : () => setStep('customer')}
-              className="p-2 -ml-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-all">
-              {step === 'customer' ? <X size={18} /> : <ChevronLeft size={18} />}
+              className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors active:scale-95">
+              {step === 'customer' ? <X size={22} className="text-gray-600" /> : <ChevronLeft size={22} className="text-gray-600" />}
             </button>
-            <div className="flex-1">
-              <p className="font-black text-gray-900 text-sm">📋 制服・用品注文</p>
-              <p className="text-xs text-gray-400 font-medium">{stepLabels[step]}</p>
+            <div>
+              <h2 className="text-lg font-black text-gray-800">📋 制服・用品注文</h2>
+              <p className="text-sm text-gray-400">
+                {step === 'confirm' ? confirmStepDefs[curConfirmIdx].label : stepLabels[step]}{'　'}
+                {step === 'confirm' ? (2 + curConfirmIdx + 1) : (steps.indexOf(step) + 1)} / {2 + confirmStepDefs.length}
+              </p>
             </div>
-            {step !== 'customer' && (
+          </div>
+          <div className="flex items-center gap-2">
+            {step !== 'customer' && selectedCust && (
               <button onClick={() => setLinkSheetOpen(true)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border max-w-[32%] truncate shrink-0 ${selectedCust ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-amber-50 border-amber-300 text-amber-700'}`}>
-                {selectedCust ? `👤 ${selectedChild?.name ?? selectedCust.name}` : '＋顧客'}
+                className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-indigo-50 border border-indigo-200 text-indigo-700 max-w-[80px] truncate shrink-0">
+                👤 {selectedChild?.name ?? selectedCust.name}
               </button>
             )}
             <button onClick={() => orderFileRef.current?.click()} disabled={ocrLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-60 shrink-0">
-              {ocrLoading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
-              {ocrLoading ? '解析中...' : '伝票読取'}
+              className="w-9 h-9 flex items-center justify-center rounded-full bg-violet-100 hover:bg-violet-200 active:scale-95 transition-all disabled:opacity-60">
+              {ocrLoading ? <Loader2 size={16} className="text-violet-600 animate-spin" /> : <Camera size={16} className="text-violet-600" />}
             </button>
-            {cart.length > 0 && step === 'products' && (
-              <button onClick={() => { setStep('confirm'); setConfirmStep(0) }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-xl">
-                <ShoppingCart size={13} />{cart.length}点 次へ
-              </button>
-            )}
-          </div>
-          <div className="flex gap-1">
-            {steps.map((s, i) => (
-              <div key={s} className={`h-1.5 rounded-full transition-all ${step === s ? 'flex-1 bg-indigo-600' : i < steps.indexOf(step) ? 'w-6 bg-indigo-300' : 'w-4 bg-gray-200'}`} />
-            ))}
+            <button onClick={onClose}
+              className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 active:scale-95 transition-all">
+              <X size={18} className="text-gray-500" />
+            </button>
           </div>
         </div>
 
+        {/* Progress bar */}
+        <div className="h-2 bg-gray-100 shrink-0">
+          <div className="h-full bg-teal-500 transition-all duration-300 rounded-full"
+            style={{ width: `${progressPercent}%` }} />
+        </div>
+
+        {/* Content */}
         <div className="flex-1 overflow-y-auto">
 
           {/* OCR 警告バナー（注文モーダル） */}
           {ocrWarnings.length > 0 && (
-            <div className="mx-4 mt-3 bg-amber-50 border border-amber-300 rounded-2xl px-4 py-3 space-y-1">
+            <div className="mx-5 mt-4 bg-amber-50 border border-amber-300 rounded-2xl px-4 py-3 space-y-1">
               <p className="text-xs font-black text-amber-700 flex items-center gap-1.5"><ScanLine size={13} />確認が必要な箇所</p>
               {ocrWarnings.map((w, i) => <p key={i} className="text-xs text-amber-600 pl-4">・{w}</p>)}
             </div>
@@ -260,12 +268,15 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
           {/* ── Step 1: 商品選択 ── */}
           {step === 'products' && (
             <div className="flex flex-col h-full">
+              <div className="px-5 pt-5 pb-3">
+                <p className="text-xl font-black text-gray-800">商品を選択してください</p>
+              </div>
               {/* 学校タブ */}
               <div className="flex gap-1 px-3 py-2 overflow-x-auto shrink-0 border-b border-gray-100">
                 {schools.map(s => (
                   <button key={s.id} onClick={() => setSchoolId(s.id)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition-all ${
-                      schoolId === s.id ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      schoolId === s.id ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}>
                     {s.name}
                   </button>
@@ -303,10 +314,10 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                           return (
                             <button key={v.id} onClick={() => addToCart(p, v)}
                               className={`flex items-center justify-between px-3 py-2 rounded-xl border-2 text-sm font-bold transition-all active:scale-95 ${
-                                inCart ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-800 hover:border-indigo-300'
+                                inCart ? 'bg-teal-600 border-teal-600 text-white' : 'bg-white border-gray-200 text-gray-800 hover:border-teal-300'
                               }`}>
                               <span>{v.size_label}</span>
-                              <span className={`text-xs ${inCart ? 'text-indigo-200' : 'text-gray-500'}`}>
+                              <span className={`text-xs ${inCart ? 'text-teal-200' : 'text-gray-500'}`}>
                                 {inCart ? `×${inCart.qty}` : `¥${v.price.toLocaleString()}`}
                               </span>
                             </button>
@@ -317,44 +328,22 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                   </div>
                 ))}
               </div>
-              {/* カートフッター */}
-              {cart.length > 0 && (
-                <div className="shrink-0 border-t border-gray-200 px-4 py-3 bg-white">
-                  <div className="flex items-center gap-2 mb-2 overflow-x-auto pb-1">
-                    {cart.map((item, idx) => (
-                      <div key={idx} className="flex items-center gap-1 bg-indigo-50 border border-indigo-200 rounded-full px-2.5 py-1 text-xs font-bold text-indigo-700 whitespace-nowrap shrink-0">
-                        {item.productName} {item.sizeLabel} ×{item.qty}
-                        <button onClick={() => removeFromCart(item.variantId, idx)} className="ml-0.5 text-indigo-400 hover:text-indigo-700"><X size={11} /></button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1">
-                      <p className="text-xs text-gray-500">{cart.length}点 合計</p>
-                      <p className="font-black text-lg text-gray-900">¥{cartTotal.toLocaleString()}</p>
-                    </div>
-                    <button onClick={() => { setStep('confirm'); setConfirmStep(0) }}
-                      className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-sm rounded-2xl active:scale-95 transition-all">
-                      次へ →
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
           {/* ── Step 2: 顧客選択 ── */}
           {step === 'customer' && (
-            <div className="p-4 space-y-3">
+            <div className="px-5 py-6 space-y-3">
+              <p className="text-xl font-black text-gray-800 mb-1">どのお客様ですか？</p>
               {!selectedCust ? (
                 <>
                   <div className="relative">
                     <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input type="text" value={custSearch} onChange={e => setCustSearch(e.target.value)}
                       placeholder="顧客名で検索" autoFocus
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-sm focus:border-indigo-500 focus:outline-none" />
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-sm focus:border-teal-500 focus:outline-none" />
                   </div>
-                  {searching && <div className="text-center py-4"><Loader2 size={20} className="animate-spin text-indigo-400 mx-auto" /></div>}
+                  {searching && <div className="text-center py-4"><Loader2 size={20} className="animate-spin text-teal-400 mx-auto" /></div>}
                   <RecentCustomers
                     storeId={storeId}
                     visible={custSearch.trim() === '' && !showReg}
@@ -364,10 +353,9 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                   <div className="space-y-2">
                     {custResults.map(c => (
                       (c.children && c.children.length > 0) ? (
-                        // 子ども（生徒）を主役に表示。タップで保護者＋子を即リンク
                         c.children.map(ch => (
                           <button key={ch.id} onClick={() => { setSelectedCust(c); setSelectedChild(ch); setShowReg(false) }}
-                            className="w-full text-left px-4 py-3.5 bg-gray-50 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-300 rounded-2xl transition-all active:scale-[0.98]">
+                            className="w-full text-left px-4 py-3.5 bg-gray-50 hover:bg-teal-50 border border-gray-200 hover:border-teal-300 rounded-2xl transition-all active:scale-[0.98]">
                             {ch.school_name && <p className="text-[10px] font-black text-amber-600">{ch.school_name}</p>}
                             <p className="font-black text-gray-900">{ch.name}</p>
                             <p className="text-xs text-gray-500 mt-0.5">保護者: {c.name}{c.tel ? ` · ${c.tel}` : ''}</p>
@@ -375,14 +363,13 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                         ))
                       ) : (
                         <button key={c.id} onClick={() => { setSelectedCust(c); setSelectedChild(null); setShowReg(false) }}
-                          className="w-full text-left px-4 py-3.5 bg-gray-50 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-300 rounded-2xl transition-all active:scale-[0.98]">
+                          className="w-full text-left px-4 py-3.5 bg-gray-50 hover:bg-teal-50 border border-gray-200 hover:border-teal-300 rounded-2xl transition-all active:scale-[0.98]">
                           <p className="font-black text-gray-900">{c.name}</p>
                           <p className="text-xs text-gray-500 mt-0.5">{[c.school_name, c.tel].filter(Boolean).join(' · ')}</p>
                         </button>
                       )
                     ))}
                   </div>
-                  {/* 新規顧客登録（常時表示） */}
                   {!showReg && (
                     <button onClick={() => setShowReg(true)}
                       className="w-full flex items-center justify-center gap-1.5 py-2.5 border-2 border-dashed border-amber-300 text-amber-600 text-xs font-bold rounded-xl hover:bg-amber-50 active:scale-[0.98] transition-all">
@@ -390,58 +377,50 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                     </button>
                   )}
                   {showReg && (
-                    <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-4 space-y-3">
-                      {/* 電話番号で登録（いつでも・電話番号でOK） */}
+                    <div className="bg-teal-50 border-2 border-teal-200 rounded-2xl p-4 space-y-3">
                       {phoneMode ? (
                         <div className="space-y-2 text-left">
-                          <p className="text-xs font-black text-indigo-800">電話番号で登録・紐付け</p>
-                          <input className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-indigo-500" placeholder="お名前" value={newName} onChange={e => setNewName(e.target.value)} />
-                          <input className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-indigo-500" type="tel" inputMode="numeric" placeholder="電話番号（携帯可）" value={newTel} onChange={e => setNewTel(e.target.value)} />
+                          <p className="text-xs font-black text-teal-800">電話番号で登録・紐付け</p>
+                          <input className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-teal-500" placeholder="お名前" value={newName} onChange={e => setNewName(e.target.value)} />
+                          <input className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-teal-500" type="tel" inputMode="numeric" placeholder="電話番号（携帯可）" value={newTel} onChange={e => setNewTel(e.target.value)} />
                           <div className="flex gap-2">
                             <button onClick={() => { setPhoneMode(false); setNewName(''); setNewTel('') }} className="flex-1 py-2.5 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-bold">戻る</button>
-                            <button onClick={handlePhoneRegister} disabled={registering} className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-black flex items-center justify-center gap-1.5 disabled:opacity-50">
+                            <button onClick={handlePhoneRegister} disabled={registering} className="flex-1 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-black flex items-center justify-center gap-1.5 disabled:opacity-50">
                               {registering ? <Loader2 size={16} className="animate-spin" /> : '✓'}登録して選択
                             </button>
                           </div>
                         </div>
                       ) : (
                         <button onClick={() => { setPhoneMode(true); if (!newName && custSearch && !/\d/.test(custSearch)) setNewName(custSearch.trim()) }}
-                          className="w-full py-3 rounded-xl bg-indigo-600 text-white text-sm font-black flex items-center justify-center gap-1.5">
+                          className="w-full py-3 rounded-xl bg-teal-600 text-white text-sm font-black flex items-center justify-center gap-1.5">
                           📞 電話番号で登録する
                         </button>
                       )}
-                      <div className="border-t border-indigo-200 pt-3 text-center space-y-3">
-                      <p className="text-xs font-black text-indigo-800">またはLINEで登録（QRを読み取ってもらう）</p>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=${encodeURIComponent(`https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || ''}/${storeId}`)}`}
-                        alt="受付QR" width={200} height={200}
-                        className="mx-auto rounded-xl bg-white p-1 shadow-sm"
-                      />
-                      <p className="text-[10px] text-indigo-500 leading-relaxed">
-                        LINEで登録後、上の検索欄でお名前を検索してください
-                      </p>
-                      <button onClick={() => setShowReg(false)}
-                        className="w-full py-2 text-xs font-bold text-gray-600 border border-gray-200 rounded-xl hover:bg-white active:scale-[0.98]">
-                        閉じる
-                      </button>
+                      <div className="border-t border-teal-200 pt-3 text-center space-y-3">
+                        <p className="text-xs font-black text-teal-800">またはLINEで登録（QRを読み取ってもらう）</p>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=${encodeURIComponent(`https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || ''}/${storeId}`)}`}
+                          alt="受付QR" width={200} height={200}
+                          className="mx-auto rounded-xl bg-white p-1 shadow-sm"
+                        />
+                        <p className="text-[10px] text-teal-500 leading-relaxed">LINEで登録後、上の検索欄でお名前を検索してください</p>
+                        <button onClick={() => setShowReg(false)}
+                          className="w-full py-2 text-xs font-bold text-gray-600 border border-gray-200 rounded-xl hover:bg-white active:scale-[0.98]">
+                          閉じる
+                        </button>
                       </div>
                     </div>
                   )}
                   {custSearch.length === 0 && !showReg && (
                     <p className="text-sm text-center text-gray-400 py-4">名前を入力して顧客を検索してください</p>
                   )}
-                  {/* 顧客は後で紐付け（先に商品選択でもOK） */}
-                  <button onClick={() => setStep('products')}
-                    className="w-full py-2.5 text-sm font-bold text-gray-500 rounded-2xl hover:bg-gray-50">
-                    顧客は後で紐付け → 先に商品を選ぶ
-                  </button>
                 </>
               ) : (
                 <>
-                  <div className="bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-3.5 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
-                      <User size={18} className="text-indigo-600" />
+                  <div className="bg-teal-50 border border-teal-200 rounded-2xl px-4 py-3.5 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center shrink-0">
+                      <User size={18} className="text-teal-600" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-black text-gray-900">{selectedCust.name}</p>
@@ -458,22 +437,18 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                       <label className="text-xs font-bold text-gray-600 block mb-2">お子様（任意）</label>
                       <div className="flex flex-wrap gap-2">
                         <button onClick={() => setSelectedChild(null)}
-                          className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all ${!selectedChild ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-600'}`}>
+                          className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all ${!selectedChild ? 'bg-teal-600 text-white border-teal-600' : 'bg-white border-gray-200 text-gray-600'}`}>
                           選択しない
                         </button>
                         {selectedCust.children.map(ch => (
                           <button key={ch.id} onClick={() => setSelectedChild(ch)}
-                            className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all ${selectedChild?.id === ch.id ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-600'}`}>
+                            className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all ${selectedChild?.id === ch.id ? 'bg-teal-600 text-white border-teal-600' : 'bg-white border-gray-200 text-gray-600'}`}>
                             {ch.name}
                           </button>
                         ))}
                       </div>
                     </div>
                   )}
-                  <button onClick={() => setStep('products')}
-                    className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98]">
-                    <Check size={18} />次へ：商品を選択する
-                  </button>
                 </>
               )}
             </div>
@@ -481,150 +456,182 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
 
           {/* ── Step 3: 確認 ── */}
           {step === 'confirm' && (
-            <div className="p-4 space-y-4">
-              {curConfirmKey === 'review' && (<>
-              {/* カートサマリー */}
-              <div className="bg-gray-50 rounded-2xl overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-gray-200">
-                  <p className="text-xs font-black text-gray-700">注文内容</p>
-                </div>
-                <div className="divide-y divide-gray-100">
-                  {cart.map((item, idx) => (
-                    <div key={idx} className="flex items-center gap-3 px-4 py-2.5">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-gray-900">{item.productName}</p>
-                        <p className="text-xs text-gray-500">{item.sizeLabel} × {item.qty}</p>
-                      </div>
-                      <p className="font-black text-gray-900 text-sm shrink-0">¥{(item.unitPrice * item.qty).toLocaleString()}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="px-4 py-2.5 bg-indigo-50 flex justify-between">
-                  <p className="text-sm font-bold text-indigo-700">合計</p>
-                  <p className="text-lg font-black text-indigo-700">¥{cartTotal.toLocaleString()}</p>
-                </div>
-              </div>
+            <div className="px-5 py-6 space-y-4">
+              <p className="text-xl font-black text-gray-800 mb-1">
+                {curConfirmKey === 'priority' ? '注文区分は？' :
+                 curConfirmKey === 'delivery' ? '希望お渡し日は？' :
+                 curConfirmKey === 'pay' ? '支払い・備考' : '内容を確認'}
+              </p>
 
-              {/* 顧客表示 */}
-              <div className="bg-gray-50 rounded-2xl px-4 py-3 flex items-center gap-2">
-                <User size={14} className="text-gray-400" />
-                <div>
-                  {selectedCust ? (
-                    <p className="text-sm font-bold text-gray-900">{selectedCust.name}</p>
-                  ) : (
-                    <button onClick={() => setStep('customer')} className="text-sm font-bold text-amber-600">＋ 顧客を紐付け（任意）</button>
-                  )}
-                  {selectedChild && <p className="text-xs text-gray-500">お子様: {selectedChild.name}</p>}
+              {curConfirmKey === 'review' && (<>
+                <div className="bg-gray-50 rounded-2xl overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-gray-200">
+                    <p className="text-xs font-black text-gray-700">注文内容</p>
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    {cart.map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-3 px-4 py-2.5">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-gray-900">{item.productName}</p>
+                          <p className="text-xs text-gray-500">{item.sizeLabel} × {item.qty}</p>
+                        </div>
+                        <p className="font-black text-gray-900 text-sm shrink-0">¥{(item.unitPrice * item.qty).toLocaleString()}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="px-4 py-2.5 bg-teal-50 flex justify-between">
+                    <p className="text-sm font-bold text-teal-700">合計</p>
+                    <p className="text-lg font-black text-teal-700">¥{cartTotal.toLocaleString()}</p>
+                  </div>
                 </div>
-              </div>
+                <div className="bg-gray-50 rounded-2xl px-4 py-3 flex items-center gap-2">
+                  <User size={14} className="text-gray-400" />
+                  <div>
+                    {selectedCust ? (
+                      <p className="text-sm font-bold text-gray-900">{selectedCust.name}</p>
+                    ) : (
+                      <button onClick={() => setStep('customer')} className="text-sm font-bold text-amber-600">＋ 顧客を紐付け（任意）</button>
+                    )}
+                    {selectedChild && <p className="text-xs text-gray-500">お子様: {selectedChild.name}</p>}
+                  </div>
+                </div>
               </>)}
 
-              {/* 優先区分 */}
               {curConfirmKey === 'priority' && (
-              <div>
-                <label className="text-xs font-bold text-gray-600 block mb-1.5">注文区分</label>
-                <div className="flex gap-2">
-                  {([['normal', '在校生・追加', '🎒'], ['new_student', '新入生（納期優先）', '🌸']] as const).map(([val, label, icon]) => (
+                <div className="grid grid-cols-2 gap-3">
+                  {([
+                    { val: 'normal' as const, icon: '🎒', label: '在校生・追加', desc: '通常の追加注文' },
+                    { val: 'new_student' as const, icon: '🌸', label: '新入生', desc: '納期優先で対応' },
+                  ]).map(({ val, icon, label, desc }) => (
                     <button key={val} type="button" onClick={() => setPriority(val)}
-                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold border-2 transition-all ${
+                      className={`py-7 rounded-2xl flex flex-col items-center gap-2 border-2 transition-all active:scale-[0.97] ${
                         priority === val
-                          ? val === 'new_student'
-                            ? 'bg-orange-50 border-orange-400 text-orange-700'
-                            : 'bg-indigo-50 border-indigo-400 text-indigo-700'
+                          ? val === 'new_student' ? 'bg-orange-50 border-orange-400 text-orange-700' : 'bg-teal-50 border-teal-400 text-teal-700'
                           : 'bg-gray-50 border-gray-200 text-gray-500'
                       }`}>
-                      {icon} {label}
+                      <span className="text-3xl">{icon}</span>
+                      <span className="text-sm font-black">{label}</span>
+                      <span className="text-xs opacity-70">{desc}</span>
                     </button>
                   ))}
                 </div>
-              </div>
               )}
 
-              {/* メーカー */}
-              {curConfirmKey === 'pay' && (
-              <div>
-                <label className="text-xs font-bold text-gray-600 block mb-1.5">発注メーカー</label>
-                <input type="text" value={maker} onChange={e => setMaker(e.target.value)}
-                  placeholder="例: 菅公学生服、明石スクールユニフォームカンパニー"
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
-              </div>
-              )}
-
-              {/* 希望お渡し日 */}
               {curConfirmKey === 'delivery' && (
-              <div>
-                <label className="text-xs font-bold text-gray-600 block mb-1.5">希望お渡し日</label>
-                <div className="flex gap-1.5 flex-wrap mb-2">
-                  {[{ label: '1週間後', days: 7 }, { label: '2週間後', days: 14 }, { label: '1ヶ月後', days: 30 }].map(({ label, days }) => {
-                    const d = new Date(); d.setDate(d.getDate() + days)
-                    const val = d.toISOString().slice(0, 10)
-                    return (
-                      <button key={days} type="button" onClick={() => setExpectedDate(val)}
-                        className={`text-xs px-3 py-1.5 rounded-xl border font-bold transition-all ${expectedDate === val ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-gray-100 border-gray-300 text-gray-600'}`}>
-                        {label}
-                      </button>
-                    )
-                  })}
+                <div>
+                  <div className="flex gap-1.5 flex-wrap mb-3">
+                    {[{ label: '1週間後', days: 7 }, { label: '2週間後', days: 14 }, { label: '1ヶ月後', days: 30 }].map(({ label, days }) => {
+                      const d = new Date(); d.setDate(d.getDate() + days)
+                      const val = d.toISOString().slice(0, 10)
+                      return (
+                        <button key={days} type="button" onClick={() => setExpectedDate(val)}
+                          className={`text-sm px-4 py-2.5 rounded-xl border-2 font-bold transition-all ${expectedDate === val ? 'bg-teal-600 border-teal-600 text-white' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <input type="date" value={expectedDate} onChange={e => setExpectedDate(e.target.value)}
+                    min={new Date().toISOString().slice(0, 10)}
+                    className="w-full border border-gray-300 rounded-xl px-3 py-3 text-sm focus:border-teal-500 focus:outline-none" />
                 </div>
-                <input type="date" value={expectedDate} onChange={e => setExpectedDate(e.target.value)}
-                  min={new Date().toISOString().slice(0, 10)}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
-              </div>
               )}
 
-              {/* メモ */}
-              {curConfirmKey === 'pay' && (
-              <div>
-                <label className="text-xs font-bold text-gray-600 block mb-1.5">備考・メモ</label>
-                <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
-                  placeholder="申し送り事項など"
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none" />
-              </div>
-              )}
-
-              {/* 支払い */}
-              {curConfirmKey === 'pay' && (
-              <button type="button" onClick={() => setPrepaid(v => !v)}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${prepaid ? 'border-emerald-500 bg-emerald-500/10' : 'border-red-400 bg-red-50'}`}>
-                <div className="text-left">
-                  <p className={`font-bold text-sm ${prepaid ? 'text-emerald-700' : 'text-red-700'}`}>
-                    {prepaid ? '✅ 支払済み' : '⚠️ 未払い'}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-0.5">受注時に頂いた場合は「支払済み」に</p>
+              {curConfirmKey === 'pay' && (<>
+                <div>
+                  <label className="text-xs font-bold text-gray-600 block mb-1.5">発注メーカー</label>
+                  <input type="text" value={maker} onChange={e => setMaker(e.target.value)}
+                    placeholder="例: 菅公学生服、明石スクールユニフォームカンパニー"
+                    className="w-full border border-gray-300 rounded-xl px-3 py-3 text-sm focus:border-teal-500 focus:outline-none" />
                 </div>
-                <div className={`w-12 h-6 rounded-full transition-colors shrink-0 ${prepaid ? 'bg-emerald-500' : 'bg-gray-300'}`}>
-                  <div className={`w-5 h-5 bg-white rounded-full mt-0.5 shadow-lg transition-transform ${prepaid ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                <div>
+                  <label className="text-xs font-bold text-gray-600 block mb-1.5">備考・メモ</label>
+                  <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
+                    placeholder="申し送り事項など"
+                    className="w-full border border-gray-300 rounded-xl px-3 py-3 text-sm focus:border-teal-500 focus:outline-none" />
                 </div>
-              </button>
-              )}
-
-              {/* フッターナビ（区分→納期→支払・メモ→確認） */}
-              <div className="flex gap-2 pt-1">
-                <button onClick={goBackConfirm} className="flex-1 py-3.5 rounded-2xl bg-white border-2 border-gray-200 text-gray-600 font-black">戻る</button>
-                {isLastConfirm ? (
-                  <button onClick={handleSave} disabled={saving || cart.length === 0}
-                    className="flex-[2] py-3.5 bg-indigo-600 text-white font-black rounded-2xl flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-indigo-500/25">
-                    {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
-                    登録（{cart.length}点 ¥{cartTotal.toLocaleString()}）
-                  </button>
-                ) : (
-                  <button onClick={goNextConfirm} className="flex-[2] py-3.5 bg-indigo-600 text-white font-black rounded-2xl">次へ</button>
-                )}
-              </div>
+                <button type="button" onClick={() => setPrepaid(v => !v)}
+                  className={`w-full flex items-center justify-between px-4 py-4 rounded-2xl border-2 transition-all ${prepaid ? 'border-emerald-500 bg-emerald-500/10' : 'border-red-400 bg-red-50'}`}>
+                  <div className="text-left">
+                    <p className={`font-bold text-sm ${prepaid ? 'text-emerald-700' : 'text-red-700'}`}>
+                      {prepaid ? '✅ 支払済み' : '⚠️ 未払い'}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">受注時に頂いた場合は「支払済み」に</p>
+                  </div>
+                  <div className={`w-12 h-6 rounded-full transition-colors shrink-0 ${prepaid ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+                    <div className={`w-5 h-5 bg-white rounded-full mt-0.5 shadow-lg transition-transform ${prepaid ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                  </div>
+                </button>
+              </>)}
             </div>
           )}
         </div>
+
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-gray-100 shrink-0">
+          {step === 'customer' && (
+            selectedCust ? (
+              <button onClick={() => setStep('products')} style={{ touchAction: 'manipulation' }}
+                className="w-full py-5 rounded-2xl bg-teal-600 hover:bg-teal-500 text-white font-black text-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
+                <Check size={22} />商品を選択する
+              </button>
+            ) : (
+              <button onClick={() => setStep('products')} style={{ touchAction: 'manipulation' }}
+                className="w-full py-4 rounded-2xl border-2 border-gray-200 text-gray-500 font-bold text-sm active:scale-[0.98] transition-all hover:bg-gray-50">
+                顧客は後で紐付け → 先に商品を選ぶ
+              </button>
+            )
+          )}
+          {step === 'products' && cart.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                {cart.map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-1 bg-teal-50 border border-teal-200 rounded-full px-2.5 py-1 text-xs font-bold text-teal-700 whitespace-nowrap shrink-0">
+                    {item.productName} {item.sizeLabel} ×{item.qty}
+                    <button onClick={() => removeFromCart(item.variantId, idx)} className="ml-0.5 text-teal-400 hover:text-teal-700"><X size={11} /></button>
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => { setStep('confirm'); setConfirmStep(0) }} style={{ touchAction: 'manipulation' }}
+                className="w-full py-5 rounded-2xl bg-teal-600 hover:bg-teal-500 text-white font-black text-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-sm shadow-teal-600/25">
+                <ShoppingCart size={20} />確認へ（{cart.length}点 ¥{cartTotal.toLocaleString()}）
+              </button>
+            </div>
+          )}
+          {step === 'confirm' && (
+            <div className="flex gap-2">
+              <button onClick={goBackConfirm} style={{ touchAction: 'manipulation' }}
+                className="flex-1 py-5 rounded-2xl bg-white border-2 border-gray-200 text-gray-600 font-black text-lg active:scale-[0.98] transition-all">
+                戻る
+              </button>
+              {isLastConfirm ? (
+                <button onClick={handleSave} disabled={saving || cart.length === 0} style={{ touchAction: 'manipulation' }}
+                  className="flex-[2] py-5 bg-teal-600 text-white font-black text-lg rounded-2xl flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm shadow-teal-600/25 active:scale-[0.98] transition-all">
+                  {saving ? <Loader2 size={20} className="animate-spin" /> : <Check size={20} />}
+                  登録（{cart.length}点）
+                </button>
+              ) : (
+                <button onClick={goNextConfirm} style={{ touchAction: 'manipulation' }}
+                  className="flex-[2] py-5 bg-teal-600 text-white font-black text-lg rounded-2xl active:scale-[0.98] transition-all">
+                  次へ
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
       </div>
-      {linkSheetOpen && (
-        <CustomerLinkSheet
-          storeId={storeId}
-          selectedCust={selectedCust}
-          selectedChild={selectedChild}
-          onSelect={(c, ch) => { setSelectedCust(c); setSelectedChild(ch) }}
-          onClear={() => { setSelectedCust(null); setSelectedChild(null) }}
-          onClose={() => setLinkSheetOpen(false)}
-        />
-      )}
     </div>
+    {linkSheetOpen && (
+      <CustomerLinkSheet
+        storeId={storeId}
+        selectedCust={selectedCust}
+        selectedChild={selectedChild}
+        onSelect={(c, ch) => { setSelectedCust(c); setSelectedChild(ch) }}
+        onClear={() => { setSelectedCust(null); setSelectedChild(null) }}
+        onClose={() => setLinkSheetOpen(false)}
+      />
+    )}
+    </>
   )
 }

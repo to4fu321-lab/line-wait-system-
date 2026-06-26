@@ -12,6 +12,7 @@ export default function RepairVendorsMasterPage() {
       headerGrad="from-rose-600 to-pink-600"
       primaryKey="name"
       secondaryKeys={['tel', 'note']}
+      ocrMapping={{ nameKey: 'name', telKey: 'tel' }}
       emptyHint="お直しを外注する加工業者を登録します（受付でワンタップ選択できます）"
       fields={[
         { key: 'name', label: '業者名',   required: true, placeholder: '例: ○○リフォーム / 自社工房' },

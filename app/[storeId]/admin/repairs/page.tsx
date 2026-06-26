@@ -70,6 +70,7 @@ export default function RepairsPage() {
   const [batchUpdating,  setBatchUpdating]  = useState(false)
   const [pendingFilter,  setPendingFilter]  = useState(false)
   const [receiptOpen,    setReceiptOpen]    = useState(true)
+  const [dashOpen,       setDashOpen]       = useState(true)
 
   const [inqStatusFilter, setInqStatusFilter] = useState<InquiryStatus | 'all'>('all')
   const [inqTypeFilter,   setInqTypeFilter]   = useState<InquiryType | 'all'>('all')
@@ -645,7 +646,15 @@ export default function RepairsPage() {
           {/* Dashboard card — simple mode: two big tiles */}
           {simpleModeLoaded && isSimpleMode && (
             <div className="bg-gradient-to-br from-indigo-700 to-indigo-800 rounded-2xl overflow-hidden text-white shadow-lg shadow-indigo-600/25">
-              <div className="flex">
+              <button
+                onClick={() => setDashOpen(v => !v)}
+                style={{ touchAction: 'manipulation' }}
+                className="w-full flex items-center justify-center gap-1 py-1.5 text-[10px] font-bold text-white/60 hover:text-white/90 transition-colors active:opacity-60">
+                <span>ダッシュボード</span>
+                {dashOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              </button>
+              {dashOpen && (
+              <div className="flex border-t border-white/20">
                 <button
                   onClick={() => { setTab('repair'); setSearchText('') }}
                   style={{ touchAction: 'manipulation' }}
@@ -666,6 +675,7 @@ export default function RepairsPage() {
                   </>
                 )}
               </div>
+              )}
               {/* 受付ボタン折りたたみ */}
               <div className="border-t border-white/20">
                 <button
@@ -703,7 +713,16 @@ export default function RepairsPage() {
 
           {/* Dashboard card — full mode */}
           {simpleModeLoaded && !isSimpleMode && (
-          <div className="bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-600 rounded-2xl px-4 pt-3 pb-0 text-white shadow-lg shadow-indigo-600/25">
+          <div className="bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-600 rounded-2xl px-4 pt-2 pb-0 text-white shadow-lg shadow-indigo-600/25">
+            <button
+              onClick={() => setDashOpen(v => !v)}
+              style={{ touchAction: 'manipulation' }}
+              className="w-full flex items-center justify-center gap-1 py-1 text-[10px] font-bold text-white/60 hover:text-white/90 transition-colors active:opacity-60">
+              <span>ダッシュボード</span>
+              {dashOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+            {dashOpen && (
+            <div className="border-t border-white/20 pt-3">
             {(() => {
               const pendingInquiries = pendingInquiriesCount
               const urgentInquiries  = urgentInquiriesCount
@@ -811,6 +830,8 @@ export default function RepairsPage() {
                 </>
               )
             })()}
+            </div>
+            )}
             {/* 受付ボタン折りたたみ */}
             <div className="border-t border-white/20 -mx-4">
               <button
