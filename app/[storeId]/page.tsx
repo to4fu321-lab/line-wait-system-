@@ -905,7 +905,7 @@ export default function CustomerPage() {
         }
       } catch { /* 顧客情報が取れなくても続行 */ }
 
-      if (sd?.is_open === false) { setView('closed'); return }
+      if (sd?.is_open === false && !isSimple) { setView('closed'); return }
       const { count } = await (supabase as any).from('queues')
         .select('*', { count: 'exact', head: true })
         .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
@@ -1007,7 +1007,7 @@ export default function CustomerPage() {
       } catch { /* 顧客情報は任意 */ }
 
       const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
-      if (sd?.is_open === false) { setView('closed'); return }
+      if (sd?.is_open === false && !isSimpleMode) { setView('closed'); return }
       const { count } = await (supabase as any).from('queues')
         .select('*', { count: 'exact', head: true })
         .eq('store_id', storeId).in('status', ['waiting', 'calling'])
@@ -1117,7 +1117,7 @@ export default function CustomerPage() {
       if (newChild) setSelectedChild(newChild)
 
       const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
-      if (sd?.is_open === false) { setView('closed'); return }
+      if (sd?.is_open === false && !isSimpleMode) { setView('closed'); return }
 
       // 順番待ち登録から来た場合は待ち人数確認画面へ（身長体重は発券時に付与）
       if (pendingAction === 'queue') {
@@ -1195,7 +1195,7 @@ export default function CustomerPage() {
           .select('*', { count: 'exact', head: true })
           .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
         setWaitingCount(count ?? 0)
-        setView(sd?.is_open === false ? 'closed' : 'purpose')
+        setView(sd?.is_open === false && !isSimpleMode ? 'closed' : 'purpose')
       }
     } catch (e) { console.error(e) }
     setSubmitting(false)
@@ -1305,7 +1305,7 @@ export default function CustomerPage() {
     setTicket(null); setWaitingAhead(0); setIssuing(false)
     if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null }
     const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
-    if (sd?.is_open === false) { setView('closed'); return }
+    if (sd?.is_open === false && !isSimpleMode) { setView('closed'); return }
     const { count } = await (supabase as any).from('queues')
       .select('*', { count: 'exact', head: true })
       .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
