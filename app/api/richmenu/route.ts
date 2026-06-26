@@ -3,13 +3,14 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { ImageResponse } from 'next/og'
 import { createElement as h } from 'react'
+import { getLiffBaseUrl, getLineToken } from '@/lib/line-config'
 
 const LINE_API  = 'https://api.line.me/v2/bot'
 
 function getConfig() {
-  const liffId   = (process.env.NEXT_PUBLIC_LIFF_ID   || '').trim()
-  const token    = (process.env.LINE_CHANNEL_ACCESS_TOKEN || '').trim()
-  const liffBase = liffId ? `https://liff.line.me/${liffId}` : ''
+  const liffBase = getLiffBaseUrl('uniform')
+  const liffId   = liffBase.replace('https://liff.line.me/', '')
+  const token    = getLineToken('uniform')
   return { liffId, token, liffBase, authHeader: { Authorization: `Bearer ${token}` } }
 }
 
