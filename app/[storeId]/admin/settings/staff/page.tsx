@@ -271,6 +271,21 @@ export default function StaffSettingsPage() {
             </Link>
           )}
 
+          {/* 🏫 学校・商品マスタ（productsフィーチャーが有効な場合） */}
+          {hasFeature('products') && (
+            <Link href={`/${storeId}/admin/master/manage`}
+              className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-indigo-200 hover:border-indigo-400 active:scale-[0.98] transition-all shadow-sm">
+              <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center shrink-0">
+                <GraduationCap size={28} className="text-indigo-600" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-black text-lg text-indigo-700">学校・商品マスタ</p>
+                <p className="text-sm text-gray-500 mt-0.5">学校・商品・サイズ・価格を管理</p>
+              </div>
+              <ChevronRight size={20} className="text-indigo-400 shrink-0" />
+            </Link>
+          )}
+
           {/* ❓ Q&A */}
           <Link href={`/${storeId}/admin/qa`}
             className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-violet-200 hover:border-violet-400 active:scale-[0.98] transition-all shadow-sm">
