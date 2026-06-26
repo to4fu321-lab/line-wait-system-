@@ -239,15 +239,16 @@ export function resolveFeature(
   if (key in rawFeatures && typeof rawFeatures[key] === 'boolean') {
     return rawFeatures[key] as boolean
   }
-  // legacy プラン → 正規プランにマップ
+  // アドオン機能は個別フラグがなければ常にOFF（プラン定義より優先）
+  // ※ super-adminで「OFF」と表示される状態と実際の挙動を一致させる
+  if (ADDON_DEFAULT_OFF.includes(key)) return false
+  // プランから判定
   const rawPlan = (rawFeatures._plan as string | undefined) ?? 'full'
   const plan = rawPlan === 'intro' ? 'free_trial' : rawPlan === 'kantan' ? 'simple' : rawPlan as Plan
   const planDef = PLAN_DEFS[plan] ?? PLAN_DEFS.full
   if (key in planDef.features) {
     return planDef.features[key as FeatureKey] !== false
   }
-  // アドオン機能（契約時のみON）はプラン未定義でも既定OFF
-  if (ADDON_DEFAULT_OFF.includes(key)) return false
   // 未定義 = 有効（後方互換）
   return true
 }
