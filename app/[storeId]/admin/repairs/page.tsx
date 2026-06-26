@@ -7,6 +7,7 @@ import {
   Check, Package, Plus, AlertCircle, CheckCheck,
   History, Search, Database, ShoppingCart, PackageCheck,
   MessageSquarePlus, Download, BarChart2,
+  ChevronUp, ChevronDown,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../_components/BottomNav'
@@ -68,6 +69,7 @@ export default function RepairsPage() {
   const [batchSelected,  setBatchSelected]  = useState<Set<string>>(new Set())
   const [batchUpdating,  setBatchUpdating]  = useState(false)
   const [pendingFilter,  setPendingFilter]  = useState(false)
+  const [receiptOpen,    setReceiptOpen]    = useState(true)
 
   const [inqStatusFilter, setInqStatusFilter] = useState<InquiryStatus | 'all'>('all')
   const [inqTypeFilter,   setInqTypeFilter]   = useState<InquiryType | 'all'>('all')
@@ -664,6 +666,38 @@ export default function RepairsPage() {
                   </>
                 )}
               </div>
+              {/* 受付ボタン折りたたみ */}
+              <div className="border-t border-white/20">
+                <button
+                  onClick={() => setReceiptOpen(v => !v)}
+                  style={{ touchAction: 'manipulation' }}
+                  className="w-full flex items-center justify-center gap-1 py-1.5 text-[10px] font-bold text-white/60 hover:text-white/90 transition-colors active:opacity-60">
+                  <span>受付</span>
+                  {receiptOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                </button>
+                {receiptOpen && (
+                  <div className="flex gap-2 px-3 pb-3">
+                    <button onClick={() => setShowNewRepair(true)}
+                      style={{ touchAction: 'manipulation' }}
+                      className="flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl bg-white/15 hover:bg-white/25 text-white active:scale-[0.97] transition-all">
+                      <Scissors size={18} />
+                      <span className="text-[10px] font-black">✂️ お直し</span>
+                    </button>
+                    <button onClick={() => setShowNewOrder(true)}
+                      style={{ touchAction: 'manipulation' }}
+                      className="flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl bg-white/15 hover:bg-white/25 text-white active:scale-[0.97] transition-all">
+                      <ShoppingCart size={18} />
+                      <span className="text-[10px] font-black">📦 追加購入</span>
+                    </button>
+                    <button onClick={() => { setEditInquiry(null); setShowInqModal(true) }}
+                      style={{ touchAction: 'manipulation' }}
+                      className="flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl bg-white/15 hover:bg-white/25 text-white active:scale-[0.97] transition-all">
+                      <MessageSquarePlus size={18} />
+                      <span className="text-[10px] font-black">💬 問合せ</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -777,31 +811,39 @@ export default function RepairsPage() {
                 </>
               )
             })()}
-          </div>
-          )}
-
-          {/* 受付ボタン行 */}
-          {simpleModeLoaded && (
-            <div className="flex gap-2 mt-3">
-              <button onClick={() => setShowNewRepair(true)}
+            {/* 受付ボタン折りたたみ */}
+            <div className="border-t border-white/20 -mx-4">
+              <button
+                onClick={() => setReceiptOpen(v => !v)}
                 style={{ touchAction: 'manipulation' }}
-                className="flex-1 flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white active:scale-[0.97] transition-all shadow-sm shadow-indigo-600/25">
-                <Scissors size={22} />
-                <span className="text-xs font-black">✂️ お直し受付</span>
+                className="w-full flex items-center justify-center gap-1 py-1.5 text-[10px] font-bold text-white/60 hover:text-white/90 transition-colors active:opacity-60">
+                <span>受付</span>
+                {receiptOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               </button>
-              <button onClick={() => setShowNewOrder(true)}
-                style={{ touchAction: 'manipulation' }}
-                className="flex-1 flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl bg-teal-600 hover:bg-teal-500 text-white active:scale-[0.97] transition-all shadow-sm shadow-teal-600/25">
-                <ShoppingCart size={22} />
-                <span className="text-xs font-black">📦 追加購入</span>
-              </button>
-              <button onClick={() => { setEditInquiry(null); setShowInqModal(true) }}
-                style={{ touchAction: 'manipulation' }}
-                className="flex-1 flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white active:scale-[0.97] transition-all shadow-sm shadow-violet-600/25">
-                <MessageSquarePlus size={22} />
-                <span className="text-xs font-black">💬 問合せ受付</span>
-              </button>
+              {receiptOpen && (
+                <div className="flex gap-2 px-4 pb-3">
+                  <button onClick={() => setShowNewRepair(true)}
+                    style={{ touchAction: 'manipulation' }}
+                    className="flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl bg-white/15 hover:bg-white/25 text-white active:scale-[0.97] transition-all">
+                    <Scissors size={18} />
+                    <span className="text-[10px] font-black">✂️ お直し</span>
+                  </button>
+                  <button onClick={() => setShowNewOrder(true)}
+                    style={{ touchAction: 'manipulation' }}
+                    className="flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl bg-white/15 hover:bg-white/25 text-white active:scale-[0.97] transition-all">
+                    <ShoppingCart size={18} />
+                    <span className="text-[10px] font-black">📦 追加購入</span>
+                  </button>
+                  <button onClick={() => { setEditInquiry(null); setShowInqModal(true) }}
+                    style={{ touchAction: 'manipulation' }}
+                    className="flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl bg-white/15 hover:bg-white/25 text-white active:scale-[0.97] transition-all">
+                    <MessageSquarePlus size={18} />
+                    <span className="text-[10px] font-black">💬 問合せ</span>
+                  </button>
+                </div>
+              )}
             </div>
+          </div>
           )}
 
         </div>
