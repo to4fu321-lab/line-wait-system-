@@ -30,7 +30,15 @@ export function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL(decoded, request.url))
       }
       if (decoded.startsWith('/line-home')) {
-        return NextResponse.redirect(new URL(decoded, request.url))
+        // liff.state と OAuth params (code/state) を保持してリダイレクト
+        // LIFF SDK が認証を完了できるよう auth context を引き継ぐ
+        const target = new URL(decoded, request.url)
+        const code = request.nextUrl.searchParams.get('code')
+        const oauthState = request.nextUrl.searchParams.get('state')
+        if (code) target.searchParams.set('code', code)
+        if (oauthState) target.searchParams.set('state', oauthState)
+        target.searchParams.set('liff.state', liffState)
+        return NextResponse.redirect(target)
       }
     }
   }

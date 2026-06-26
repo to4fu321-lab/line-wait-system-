@@ -23,6 +23,7 @@ function buildStoreUrl(storeId: string, type: StoreType, action: string | null):
 
 export default function LineHomePage() {
   const [status, setStatus] = useState<'loading' | 'select' | 'not_registered' | 'error'>('loading')
+  const [debugInfo, setDebugInfo] = useState<string | null>(null)
   const [stores, setStores] = useState<StoreInfo[]>([])
   const [action, setAction] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -96,6 +97,15 @@ export default function LineHomePage() {
           return
         }
 
+        // ?debug=1 の場合はリダイレクトせず必ず選択画面を表示（userId確認用）
+        const isDebug = new URLSearchParams(window.location.search).get('debug') === '1'
+        if (isDebug) {
+          setDebugInfo(`userId: ${profile.userId} / 登録店舗: ${found.map((s: StoreInfo) => s.name).join(', ')}`)
+          setStores(found)
+          setStatus('select')
+          return
+        }
+
         // 1店舗のみの場合は直接遷移（初回のみ）
         if (found.length === 1) {
           window.location.href = buildStoreUrl(found[0].id, found[0].type, urlAction)
@@ -136,6 +146,9 @@ export default function LineHomePage() {
       <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-6">
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
+            {debugInfo && (
+              <div className="mb-3 p-2 bg-yellow-900/40 border border-yellow-600/40 rounded-xl text-yellow-300 text-xs break-all">{debugInfo}</div>
+            )}
             <div className="w-16 h-16 rounded-3xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mx-auto mb-4">
               <Store size={28} className="text-indigo-400" />
             </div>
