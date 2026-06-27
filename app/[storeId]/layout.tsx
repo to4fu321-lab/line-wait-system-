@@ -1,9 +1,12 @@
 import type { Metadata } from 'next'
 import { cache } from 'react'
 import { headers } from 'next/headers'
+import { notFound } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import { getStoreTheme, getColorPreset, themeCssVars } from '@/config/themes'
 import { ThemeProvider } from '@/lib/theme-context'
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +35,7 @@ const fetchStoreData = cache(async (storeId: string) => {
 })
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  if (!UUID_RE.test(params.storeId)) return {}
   const { name } = await fetchStoreData(params.storeId)
   const base = getStoreTheme(params.storeId)
   const storeName = name || base.storeName
@@ -42,6 +46,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function StoreLayout({ children, params }: Props) {
+  if (!UUID_RE.test(params.storeId)) notFound()
+
   const { name, themeColor } = await fetchStoreData(params.storeId)
   const base = getStoreTheme(params.storeId)
   const resolvedTheme = {
