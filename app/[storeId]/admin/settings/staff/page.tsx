@@ -256,21 +256,6 @@ export default function StaffSettingsPage() {
             <ChevronRight size={20} className="text-rose-400 shrink-0" />
           </Link>
 
-          {/* 📅 シフト管理 */}
-          {hasFeature('shift_management') && (
-            <Link href={`/${storeId}/admin/shifts`}
-              className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-blue-200 hover:border-blue-400 active:scale-[0.98] transition-all shadow-sm">
-              <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center shrink-0">
-                <CalendarDays size={28} className="text-blue-600" />
-              </div>
-              <div className="flex-1 text-left">
-                <p className="font-black text-lg text-blue-700">シフト管理</p>
-                <p className="text-sm text-gray-500 mt-0.5">スタッフのシフト・出勤管理</p>
-              </div>
-              <ChevronRight size={20} className="text-blue-400 shrink-0" />
-            </Link>
-          )}
-
           {/* 🏫 学校・商品マスタ（productsフィーチャーが有効な場合） */}
           {hasFeature('products') && (
             <Link href={`/${storeId}/admin/master/manage`}
@@ -285,33 +270,6 @@ export default function StaffSettingsPage() {
               <ChevronRight size={20} className="text-indigo-400 shrink-0" />
             </Link>
           )}
-
-          {/* ❓ Q&A */}
-          <Link href={`/${storeId}/admin/qa`}
-            className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-violet-200 hover:border-violet-400 active:scale-[0.98] transition-all shadow-sm">
-            <div className="w-14 h-14 rounded-2xl bg-violet-100 flex items-center justify-center shrink-0">
-              <HelpCircle size={28} className="text-violet-600" />
-            </div>
-            <div className="flex-1 text-left">
-              <p className="font-black text-lg text-violet-700">Q&A・よくある質問</p>
-              <p className="text-sm text-gray-500 mt-0.5">操作に困ったときはこちら</p>
-            </div>
-            <ChevronRight size={20} className="text-violet-400 shrink-0" />
-          </Link>
-
-          {/* 💻 PCモード */}
-          <button
-            onClick={() => setMode('tablet')}
-            style={{ touchAction: 'manipulation' }}
-            className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-gray-200 hover:border-gray-400 active:scale-[0.98] transition-all shadow-sm w-full">
-            <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center shrink-0">
-              <Monitor size={28} className="text-gray-600" />
-            </div>
-            <div className="flex-1 text-left">
-              <p className="font-black text-lg text-gray-700">PCモードに切替</p>
-              <p className="text-sm text-gray-500 mt-0.5">タブレット・PCでの大画面表示に切替</p>
-            </div>
-          </button>
 
           {/* 🍀 かんたんLINEモード */}
           {hasFeature('kantan_line') && (
@@ -343,6 +301,82 @@ export default function StaffSettingsPage() {
             </Link>
           )}
 
+          {/* 📅 シフト管理 */}
+          {hasFeature('shift_management') && (
+            <Link href={`/${storeId}/admin/shifts`}
+              className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-blue-200 hover:border-blue-400 active:scale-[0.98] transition-all shadow-sm">
+              <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center shrink-0">
+                <CalendarDays size={28} className="text-blue-600" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-black text-lg text-blue-700">シフト管理</p>
+                <p className="text-sm text-gray-500 mt-0.5">スタッフのシフト・出勤管理</p>
+              </div>
+              <ChevronRight size={20} className="text-blue-400 shrink-0" />
+            </Link>
+          )}
+
+          {/* 🕐 営業時間 */}
+          <Section emoji="🕐" title="営業時間" open={openSections.has('hours-simple')} onToggle={() => toggleSection('hours-simple')}>
+            <div className="bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
+              {DAY_LABELS.map(({ key, label, color }) => {
+                const h = businessHours.hours[key] ?? DEFAULT_HOURS.hours[key]!
+                const update = (patch: Partial<DayHours>) =>
+                  setBusinessHours(prev => ({ hours: { ...prev.hours, [key]: { ...h, ...patch } } }))
+                return (
+                  <div key={key} className={`flex items-center gap-3 px-4 py-3 border-t border-gray-100 first:border-t-0 ${h.closed ? 'opacity-40' : ''}`}>
+                    <span className={`w-7 text-base font-black text-center ${color}`}>{label}</span>
+                    {h.closed ? (
+                      <span className="flex-1 text-gray-500 text-base">定休日</span>
+                    ) : (
+                      <div className="flex items-center gap-2 flex-1">
+                        <input type="time" value={h.open} onChange={e => update({ open: e.target.value })}
+                          className="bg-gray-100 border border-gray-300 rounded-xl px-3 py-2 text-base text-gray-900 focus:border-indigo-500 focus:outline-none w-28" />
+                        <span className="text-gray-400">〜</span>
+                        <input type="time" value={h.close} onChange={e => update({ close: e.target.value })}
+                          className="bg-gray-100 border border-gray-300 rounded-xl px-3 py-2 text-base text-gray-900 focus:border-indigo-500 focus:outline-none w-28" />
+                      </div>
+                    )}
+                    <button onClick={() => update({ closed: !h.closed })}
+                      className={`shrink-0 px-3 py-2 rounded-xl text-sm font-bold transition-colors ${
+                        h.closed ? 'bg-gray-200 text-gray-600 hover:bg-emerald-100 hover:text-emerald-700' : 'bg-red-100 text-red-700 hover:bg-red-200'
+                      }`}>
+                      {h.closed ? '開店' : '定休'}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+            {saveError && (
+              <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-4 py-3">{saveError}</p>
+            )}
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className={`w-full py-4 rounded-2xl font-black text-base transition-all disabled:opacity-50 flex items-center justify-center gap-2 ${
+                saved ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+              }`}>
+              {saved
+                ? <><Check size={18} />保存しました</>
+                : saving
+                ? <><Loader2 size={18} className="animate-spin" />保存中...</>
+                : '営業時間を保存'}
+            </button>
+          </Section>
+
+          {/* ❓ Q&A */}
+          <Link href={`/${storeId}/admin/qa`}
+            className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-violet-200 hover:border-violet-400 active:scale-[0.98] transition-all shadow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-violet-100 flex items-center justify-center shrink-0">
+              <HelpCircle size={28} className="text-violet-600" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-black text-lg text-violet-700">Q&A・よくある質問</p>
+              <p className="text-sm text-gray-500 mt-0.5">操作に困ったときはこちら</p>
+            </div>
+            <ChevronRight size={20} className="text-violet-400 shrink-0" />
+          </Link>
+
           {/* 🧪 練習モード */}
           <BigToggle
             on={isTestMode}
@@ -352,6 +386,20 @@ export default function StaffSettingsPage() {
             emoji="🧪"
             color="amber"
           />
+
+          {/* 💻 PCモード */}
+          <button
+            onClick={() => setMode('tablet')}
+            style={{ touchAction: 'manipulation' }}
+            className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-gray-200 hover:border-gray-400 active:scale-[0.98] transition-all shadow-sm w-full">
+            <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center shrink-0">
+              <Monitor size={28} className="text-gray-600" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-black text-lg text-gray-700">PCモードに切替</p>
+              <p className="text-sm text-gray-500 mt-0.5">タブレット・PCでの大画面表示に切替</p>
+            </div>
+          </button>
 
           {/* 🏪 店舗を切り替え */}
           <button
@@ -499,19 +547,21 @@ export default function StaffSettingsPage() {
           />
         </Section>
 
-        {/* 🏪 店舗・アカウント */}
-        <Section emoji="🏪" title="店舗・アカウント" open={openSections.has('store')} onToggle={() => toggleSection('store')}>
-          <Link href={`/${storeId}/admin/qa`}
-            className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-violet-200 bg-violet-50 hover:bg-violet-100 active:scale-[0.98] transition-all">
-            <div className="w-14 h-14 rounded-2xl bg-violet-100 flex items-center justify-center shrink-0">
-              <HelpCircle size={26} className="text-violet-600" />
-            </div>
-            <div className="text-left flex-1">
-              <p className="font-black text-lg text-violet-700">Q&A・よくある質問</p>
-              <p className="text-violet-500 text-sm mt-0.5">操作に困ったときはこちら</p>
-            </div>
-            <ChevronRight size={18} className="text-violet-400 shrink-0" />
-          </Link>
+        {/* ❓ Q&A — 常に見える場所に配置 */}
+        <Link href={`/${storeId}/admin/qa`}
+          className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border border-violet-200 hover:border-violet-400 active:scale-[0.98] transition-all shadow-sm">
+          <div className="w-14 h-14 rounded-2xl bg-violet-100 flex items-center justify-center shrink-0">
+            <HelpCircle size={28} className="text-violet-600" />
+          </div>
+          <div className="flex-1 text-left">
+            <p className="font-black text-lg text-violet-700">Q&A・よくある質問</p>
+            <p className="text-violet-500 text-sm mt-0.5">操作に困ったときはこちら</p>
+          </div>
+          <ChevronRight size={20} className="text-violet-400 shrink-0" />
+        </Link>
+
+        {/* ⚙️ ツール・アカウント */}
+        <Section emoji="⚙️" title="ツール・アカウント" open={openSections.has('store')} onToggle={() => toggleSection('store')}>
           {hasFeature('shift_management') && (
             <Link href={`/${storeId}/admin/shifts`}
               className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-gray-200 bg-gray-50 hover:bg-gray-100 active:scale-[0.98] transition-all">
@@ -590,16 +640,17 @@ export default function StaffSettingsPage() {
               )
             })}
           </div>
-
-          <BigToggle
-            on={isTestMode}
-            onToggle={handleTestModeToggle}
-            label="練習モード"
-            sub={isTestMode ? '練習中 — LINE・通知は送信されません' : 'オフ — 本番として動作します'}
-            emoji="🧪"
-            color="amber"
-          />
         </Section>
+
+        {/* 🧪 練習モード */}
+        <BigToggle
+          on={isTestMode}
+          onToggle={handleTestModeToggle}
+          label="練習モード"
+          sub={isTestMode ? '練習中 — LINE・通知は送信されません' : 'オフ — 本番として動作します'}
+          emoji="🧪"
+          color="amber"
+        />
 
         {/* 保存 */}
         {saveError && (
