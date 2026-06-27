@@ -68,8 +68,12 @@ export async function GET(req: Request) {
 
   const verbose = searchParams.get('verbose') === '1'
   if (verbose) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '(not set)'
+    const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
     return NextResponse.json({
       debug: {
+        supabaseUrl,
+        hasServiceKey,
         userId,
         customersRaw: customers ?? [],
         uniformStoreIds,
