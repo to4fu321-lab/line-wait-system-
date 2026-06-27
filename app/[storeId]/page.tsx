@@ -816,9 +816,11 @@ export default function CustomerPage() {
   // ── 初期化 ────────────────────────────────────────────
   useEffect(() => {
     if (!storeId) return
+    console.log("[②storeId page] URL storeId:", storeId)
     ;(async () => { try {
       const { data: sd } = await ((supabase as any).from('stores') as any)
         .select('is_open, wait_thresholds, notification_plan, active_fittings, business_type, school_names, allow_remote, features').eq('id', storeId).single()
+      console.log("[③stores取得後] sd.id:", (sd as any)?.id, "sd.name:", (sd as any)?.name, "(※selectに含まれない場合はundefined)")
       if (sd?.business_type === 'takeout') { router.replace(`/${storeId}/order`); return }
       const featuresData = (sd?.features ?? {}) as Record<string, unknown>
       const isSimple = !resolveFeature('tab_queue', featuresData)
@@ -926,6 +928,7 @@ export default function CustomerPage() {
           .select('*').eq('store_id', storeId).eq('line_user_id', profile.userId)
           .order('created_at', { ascending: false }).limit(1)
         cust = custRows?.[0] && !custRows[0].deleted_at ? custRows[0] : null
+        console.log("[④customers取得後] cust?.store_id:", cust?.store_id, "cust存在:", !!cust)
         if (cust) {
           setCustomer(cust)
           const { data: childList } = await (supabase as any).from('children')
@@ -946,6 +949,7 @@ export default function CustomerPage() {
         setView('confirm_queue'); return
       }
       if (isSimple && !cust) { setView('register'); return }
+      console.log("[⑤purpose表示直前] theme.storeName:", theme.storeName, "theme.storeId:", theme.storeId)
       setView('purpose')
     } catch (e) {
       console.error('[init] error:', e)

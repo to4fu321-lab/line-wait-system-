@@ -190,6 +190,7 @@ export default function LineHomePage() {
               canGoBack: false,
             })
           } else {
+            console.log("[①line-home/single] navigateToStore直前 store.id:", found[0].id, "store.name:", found[0].name)
             navigateToStore(found[0], urlAction)
           }
           return
@@ -217,6 +218,7 @@ export default function LineHomePage() {
         canGoBack: storesRef.current.length > 1,
       })
     } else {
+      console.log("[①line-home/select] navigateToStore直前 store.id:", store.id, "store.name:", store.name)
       navigateToStore(store, action)
     }
   }
