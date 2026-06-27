@@ -817,15 +817,8 @@ export default function CustomerPage() {
   useEffect(() => {
     if (!storeId) return
     ;(async () => { try {
-      const _liffState = new URLSearchParams(window.location.search).get('liff.state')
-      if (_liffState && decodeURIComponent(_liffState).startsWith('/line-home')) {
-        window.location.replace(decodeURIComponent(_liffState))
-        return
-      }
       const { data: sd } = await ((supabase as any).from('stores') as any)
         .select('is_open, wait_thresholds, notification_plan, active_fittings, business_type, school_names, allow_remote, features').eq('id', storeId).single()
-      console.log("URL storeId =", storeId)
-      console.log("Store row =", sd)
       if (sd?.business_type === 'takeout') { router.replace(`/${storeId}/order`); return }
       const featuresData = (sd?.features ?? {}) as Record<string, unknown>
       const isSimple = !resolveFeature('tab_queue', featuresData)
@@ -943,7 +936,6 @@ export default function CustomerPage() {
         }
       } catch { /* 顧客情報が取れなくても続行 */ }
 
-      if (sd?.is_open === false && !isSimple) { setView('closed'); return }
       const { count } = await (supabase as any).from('queues')
         .select('*', { count: 'exact', head: true })
         .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
@@ -1588,7 +1580,12 @@ export default function CustomerPage() {
         {/* 採寸・ご購入（順番待ち）— 順番待ち機能がある店舗のみ */}
         {!isSimpleMode && (
           <button
-            onClick={() => { setIssueError(''); setView('confirm_queue') }}
+            onClick={async () => {
+              setIssueError('')
+              const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
+              if (sd?.is_open === false) { setView('closed'); return }
+              setView('confirm_queue')
+            }}
             className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all"
             style={cardStyle}>
             <div className="flex items-start gap-4">
