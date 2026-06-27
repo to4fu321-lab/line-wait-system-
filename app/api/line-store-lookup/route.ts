@@ -76,26 +76,13 @@ export async function GET(req: Request) {
       .select('store_id, deleted_at, updated_at')
       .eq('line_user_id', userId)
       .order('updated_at', { ascending: false })
-    // ひものや直接クエリ（デバッグ用）
-    const himonoyaStoreId = 'befb5519-e488-4c6f-983f-f18b577ed7ad'
-    const { data: himonoyaDirect } = await supabase
-      .from('customers')
-      .select('id, store_id, line_user_id, deleted_at, updated_at')
-      .eq('store_id', himonoyaStoreId)
-      .eq('line_user_id', userId)
-    const { data: himonoyaAll } = await supabase
-      .from('customers')
-      .select('id, store_id, line_user_id, deleted_at, updated_at')
-      .eq('store_id', himonoyaStoreId)
     return NextResponse.json({
       debug: {
         supabaseUrl,
         hasServiceKey,
         userId,
-        customersRaw: customers ?? [],
+        customersWithFilter: customers ?? [],
         customersNoFilter: customersNoFilter ?? [],
-        himonoyaDirect: himonoyaDirect ?? [],
-        himonoyaAll: himonoyaAll ?? [],
         uniformStoreIds,
         takeoutStoreIds,
         allIds,
