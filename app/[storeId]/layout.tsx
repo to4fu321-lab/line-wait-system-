@@ -19,10 +19,12 @@ const fetchStoreData = cache(async (storeId: string) => {
       { global: { fetch: (input, init) => fetch(input as RequestInfo, { ...init, cache: 'no-store' }) } }
     )
     const { data, error } = await supabase.from('stores').select('name, theme_color').eq('id', storeId).single()
+    console.log("[layout/fetchStoreData] クエリstoreId:", storeId, "/ error:", error?.message ?? null, "/ data.name:", data?.name, "/ data全体:", JSON.stringify(data))
     if (!error && data) {
       return { name: data.name ?? null, themeColor: (data as any).theme_color ?? null }
     }
     const { data: fallback } = await supabase.from('stores').select('name').eq('id', storeId).single()
+    console.log("[layout/fetchStoreData fallback] fallback.name:", fallback?.name)
     return { name: fallback?.name ?? null, themeColor: null }
   } catch {
     return { name: null, themeColor: null }
@@ -42,6 +44,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function StoreLayout({ children, params }: Props) {
   const { name, themeColor } = await fetchStoreData(params.storeId)
   const base = getStoreTheme(params.storeId)
+  console.log("[layout] params.storeId:", params.storeId, "/ stores.name(DB):", name, "/ resolvedTheme.storeName:", { ...base, ...(name ? { storeName: name } : {}) }.storeName)
   const resolvedTheme = {
     ...base,
     ...(name        ? { storeName: name }                  : {}),
