@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const STORE_ID = process.env.NEXT_PUBLIC_DEFAULT_STORE_ID || ''
-
 export function middleware(request: NextRequest) {
   const ua = request.headers.get('user-agent') || ''
   const isLine = /Line\//i.test(ua)
@@ -18,28 +16,49 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // /line-home に余分なパスが付いた場合は正規化（LIFF SDK が二重パスを生成する場合の自己修復）
+  if (path.startsWith('/line-home/')) {
+    const target = new URL('/line-home', request.url)
+    request.nextUrl.searchParams.forEach((v, k) => target.searchParams.set(k, v))
+    const ls = request.nextUrl.searchParams.get('liff.state')
+    if (ls && !target.searchParams.get('action')) {
+      const m = decodeURIComponent(ls).match(/[?&]action=([^&]+)/)
+      if (m) target.searchParams.set('action', decodeURIComponent(m[1]))
+    }
+    return NextResponse.redirect(target)
+  }
+
   // ── LINEブラウザ共通: liff.state を最優先処理 ──────────────────────
-  // LIFF endpoint URL が /storeId に設定されている場合でも正しくルーティングできるよう
-  // path に関わらず liff.state を検出したらそちらへリダイレクト
   if (isLine) {
     const liffState = request.nextUrl.searchParams.get('liff.state')
     if (liffState) {
       const decoded = decodeURIComponent(liffState)
+      const code = request.nextUrl.searchParams.get('code')
+      const oauthState = request.nextUrl.searchParams.get('state')
       const uuidMatch = decoded.match(/^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/)
+
       if (uuidMatch) {
-        return NextResponse.redirect(new URL(decoded, request.url))
-      }
-      if (decoded.startsWith('/line-home')) {
-        // liff.state と OAuth params (code/state) を保持してリダイレクト
-        // LIFF SDK が認証を完了できるよう auth context を引き継ぐ
+        // liff.state のパスが現在のパスと同一なら無限リダイレクトを防ぐ
+        const decodedPathname = decoded.split('?')[0]
+        if (decodedPathname === path) {
+          return NextResponse.next()
+        }
+        // 店舗ディープリンク（QR等）→ その店舗ページへ。OAuth params も保持
         const target = new URL(decoded, request.url)
-        const code = request.nextUrl.searchParams.get('code')
-        const oauthState = request.nextUrl.searchParams.get('state')
         if (code) target.searchParams.set('code', code)
         if (oauthState) target.searchParams.set('state', oauthState)
         target.searchParams.set('liff.state', liffState)
         return NextResponse.redirect(target)
       }
+
+      // 店舗UUID以外は店舗選択ハブへ
+      const target = new URL('/line-home', request.url)
+      const actionMatch = decoded.match(/[?&]action=([^&]+)/)
+      if (actionMatch) target.searchParams.set('action', actionMatch[1])
+      if (code) target.searchParams.set('code', code)
+      if (oauthState) target.searchParams.set('state', oauthState)
+      target.searchParams.set('liff.state', liffState)
+      return NextResponse.redirect(target)
     }
   }
 
@@ -77,6 +96,7 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/',
+    '/line-home/:path+',
     '/:storeId([0-9a-f-]{36})',
     '/:storeId([0-9a-f-]{36})/home',
     '/:storeId([0-9a-f-]{36})/queue',
