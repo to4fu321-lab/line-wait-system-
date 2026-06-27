@@ -1,6 +1,7 @@
 'use client'
 
 import type { Liff } from '@line/liff'
+import { getLiffId, type BizType } from '@/lib/line-config'
 
 let liffInstance: Liff | null = null
 let initPromise: Promise<Liff | null> | null = null
@@ -14,7 +15,7 @@ export interface LiffProfile {
 /**
  * LIFFを初期化する（多重初期化防止・リダイレクトループ防止つき）
  */
-export async function initLiff(): Promise<Liff | null> {
+export async function initLiff(biz: BizType = 'uniform'): Promise<Liff | null> {
   if (typeof window === 'undefined') return null
   if (liffInstance) return liffInstance
   if (initPromise) return initPromise
@@ -34,13 +35,11 @@ export async function initLiff(): Promise<Liff | null> {
     localStorage.setItem('liff_init_ts', String(now))
   }
 
-  // 全画面で同一の LIFF を使う。_UNIFORM を優先し、無ければレガシー変数へフォールバック。
-  // （ハブ app/line-home と必ず一致させ、店舗ページだけ別チャンネル＝本店エンドポイントに
-  //   引きずられて本店へ着地するバグを防ぐ）
-  const liffId =
-    process.env.NEXT_PUBLIC_LIFF_ID_UNIFORM ||
-    process.env.NEXT_PUBLIC_LIFF_ID ||
-    ''
+  // 業種ごとに正しい LIFF を解決する（uniform=制服店 / takeout=テイクアウト店）。
+  // getLiffId は _UNIFORM / _TAKEOUT を優先し、無ければレガシー NEXT_PUBLIC_LIFF_ID に
+  // フォールバックする。ハブ(line-home)と必ず一致させ、店舗ページだけ別チャンネル＝
+  // 本店エンドポイントに引きずられて本店へ着地するバグを防ぐ。
+  const liffId = getLiffId(biz)
 
   initPromise = (async () => {
     try {
@@ -64,8 +63,8 @@ export async function initLiff(): Promise<Liff | null> {
 /**
  * LINEプロフィール（userId含む）を取得
  */
-export async function getLineProfile(): Promise<LiffProfile | null> {
-  const liff = await initLiff()
+export async function getLineProfile(biz: BizType = 'uniform'): Promise<LiffProfile | null> {
+  const liff = await initLiff(biz)
   if (!liff) return null
 
   try {
@@ -98,8 +97,8 @@ export function isInLineApp(): boolean {
  * LIFFのFriendship APIで友達チェック（最も信頼性が高い）
  * LIFF外では null を返す（スキップ）
  */
-export async function checkFriendshipLiff(): Promise<boolean | null> {
-  const liff = await initLiff()
+export async function checkFriendshipLiff(biz: BizType = 'uniform'): Promise<boolean | null> {
+  const liff = await initLiff(biz)
   if (!liff || !liff.isLoggedIn()) return null
   if (!liff.isInClient()) return null // LIFF外ではgetFriendship不可
   try {

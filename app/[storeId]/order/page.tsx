@@ -108,8 +108,8 @@ export default function OrderPage() {
         if ((store as unknown as { name?: string })?.name)
           setStoreName((store as unknown as { name: string }).name)
 
-        await initLiff()
-        const profile = await getLineProfile()
+        await initLiff('takeout')
+        const profile = await getLineProfile('takeout')
         if (profile) {
           setLineProfile(profile)
           setCustomerName(profile.displayName ?? '')
