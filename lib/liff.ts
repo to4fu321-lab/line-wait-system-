@@ -34,7 +34,13 @@ export async function initLiff(): Promise<Liff | null> {
     localStorage.setItem('liff_init_ts', String(now))
   }
 
-  const liffId = process.env.NEXT_PUBLIC_LIFF_ID || ''
+  // 全画面で同一の LIFF を使う。_UNIFORM を優先し、無ければレガシー変数へフォールバック。
+  // （ハブ app/line-home と必ず一致させ、店舗ページだけ別チャンネル＝本店エンドポイントに
+  //   引きずられて本店へ着地するバグを防ぐ）
+  const liffId =
+    process.env.NEXT_PUBLIC_LIFF_ID_UNIFORM ||
+    process.env.NEXT_PUBLIC_LIFF_ID ||
+    ''
 
   initPromise = (async () => {
     try {
