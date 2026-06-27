@@ -7,13 +7,6 @@ import { getLiffBaseUrl, getLineToken } from '@/lib/line-config'
 
 const LINE_API  = 'https://api.line.me/v2/bot'
 
-// キャンバスサイズ定数（2×3グリッド用）
-const W        = 2500
-const H        = 1686
-const HEADER_H = 300
-const ROW_H    = 462   // (1686 - 300) / 3 = 462 ぴったり
-const COL_W    = 1250  // 2500 / 2
-
 function getConfig() {
   const liffBase = getLiffBaseUrl('uniform')
   const liffId   = liffBase.replace('https://liff.line.me/', '')
@@ -21,78 +14,54 @@ function getConfig() {
   return { liffId, token, liffBase, authHeader: { Authorization: `Bearer ${token}` } }
 }
 
-// ── 制服店用リッチメニュー画像（6パネル・2列×3行）────────────
+// ── 制服店用リッチメニュー画像（4パネル横型）────────────────
 async function makeMenuPng(): Promise<Buffer> {
   let fontData: ArrayBuffer | null = null
   try {
-    const chars = encodeURIComponent(
-      'テイクアウト注文店舗受付制服予約お問い合わせサイズガイドアクセス' +
-      'お持ち帰りのご注文はこちらご来店ご予約採寸ご質問サイズの測り方店舗の場所' +
-      'MENUGUIDEガイド学生服販売店'
-    )
+    const chars = encodeURIComponent('テイクアウト注文採寸受付来店予約お直し依頼')
     const css = await fetch(
-      `https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&text=${chars}`,
+      `https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@700&text=${chars}`,
       { headers: { 'User-Agent': 'Mozilla/5.0 (compatible)' } }
     ).then(r => r.text())
     const m = css.match(/src: url\((.+?)\) format/)
     if (m) fontData = await fetch(m[1]).then(r => r.arrayBuffer())
   } catch { /* フォント取得失敗時は続行 */ }
 
-  const fontFamily = fontData ? '"Noto Sans JP", sans-serif' : 'sans-serif'
-
-  const BG         = '#A89880'  // ウォームタウプ
-  const TITLE_COL  = '#4A3428'  // ダークブラウン
-  const SUB_COL    = '#7A6050'  // ミディアムブラウン
-
-  const panels = [
-    { emoji: '🛍️', title: 'テイクアウト注文' },
-    { emoji: '🏪',  title: '店舗・受付' },
-    { emoji: '🧥',  title: '制服予約' },
-    { emoji: '✉️',  title: 'お問い合わせ' },
-    { emoji: '📏',  title: 'サイズガイド' },
-    { emoji: '📍',  title: 'アクセス' },
+  const sections = [
+    { lines: ['テイクアウト', '注文'],  emoji: '🥡', bg: '#ea580c' },
+    { lines: ['採寸・受付'],           emoji: '📋', bg: '#4f46e5' },
+    { lines: ['来店予約'],             emoji: '📅', bg: '#0d9488' },
+    { lines: ['お直し依頼'],           emoji: '✂️', bg: '#7c3aed' },
   ]
 
-  function cell(p: typeof panels[0], key: number) {
-    return h('div', {
-      key,
-      style: {
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        width: COL_W, height: ROW_H, gap: 16,
-      },
-    },
-      h('div', { style: {
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        width: 200, height: 200, borderRadius: '50%', background: '#FFFFFF',
-        fontSize: 110, lineHeight: 1,
-      }}, p.emoji),
-      h('div', { style: { fontSize: 150, fontWeight: 700, color: TITLE_COL, letterSpacing: '-2px', lineHeight: 1 } }, p.title),
-    )
-  }
+  const fontFamily = fontData ? '"Noto Sans JP", sans-serif' : 'sans-serif'
 
   const img = new ImageResponse(
-    h('div', { style: { display: 'flex', flexDirection: 'column', width: W, height: H, background: BG, fontFamily } },
-      // ヘッダー
-      h('div', { style: {
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        width: '100%', height: HEADER_H,
-      }},
-        h('div', { style: { fontSize: 104, fontWeight: 700, color: '#FFFFFF', letterSpacing: '14px', lineHeight: 1 } }, 'MENU GUIDE'),
-        h('div', { style: { width: 80, height: 3, background: '#FFFFFF80', margin: '18px 0 16px' } }),
-        h('div', { style: { fontSize: 50, fontWeight: 400, color: '#FFFFFF', letterSpacing: '12px' } }, '学生服販売店'),
-      ),
-      // 3行 × 2列グリッド
-      ...[0, 1, 2].map(row =>
-        h('div', { key: row, style: { display: 'flex', width: W, height: ROW_H } },
-          cell(panels[row * 2],     row * 2),
-          cell(panels[row * 2 + 1], row * 2 + 1),
+    h('div', { style: { display: 'flex', width: 2500, height: 843, fontFamily } },
+      ...sections.map((s, i) =>
+        h('div', {
+          key: i,
+          style: {
+            width: 625, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: 12,
+            background: `linear-gradient(160deg, ${s.bg} 0%, ${s.bg}cc 100%)`,
+            borderRight: i < 3 ? '4px solid rgba(255,255,255,0.3)' : 'none',
+          },
+        },
+          h('div', { style: { fontSize: 120, lineHeight: 1 } }, s.emoji),
+          h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 } },
+            ...s.lines.map((line, j) =>
+              h('div', {
+                key: j,
+                style: { fontSize: 85, fontWeight: 700, color: '#fff', letterSpacing: '-1px', lineHeight: 1.15 },
+              }, line)
+            )
+          )
         )
-      ),
+      )
     ),
     {
-      width: W,
-      height: H,
+      width: 2500, height: 843,
       fonts: fontData
         ? [{ name: 'Noto Sans JP', data: fontData, weight: 700, style: 'normal' as const }]
         : [],
@@ -160,9 +129,7 @@ export async function GET(req: NextRequest) {
       order:   `${base}?action=order`,
       queue:   `${base}?action=queue`,
       reserve: `${base}?action=reserve`,
-      inquiry: `${base}?action=inquiry`,
-      size:    `${base}?action=size`,
-      access:  `${base}?action=access`,
+      repair:  `${base}?action=repair`,
     }
     const listRes = await fetch(`${LINE_API}/richmenu/list`, { headers: authHeader })
     const currentMenus = listRes.ok ? await listRes.json() : { error: await listRes.text() }
@@ -223,16 +190,14 @@ export async function POST(req: NextRequest) {
         { bounds: { x: 1250, y: 0, width: 1250, height: 843 }, action: { type: 'uri', uri: `${base}?action=queue`, label: '注文状況を確認' } },
       ]
     } else {
-      // 制服店：6パネル 2×3グリッド（2500×1686）
+      // 制服店：4パネル横型（2500×843）
       png = await makeMenuPng()
-      menuSize = { width: W, height: H }
+      menuSize = { width: 2500, height: 843 }
       areas = [
-        { bounds: { x: 0,     y: HEADER_H,              width: COL_W, height: ROW_H }, action: { type: 'uri', uri: `${base}?action=order`,   label: 'テイクアウト注文' } },
-        { bounds: { x: COL_W, y: HEADER_H,              width: COL_W, height: ROW_H }, action: { type: 'uri', uri: `${base}?action=queue`,   label: '店舗・受付' } },
-        { bounds: { x: 0,     y: HEADER_H + ROW_H,      width: COL_W, height: ROW_H }, action: { type: 'uri', uri: `${base}?action=reserve`, label: '制服予約' } },
-        { bounds: { x: COL_W, y: HEADER_H + ROW_H,      width: COL_W, height: ROW_H }, action: { type: 'uri', uri: `${base}?action=inquiry`, label: 'お問い合わせ' } },
-        { bounds: { x: 0,     y: HEADER_H + ROW_H * 2,  width: COL_W, height: ROW_H }, action: { type: 'uri', uri: `${base}?action=size`,    label: 'サイズガイド' } },
-        { bounds: { x: COL_W, y: HEADER_H + ROW_H * 2,  width: COL_W, height: ROW_H }, action: { type: 'uri', uri: `${base}?action=access`,  label: 'アクセス' } },
+        { bounds: { x:    0, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=order`,   label: 'テイクアウト注文' } },
+        { bounds: { x:  625, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=queue`,   label: '採寸・受付' } },
+        { bounds: { x: 1250, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=reserve`, label: '来店予約' } },
+        { bounds: { x: 1875, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=repair`,  label: 'お直し依頼' } },
       ]
     }
 
