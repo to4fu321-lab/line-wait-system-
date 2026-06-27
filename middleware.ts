@@ -25,21 +25,29 @@ export function middleware(request: NextRequest) {
     const liffState = request.nextUrl.searchParams.get('liff.state')
     if (liffState) {
       const decoded = decodeURIComponent(liffState)
+      const code = request.nextUrl.searchParams.get('code')
+      const oauthState = request.nextUrl.searchParams.get('state')
       const uuidMatch = decoded.match(/^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/)
+
       if (uuidMatch) {
-        return NextResponse.redirect(new URL(decoded, request.url))
-      }
-      if (decoded.startsWith('/line-home')) {
-        // liff.state と OAuth params (code/state) を保持してリダイレクト
-        // LIFF SDK が認証を完了できるよう auth context を引き継ぐ
+        // 店舗ディープリンク（QR等）→ その店舗ページへ。OAuth params も保持
         const target = new URL(decoded, request.url)
-        const code = request.nextUrl.searchParams.get('code')
-        const oauthState = request.nextUrl.searchParams.get('state')
         if (code) target.searchParams.set('code', code)
         if (oauthState) target.searchParams.set('state', oauthState)
         target.searchParams.set('liff.state', liffState)
         return NextResponse.redirect(target)
       }
+
+      // 店舗UUID以外（/line-home... / ?action=... / 空）は「必ず」ハブへ吸い込む。
+      // これにより LIFFエンドポイントURLが本店(/00000000...)等へ誤設定されていても
+      // 本店ページに着地せず、店舗選択ハブで正しくルーティングできる。
+      const target = new URL('/line-home', request.url)
+      const actionMatch = decoded.match(/[?&]action=([^&]+)/)
+      if (actionMatch) target.searchParams.set('action', actionMatch[1])
+      if (code) target.searchParams.set('code', code)
+      if (oauthState) target.searchParams.set('state', oauthState)
+      target.searchParams.set('liff.state', liffState)
+      return NextResponse.redirect(target)
     }
   }
 

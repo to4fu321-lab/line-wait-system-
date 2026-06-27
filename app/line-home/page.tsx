@@ -147,7 +147,16 @@ export default function LineHomePage() {
         userIdRef.current = profile.userId
 
         const sp = new URLSearchParams(window.location.search)
-        const urlAction = sp.get('action')
+        // action は通常トップレベルのクエリにあるが、LIFFエンドポイントの設定によっては
+        // liff.state の中に埋もれて届く場合がある。両方を見て確実に拾う。
+        let urlAction = sp.get('action')
+        if (!urlAction) {
+          const ls = sp.get('liff.state')
+          if (ls) {
+            const m = decodeURIComponent(ls).match(/[?&]action=([^&]+)/)
+            if (m) urlAction = decodeURIComponent(m[1])
+          }
+        }
         actionRef.current = urlAction
 
         const res = await fetch(

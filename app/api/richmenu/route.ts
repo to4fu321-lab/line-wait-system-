@@ -124,7 +124,9 @@ export async function GET(req: NextRequest) {
   // ?debug=1 → 現在のリッチメニュー一覧と設定値を返す（更新しない）
   if (searchParams.get('debug') === '1') {
     const { liffBase, token, authHeader } = getConfig()
-    const base = liffBase
+    // 注意: 必ず /line-home パスを付ける。これにより liff.state が "/line-home..." になり、
+    // LIFFエンドポイントURLの設定値に関わらず middleware がハブへ確実に吸い込める。
+    const base = `${liffBase}/line-home`
     const previewUrls = {
       order:   `${base}?action=order`,
       queue:   `${base}?action=queue`,
@@ -175,7 +177,9 @@ export async function POST(req: NextRequest) {
       ))
     }
 
-    const base = liffBase
+    // 注意: 必ず /line-home パスを付ける（liff.state を "/line-home..." にして
+    // middleware がハブへ確実にリダイレクトできるようにするため）。
+    const base = `${liffBase}/line-home`
 
     let png: Buffer
     let menuSize: { width: number; height: number }
