@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
   // ?debug=1 → 現在のリッチメニュー一覧と設定値を返す（更新しない）
   if (searchParams.get('debug') === '1') {
     const { liffBase, token, authHeader } = getConfig()
-    const base = `${liffBase}/line-home`
+    const base = liffBase
     const previewUrls = {
       order:   `${base}?action=order`,
       queue:   `${base}?action=queue`,
@@ -175,7 +175,7 @@ export async function POST(req: NextRequest) {
       ))
     }
 
-    const base = `${liffBase}/line-home`
+    const base = liffBase
 
     let png: Buffer
     let menuSize: { width: number; height: number }
