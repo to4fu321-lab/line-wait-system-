@@ -801,7 +801,6 @@ export default function CustomerPage() {
   const [arrivalModal, setArrivalModal] = useState(false)
   const [isSimpleMode, setIsSimpleMode] = useState(false)
   const [selfOrderEnabled, setSelfOrderEnabled] = useState(true)
-  const [debugBanner, setDebugBanner] = useState<string | null>(null)
 
   const allowRemoteRef = useRef(false)
   const pendingHeightWeightRef = useRef<{ height: string; weight: string } | null>(null)
@@ -818,17 +817,8 @@ export default function CustomerPage() {
   useEffect(() => {
     if (!storeId) return
     ;(async () => { try {
-      const _liffState = new URLSearchParams(window.location.search).get('liff.state')
-      if (_liffState && decodeURIComponent(_liffState).startsWith('/line-home')) {
-        window.location.replace(decodeURIComponent(_liffState))
-        return
-      }
       const { data: sd } = await ((supabase as any).from('stores') as any)
         .select('is_open, wait_thresholds, notification_plan, active_fittings, business_type, school_names, allow_remote, features').eq('id', storeId).single()
-      console.log("URL storeId =", storeId)
-      console.log("Store row =", sd)
-      const navLog = sessionStorage.getItem('__debug_nav__') ?? '(line-home log なし)'
-      setDebugBanner(`${navLog}\n---\nURL storeId: ${storeId}\nDB id: ${sd?.id ?? 'null'}\nDB name: ${(sd as any)?.name ?? '(なし)'}`)
       if (sd?.business_type === 'takeout') { router.replace(`/${storeId}/order`); return }
       const featuresData = (sd?.features ?? {}) as Record<string, unknown>
       const isSimple = !resolveFeature('tab_queue', featuresData)
@@ -946,7 +936,6 @@ export default function CustomerPage() {
         }
       } catch { /* 顧客情報が取れなくても続行 */ }
 
-      if (sd?.is_open === false && !isSimple) { setView('closed'); return }
       const { count } = await (supabase as any).from('queues')
         .select('*', { count: 'exact', head: true })
         .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
@@ -1358,12 +1347,6 @@ export default function CustomerPage() {
   // ビュー
   // ══════════════════════════════════════════════════════════
 
-  const DebugBanner = debugBanner ? (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999, background: '#1e1b4b', color: '#a5f3fc', fontFamily: 'monospace', fontSize: 11, padding: '6px 10px', whiteSpace: 'pre', lineHeight: 1.6 }}>
-      {debugBanner}
-    </div>
-  ) : null
-
   if (view === 'loading') return (
     <div className="min-h-[100dvh] flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
@@ -1557,7 +1540,6 @@ export default function CustomerPage() {
   // ── サービス案内（旧: 目的選択） ──────────────────────────
   if (view === 'purpose') return (
     <main className="min-h-[100dvh] px-5 py-10 max-w-md mx-auto">
-      {DebugBanner}
       <div className="text-center mb-8">
         <div className="w-14 h-14 mx-auto mb-3 rounded-2xl flex items-center justify-center text-2xl"
           style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
@@ -1598,7 +1580,12 @@ export default function CustomerPage() {
         {/* 採寸・ご購入（順番待ち）— 順番待ち機能がある店舗のみ */}
         {!isSimpleMode && (
           <button
-            onClick={() => { setIssueError(''); setView('confirm_queue') }}
+            onClick={async () => {
+              setIssueError('')
+              const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
+              if (sd?.is_open === false) { setView('closed'); return }
+              setView('confirm_queue')
+            }}
             className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all"
             style={cardStyle}>
             <div className="flex items-start gap-4">

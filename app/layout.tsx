@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
-import Script from 'next/script'
 import SwRegister from './sw-register'
 import './globals.css'
 
@@ -37,9 +36,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SwRegister />
         <Analytics />
         <SpeedInsights />
-        {/* DEBUG: eruda mobile console — remove after log capture */}
-        <Script src="https://cdn.jsdelivr.net/npm/eruda" strategy="afterInteractive" />
-        <Script id="eruda-init" strategy="afterInteractive">{`eruda.init()`}</Script>
       </body>
     </html>
   )
