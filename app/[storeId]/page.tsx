@@ -817,6 +817,11 @@ export default function CustomerPage() {
   useEffect(() => {
     if (!storeId) return
     ;(async () => { try {
+      const _liffState = new URLSearchParams(window.location.search).get('liff.state')
+      if (_liffState && decodeURIComponent(_liffState).startsWith('/line-home')) {
+        window.location.replace(decodeURIComponent(_liffState))
+        return
+      }
       const { data: sd } = await ((supabase as any).from('stores') as any)
         .select('is_open, wait_thresholds, notification_plan, active_fittings, business_type, school_names, allow_remote, features').eq('id', storeId).single()
       if (sd?.business_type === 'takeout') { router.replace(`/${storeId}/order`); return }
