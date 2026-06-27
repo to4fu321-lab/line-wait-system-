@@ -824,6 +824,8 @@ export default function CustomerPage() {
       }
       const { data: sd } = await ((supabase as any).from('stores') as any)
         .select('is_open, wait_thresholds, notification_plan, active_fittings, business_type, school_names, allow_remote, features').eq('id', storeId).single()
+      console.log("URL storeId =", storeId)
+      console.log("Store row =", sd)
       if (sd?.business_type === 'takeout') { router.replace(`/${storeId}/order`); return }
       const featuresData = (sd?.features ?? {}) as Record<string, unknown>
       const isSimple = !resolveFeature('tab_queue', featuresData)

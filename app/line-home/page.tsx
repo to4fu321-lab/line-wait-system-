@@ -55,6 +55,7 @@ function getAlternatives(store: StoreInfo, excludeAction: string): string[] {
 
 // 指定アクションへ遷移
 function navigateToStore(store: StoreInfo, action: string | null) {
+  console.log("navigateToStore:", store.id, store.name)
   if (!action) {
     window.location.href = store.business_type === 'takeout' ? `/${store.id}/order` : `/${store.id}`
     return
