@@ -66,6 +66,23 @@ export async function GET(req: Request) {
     .map(id => storeMap[id]).filter(Boolean)
     .map(s => ({ id: s.id, name: s.name, is_open: s.is_open ?? false, type: 'takeout' as const }))
 
+  const verbose = searchParams.get('verbose') === '1'
+  if (verbose) {
+    return NextResponse.json({
+      debug: {
+        userId,
+        customersRaw: customers ?? [],
+        uniformStoreIds,
+        takeoutStoreIds,
+        allIds,
+        storeRows: storeRows ?? [],
+        uniformStores,
+        takeoutStores,
+      },
+      stores: [...uniformStores, ...takeoutStores],
+    }, { headers: { 'Cache-Control': 'no-store' } })
+  }
+
   return NextResponse.json(
     { stores: [...uniformStores, ...takeoutStores] },
     { headers: { 'Cache-Control': 'no-store' } }
