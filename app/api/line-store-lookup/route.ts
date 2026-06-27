@@ -66,6 +66,41 @@ export async function GET(req: Request) {
     .map(id => storeMap[id]).filter(Boolean)
     .map(s => ({ id: s.id, name: s.name, is_open: s.is_open ?? false, type: 'takeout' as const }))
 
+  const verbose = searchParams.get('verbose') === '1'
+  if (verbose) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '(not set)'
+    const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
+    // ひものや直接クエリ（デバッグ用）
+    const himonoyaStoreId = 'befb5519-e488-4c6f-983f-f18b577ed7ad'
+    const { data: himonoyaDirect } = await supabase
+      .from('customers')
+      .select('id, store_id, line_user_id, deleted_at, updated_at')
+      .eq('store_id', himonoyaStoreId)
+      .eq('line_user_id', userId)
+    // deleted_at IS NULL フィルタなしで全件
+    const { data: himonoyaAll } = await supabase
+      .from('customers')
+      .select('id, store_id, line_user_id, deleted_at, updated_at')
+      .eq('store_id', himonoyaStoreId)
+    return NextResponse.json({
+      debug: {
+        supabaseUrl,
+        hasServiceKey,
+        userId,
+        himonoyaDirect: himonoyaDirect ?? [],
+        himonoyaAll: himonoyaAll ?? [],
+        customersRaw: customers ?? [],
+        uniformStoreIds,
+        takeoutStoreIds,
+        allIds,
+        storeRows: storeRows ?? [],
+        uniformStores,
+        takeoutStores,
+      },
+      stores: [...uniformStores, ...takeoutStores],
+    }, { headers: { 'Cache-Control': 'no-store' } })
+  }
+
   return NextResponse.json(
     { stores: [...uniformStores, ...takeoutStores] },
     { headers: { 'Cache-Control': 'no-store' } }

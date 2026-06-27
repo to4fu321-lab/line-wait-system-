@@ -11,13 +11,19 @@ const ACTION_LABELS: Record<string, string> = {
   reserve:  '来店予約',
   repair:   '依頼',
   purchase: 'ネット注文',
+  inquiry:  'お問い合わせ',
+  size:     'サイズガイド',
+  access:   'アクセス',
 }
 
 function buildStoreUrl(storeId: string, type: StoreType, action: string | null): string {
   if (type === 'takeout') return `/${storeId}/order`
   if (!action || action === 'order') return `/${storeId}`
-  if (action === 'reserve') return `/${storeId}/reserve`
-  if (action === 'repair')  return `/${storeId}/repair`
+  if (action === 'reserve')  return `/${storeId}/reserve`
+  if (action === 'repair')   return `/${storeId}/repair`
+  if (action === 'inquiry')  return `/${storeId}`
+  if (action === 'size')     return `/${storeId}`
+  if (action === 'access')   return `/${storeId}`
   return `/${storeId}?action=${encodeURIComponent(action)}`
 }
 
