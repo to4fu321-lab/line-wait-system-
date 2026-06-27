@@ -68,10 +68,34 @@ export async function GET(req: Request) {
 
   const verbose = searchParams.get('verbose') === '1'
   if (verbose) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '(not set)'
+    const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
+    // deleted_at フィルタなしで全件取得（フィルタが原因か確認用）
+    const { data: customersNoFilter } = await supabase
+      .from('customers')
+      .select('store_id, deleted_at, updated_at')
+      .eq('line_user_id', userId)
+      .order('updated_at', { ascending: false })
+    // ひものや直接クエリ（デバッグ用）
+    const himonoyaStoreId = 'befb5519-e488-4c6f-983f-f18b577ed7ad'
+    const { data: himonoyaDirect } = await supabase
+      .from('customers')
+      .select('id, store_id, line_user_id, deleted_at, updated_at')
+      .eq('store_id', himonoyaStoreId)
+      .eq('line_user_id', userId)
+    const { data: himonoyaAll } = await supabase
+      .from('customers')
+      .select('id, store_id, line_user_id, deleted_at, updated_at')
+      .eq('store_id', himonoyaStoreId)
     return NextResponse.json({
       debug: {
+        supabaseUrl,
+        hasServiceKey,
         userId,
         customersRaw: customers ?? [],
+        customersNoFilter: customersNoFilter ?? [],
+        himonoyaDirect: himonoyaDirect ?? [],
+        himonoyaAll: himonoyaAll ?? [],
         uniformStoreIds,
         takeoutStoreIds,
         allIds,
