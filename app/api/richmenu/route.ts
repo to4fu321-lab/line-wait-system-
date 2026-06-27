@@ -45,12 +45,12 @@ async function makeMenuPng(): Promise<Buffer> {
   const SUB_COL    = '#7A6050'  // ミディアムブラウン
 
   const panels = [
-    { emoji: '🛍️', title: 'テイクアウト注文', sub: 'お持ち帰りのご注文はこちら' },
-    { emoji: '🏪',  title: '店舗・受付',       sub: 'ご来店・ご予約はこちら' },
-    { emoji: '🧥',  title: '制服予約',         sub: '採寸・ご予約はこちら' },
-    { emoji: '✉️',  title: 'お問い合わせ',     sub: 'ご質問・お問い合わせはこちら' },
-    { emoji: '📏',  title: 'サイズガイド',     sub: 'サイズの測り方はこちら' },
-    { emoji: '📍',  title: 'アクセス',         sub: '店舗の場所はこちら' },
+    { emoji: '🛍️', title: 'テイクアウト注文' },
+    { emoji: '🏪',  title: '店舗・受付' },
+    { emoji: '🧥',  title: '制服予約' },
+    { emoji: '✉️',  title: 'お問い合わせ' },
+    { emoji: '📏',  title: 'サイズガイド' },
+    { emoji: '📍',  title: 'アクセス' },
   ]
 
   function cell(p: typeof panels[0], key: number) {
@@ -59,18 +59,15 @@ async function makeMenuPng(): Promise<Buffer> {
       style: {
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
-        width: COL_W, height: ROW_H, gap: 18,
+        width: COL_W, height: ROW_H, gap: 16,
       },
     },
       h('div', { style: {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        width: 260, height: 260, borderRadius: '50%', background: '#FFFFFF',
-        fontSize: 140, lineHeight: 1,
+        width: 200, height: 200, borderRadius: '50%', background: '#FFFFFF',
+        fontSize: 110, lineHeight: 1,
       }}, p.emoji),
-      h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 } },
-        h('div', { style: { fontSize: 60, fontWeight: 700, color: TITLE_COL, letterSpacing: '-1px', lineHeight: 1 } }, p.title),
-        h('div', { style: { fontSize: 36, fontWeight: 400, color: SUB_COL, lineHeight: 1 } }, p.sub),
-      ),
+      h('div', { style: { fontSize: 150, fontWeight: 700, color: TITLE_COL, letterSpacing: '-2px', lineHeight: 1 } }, p.title),
     )
   }
 
