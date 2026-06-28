@@ -24,9 +24,10 @@ export async function GET(req: Request) {
   .eq('line_user_id', userId)
 
 return NextResponse.json({
-  userId,
-  customers,
-  customersError,
+  uniformStoreIds,
+  takeoutStoreIds,
+  allIds,
+  storeRows,
 })
 
   const uniformStoreIds = Array.from(new Set(
