@@ -27,7 +27,17 @@ export function middleware(request: NextRequest) {
       const decoded = decodeURIComponent(liffState)
       const uuidMatch = decoded.match(/^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/)
       if (uuidMatch) {
-        return NextResponse.redirect(new URL(decoded, request.url))
+        // /line-home 経由にして多店舗選択を機能させる
+        // liff.state を /line-home?to=<元パス> にすることで LIFF SDK も /line-home に留まる
+        // 未登録ユーザーが QR コードで来た場合は to パラメータでその店舗へ遷移する
+        const newLiffState = '/line-home?to=' + encodeURIComponent(decoded)
+        const target = new URL('/line-home', request.url)
+        const code = request.nextUrl.searchParams.get('code')
+        const oauthState = request.nextUrl.searchParams.get('state')
+        if (code) target.searchParams.set('code', code)
+        if (oauthState) target.searchParams.set('state', oauthState)
+        target.searchParams.set('liff.state', newLiffState)
+        return NextResponse.redirect(target)
       }
       if (decoded.startsWith('/line-home')) {
         // liff.state と OAuth params (code/state) を保持してリダイレクト

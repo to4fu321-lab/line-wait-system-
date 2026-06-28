@@ -89,10 +89,19 @@ export default function LineHomePage() {
         setAction(urlAction)
         actionRef.current = urlAction
 
+        // liff.state に UUID が含まれていた場合、middleware が to パラメータに変換して渡す
+        // LIFF SDK が /line-home?to=/{uuid} へ遷移した後に読み取れる
+        const toParam = new URLSearchParams(window.location.search).get('to')
+
         const res = await fetch(`/api/line-store-lookup?userId=${encodeURIComponent(profile.userId)}&t=${Date.now()}`)
         const { stores: found } = await res.json()
 
         if (!found || found.length === 0) {
+          // QR コード直リンク（店舗 UUID）経由かつ未登録なら、その店舗の登録フローへ
+          if (toParam) {
+            window.location.href = toParam
+            return
+          }
           setStatus('not_registered')
           return
         }
