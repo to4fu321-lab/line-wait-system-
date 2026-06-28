@@ -18,18 +18,12 @@ export async function GET(req: Request) {
   const supabase = getSupabase()
 
   // ① 制服店：customers テーブルから登録済み店舗を取得
-  const { data: customers, error: customersError } = await supabase
+  const { data: customers } = await supabase
   .from('customers')
-  .select('*')
+  .select('store_id')
   .eq('line_user_id', userId)
-
-return NextResponse.json({
-  uniformStoreIds,
-  allIds,
-  storeRows,
-  uniformStores,
-  takeoutStores,
-})
+  .is('deleted_at', null)
+  .order('updated_at', { ascending: false })
 
   const uniformStoreIds = Array.from(new Set(
     (customers ?? []).map((c: { store_id: string }) => c.store_id).filter(Boolean)
@@ -61,7 +55,13 @@ return NextResponse.json({
   const storeMap = Object.fromEntries(
     (storeRows ?? []).map((s: { id: string; name: string; is_open: boolean; business_type: string }) => [s.id, s])
   )
-
+return NextResponse.json({
+  uniformStoreIds,
+  takeoutStoreIds,
+  allIds,
+  storeRows,
+  storeMap,
+})
   // 制服店を先に、次にテイクアウト店（それぞれ最近利用順）
   const uniformStores = uniformStoreIds
     .map(id => storeMap[id]).filter(Boolean)
