@@ -110,15 +110,15 @@ if (!toParam) {
         const { stores: found } = await res.json()
 
         if (!found || found.length === 0) {
-          // QR コード直リンク（店舗 UUID）経由かつ未登録なら、その店舗の登録フローへ
-          if (toParam) {
-            window.location.href = toParam
-            return
-          }
-          setStatus('not_registered')
-          return
-        }
+  if (toParam) {
+    const storeId = toParam.replace(/^\//, '')
+    window.location.replace(`/${storeId}/crm-register`)
+    return
+  }
 
+  setStatus('not_registered')
+  return
+}
         // ?debug=1 の場合はリダイレクトせず必ず選択画面を表示（userId確認用）
         const isDebug = new URLSearchParams(window.location.search).get('debug') === '1'
         if (isDebug) {
