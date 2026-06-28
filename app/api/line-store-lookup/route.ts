@@ -25,9 +25,10 @@ export async function GET(req: Request) {
 
 return NextResponse.json({
   uniformStoreIds,
-  takeoutStoreIds,
   allIds,
   storeRows,
+  uniformStores,
+  takeoutStores,
 })
 
   const uniformStoreIds = Array.from(new Set(
