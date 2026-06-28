@@ -91,7 +91,20 @@ export default function LineHomePage() {
 
         // liff.state に UUID が含まれていた場合、middleware が to パラメータに変換して渡す
         // LIFF SDK が /line-home?to=/{uuid} へ遷移した後に読み取れる
-        const toParam = new URLSearchParams(window.location.search).get('to')
+     const params = new URLSearchParams(window.location.search)
+
+let toParam = params.get('to')
+
+if (!toParam) {
+  const liffState = params.get('liff.state')
+
+  if (liffState) {
+    const stateParams = new URLSearchParams(
+      liffState.split('?')[1] ?? ''
+    )
+    toParam = stateParams.get('to')
+  }
+}
 
         const res = await fetch(`/api/line-store-lookup?userId=${encodeURIComponent(profile.userId)}&t=${Date.now()}`)
         const { stores: found } = await res.json()
