@@ -18,12 +18,16 @@ export async function GET(req: Request) {
   const supabase = getSupabase()
 
   // ① 制服店：customers テーブルから登録済み店舗を取得
-  const { data: customers } = await supabase
-    .from('customers')
-    .select('store_id')
-    .eq('line_user_id', userId)
-    .is('deleted_at', null)
-    .order('updated_at', { ascending: false })
+  const { data: customers, error: customersError } = await supabase
+  .from('customers')
+  .select('*')
+  .eq('line_user_id', userId)
+
+return NextResponse.json({
+  userId,
+  customers,
+  customersError,
+})
 
   const uniformStoreIds = Array.from(new Set(
     (customers ?? []).map((c: { store_id: string }) => c.store_id).filter(Boolean)
