@@ -55,13 +55,7 @@ export async function GET(req: Request) {
   const storeMap = Object.fromEntries(
     (storeRows ?? []).map((s: { id: string; name: string; is_open: boolean; business_type: string }) => [s.id, s])
   )
-return NextResponse.json({
-  uniformStoreIds,
-  takeoutStoreIds,
-  allIds,
-  storeRows,
-  storeMap,
-})
+
   // 制服店を先に、次にテイクアウト店（それぞれ最近利用順）
   const uniformStores = uniformStoreIds
     .map(id => storeMap[id]).filter(Boolean)
