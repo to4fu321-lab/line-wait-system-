@@ -3,9 +3,14 @@ import { NextRequest, NextResponse } from 'next/server'
 export function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
 
-  // ── 最終防衛線: 本店IDへのアクセスを強制遮断 ──
-  if (url.pathname.includes('00000000-0000-0000-0000-000000000010')) {
-    return NextResponse.redirect(new URL('/line-home', request.url), 301)
+  // ── ループ防止付きの最終防衛線 ──
+  // 本店IDを含み、かつ現在地がすでに line-home でない場合のみリダイレクトする
+  if (
+    url.pathname.includes('00000000-0000-0000-0000-000000000010') &&
+    !url.pathname.startsWith('/line-home')
+  ) {
+    // 301 はブラウザが永続キャッシュするので一時的リダイレクトの 307 を推奨
+    return NextResponse.redirect(new URL('/line-home', request.url), 307)
   }
 
   const ua = request.headers.get('user-agent') || ''
