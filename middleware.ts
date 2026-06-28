@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export function middleware(request: NextRequest) {
+  const url = request.nextUrl.clone();
+
+  // ── 最終防衛線: 本店IDへのアクセスを強制遮断 ──
+  if (url.pathname.includes('00000000-0000-0000-0000-000000000010')) {
+    return NextResponse.redirect(new URL('/line-home', request.url), 301)
+  }
+
   const ua = request.headers.get('user-agent') || ''
   const isLine = /Line\//i.test(ua)
   const path = request.nextUrl.pathname
