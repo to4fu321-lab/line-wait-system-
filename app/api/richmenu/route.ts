@@ -14,7 +14,7 @@ function getConfig() {
   return { liffId, token, liffBase, authHeader: { Authorization: `Bearer ${token}` } }
 }
 
-// ── 制服店用リッチメニュー画像（4パネル横型）────────────────
+// ── ユニバーサルリッチメニュー画像（4パネル・全業種共通）────────
 async function makeMenuPng(): Promise<Buffer> {
   let fontData: ArrayBuffer | null = null
   try {
@@ -124,8 +124,6 @@ export async function GET(req: NextRequest) {
   // ?debug=1 → 現在のリッチメニュー一覧と設定値を返す（更新しない）
   if (searchParams.get('debug') === '1') {
     const { liffBase, token, authHeader } = getConfig()
-    // 注意: 必ず /line-home パスを付ける。これにより liff.state が "/line-home..." になり、
-    // LIFFエンドポイントURLの設定値に関わらず middleware がハブへ確実に吸い込める。
     const base = `${liffBase}/line-home`
     const previewUrls = {
       order:   `${base}?action=order`,
@@ -135,6 +133,7 @@ export async function GET(req: NextRequest) {
     }
     const listRes = await fetch(`${LINE_API}/richmenu/list`, { headers: authHeader })
     const currentMenus = listRes.ok ? await listRes.json() : { error: await listRes.text() }
+    // LIFF アプリ設定（エンドポイントURL確認用）
     const liffRes = await fetch('https://api.line.me/liff/v1/apps', { headers: authHeader })
     const liffApps = liffRes.ok ? await liffRes.json() : { error: await liffRes.text() }
     return NextResponse.json({
@@ -177,39 +176,21 @@ export async function POST(req: NextRequest) {
       ))
     }
 
-    // 注意: 必ず /line-home パスを付ける（liff.state を "/line-home..." にして
-    // middleware がハブへ確実にリダイレクトできるようにするため）。
+    // 2. 全業種共通 4パネル（すべて line-home 経由でルーティング）
     const base = `${liffBase}/line-home`
+    const areas = [
+      { bounds: { x:    0, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=order`,   label: 'テイクアウト注文' } },
+      { bounds: { x:  625, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=queue`,   label: '採寸・受付' } },
+      { bounds: { x: 1250, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=reserve`, label: '来店予約' } },
+      { bounds: { x: 1875, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=repair`,  label: 'お直し依頼' } },
+    ]
+    const png = await makeMenuPng()
 
-    let png: Buffer
-    let menuSize: { width: number; height: number }
-    let areas: object[]
-
-    if (storeType === 'takeout') {
-      // テイクアウト店：2パネル横型（2500×843）
-      png = await makeMenuPngTakeout(name)
-      menuSize = { width: 2500, height: 843 }
-      areas = [
-        { bounds: { x:    0, y: 0, width: 1250, height: 843 }, action: { type: 'uri', uri: `${base}?action=order`, label: '注文する' } },
-        { bounds: { x: 1250, y: 0, width: 1250, height: 843 }, action: { type: 'uri', uri: `${base}?action=queue`, label: '注文状況を確認' } },
-      ]
-    } else {
-      // 制服店：4パネル横型（2500×843）
-      png = await makeMenuPng()
-      menuSize = { width: 2500, height: 843 }
-      areas = [
-        { bounds: { x:    0, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=order`,   label: 'テイクアウト注文' } },
-        { bounds: { x:  625, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=queue`,   label: '採寸・受付' } },
-        { bounds: { x: 1250, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=reserve`, label: '来店予約' } },
-        { bounds: { x: 1875, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=repair`,  label: 'お直し依頼' } },
-      ]
-    }
-
-    // 2. 新規メニュー作成
+    // 3. 新規メニュー作成
     const createRes = await fetch(`${LINE_API}/richmenu`, {
       method: 'POST',
       headers: { ...authHeader, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ size: menuSize, selected: true, name, chatBarText: 'メニュー', areas }),
+      body: JSON.stringify({ size: { width: 2500, height: 843 }, selected: true, name, chatBarText: 'メニュー', areas }),
     })
     if (!createRes.ok) {
       const err = await createRes.text()
@@ -217,7 +198,7 @@ export async function POST(req: NextRequest) {
     }
     const { richMenuId } = await createRes.json()
 
-    // 3. 画像アップロード
+    // 4. 画像アップロード
     const imgRes = await fetch(`https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`, {
       method: 'POST',
       headers: { ...authHeader, 'Content-Type': 'image/png' },
@@ -225,7 +206,7 @@ export async function POST(req: NextRequest) {
     })
     if (!imgRes.ok) console.warn('[richmenu] image upload:', await imgRes.text())
 
-    // 4. 全ユーザーに適用
+    // 5. 全ユーザーに適用
     await fetch(`${LINE_API}/user/all/richmenu/${richMenuId}`, {
       method: 'POST', headers: authHeader,
     })

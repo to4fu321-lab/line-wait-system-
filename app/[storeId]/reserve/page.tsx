@@ -250,7 +250,7 @@ export default function ReservePage() {
       try {
         const liffModule = await import('@line/liff')
         const liff = liffModule.default
-        const liffId = process.env.NEXT_PUBLIC_LIFF_ID_UNIFORM || process.env.NEXT_PUBLIC_LIFF_ID || ''
+        const liffId = process.env.NEXT_PUBLIC_LIFF_ID ?? ''
         if (liffId) {
           await liff.init({ liffId })
           if (!liff.isLoggedIn()) { liff.login(); return }

@@ -67,7 +67,7 @@ function ResponseMethodActions({
   const [savingTel, setSavingTel] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
-  const liffId = process.env.NEXT_PUBLIC_LIFF_ID_UNIFORM || process.env.NEXT_PUBLIC_LIFF_ID || ''
+  const liffId = process.env.NEXT_PUBLIC_LIFF_ID || ''
   const linkQrUrl = customerId
     ? `https://liff.line.me/${liffId}/${storeId}/link-line?cid=${customerId}`
     : ''

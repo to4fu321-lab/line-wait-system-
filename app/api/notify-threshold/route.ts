@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import { pushCard, ogTicketUrl, resolveOrigin } from '@/lib/line-flex'
 
-const LIFF_URL = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID_UNIFORM || process.env.NEXT_PUBLIC_LIFF_ID || ''}`
+const LIFF_URL = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || ''}`
 
 // POST { storeId, excludeId }
 // 完了/不在 になったチケットを除外した (waiting + calling) のうち

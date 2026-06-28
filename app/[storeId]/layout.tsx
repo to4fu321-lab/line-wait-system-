@@ -1,12 +1,8 @@
 import type { Metadata } from 'next'
 import { cache } from 'react'
-import { headers } from 'next/headers'
-import { notFound } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import { getStoreTheme, getColorPreset, themeCssVars } from '@/config/themes'
 import { ThemeProvider } from '@/lib/theme-context'
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export const dynamic = 'force-dynamic'
 
@@ -22,20 +18,18 @@ const fetchStoreData = cache(async (storeId: string) => {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
       { global: { fetch: (input, init) => fetch(input as RequestInfo, { ...init, cache: 'no-store' }) } }
     )
-    const { data, error } = await supabase.from('stores').select('name').eq('id', storeId).single()
-    console.log("[layout/fetch] storeId:", storeId, "/ error:", error?.message ?? null, "/ stores.name:", data?.name)
+    const { data, error } = await supabase.from('stores').select('name, theme_color').eq('id', storeId).single()
     if (!error && data) {
-      return { name: data.name ?? null, themeColor: null }
+      return { name: data.name ?? null, themeColor: (data as any).theme_color ?? null }
     }
-    return { name: null, themeColor: null }
-  } catch (e) {
-    console.log("[layout/fetch] CATCH storeId:", storeId, "/ error:", String(e))
+    const { data: fallback } = await supabase.from('stores').select('name').eq('id', storeId).single()
+    return { name: fallback?.name ?? null, themeColor: null }
+  } catch {
     return { name: null, themeColor: null }
   }
 })
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  if (!UUID_RE.test(params.storeId)) return {}
   const { name } = await fetchStoreData(params.storeId)
   const base = getStoreTheme(params.storeId)
   const storeName = name || base.storeName
@@ -46,8 +40,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function StoreLayout({ children, params }: Props) {
-  if (!UUID_RE.test(params.storeId)) notFound()
-
   const { name, themeColor } = await fetchStoreData(params.storeId)
   const base = getStoreTheme(params.storeId)
   const resolvedTheme = {
@@ -55,10 +47,6 @@ export default async function StoreLayout({ children, params }: Props) {
     ...(name        ? { storeName: name }                  : {}),
     ...(themeColor  ? { colors: getColorPreset(themeColor) ?? base.colors } : {}),
   }
-
-  const reqHeaders = headers()
-  const requestUrl = reqHeaders.get('x-invoke-path') ?? reqHeaders.get('referer') ?? `/${params.storeId}`
-  console.log("[layout] params.storeId:", params.storeId, "/ stores.name(DB):", name, "/ theme.storeName:", resolvedTheme.storeName, "/ requestURL:", requestUrl)
 
   return (
     <ThemeProvider theme={resolvedTheme}>
