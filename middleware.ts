@@ -31,7 +31,7 @@ export function middleware(request: NextRequest) {
   // ── /line-home に余分なパスが付いた場合は正規化（自己修復）──────────
   // LIFFエンドポイントURLを /line-home に設定し、かつ liff.state も /line-home の場合、
   // LIFF SDK が "/line-home/line-home" のような二重パスを生成して 404 になる。
-  // /line-home 配下の余分なセグメントは /line-home に畳み込む。
+  // /line-home 配下の余分なセグメントは /line-home ���畳み込む。
   if (path.startsWith('/line-home/')) {
     const target = new URL('/line-home', request.url)
     request.nextUrl.searchParams.forEach((v, k) => target.searchParams.set(k, v))
