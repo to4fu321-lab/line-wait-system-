@@ -946,7 +946,7 @@ export default function CustomerPage() {
       if (action === 'queue') {
         setView('confirm_queue'); return
       }
-      if (isSimple && !cust) { setView('register'); return }
+      if (!cust) { setView('register'); return }
       setView('purpose')
     } catch (e) {
       console.error('[init] error:', e)
@@ -1044,7 +1044,7 @@ export default function CustomerPage() {
         .eq('store_id', storeId).in('status', ['waiting', 'calling'])
         .gte('created_at', getTodayStart())
       setWaitingCount(count ?? 0)
-      if (isSimpleMode && !customer) { setView('register'); return }
+      if (!customer) { setView('register'); return }
       setView('purpose')
     } catch (e) {
       console.error('[friendProceed]', e)
@@ -1066,7 +1066,7 @@ export default function CustomerPage() {
       const { data: existingRows } = await (supabase as any).from('customers')
         .select('*').eq('store_id', storeId).eq('line_user_id', userId)
         .order('created_at', { ascending: false }).limit(1)
-      const existing = existingRows?.[0] && !existingRows[0].deleted_at ? existingRows[0] : null
+      const existing = existingRows?.[0] ? existingRows[0] : null
       let cust
       if (existing) {
         const { data: updated } = await ((supabase as any).from('customers') as any)
@@ -1115,7 +1115,7 @@ export default function CustomerPage() {
       const { data: existingRows } = await (supabase as any).from('customers')
         .select('*').eq('store_id', storeId).eq('line_user_id', userId)
         .order('created_at', { ascending: false }).limit(1)
-      const existing = existingRows?.[0] && !existingRows[0].deleted_at ? existingRows[0] : null
+      const existing = existingRows?.[0] ? existingRows[0] : null
 
       let cust
       if (existing) {
