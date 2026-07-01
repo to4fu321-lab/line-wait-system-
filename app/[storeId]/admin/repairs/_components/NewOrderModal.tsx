@@ -11,6 +11,7 @@ import { compressImage } from './utils'
 import type { CustResult, CartItem } from './types'
 import { CustomerLinkSheet } from './CustomerLinkSheet'
 import { RecentCustomers, type RecentCust } from '../../_components/RecentCustomers'
+import { getLiffId } from '@/lib/line-config'
 
 export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   storeId: string; onClose: () => void; onSave: () => void
@@ -421,7 +422,7 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
                         <p className="text-xs font-black text-teal-800">またはLINEで登録（QRを読み取ってもらう）</p>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=${encodeURIComponent(`https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || ''}/${storeId}`)}`}
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=${encodeURIComponent(`https://liff.line.me/${getLiffId('uniform')}/${storeId}`)}`}
                           alt="受付QR" width={200} height={200}
                           className="mx-auto rounded-xl bg-white p-1 shadow-sm"
                         />

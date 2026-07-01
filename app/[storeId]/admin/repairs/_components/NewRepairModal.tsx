@@ -24,6 +24,7 @@ import type { CustResult } from './types'
 import { CustomerLinkSheet } from './CustomerLinkSheet'
 import { RecentCustomers, type RecentCust } from '../../_components/RecentCustomers'
 import { OcrCaptureButton, type OcrResult } from '../../_components/OcrCaptureButton'
+import { getLiffId } from '@/lib/line-config'
 
 // item.code → 既存 repair_type 列へのマッピング（互換表示用）
 const REPAIR_TYPE_CODES: RepairType[] = ['hem', 'sleeve', 'waist', 'embroidery', 'button', 'tear', 'badge', 'size_exchange', 'other']
@@ -568,7 +569,7 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                         <p className="text-xs font-black text-indigo-800">またはLINEで登録（QRを読み取ってもらう）</p>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=${encodeURIComponent(`https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || ''}/${storeId}`)}`}
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=${encodeURIComponent(`https://liff.line.me/${getLiffId('uniform')}/${storeId}`)}`}
                           alt="受付QR" width={180} height={180}
                           className="mx-auto rounded-xl bg-white p-1 shadow-sm"
                         />

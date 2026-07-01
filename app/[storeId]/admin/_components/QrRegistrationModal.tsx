@@ -1,6 +1,7 @@
 'use client'
 
 import { X } from 'lucide-react'
+import { getLiffId } from '@/lib/line-config'
 
 interface Props {
   storeId: string
@@ -9,7 +10,7 @@ interface Props {
 }
 
 export function QrRegistrationModal({ storeId, onClose, onSwitchStore }: Props) {
-  const liffId = process.env.NEXT_PUBLIC_LIFF_ID || ''
+  const liffId = getLiffId('uniform')
   const url    = `https://liff.line.me/${liffId}/${storeId}`
   const qrSrc  = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(url)}`
 

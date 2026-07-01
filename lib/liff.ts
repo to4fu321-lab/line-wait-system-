@@ -1,6 +1,7 @@
 'use client'
 
 import type { Liff } from '@line/liff'
+import { getLiffId, type BizType } from './line-config'
 
 let liffInstance: Liff | null = null
 let initPromise: Promise<Liff | null> | null = null
@@ -13,8 +14,13 @@ export interface LiffProfile {
 
 /**
  * LIFFを初期化する（多重初期化防止・リダイレクトループ防止つき）
+ *
+ * biz を明示しないと 'uniform' のIDで初期化される。/line-home や
+ * richmenu 生成側と異なるLIFF IDになると、同じLINEユーザーでも
+ * userId が一致せず「登録したのに見つからない/別店舗に飛ぶ」原因になるため、
+ * 呼び出し元の業態に合わせて必ず biz を渡すこと。
  */
-export async function initLiff(): Promise<Liff | null> {
+export async function initLiff(biz: BizType = 'uniform'): Promise<Liff | null> {
   if (typeof window === 'undefined') return null
   if (liffInstance) return liffInstance
   if (initPromise) return initPromise
@@ -34,7 +40,7 @@ export async function initLiff(): Promise<Liff | null> {
     localStorage.setItem('liff_init_ts', String(now))
   }
 
-  const liffId = process.env.NEXT_PUBLIC_LIFF_ID || ''
+  const liffId = getLiffId(biz)
 
   initPromise = (async () => {
     try {

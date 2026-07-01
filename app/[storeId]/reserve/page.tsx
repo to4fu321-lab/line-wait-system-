@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { resolveFeature } from '@/lib/features'
+import { getLiffId } from '@/lib/line-config'
 import {
   CalendarDays, Clock, User, FileText, Check,
   Loader2, ChevronLeft, ChevronRight, GraduationCap, Plus, X, ShoppingBag,
@@ -250,7 +251,7 @@ export default function ReservePage() {
       try {
         const liffModule = await import('@line/liff')
         const liff = liffModule.default
-        const liffId = process.env.NEXT_PUBLIC_LIFF_ID ?? ''
+        const liffId = getLiffId('uniform')
         if (liffId) {
           await liff.init({ liffId })
           if (!liff.isLoggedIn()) { liff.login(); return }

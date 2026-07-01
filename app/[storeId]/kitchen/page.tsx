@@ -13,12 +13,13 @@ import BatchView           from './_components/BatchView'
 import ItemCookView        from './_components/ItemCookView'
 import StarBurst           from './_components/StarBurst'
 import CustomerSearchModal from './_components/CustomerSearchModal'
+import { getLiffId } from '@/lib/line-config'
 
 // ── QRコードモーダル ──────────────────────────────────────────
 function QRModal({ storeId, storeName, onClose }: { storeId: string; storeName: string; onClose: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [copied, setCopied] = useState(false)
-  const liffId  = process.env.NEXT_PUBLIC_LIFF_ID || ''
+  const liffId  = getLiffId('takeout')
   const orderUrl = liffId
     ? `https://liff.line.me/${liffId}/${storeId}/order`
     : `${typeof window !== 'undefined' ? window.location.origin : ''}/${storeId}/order`

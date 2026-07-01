@@ -3,8 +3,9 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import { pushCard, ogTicketUrl, resolveOrigin } from '@/lib/line-flex'
+import { getLiffBaseUrl, getLineToken } from '@/lib/line-config'
 
-const LIFF_URL = `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID || ''}`
+const LIFF_URL = getLiffBaseUrl('uniform')
 
 // POST { storeId, excludeId }
 // 完了/不在 になったチケットを除外した (waiting + calling) のうち
@@ -95,7 +96,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, skipped: true, reason: `No.${nextTicket.ticket_number} LINE未連携` })
   }
 
-  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN || ''
+  const token = getLineToken('uniform')
   const paddedNum  = String(nextTicket.ticket_number).padStart(3, '0')
   const origin = resolveOrigin(req.url)
   const progressUrl = `${LIFF_URL}/${storeId}/progress?queue=${nextTicket.id}`

@@ -7,6 +7,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { RecentCustomers, type RecentCust } from './RecentCustomers'
 import { compressImage } from '@/lib/adminUtils'
+import { getLiffId } from '@/lib/line-config'
 import {
   INQ_TYPE_LABELS as TYPE_LABELS,
   INQ_STATUS_LABELS as STATUS_LABELS,
@@ -67,7 +68,7 @@ function ResponseMethodActions({
   const [savingTel, setSavingTel] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
-  const liffId = process.env.NEXT_PUBLIC_LIFF_ID || ''
+  const liffId = getLiffId('uniform')
   const linkQrUrl = customerId
     ? `https://liff.line.me/${liffId}/${storeId}/link-line?cid=${customerId}`
     : ''
