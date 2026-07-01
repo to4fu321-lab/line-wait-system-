@@ -109,10 +109,12 @@ if (!toParam) {
         const res = await fetch(`/api/line-store-lookup?userId=${encodeURIComponent(profile.userId)}&t=${Date.now()}`)
         const { stores: found } = await res.json()
 
+        // toParam から今回スキャンした storeId を抽出（先頭セグメントのみ）
+        const toStoreId = toParam ? toParam.replace(/^\//, '').split('/')[0] : null
+
         if (!found || found.length === 0) {
-  if (toParam) {
-    const storeId = toParam.replace(/^\//, '')
-    window.location.replace(`/${storeId}/crm-register`)
+  if (toStoreId) {
+    window.location.replace(`/${toStoreId}/crm-register`)
     return
   }
 
@@ -125,6 +127,18 @@ if (!toParam) {
           setDebugInfo(`userId: ${profile.userId} / 登録店舗: ${found.map((s: StoreInfo) => s.name).join(', ')}`)
           setStores(found)
           setStatus('select')
+          return
+        }
+
+        // QRスキャン経由（toStoreIdあり）の場合は、他店舗の登録状況に関係なく
+        // 今回スキャンした店舗を最優先で判定する
+        if (toStoreId) {
+          const matched = found.find((s: StoreInfo) => s.id === toStoreId)
+          if (matched) {
+            window.location.href = buildStoreUrl(matched.id, matched.type, urlAction)
+          } else {
+            window.location.replace(`/${toStoreId}/crm-register`)
+          }
           return
         }
 
