@@ -198,11 +198,6 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
     // SMSアドオン未契約(smsEnabled=false)で電話のみの顧客は「電話連絡」運用
     const notifyMode: 'line' | 'sms' | 'phone_manual' | 'none' =
       hasLine ? 'line' : hasTel ? (smsEnabled ? 'sms' : 'phone_manual') : 'none'
-    const completeBtnLabel =
-      notifyMode === 'line'         ? '✅ お直し完了・LINE通知する' :
-      notifyMode === 'sms'          ? '✅ お直し完了・SMS通知する' :
-      notifyMode === 'phone_manual' ? '✅ お直し完了（電話連絡）' :
-                                      '✅ お直し完了'
     const confirmText =
       notifyMode === 'line' ? 'LINEで通知して完了にしますか？' :
       notifyMode === 'sms'  ? 'SMSで通知して完了にしますか？' :
@@ -345,44 +340,40 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             <span className="text-[10px] font-black text-indigo-400 font-mono shrink-0">{reqNo}</span>
           </div>
 
-          {/* 顧客名 + 学校 + 受付日（1行にまとめる） */}
-          <div className="flex items-baseline justify-between gap-2 flex-wrap">
-            <div className="flex items-baseline gap-2 flex-wrap min-w-0">
-              <p className="text-lg font-black text-gray-900 leading-tight">{name}</p>
-              {item.child?.school_name && (
-                <span className="text-xs font-black text-amber-600">{item.child.school_name}</span>
-              )}
-              {item.child?.name && item.customer?.name && (
-                <span className="text-[11px] text-gray-400">保護者: {item.customer.name}</span>
-              )}
-            </div>
-            <span className="text-[11px] text-gray-400 shrink-0">受付 {fmtDate(item.received_date)}</span>
-          </div>
-
-          {/* アイテム名・お直し内容・お直し項目（大きく表示） */}
-          <div className="space-y-0.5">
-            {item.item_name && item.content && item.item_name !== item.content && (
-              <p className="text-sm text-gray-500 font-bold leading-tight">{item.item_name}</p>
+          {/* 顧客名 ｜ お直し内容（1行にまとめる） */}
+          <div className="flex items-baseline gap-x-2 gap-y-0.5 flex-wrap">
+            {item.child?.school_name && (
+              <span className="text-xs font-black text-amber-600">{item.child.school_name}</span>
             )}
-            <p className="text-base font-black text-gray-900 leading-snug">
+            <span className="text-lg font-black text-gray-900 leading-tight">{name}</span>
+            <span className="text-gray-300 font-black">｜</span>
+            <span className="text-base font-black text-gray-900 leading-tight">
               {item.content || item.item_name || '内容未記入'}
-            </p>
-            {item.repair_type === 'hem' && item.hem_length_mm != null && item.hem_length_mm !== 0 && (
-              <p className="text-sm font-black text-amber-700">裾上げ {item.hem_length_mm > 0 ? '+' : ''}{item.hem_length_mm}mm</p>
+            </span>
+            {item.item_name && item.content && item.item_name !== item.content && (
+              <span className="text-xs text-gray-400 font-bold">{item.item_name}</span>
             )}
-            {item.repair_type === 'sleeve' && item.sleeve_adjust_mm != null && item.sleeve_adjust_mm !== 0 && (
-              <p className="text-sm font-black text-blue-700">袖丈 {item.sleeve_adjust_mm > 0 ? '+' : ''}{item.sleeve_adjust_mm}mm</p>
-            )}
-            {item.repair_type === 'waist' && item.waist_adjust_mm != null && item.waist_adjust_mm !== 0 && (
-              <p className="text-sm font-black text-purple-700">ウエスト {item.waist_adjust_mm > 0 ? '+' : ''}{item.waist_adjust_mm}mm</p>
-            )}
-            {item.repair_type === 'embroidery' && item.embroidery_text && (
-              <p className="text-sm font-black text-pink-700">刺繍「{item.embroidery_text}」{item.embroidery_color} {item.embroidery_pos}</p>
+            {item.child?.name && item.customer?.name && (
+              <span className="text-[11px] text-gray-400">（保護者: {item.customer.name}）</span>
             )}
           </div>
 
-          {/* 支払い状況 + 希望日（大きく・1行） */}
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* お直し項目（mm・刺繍） */}
+          {item.repair_type === 'hem' && item.hem_length_mm != null && item.hem_length_mm !== 0 && (
+            <p className="text-sm font-black text-amber-700">裾上げ {item.hem_length_mm > 0 ? '+' : ''}{item.hem_length_mm}mm</p>
+          )}
+          {item.repair_type === 'sleeve' && item.sleeve_adjust_mm != null && item.sleeve_adjust_mm !== 0 && (
+            <p className="text-sm font-black text-blue-700">袖丈 {item.sleeve_adjust_mm > 0 ? '+' : ''}{item.sleeve_adjust_mm}mm</p>
+          )}
+          {item.repair_type === 'waist' && item.waist_adjust_mm != null && item.waist_adjust_mm !== 0 && (
+            <p className="text-sm font-black text-purple-700">ウエスト {item.waist_adjust_mm > 0 ? '+' : ''}{item.waist_adjust_mm}mm</p>
+          )}
+          {item.repair_type === 'embroidery' && item.embroidery_text && (
+            <p className="text-sm font-black text-pink-700">刺繍「{item.embroidery_text}」{item.embroidery_color} {item.embroidery_pos}</p>
+          )}
+
+          {/* 支払い状況 ＋ 受付→希望（横並び・入りきらなければ折返し） */}
+          <div className="flex items-center gap-x-3 gap-y-1 flex-wrap">
             {item.price != null && (
               <button onClick={handlePaymentToggle} disabled={loading}
                 style={{ touchAction: 'manipulation' }}
@@ -400,14 +391,21 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                 </span>
               </button>
             )}
-            {item.desired_completion_date && (
-              <span className={`text-base font-black ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-gray-600'}`}>
-                {isOverdue ? '🚨' : isDueSoon ? '⚠️' : ''}希望 {new Date(item.desired_completion_date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}
-              </span>
-            )}
+            <span className="flex items-center gap-2 text-sm">
+              <span className="font-bold text-gray-400">受付 {fmtDate(item.received_date)}</span>
+              {item.desired_completion_date && (
+                <>
+                  <span className="text-gray-300 font-black">→</span>
+                  <span className={`font-black ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-gray-700'}`}>
+                    {isOverdue ? '🚨' : isDueSoon ? '⚠️' : '📅'} 希望 {fmtDate(item.desired_completion_date)}
+                  </span>
+                </>
+              )}
+            </span>
           </div>
 
-          {/* メインアクション（完了） */}
+          {/* アクション: 完了 ＋ 外注（詰めた横並び。確認中は全幅パネル） */}
+          <div className="border-t border-gray-100 pt-2">
           {confirmPrimary ? (
             notifyMode === 'phone_manual' ? (
               /* SMS未契約: 電話連絡をうながす2ステップ */
@@ -454,82 +452,76 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
               </div>
             </div>
             )
-          ) : (
-            <button onClick={() => setConfirmPrimary(true)} disabled={loading}
-              style={{ touchAction: 'manipulation' }}
-              className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-black text-base rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 transition-all disabled:opacity-50">
-              {loading ? <Loader2 size={18} className="animate-spin" /> : '✅'}
-              {completeBtnLabel}
-            </button>
-          )}
-
-          {/* 外注ボタン */}
-          {!item.sent_to_vendor_at && (
-            confirmVendor ? (
-              <div className="rounded-xl border-2 border-orange-300 bg-orange-50 px-3 py-2.5 space-y-2.5">
-                <p className="text-sm font-black text-orange-800 text-center">📤 外注に出す</p>
-                {/* 業者マスタ選択 */}
-                {vendors.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    <button type="button" onClick={() => { setVendorName(''); setVendorId(null) }}
-                      className={`px-2.5 py-1 rounded-full text-xs font-bold border-2 transition-all ${vendorName === '' ? 'bg-gray-700 text-white border-gray-700' : 'bg-white border-gray-200 text-gray-600'}`}>
-                      未定
+          ) : confirmVendor ? (
+            <div className="rounded-xl border-2 border-orange-300 bg-orange-50 px-3 py-2.5 space-y-2.5">
+              <p className="text-sm font-black text-orange-800 text-center">📤 外注に出す</p>
+              {/* 業者マスタ選択 */}
+              {vendors.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  <button type="button" onClick={() => { setVendorName(''); setVendorId(null) }}
+                    className={`px-2.5 py-1 rounded-full text-xs font-bold border-2 transition-all ${vendorName === '' ? 'bg-gray-700 text-white border-gray-700' : 'bg-white border-gray-200 text-gray-600'}`}>
+                    未定
+                  </button>
+                  {vendors.map(v => (
+                    <button type="button" key={v.id} onClick={() => { setVendorName(v.name); setVendorId(v.id) }}
+                      className={`px-2.5 py-1 rounded-full text-xs font-bold border-2 transition-all ${vendorId === v.id ? 'bg-amber-500 text-white border-amber-500' : 'bg-white border-gray-200 text-gray-700'}`}>
+                      {v.name}
                     </button>
-                    {vendors.map(v => (
-                      <button type="button" key={v.id} onClick={() => { setVendorName(v.name); setVendorId(v.id) }}
-                        className={`px-2.5 py-1 rounded-full text-xs font-bold border-2 transition-all ${vendorId === v.id ? 'bg-amber-500 text-white border-amber-500' : 'bg-white border-gray-200 text-gray-700'}`}>
-                        {v.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {/* 直接入力（マスタ外の業者） */}
-                <input
-                  value={vendorName}
-                  onChange={e => { setVendorName(e.target.value); setVendorId(null) }}
-                  placeholder={vendors.length > 0 ? 'または業者名を直接入力' : '業者・仕立て屋名（任意）'}
-                  className="w-full px-3 py-2 rounded-xl border border-orange-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
-                  style={{ touchAction: 'manipulation' }}
-                />
-                {/* 戻り予定日 */}
-                <div>
-                  <label className="text-[10px] font-bold text-orange-700 block mb-1">戻り予定日（任意）</label>
-                  <input type="date" value={expectedReturn} onChange={e => setExpectedReturn(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-orange-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
-                    style={{ touchAction: 'manipulation' }} />
+                  ))}
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => { setConfirmVendor(false); setVendorName(''); setVendorId(null); setExpectedReturn('') }}
-                    style={{ touchAction: 'manipulation' }}
-                    className="flex-1 py-2 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-black active:scale-95 transition-all">
-                    戻る
-                  </button>
-                  <button onClick={handleSendToVendor} disabled={loading}
-                    style={{ touchAction: 'manipulation' }}
-                    className="flex-1 py-2 rounded-xl bg-orange-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50">
-                    {loading ? <Loader2 size={16} className="animate-spin" /> : '📤'}
-                    外注に出す
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button onClick={() => setConfirmVendor(true)} disabled={loading}
+              )}
+              {/* 直接入力（マスタ外の業者） */}
+              <input
+                value={vendorName}
+                onChange={e => { setVendorName(e.target.value); setVendorId(null) }}
+                placeholder={vendors.length > 0 ? 'または業者名を直接入力' : '業者・仕立て屋名（任意）'}
+                className="w-full px-3 py-2 rounded-xl border border-orange-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
                 style={{ touchAction: 'manipulation' }}
-                className="w-full py-2 border border-orange-200 bg-orange-50 text-orange-700 font-black text-sm rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all">
-                📤 外注に出す
+              />
+              {/* 戻り予定日 */}
+              <div>
+                <label className="text-[10px] font-bold text-orange-700 block mb-1">戻り予定日（任意）</label>
+                <input type="date" value={expectedReturn} onChange={e => setExpectedReturn(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-orange-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
+                  style={{ touchAction: 'manipulation' }} />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => { setConfirmVendor(false); setVendorName(''); setVendorId(null); setExpectedReturn('') }}
+                  style={{ touchAction: 'manipulation' }}
+                  className="flex-1 py-2 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-black active:scale-95 transition-all">
+                  戻る
+                </button>
+                <button onClick={handleSendToVendor} disabled={loading}
+                  style={{ touchAction: 'manipulation' }}
+                  className="flex-1 py-2 rounded-xl bg-orange-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50">
+                  {loading ? <Loader2 size={16} className="animate-spin" /> : '📤'}
+                  外注に出す
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmPrimary(true)} disabled={loading}
+                style={{ touchAction: 'manipulation' }}
+                className="flex-[2] py-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-black text-base rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20 transition-all disabled:opacity-50">
+                {loading ? <Loader2 size={18} className="animate-spin" /> : '✅'} 完了
               </button>
-            )
+              {!item.sent_to_vendor_at ? (
+                <button onClick={() => setConfirmVendor(true)} disabled={loading}
+                  style={{ touchAction: 'manipulation' }}
+                  className="flex-1 py-3.5 border-2 border-orange-200 bg-orange-50 text-orange-700 font-black text-base rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-50">
+                  📤 外注
+                </button>
+              ) : !item.work_started ? (
+                <button onClick={handleReturnFromVendor} disabled={loading}
+                  style={{ touchAction: 'manipulation' }}
+                  className="flex-1 py-3.5 border-2 border-teal-200 bg-teal-50 text-teal-700 font-black text-base rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-50">
+                  {loading ? <Loader2 size={18} className="animate-spin" /> : '📥'} 戻り
+                </button>
+              ) : null}
+            </div>
           )}
-
-          {/* 外注中の場合: 戻りボタン */}
-          {item.sent_to_vendor_at && !item.work_started && (
-            <button onClick={handleReturnFromVendor} disabled={loading}
-              style={{ touchAction: 'manipulation' }}
-              className="w-full py-2 border border-teal-200 bg-teal-50 text-teal-700 font-black text-sm rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-50">
-              {loading ? <Loader2 size={16} className="animate-spin" /> : '📥'}
-              外注品が戻った → 作業へ
-            </button>
-          )}
+          </div>
 
           {/* 詳細トグル: 電話・写真・受付に戻す・削除（タップで展開） */}
           <button onClick={() => setPhotosOpen(v => !v)}
