@@ -786,7 +786,6 @@ export default function CustomerPage() {
   const [repairLoading,  setRepairLoading]  = useState(false)
   const [friendChecking, setFriendChecking] = useState(false)
   const [urlAction,      setUrlAction]      = useState<'queue' | 'repair' | 'purchase' | null>(null)
-  const [pendingAction,  setPendingAction]  = useState<'queue' | null>(null)
   const [cancelModal,    setCancelModal]    = useState(false)
   const [cancelLoading,  setCancelLoading]  = useState(false)
   const [registerError,    setRegisterError]    = useState('')
@@ -801,6 +800,10 @@ export default function CustomerPage() {
   const [arrivalModal, setArrivalModal] = useState(false)
   const [isSimpleMode, setIsSimpleMode] = useState(false)
   const [selfOrderEnabled, setSelfOrderEnabled] = useState(true)
+  // 店舗の機能フラグ（顧客向けメニュー・action遷移のゲートに使う）
+  const [reserveEnabled,  setReserveEnabled]  = useState(true)
+  const [repairEnabled,   setRepairEnabled]   = useState(true)
+  const [purchaseEnabled, setPurchaseEnabled] = useState(true)
 
   const allowRemoteRef = useRef(false)
   const pendingHeightWeightRef = useRef<{ height: string; weight: string } | null>(null)
@@ -824,6 +827,14 @@ export default function CustomerPage() {
       const isSimple = !resolveFeature('tab_queue', featuresData)
       if (sd?.features) setIsSimpleMode(isSimple)
       setSelfOrderEnabled(resolveFeature('customer_self_order', featuresData))
+      // 顧客向け機能の可否（プラン/個別フラグ）。OFFの機能には action でも遷移させない
+      const canQueue    = !isSimple
+      const canReserve  = resolveFeature('reservation', featuresData)
+      const canRepair   = resolveFeature('repairs',     featuresData)
+      const canPurchase = resolveFeature('products',    featuresData)
+      setReserveEnabled(canReserve)
+      setRepairEnabled(canRepair)
+      setPurchaseEnabled(canPurchase)
       if (sd && Array.isArray(sd.wait_thresholds) && sd.wait_thresholds.length > 0)
         setWaitThresholds(sd.wait_thresholds as WaitThreshold[])
       if (sd?.notification_plan) notificationPlanRef.current = sd.notification_plan
@@ -878,8 +889,14 @@ export default function CustomerPage() {
       }
 
       // URLアクションパラメータを先に読み取る（profileチェックより前に必要）
+      // 店舗が対応していない機能への action は無視して通常フローに落とす
       const urlParams = new URLSearchParams(window.location.search)
-      const action = urlParams.get('action') as 'queue' | 'repair' | 'purchase' | null
+      const rawAction = urlParams.get('action') as 'queue' | 'repair' | 'purchase' | null
+      const action =
+        rawAction === 'queue'    ? (canQueue    ? rawAction : null)
+      : rawAction === 'repair'   ? (canRepair   ? rawAction : null)
+      : rawAction === 'purchase' ? (canPurchase ? rawAction : null)
+      : rawAction
       if (action) setUrlAction(action)
 
       // LINEアプリ外または未ログインは友達追加画面へ
@@ -1150,19 +1167,6 @@ export default function CustomerPage() {
       const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
       if (sd?.is_open === false && !isSimpleMode) { setView('closed'); return }
 
-      // 順番待ち登録から来た場合は待ち人数確認画面へ（身長体重は発券時に付与）
-      if (pendingAction === 'queue') {
-        if (d.heightCm) pendingHeightWeightRef.current = { height: d.heightCm, weight: d.weightKg }
-        setPendingAction(null)
-        const { count: qCount } = await (supabase as any).from('queues')
-          .select('*', { count: 'exact', head: true })
-          .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
-        setWaitingCount(qCount ?? 0)
-        setSubmitting(false)
-        setView('confirm_queue')
-        return
-      }
-
       // 既に待ち画面にいる場合（待ちながら登録）は詳細を更新して画面移動しない
       if (ticketRef.current) {
         const qUpdate: Record<string, unknown> = {
@@ -1183,8 +1187,9 @@ export default function CustomerPage() {
         .select('*', { count: 'exact', head: true })
         .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
       setWaitingCount(count ?? 0)
-      if (urlAction === 'repair')   { setView('repair_speak'); return }
-      if (urlAction === 'purchase') { setView('purchase_ec');  return }
+      // 登録完了後は必ずメニュー（purpose）へ。
+      // 以前は URL の ?action= を再適用して順番待ち・購入画面へ自動遷移して
+      // いたが、意図しないジャンプの原因になるため廃止。
       setView('purpose')
     } catch (e) {
       setRegisterError(e instanceof Error ? e.message : String(e))
@@ -1419,8 +1424,6 @@ export default function CustomerPage() {
                 .select('*', { count: 'exact', head: true })
                 .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
               setWaitingCount(count ?? 0)
-              if (urlAction === 'repair')   { setView('repair_speak'); return }
-              if (urlAction === 'purchase') { setView('purchase_ec');  return }
               setView('purpose')
             }}
             className="w-full bg-white/70 backdrop-blur-xl rounded-2xl border border-white/50 p-4 text-left active:scale-[0.98] transition-all"
@@ -1559,7 +1562,8 @@ export default function CustomerPage() {
       </div>
 
       <div className="space-y-4">
-        {/* 来店予約 */}
+        {/* 来店予約 — 予約機能が有効な店舗のみ */}
+        {reserveEnabled && (
         <a href={`/${storeId}/reserve`}
           className="block w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all"
           style={cardStyle}>
@@ -1577,6 +1581,7 @@ export default function CustomerPage() {
             </div>
           </div>
         </a>
+        )}
 
         {/* 採寸・ご購入（順番待ち）— 順番待ち機能がある店舗のみ */}
         {!isSimpleMode && (
@@ -1606,7 +1611,8 @@ export default function CustomerPage() {
           </button>
         )}
 
-        {/* お直し */}
+        {/* お直し — お直し機能が有効な店舗のみ */}
+        {repairEnabled && (
         <button onClick={() => setView('repair_speak')}
           className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all"
           style={cardStyle}>
@@ -1624,8 +1630,10 @@ export default function CustomerPage() {
             </div>
           </div>
         </button>
+        )}
 
-        {/* ネット注文 */}
+        {/* ネット注文 — 商品/EC機能が有効な店舗のみ */}
+        {purchaseEnabled && (
         <button onClick={() => setView('purchase_ec')}
           className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all"
           style={cardStyle}>
@@ -1643,6 +1651,7 @@ export default function CustomerPage() {
             </div>
           </div>
         </button>
+        )}
 
         {customer && (
           <div className="flex flex-col items-center gap-1">
@@ -2159,8 +2168,8 @@ export default function CustomerPage() {
     <ClosedView
       storeId={storeId}
       onOpen={() => setView('purpose')}
-      onPurchase={() => setView('purchase_ec')}
-      onReserve={() => router.push(`/${storeId}/reserve`)}
+      onPurchase={purchaseEnabled ? () => setView('purchase_ec') : undefined}
+      onReserve={reserveEnabled ? () => router.push(`/${storeId}/reserve`) : undefined}
     />
   )
 

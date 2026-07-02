@@ -2,6 +2,17 @@ export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { resolveFeature } from '@/lib/features'
+
+// 顧客向けに公開する機能可否（リッチメニュー action の遷移先判定に使う）
+function customerCaps(rawFeatures: Record<string, unknown>) {
+  return {
+    queue:    resolveFeature('tab_queue',   rawFeatures),
+    reserve:  resolveFeature('reservation', rawFeatures),
+    repair:   resolveFeature('repairs',     rawFeatures),
+    purchase: resolveFeature('products',    rawFeatures),
+  }
+}
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -55,22 +66,23 @@ export async function GET(req: Request) {
 
   const { data: storeRows } = await supabase
     .from('stores')
-    .select('id, name, is_open, business_type')
+    .select('id, name, is_open, business_type, features')
     .in('id', allIds)
 
+  type StoreRow = { id: string; name: string; is_open: boolean; business_type: string; features: Record<string, unknown> | null }
   const storeMap = Object.fromEntries(
-    (storeRows ?? []).map((s: { id: string; name: string; is_open: boolean; business_type: string }) => [s.id, s])
-  )
+    (storeRows ?? []).map((s: StoreRow) => [s.id, s])
+  ) as Record<string, StoreRow>
 
   // 制服店を先に、次にテイクアウト店（それぞれ最近利用順）
   const uniformStores = uniformStoreIds
     .map(id => storeMap[id]).filter(Boolean)
-    .map(s => ({ id: s.id, name: s.name, is_open: s.is_open ?? false, type: 'uniform' as const }))
+    .map(s => ({ id: s.id, name: s.name, is_open: s.is_open ?? false, type: 'uniform' as const, caps: customerCaps(s.features ?? {}) }))
 
   const takeoutStores = takeoutStoreIds
     .filter(id => !uniformStoreIds.includes(id)) // 制服店と重複しない
     .map(id => storeMap[id]).filter(Boolean)
-    .map(s => ({ id: s.id, name: s.name, is_open: s.is_open ?? false, type: 'takeout' as const }))
+    .map(s => ({ id: s.id, name: s.name, is_open: s.is_open ?? false, type: 'takeout' as const, caps: customerCaps(s.features ?? {}) }))
 
   return NextResponse.json({ stores: [...uniformStores, ...takeoutStores] }, noStore)
 }

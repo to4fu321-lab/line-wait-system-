@@ -237,13 +237,19 @@ export default function ReservePage() {
   // ============================================================
   useEffect(() => {
     const init = async () => {
-      // ストア名
+      // ストア名 + 予約機能フラグの確認
       try {
         const { data: store } = await (supabase as any)
           .from('stores').select('name, features').eq('id', storeId).single()
         if (store) {
+          const features = (store.features ?? {}) as Record<string, unknown>
+          // 予約機能が無効な店舗では予約ページを開かせない（店舗トップへ）
+          if (!resolveFeature('reservation', features)) {
+            window.location.replace(`/${storeId}`)
+            return
+          }
           setStoreName(store.name ?? '')
-          setSelfOrderEnabled(resolveFeature('customer_self_order', (store.features ?? {}) as Record<string, unknown>))
+          setSelfOrderEnabled(resolveFeature('customer_self_order', features))
         }
       } catch { /* ignore */ }
 

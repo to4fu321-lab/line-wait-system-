@@ -1,10 +1,15 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { Loader2, QrCode, Store, ChevronRight, ShoppingBag, RefreshCw } from 'lucide-react'
+import { initLiff, getLineProfile } from '@/lib/liff'
 
 type StoreType = 'uniform' | 'takeout'
-interface StoreInfo { id: string; name: string; is_open: boolean; type: StoreType }
+// caps: /api/line-store-lookup が resolveFeature で算出した顧客向け機能可否。
+// 旧レスポンス（capsなし）でも動くよう optional にし、未取得時は許可扱い。
+interface StoreCaps { queue: boolean; reserve: boolean; repair: boolean; purchase: boolean }
+interface StoreInfo { id: string; name: string; is_open: boolean; type: StoreType; caps?: StoreCaps }
 
 const ACTION_LABELS: Record<string, string> = {
   queue:    '採寸の順番待ち',
@@ -13,16 +18,22 @@ const ACTION_LABELS: Record<string, string> = {
   purchase: 'ネット注文',
 }
 
-function buildStoreUrl(storeId: string, type: StoreType, action: string | null): string {
-  if (type === 'takeout') return `/${storeId}/order`
-  if (!action || action === 'order') return `/${storeId}`
-  if (action === 'reserve') return `/${storeId}/reserve`
-  // repair はページが存在しないため、他のaction同様 [storeId]/page.tsx 側の
-  // action=repair 判定（repair_speak ビュー）に処理を委ねる
-  return `/${storeId}?action=${encodeURIComponent(action)}`
+// 店舗の機能フラグを見て、対応していない action は捨てて店舗トップへ送る。
+// （例: お直し特化プランの店に action=reserve で入ろうとしても予約ページには行かせない）
+function buildStoreUrl(store: StoreInfo, action: string | null): string {
+  const { id, type, caps } = store
+  if (type === 'takeout') return `/${id}/order`
+  if (!action || action === 'order') return `/${id}`
+  const allowed = (k: keyof StoreCaps) => !caps || caps[k]
+  if (action === 'reserve')  return allowed('reserve')  ? `/${id}/reserve` : `/${id}`
+  if (action === 'queue')    return allowed('queue')    ? `/${id}?action=queue` : `/${id}`
+  if (action === 'repair')   return allowed('repair')   ? `/${id}?action=repair` : `/${id}`
+  if (action === 'purchase') return allowed('purchase') ? `/${id}?action=purchase` : `/${id}`
+  return `/${id}`
 }
 
 export default function LineHomePage() {
+  const router = useRouter()
   const [status, setStatus] = useState<'loading' | 'select' | 'not_registered' | 'error'>('loading')
   const [debugInfo, setDebugInfo] = useState<string | null>(null)
   const [stores, setStores] = useState<StoreInfo[]>([])
@@ -72,9 +83,8 @@ export default function LineHomePage() {
 
     const run = async () => {
       try {
-        const liff = (await import('@line/liff')).default
-        const liffId = process.env.NEXT_PUBLIC_LIFF_ID_UNIFORM || process.env.NEXT_PUBLIC_LIFF_ID || ''
-        await liff.init({ liffId })
+        const liff = await initLiff('uniform')
+        if (!liff) { setStatus('error'); return }
 
         if (!liff.isInClient()) {
           window.location.href = '/open-in-line'
@@ -83,81 +93,77 @@ export default function LineHomePage() {
 
         if (!liff.isLoggedIn()) { liff.login(); return }
 
-        const profile = await liff.getProfile()
+        const profile = await getLineProfile()
+        if (!profile) { setStatus('error'); return }
         userIdRef.current = profile.userId
 
-        const urlAction = new URLSearchParams(window.location.search).get('action')
+        // ── パラメータ解決 ──────────────────────────────
+        // 初回ロードでは action/to が liff.state の中にしか入っていない
+        // （LIFF SDK が liff.state のパスへ置き換える前に本処理が走るため、
+        //  URL直下と liff.state の両方から読む。これをしないと初回だけ
+        //  action なしで誤ルーティングし、SDKの再遷移と競合して
+        //  余計なリロード・不安定な遷移が起きる）
+        const search = new URLSearchParams(window.location.search)
+        const rawState = search.get('liff.state')
+        const decodedState = (() => {
+          if (!rawState) return null
+          try { return rawState.includes('%') ? decodeURIComponent(rawState) : rawState } catch { return rawState }
+        })()
+        const stateParams = decodedState
+          ? new URLSearchParams(decodedState.split('?')[1] ?? '')
+          : null
+        const getParam = (k: string) => search.get(k) ?? stateParams?.get(k) ?? null
+
+        const urlAction = getParam('action')
         setAction(urlAction)
         actionRef.current = urlAction
 
-        // liff.state に UUID が含まれていた場合、middleware が to パラメータに変換して渡す
-        // LIFF SDK が /line-home?to=/{uuid} へ遷移した後に読み取れる
-     const params = new URLSearchParams(window.location.search)
-
-let toParam = params.get('to')
-
-if (!toParam) {
-  const liffState = params.get('liff.state')
-
-  if (liffState) {
-    const stateParams = new URLSearchParams(
-      liffState.split('?')[1] ?? ''
-    )
-    toParam = stateParams.get('to')
-  }
-}
-
-        const res = await fetch(`/api/line-store-lookup?userId=${encodeURIComponent(profile.userId)}&t=${Date.now()}`)
-        const { stores: found } = await res.json()
-
-        // toParam から今回スキャンした storeId を抽出（先頭セグメントのみ）
+        // QRコード由来の店舗指定: ?to=/{uuid}（middleware変換後）
+        // または liff.state が /{uuid} 直パスの場合（endpoint設定によってはこちら）
+        let toParam = getParam('to')
+        if (!toParam && decodedState) {
+          const m = decodedState.match(/^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/)
+          if (m) toParam = `/${m[1]}`
+        }
         const toStoreId = toParam ? toParam.replace(/^\//, '').split('/')[0] : null
 
-        if (!found || found.length === 0) {
-  if (toStoreId) {
-    window.location.replace(`/${toStoreId}/crm-register`)
-    return
-  }
+        const res = await fetch(`/api/line-store-lookup?userId=${encodeURIComponent(profile.userId)}&t=${Date.now()}`)
+        const { stores: found } = await res.json() as { stores: StoreInfo[] }
 
-  setStatus('not_registered')
-  return
-}
-        // ?debug=1 の場合はリダイレクトせず必ず選択画面を表示（userId確認用）
-        const isDebug = new URLSearchParams(window.location.search).get('debug') === '1'
-        if (isDebug) {
-          setDebugInfo(`userId: ${profile.userId} / 登録店舗: ${found.map((s: StoreInfo) => s.name).join(', ')}`)
-          setStores(found)
-          setStatus('select')
+        // ?debug=1: リダイレクトせず必ず選択画面（userId・登録店舗の確認用）
+        if (getParam('debug') === '1') {
+          setDebugInfo(`userId: ${profile.userId} / 登録店舗: ${(found ?? []).map(s => s.name).join(', ') || 'なし'}`)
+          setStores(found ?? [])
+          setStatus(found && found.length > 0 ? 'select' : 'not_registered')
           return
         }
 
-        // QRスキャン経由（toStoreIdあり）の場合は、他店舗の登録状況に関係なく
-        // 今回スキャンした店舗を最優先で判定する
+        // ── ルーティング（優先順位は固定・決定的）────────
+        // 1. QR経由（toStoreIdあり）: スキャンした店舗を最優先。
+        //    その店舗に登録済みならそのまま入店、未登録なら会員登録へ。
         if (toStoreId) {
-          const matched = found.find((s: StoreInfo) => s.id === toStoreId)
+          const matched = (found ?? []).find(s => s.id === toStoreId)
           if (matched) {
-            window.location.href = buildStoreUrl(matched.id, matched.type, urlAction)
+            router.replace(buildStoreUrl(matched, urlAction))
           } else {
-            window.location.replace(`/${toStoreId}/crm-register`)
+            router.replace(`/${toStoreId}/crm-register`)
           }
           return
         }
 
-        // 1店舗のみの場合は直接遷移（初回のみ）
+        // 2. どこにも未登録: 登録を促す案内
+        if (!found || found.length === 0) {
+          setStatus('not_registered')
+          return
+        }
+
+        // 3. 1店舗のみ登録: その店舗へ直行（店舗の機能フラグでaction可否を判定）
         if (found.length === 1) {
-          window.location.href = buildStoreUrl(found[0].id, found[0].type, urlAction)
+          router.replace(buildStoreUrl(found[0], urlAction))
           return
         }
 
-        // テイクアウト1店舗のみの場合
-        if (urlAction === 'order') {
-          const takeoutStores = found.filter((s: StoreInfo) => s.type === 'takeout')
-          if (takeoutStores.length === 1) {
-            window.location.href = `/${takeoutStores[0].id}/order`
-            return
-          }
-        }
-
+        // 4. 複数店舗登録: 必ず選択画面（勝手にどれかへ飛ばさない）
         setStores(found)
         setStatus('select')
       } catch {
@@ -212,7 +218,7 @@ if (!toParam) {
                 <div className="space-y-2">
                   {uniformStores.map(s => (
                     <button key={s.id}
-                      onClick={() => { window.location.href = buildStoreUrl(s.id, 'uniform', action) }}
+                      onClick={() => router.push(buildStoreUrl(s, action))}
                       className="w-full flex items-center gap-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-indigo-500/40 active:scale-95 transition-all duration-150 rounded-2xl px-5 py-4 text-left">
                       <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
                         <Store size={18} className="text-indigo-400" />
@@ -237,7 +243,7 @@ if (!toParam) {
                 <div className="space-y-2">
                   {takeoutStores.map(s => (
                     <button key={s.id}
-                      onClick={() => { window.location.href = buildStoreUrl(s.id, 'takeout', action) }}
+                      onClick={() => router.push(buildStoreUrl(s, action))}
                       className="w-full flex items-center gap-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-orange-500/40 active:scale-95 transition-all duration-150 rounded-2xl px-5 py-4 text-left">
                       <div className="w-10 h-10 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center shrink-0">
                         <ShoppingBag size={18} className="text-orange-400" />
