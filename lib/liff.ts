@@ -25,9 +25,11 @@ export async function initLiff(biz: BizType = 'uniform'): Promise<Liff | null> {
   if (liffInstance) return liffInstance
   if (initPromise) return initPromise
 
-  // LIFF認証コールバック（URL に liff.state がある）はガード不要
+  // LIFF認証コールバック（liff.state またはフラグメントのトークン類がある）はガード不要
   const isLiffCallback = window.location.search.includes('liff.state') ||
-                         window.location.hash.includes('liff.state')
+                         window.location.hash.includes('liff.state') ||
+                         window.location.hash.includes('access_token') ||
+                         window.location.search.includes('liffClientId')
 
   if (!isLiffCallback) {
     // リダイレクトループ検出: 直近2秒以内に既にLIFF initしていたらスキップ

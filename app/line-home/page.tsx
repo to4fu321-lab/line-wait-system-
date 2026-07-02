@@ -129,7 +129,10 @@ export default function LineHomePage() {
         const isDebug = getParam('debug') === '1'
 
         // URLを正規化: liff.state を取り除き、解決済みの action/to を明示。
-        // OAuth 完了に必要な code/state などは残す。
+        // OAuth 完了に必要な code/state と、LIFF がトークンを渡してくる
+        // URLフラグメント（#access_token=... 等）は必ず残す。
+        // ※フラグメントを消すと liff.init が認証情報を受け取れず
+        //   「読み込みエラー」になるため絶対に保持すること。
         if (rawState) {
           const clean = new URLSearchParams()
           for (const k of ['code', 'state', 'liffClientId', 'liffRedirectUri', 'error', 'error_description']) {
@@ -140,7 +143,7 @@ export default function LineHomePage() {
           if (toParam)   clean.set('to', toParam)
           if (isDebug)   clean.set('debug', '1')
           const qs = clean.toString()
-          window.history.replaceState(null, '', `/line-home${qs ? `?${qs}` : ''}`)
+          window.history.replaceState(null, '', `/line-home${qs ? `?${qs}` : ''}${window.location.hash || ''}`)
         }
 
         const liff = await initLiff('uniform')
@@ -151,7 +154,11 @@ export default function LineHomePage() {
           return
         }
 
-        if (!liff.isLoggedIn()) { liff.login({ redirectUri: window.location.href }); return }
+        if (!liff.isLoggedIn()) {
+          // redirectUri にフラグメントを含めない（LINE認可後の戻りが壊れるため）
+          liff.login({ redirectUri: `${window.location.origin}${window.location.pathname}${window.location.search}` })
+          return
+        }
 
         const profile = await getLineProfile()
         if (!profile) { setStatus('error'); return }
