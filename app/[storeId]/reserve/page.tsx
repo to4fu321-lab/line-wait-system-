@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { resolveFeature } from '@/lib/features'
-import { getLiffId } from '@/lib/line-config'
+import { initLiff, getLineProfile } from '@/lib/liff'
 import {
   CalendarDays, Clock, User, FileText, Check,
   Loader2, ChevronLeft, ChevronRight, GraduationCap, Plus, X, ShoppingBag,
@@ -254,23 +254,24 @@ export default function ReservePage() {
       } catch { /* ignore */ }
 
       // LIFF（フォールバック表示時も顧客名を反映できるよう、設定取得より先に実行）
+      // 共有の initLiff を使うことで、line-home からのSPA遷移時は
+      // 初期化済みインスタンスを再利用でき、再初期化のロスがない
       try {
-        const liffModule = await import('@line/liff')
-        const liff = liffModule.default
-        const liffId = getLiffId('uniform')
-        if (liffId) {
-          await liff.init({ liffId })
+        const liff = await initLiff('uniform')
+        if (liff) {
           if (!liff.isLoggedIn()) { liff.login(); return }
-          const profile = await liff.getProfile()
-          setLineUserId(profile.userId)
-          // CRM登録名を優先、なければLINE表示名
-          try {
-            const { data: regCust } = await (supabase as any)
-              .from('customers').select('name').eq('store_id', storeId)
-              .eq('line_user_id', profile.userId).maybeSingle()
-            setName(regCust?.name || (profile.displayName ?? ''))
-          } catch {
-            setName(profile.displayName ?? '')
+          const profile = await getLineProfile()
+          if (profile) {
+            setLineUserId(profile.userId)
+            // CRM登録名を優先、なければLINE表示名
+            try {
+              const { data: regCust } = await (supabase as any)
+                .from('customers').select('name').eq('store_id', storeId)
+                .eq('line_user_id', profile.userId).maybeSingle()
+              setName(regCust?.name || (profile.displayName ?? ''))
+            } catch {
+              setName(profile.displayName ?? '')
+            }
           }
         }
       } catch { /* LIFF not available */ }

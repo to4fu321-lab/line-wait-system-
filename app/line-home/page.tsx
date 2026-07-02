@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, QrCode, Store, ChevronRight, ShoppingBag, RefreshCw } from 'lucide-react'
+import { Loader2, QrCode, Store, ChevronRight, ShoppingBag, Ban, Clock } from 'lucide-react'
 import { initLiff, getLineProfile } from '@/lib/liff'
 
 type StoreType = 'uniform' | 'takeout'
@@ -12,70 +12,84 @@ interface StoreCaps { queue: boolean; reserve: boolean; repair: boolean; purchas
 interface StoreInfo { id: string; name: string; is_open: boolean; type: StoreType; caps?: StoreCaps }
 
 const ACTION_LABELS: Record<string, string> = {
-  queue:    '採寸の順番待ち',
+  order:    'テイクアウト注文',
+  queue:    '採寸・受付',
   reserve:  '来店予約',
-  repair:   '依頼',
+  repair:   'お直し依頼',
   purchase: 'ネット注文',
 }
 
-// 店舗の機能フラグを見て、対応していない action は捨てて店舗トップへ送る。
-// （例: お直し特化プランの店に action=reserve で入ろうとしても予約ページには行かせない）
-function buildStoreUrl(store: StoreInfo, action: string | null): string {
-  const { id, type, caps } = store
-  if (type === 'takeout') return `/${id}/order`
-  if (!action || action === 'order') return `/${id}`
+// action ごとの利用可否判定。
+// - not_offered: 店舗の機能フラグ（プラン）でOFF → 「取り扱いがありません」
+// - paused:      機能はあるが一時停止中（受付停止など） → 「現在一時停止中です」
+type Availability =
+  | { ok: true; url: string }
+  | { ok: false; reason: 'not_offered' | 'paused' }
+
+function checkAvailability(store: StoreInfo, action: string | null): Availability {
+  const { id, type, caps, is_open } = store
   const allowed = (k: keyof StoreCaps) => !caps || caps[k]
-  if (action === 'reserve')  return allowed('reserve')  ? `/${id}/reserve` : `/${id}`
-  if (action === 'queue')    return allowed('queue')    ? `/${id}?action=queue` : `/${id}`
-  if (action === 'repair')   return allowed('repair')   ? `/${id}?action=repair` : `/${id}`
-  if (action === 'purchase') return allowed('purchase') ? `/${id}?action=purchase` : `/${id}`
-  return `/${id}`
+
+  if (type === 'takeout') {
+    // テイクアウト店: 注文は受付状態に従う。それ以外のactionは注文ページへ集約
+    if (!is_open && (action === 'order' || !action)) return { ok: false, reason: 'paused' }
+    return { ok: true, url: `/${id}/order` }
+  }
+
+  switch (action) {
+    case 'order':
+      // 制服店にテイクアウト注文は無い
+      return { ok: false, reason: 'not_offered' }
+    case 'queue':
+      if (!allowed('queue')) return { ok: false, reason: 'not_offered' }
+      if (!is_open)          return { ok: false, reason: 'paused' }
+      return { ok: true, url: `/${id}?action=queue` }
+    case 'reserve':
+      if (!allowed('reserve')) return { ok: false, reason: 'not_offered' }
+      return { ok: true, url: `/${id}/reserve` }
+    case 'repair':
+      if (!allowed('repair')) return { ok: false, reason: 'not_offered' }
+      return { ok: true, url: `/${id}?action=repair` }
+    case 'purchase':
+      if (!allowed('purchase')) return { ok: false, reason: 'not_offered' }
+      return { ok: true, url: `/${id}?action=purchase` }
+    default:
+      return { ok: true, url: `/${id}` }
+  }
+}
+
+interface UnavailableInfo {
+  store: StoreInfo
+  actionLabel: string
+  reason: 'not_offered' | 'paused'
+  canGoBack: boolean  // 複数店舗登録時は店舗選択に戻れる
 }
 
 export default function LineHomePage() {
   const router = useRouter()
-  const [status, setStatus] = useState<'loading' | 'select' | 'not_registered' | 'error'>('loading')
+  const [status, setStatus] = useState<'loading' | 'select' | 'not_registered' | 'unavailable' | 'error'>('loading')
   const [debugInfo, setDebugInfo] = useState<string | null>(null)
   const [stores, setStores] = useState<StoreInfo[]>([])
   const [action, setAction] = useState<string | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
-  const userIdRef  = useRef<string | null>(null)
-  const actionRef  = useRef<string | null>(null)
+  const [unavailable, setUnavailable] = useState<UnavailableInfo | null>(null)
   const initializedRef = useRef(false)
 
-  // isオープン情報のみ再取得（リダイレクトしない）
-  const refreshStatus = useCallback(async () => {
-    if (!userIdRef.current) return
-    setRefreshing(true)
-    try {
-      const res = await fetch(`/api/line-store-lookup?userId=${encodeURIComponent(userIdRef.current)}&t=${Date.now()}`)
-      const { stores: found } = await res.json()
-      if (found && found.length > 0) {
-        setStores(found)
-        setStatus('select')
-      }
-    } catch { /* ignore */ } finally {
-      setRefreshing(false)
+  // 行き先を判定して遷移 or 利用不可画面を表示
+  const goToStore = (store: StoreInfo, act: string | null, opts: { replace?: boolean; canGoBack?: boolean }) => {
+    const avail = checkAvailability(store, act)
+    if (avail.ok) {
+      if (opts.replace) router.replace(avail.url)
+      else router.push(avail.url)
+      return
     }
-  }, [])
-
-  // 画面が再表示されたとき自動更新（LINEアプリから戻ってきたときなど）
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === 'visible' && userIdRef.current) {
-        refreshStatus()
-      }
-    }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [refreshStatus])
-
-  // 30秒ごとに受付状況を自動更新（店一覧表示中のみ）
-  useEffect(() => {
-    if (status !== 'select') return
-    const id = setInterval(refreshStatus, 30000)
-    return () => clearInterval(id)
-  }, [status, refreshStatus])
+    setUnavailable({
+      store,
+      actionLabel: (act && ACTION_LABELS[act]) || 'このサービス',
+      reason: avail.reason,
+      canGoBack: !!opts.canGoBack,
+    })
+    setStatus('unavailable')
+  }
 
   useEffect(() => {
     if (initializedRef.current) return
@@ -83,26 +97,13 @@ export default function LineHomePage() {
 
     const run = async () => {
       try {
-        const liff = await initLiff('uniform')
-        if (!liff) { setStatus('error'); return }
-
-        if (!liff.isInClient()) {
-          window.location.href = '/open-in-line'
-          return
-        }
-
-        if (!liff.isLoggedIn()) { liff.login(); return }
-
-        const profile = await getLineProfile()
-        if (!profile) { setStatus('error'); return }
-        userIdRef.current = profile.userId
-
-        // ── パラメータ解決 ──────────────────────────────
-        // 初回ロードでは action/to が liff.state の中にしか入っていない
-        // （LIFF SDK が liff.state のパスへ置き換える前に本処理が走るため、
-        //  URL直下と liff.state の両方から読む。これをしないと初回だけ
-        //  action なしで誤ルーティングし、SDKの再遷移と競合して
-        //  余計なリロード・不安定な遷移が起きる）
+        // ── パラメータ解決（LIFF init より先に行う）────────────
+        // リッチメニュー経由の初回ロードでは action/to が liff.state の
+        // 中にしか入っていない。liff.state を残したまま liff.init すると
+        // SDK が liff.state のパスへ location.replace してページ全体が
+        // もう一度読み込まれる（＝体感の「何回もリロード」の正体）。
+        // ここで自前で解決して URL から liff.state を除去することで、
+        // SDK の二次リダイレクトを起こさず1回のロードで完結させる。
         const search = new URLSearchParams(window.location.search)
         const rawState = search.get('liff.state')
         const decodedState = (() => {
@@ -116,7 +117,6 @@ export default function LineHomePage() {
 
         const urlAction = getParam('action')
         setAction(urlAction)
-        actionRef.current = urlAction
 
         // QRコード由来の店舗指定: ?to=/{uuid}（middleware変換後）
         // または liff.state が /{uuid} 直パスの場合（endpoint設定によってはこちら）
@@ -126,12 +126,41 @@ export default function LineHomePage() {
           if (m) toParam = `/${m[1]}`
         }
         const toStoreId = toParam ? toParam.replace(/^\//, '').split('/')[0] : null
+        const isDebug = getParam('debug') === '1'
+
+        // URLを正規化: liff.state を取り除き、解決済みの action/to を明示。
+        // OAuth 完了に必要な code/state などは残す。
+        if (rawState) {
+          const clean = new URLSearchParams()
+          for (const k of ['code', 'state', 'liffClientId', 'liffRedirectUri', 'error', 'error_description']) {
+            const v = search.get(k)
+            if (v) clean.set(k, v)
+          }
+          if (urlAction) clean.set('action', urlAction)
+          if (toParam)   clean.set('to', toParam)
+          if (isDebug)   clean.set('debug', '1')
+          const qs = clean.toString()
+          window.history.replaceState(null, '', `/line-home${qs ? `?${qs}` : ''}`)
+        }
+
+        const liff = await initLiff('uniform')
+        if (!liff) { setStatus('error'); return }
+
+        if (!liff.isInClient()) {
+          window.location.href = '/open-in-line'
+          return
+        }
+
+        if (!liff.isLoggedIn()) { liff.login({ redirectUri: window.location.href }); return }
+
+        const profile = await getLineProfile()
+        if (!profile) { setStatus('error'); return }
 
         const res = await fetch(`/api/line-store-lookup?userId=${encodeURIComponent(profile.userId)}&t=${Date.now()}`)
         const { stores: found } = await res.json() as { stores: StoreInfo[] }
 
         // ?debug=1: リダイレクトせず必ず選択画面（userId・登録店舗の確認用）
-        if (getParam('debug') === '1') {
+        if (isDebug) {
           setDebugInfo(`userId: ${profile.userId} / 登録店舗: ${(found ?? []).map(s => s.name).join(', ') || 'なし'}`)
           setStores(found ?? [])
           setStatus(found && found.length > 0 ? 'select' : 'not_registered')
@@ -144,7 +173,7 @@ export default function LineHomePage() {
         if (toStoreId) {
           const matched = (found ?? []).find(s => s.id === toStoreId)
           if (matched) {
-            router.replace(buildStoreUrl(matched, urlAction))
+            goToStore(matched, urlAction, { replace: true })
           } else {
             router.replace(`/${toStoreId}/crm-register`)
           }
@@ -157,26 +186,70 @@ export default function LineHomePage() {
           return
         }
 
-        // 3. 1店舗のみ登録: その店舗へ直行（店舗の機能フラグでaction可否を判定）
+        // 3. 1店舗のみ登録: その店舗へ直行（機能フラグ・受付状態で可否判定）
         if (found.length === 1) {
-          router.replace(buildStoreUrl(found[0], urlAction))
+          setStores(found)
+          goToStore(found[0], urlAction, { replace: true })
           return
         }
 
         // 4. 複数店舗登録: 必ず選択画面（勝手にどれかへ飛ばさない）
         setStores(found)
         setStatus('select')
+        // 遷移を速くするため、候補の店舗ページを事前読み込み
+        for (const s of found) {
+          const avail = checkAvailability(s, urlAction)
+          if (avail.ok) router.prefetch(avail.url)
+        }
       } catch {
         setStatus('error')
       }
     }
     run()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   if (status === 'loading') {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
         <Loader2 size={36} className="animate-spin text-indigo-400" />
+      </div>
+    )
+  }
+
+  // ── 利用不可（機能なし / 一時停止中）───────────────────────
+  if (status === 'unavailable' && unavailable) {
+    const { store, actionLabel, reason, canGoBack } = unavailable
+    const isPaused = reason === 'paused'
+    return (
+      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-6 text-center">
+        <div className={`w-20 h-20 rounded-3xl border flex items-center justify-center mx-auto mb-6 ${
+          isPaused ? 'bg-amber-500/15 border-amber-500/30' : 'bg-zinc-500/15 border-zinc-500/30'}`}>
+          {isPaused ? <Clock size={36} className="text-amber-400" /> : <Ban size={36} className="text-zinc-400" />}
+        </div>
+        <p className="text-zinc-500 text-xs font-bold mb-1">{store.name}</p>
+        <h1 className="text-xl font-black text-white mb-3">
+          {isPaused
+            ? <>{actionLabel}は<br />現在一時停止中です</>
+            : <>{actionLabel}の<br />お取り扱いはありません</>}
+        </h1>
+        <p className="text-zinc-400 text-sm leading-relaxed mb-8">
+          {isPaused
+            ? '受付が再開されるまでお待ちください。\nその他のサービスは店舗ページからご利用いただけます。'
+            : 'こちらの店舗ではご利用いただけないサービスです。\nその他のサービスは店舗ページからご利用いただけます。'}
+        </p>
+        <div className="w-full max-w-xs space-y-3">
+          <button onClick={() => router.push(`/${store.id}`)}
+            className="w-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 font-bold py-3.5 rounded-2xl active:scale-95 transition-all">
+            {store.name} のページを開く
+          </button>
+          {canGoBack && (
+            <button onClick={() => { setUnavailable(null); setStatus('select') }}
+              className="w-full text-zinc-500 text-sm py-2 active:opacity-60 transition-opacity">
+              ← 店舗選択に戻る
+            </button>
+          )}
+        </div>
       </div>
     )
   }
@@ -202,12 +275,6 @@ export default function LineHomePage() {
             )}
             <h1 className="text-xl font-black text-white">ご利用の店舗を選択</h1>
             <p className="text-zinc-500 text-sm mt-1">どちらをご利用ですか？</p>
-            {/* 受付状況更新ボタン */}
-            <button onClick={refreshStatus} disabled={refreshing}
-              className="mt-3 inline-flex items-center gap-1.5 text-xs text-zinc-500 px-3 py-1.5 rounded-full border border-zinc-700 active:scale-95 transition-all disabled:opacity-50">
-              <RefreshCw size={11} className={refreshing ? 'animate-spin' : ''} />
-              {refreshing ? '更新中...' : '受付状況を更新'}
-            </button>
           </div>
 
           <div className="space-y-6">
@@ -218,16 +285,13 @@ export default function LineHomePage() {
                 <div className="space-y-2">
                   {uniformStores.map(s => (
                     <button key={s.id}
-                      onClick={() => router.push(buildStoreUrl(s, action))}
+                      onClick={() => goToStore(s, action, { canGoBack: true })}
                       className="w-full flex items-center gap-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-indigo-500/40 active:scale-95 transition-all duration-150 rounded-2xl px-5 py-4 text-left">
                       <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
                         <Store size={18} className="text-indigo-400" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-white text-base font-bold truncate">{s.name}</p>
-                        <p className={`text-xs font-bold mt-0.5 ${s.is_open ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                          {s.is_open ? '受付中' : '受付停止中'}
-                        </p>
                       </div>
                       <ChevronRight size={16} className="text-zinc-600 shrink-0" />
                     </button>
@@ -243,7 +307,7 @@ export default function LineHomePage() {
                 <div className="space-y-2">
                   {takeoutStores.map(s => (
                     <button key={s.id}
-                      onClick={() => router.push(buildStoreUrl(s, action))}
+                      onClick={() => goToStore(s, action, { canGoBack: true })}
                       className="w-full flex items-center gap-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-orange-500/40 active:scale-95 transition-all duration-150 rounded-2xl px-5 py-4 text-left">
                       <div className="w-10 h-10 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center shrink-0">
                         <ShoppingBag size={18} className="text-orange-400" />
