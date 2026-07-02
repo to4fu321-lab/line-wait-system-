@@ -12,22 +12,28 @@ function getSupabase() {
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const userId = searchParams.get('userId')
-  const biz    = searchParams.get('biz') // 'uniform' | 'takeout' | null (null = uniform)
-  if (!userId) return NextResponse.json({ stores: [] })
+  const biz    = searchParams.get('biz') // 'uniform' | 'takeout' | null (null = uniform、両方混在で返す)
+  const noStore = { headers: { 'Cache-Control': 'no-store' } }
+  if (!userId) return NextResponse.json({ stores: [] }, noStore)
 
   const supabase = getSupabase()
 
   // ① 制服店：customers テーブルから登録済み店舗を取得
-  const { data: customers } = await supabase
-  .from('customers')
-  .select('store_id')
-  .eq('line_user_id', userId)
-  .is('deleted_at', null)
-  .order('updated_at', { ascending: false })
+  // biz=takeout の場合は line-home-takeout 用の呼び出しのため、
+  // 制服店の登録は含めず、テイクアウト注文のみで判定する
+  let uniformStoreIds: string[] = []
+  if (biz !== 'takeout') {
+    const { data: customers } = await supabase
+      .from('customers')
+      .select('store_id')
+      .eq('line_user_id', userId)
+      .is('deleted_at', null)
+      .order('updated_at', { ascending: false })
 
-  const uniformStoreIds = Array.from(new Set(
-    (customers ?? []).map((c: { store_id: string }) => c.store_id).filter(Boolean)
-  ))
+    uniformStoreIds = Array.from(new Set(
+      (customers ?? []).map((c: { store_id: string }) => c.store_id).filter(Boolean)
+    ))
+  }
 
   // ② テイクアウト店：過去90日以内に注文した店舗を取得
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
@@ -45,7 +51,7 @@ export async function GET(req: Request) {
 
   // すべてのstoreIdをまとめて店舗情報を取得
   const allIds = Array.from(new Set([...uniformStoreIds, ...takeoutStoreIds]))
-  if (allIds.length === 0) return NextResponse.json({ stores: [] })
+  if (allIds.length === 0) return NextResponse.json({ stores: [] }, noStore)
 
   const { data: storeRows } = await supabase
     .from('stores')
@@ -66,8 +72,5 @@ export async function GET(req: Request) {
     .map(id => storeMap[id]).filter(Boolean)
     .map(s => ({ id: s.id, name: s.name, is_open: s.is_open ?? false, type: 'takeout' as const }))
 
-  return NextResponse.json(
-    { stores: [...uniformStores, ...takeoutStores] },
-    { headers: { 'Cache-Control': 'no-store' } }
-  )
+  return NextResponse.json({ stores: [...uniformStores, ...takeoutStores] }, noStore)
 }

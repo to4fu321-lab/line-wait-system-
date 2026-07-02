@@ -17,7 +17,8 @@ function buildStoreUrl(storeId: string, type: StoreType, action: string | null):
   if (type === 'takeout') return `/${storeId}/order`
   if (!action || action === 'order') return `/${storeId}`
   if (action === 'reserve') return `/${storeId}/reserve`
-  if (action === 'repair')  return `/${storeId}/repair`
+  // repair はページが存在しないため、他のaction同様 [storeId]/page.tsx 側の
+  // action=repair 判定（repair_speak ビュー）に処理を委ねる
   return `/${storeId}?action=${encodeURIComponent(action)}`
 }
 
