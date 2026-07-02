@@ -22,7 +22,7 @@ const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
 type View =
   | 'loading' | 'add_friend' | 'welcome' | 'register' | 'purpose' | 'confirm_queue'
   | 'queue_waiting' | 'queue_calling' | 'queue_completed' | 'queue_cancelled'
-  | 'queue_self_cancelled' | 'repair_speak' | 'purchase_speak' | 'purchase_ec' | 'closed'
+  | 'queue_self_cancelled' | 'repair_speak' | 'purchase_speak' | 'purchase_ec'
 
 function toKatakana(s: string) {
   return s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60))
@@ -697,72 +697,6 @@ function WaitingFirstChildForm({
   )
 }
 
-// ── 受付停止中ビュー（自動再チェック付き） ──────────────────
-function ClosedView({ storeId, onOpen, onPurchase, onReserve }: {
-  storeId: string
-  onOpen: () => void
-  onPurchase?: () => void
-  onReserve?: () => void
-}) {
-  const [checking, setChecking] = useState(false)
-
-  const checkNow = useCallback(async () => {
-    setChecking(true)
-    try {
-      const { data } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
-      if (data?.is_open === true) { onOpen(); return }
-    } finally {
-      setChecking(false)
-    }
-  }, [storeId, onOpen])
-
-  useEffect(() => {
-    const id = setInterval(checkNow, 30000)
-    return () => clearInterval(id)
-  }, [checkNow])
-
-  return (
-    <div className="min-h-[100dvh] bg-zinc-950 flex flex-col items-center justify-center px-6 text-center">
-      <div className="text-7xl mb-5">🕐</div>
-      <h1 className="text-3xl font-black text-white mb-2">順番待ち受付を停止中</h1>
-      <p className="text-zinc-400 text-base mb-8">採寸・ご購入の順番待ちは現在受付しておりません。<br />その他のサービスはご利用いただけます。</p>
-
-      {(onPurchase || onReserve) && (
-        <div className="w-full max-w-xs mb-8 space-y-3">
-          {onPurchase && (
-            <button onClick={onPurchase}
-              className="w-full flex items-center gap-4 bg-white/10 hover:bg-white/15 active:scale-95 transition-all rounded-2xl px-5 py-4 text-left">
-              <span className="text-3xl">🛍️</span>
-              <div>
-                <p className="text-white font-black text-base leading-tight">ネット注文</p>
-                <p className="text-zinc-400 text-sm">24時間受付中</p>
-              </div>
-            </button>
-          )}
-          {onReserve && (
-            <button onClick={onReserve}
-              className="w-full flex items-center gap-4 bg-white/10 hover:bg-white/15 active:scale-95 transition-all rounded-2xl px-5 py-4 text-left">
-              <span className="text-3xl">🗓️</span>
-              <div>
-                <p className="text-white font-black text-base leading-tight">来店予約</p>
-                <p className="text-zinc-400 text-sm">24時間受付中</p>
-              </div>
-            </button>
-          )}
-        </div>
-      )}
-
-      <button
-        onClick={checkNow}
-        disabled={checking}
-        className="flex items-center gap-2 text-zinc-400 border border-zinc-700 rounded-full px-5 py-2.5 text-sm active:scale-95 transition-all disabled:opacity-50">
-        {checking ? <Loader2 size={15} className="animate-spin" /> : null}
-        {checking ? '確認中...' : '受付状況を再確認する'}
-      </button>
-    </div>
-  )
-}
-
 // ── メインコンポーネント ────────────────────────────────────
 export default function CustomerPage() {
   const { storeId } = useParams<{ storeId: string }>()
@@ -804,6 +738,10 @@ export default function CustomerPage() {
   const [reserveEnabled,  setReserveEnabled]  = useState(true)
   const [repairEnabled,   setRepairEnabled]   = useState(true)
   const [purchaseEnabled, setPurchaseEnabled] = useState(true)
+  // 順番待ち受付の開閉。is_open は「順番待ち受付」だけを制御するフラグで
+  // あり、店舗全体の開閉ではない。受付停止中でも来店予約・お直し・
+  // ネット注文は通常メニューから利用できる（画面を占有しない）。
+  const [storeOpen, setStoreOpen] = useState(true)
 
   const allowRemoteRef = useRef(false)
   const pendingHeightWeightRef = useRef<{ height: string; weight: string } | null>(null)
@@ -835,6 +773,7 @@ export default function CustomerPage() {
       setReserveEnabled(canReserve)
       setRepairEnabled(canRepair)
       setPurchaseEnabled(canPurchase)
+      setStoreOpen(sd?.is_open !== false)
       if (sd && Array.isArray(sd.wait_thresholds) && sd.wait_thresholds.length > 0)
         setWaitThresholds(sd.wait_thresholds as WaitThreshold[])
       if (sd?.notification_plan) notificationPlanRef.current = sd.notification_plan
@@ -953,14 +892,15 @@ export default function CustomerPage() {
         }
       } catch { /* 顧客情報が取れなくても続行 */ }
 
-      if (sd?.is_open === false && !isSimple) { setView('closed'); return }
       const { count } = await (supabase as any).from('queues')
         .select('*', { count: 'exact', head: true })
         .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
       setWaitingCount(count ?? 0)
       if (action === 'repair')   { setView('repair_speak');   return }
       if (action === 'purchase') { setView('purchase_ec');    return }
-      if (action === 'queue') {
+      // 順番待ちは受付中のときだけ確認画面へ。停止中は通常メニューを表示し、
+      // メニュー上の受付ボタンで「受付停止中」を示す（画面を占有しない）
+      if (action === 'queue' && sd?.is_open !== false) {
         setView('confirm_queue'); return
       }
       if (!cust) { setView('register'); return }
@@ -1055,7 +995,7 @@ export default function CustomerPage() {
       } catch { /* 顧客情報は任意 */ }
 
       const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
-      if (sd?.is_open === false && !isSimpleMode) { setView('closed'); return }
+      setStoreOpen(sd?.is_open !== false)
       const { count } = await (supabase as any).from('queues')
         .select('*', { count: 'exact', head: true })
         .eq('store_id', storeId).in('status', ['waiting', 'calling'])
@@ -1165,7 +1105,7 @@ export default function CustomerPage() {
       if (newChild) setSelectedChild(newChild)
 
       const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
-      if (sd?.is_open === false && !isSimpleMode) { setView('closed'); return }
+      setStoreOpen(sd?.is_open !== false)
 
       // 既に待ち画面にいる場合（待ちながら登録）は詳細を更新して画面移動しない
       if (ticketRef.current) {
@@ -1227,11 +1167,12 @@ export default function CustomerPage() {
           return
         }
         const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
+        setStoreOpen(sd?.is_open !== false)
         const { count } = await (supabase as any).from('queues')
           .select('*', { count: 'exact', head: true })
           .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
         setWaitingCount(count ?? 0)
-        setView(sd?.is_open === false && !isSimpleMode ? 'closed' : 'purpose')
+        setView('purpose')
       }
     } catch (e) { console.error(e) }
     setSubmitting(false)
@@ -1341,7 +1282,7 @@ export default function CustomerPage() {
     setTicket(null); setWaitingAhead(0); setIssuing(false)
     if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null }
     const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
-    if (sd?.is_open === false && !isSimpleMode) { setView('closed'); return }
+    setStoreOpen(sd?.is_open !== false)
     const { count } = await (supabase as any).from('queues')
       .select('*', { count: 'exact', head: true })
       .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
@@ -1419,7 +1360,7 @@ export default function CustomerPage() {
             onClick={async () => {
               setSelectedChild(child)
               const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
-              if (sd && !sd.is_open) { setView('closed'); return }
+              setStoreOpen(sd?.is_open !== false)
               const { count } = await (supabase as any).from('queues')
                 .select('*', { count: 'exact', head: true })
                 .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
@@ -1583,8 +1524,10 @@ export default function CustomerPage() {
         </a>
         )}
 
-        {/* 採寸・ご購入（順番待ち）— 順番待ち機能がある店舗のみ */}
+        {/* 採寸・ご購入（順番待ち）— 順番待ち機能がある店舗のみ。
+            受付停止中は停止中表示にし、タップでは進めない */}
         {!isSimpleMode && (
+          storeOpen ? (
           <button
             onClick={() => { setIssueError(''); setView('confirm_queue') }}
             className="w-full bg-white/70 backdrop-blur-xl rounded-3xl border border-white/50 p-6 text-left active:scale-[0.98] transition-all"
@@ -1609,6 +1552,22 @@ export default function CustomerPage() {
               </div>
             </div>
           </button>
+          ) : (
+          <div className="w-full bg-zinc-100 rounded-3xl border border-zinc-200 p-6 text-left opacity-80">
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0 bg-zinc-300">
+                📋
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-black text-zinc-500 text-lg leading-tight">採寸・ご購入</p>
+                <p className="text-zinc-400 text-sm mt-0.5">順番待ちの受付は現在停止中です</p>
+                <div className="mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold bg-zinc-200 text-zinc-500">
+                  受付停止中
+                </div>
+              </div>
+            </div>
+          </div>
+          )
         )}
 
         {/* お直し — お直し機能が有効な店舗のみ */}
@@ -2162,15 +2121,6 @@ export default function CustomerPage() {
       </div>
       <button onClick={() => setView('purpose')} className="text-zinc-400 text-sm underline">← 戻る</button>
     </main>
-  )
-
-  if (view === 'closed') return (
-    <ClosedView
-      storeId={storeId}
-      onOpen={() => setView('purpose')}
-      onPurchase={purchaseEnabled ? () => setView('purchase_ec') : undefined}
-      onReserve={reserveEnabled ? () => router.push(`/${storeId}/reserve`) : undefined}
-    />
   )
 
   if (view === 'purchase_ec') return (

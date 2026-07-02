@@ -91,6 +91,16 @@ export default function LineHomePage() {
     setStatus('unavailable')
   }
 
+  // LINEアプリ内ブラウザは戻る/再表示で bfcache から古い描画を復元する。
+  // 会員削除後も古い店舗一覧が残る問題を防ぐため、bfcache復元時は再読込。
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) window.location.reload()
+    }
+    window.addEventListener('pageshow', onPageShow)
+    return () => window.removeEventListener('pageshow', onPageShow)
+  }, [])
+
   useEffect(() => {
     if (initializedRef.current) return
     initializedRef.current = true
