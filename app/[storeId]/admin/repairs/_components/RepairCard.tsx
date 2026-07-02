@@ -337,7 +337,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
               {isOverdue && <span className="text-xs font-black text-red-600">⚠️ 期限超過</span>}
               {isDueSoon && !isOverdue && <span className="text-xs font-black text-amber-600">⚠️ 明日まで</span>}
             </div>
-            <span className="text-[10px] font-black text-indigo-400 font-mono shrink-0">{reqNo}</span>
+            <span className="text-base font-black text-indigo-500 font-mono shrink-0">{reqNo}</span>
           </div>
 
           {/* 顧客名 ｜ お直し内容（1行にまとめる） */}
