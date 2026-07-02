@@ -654,6 +654,7 @@ export default function RepairsPage() {
                 {dashOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               </button>
               {dashOpen && (
+              <>
               <div className="flex border-t border-white/20">
                 <button
                   onClick={() => { setTab('repair'); setSearchText('') }}
@@ -675,8 +676,7 @@ export default function RepairsPage() {
                   </>
                 )}
               </div>
-              )}
-              {/* 受付セクション — 常に表示。種類ごとに色分けし新人でも判別しやすく */}
+              {/* 受付セクション — 種類ごとに色分けし新人でも判別しやすく */}
               <div className="border-t border-white/20">
                 <p className="text-center text-sm font-black text-white pt-2.5 pb-2">
                   🖐️ お客様の受付はこちら
@@ -702,6 +702,8 @@ export default function RepairsPage() {
                   </button>
                 </div>
               </div>
+              </>
+              )}
             </div>
           )}
 

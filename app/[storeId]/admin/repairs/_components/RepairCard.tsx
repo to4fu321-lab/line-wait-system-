@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import {
   Loader2, ChevronDown, ChevronUp,
   Phone, User, Check, RotateCcw,
-  Banknote, Pencil, Truck, Trash2, Camera, X, ChevronRight,
+  Banknote, Pencil, Truck, Trash2, Camera, X,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { REPAIR_PHOTOS_BUCKET } from '@/types/repair'
@@ -329,71 +329,71 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
 
     return (
       <div className={`bg-white rounded-2xl shadow-sm border border-gray-100 border-l-4 ${leftBorderColor}`}>
-        <div className="p-4 space-y-3">
+        <div className="p-3.5 space-y-2">
           {/* バッジ + 受付番号 */}
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={`text-xs font-black px-2.5 py-1.5 rounded-lg ${REQUEST_TYPE_COLORS[reqType]}`}>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className={`text-xs font-black px-2.5 py-1 rounded-lg ${REQUEST_TYPE_COLORS[reqType]}`}>
                 {REQUEST_TYPE_LABELS[reqType]}
               </span>
+              {item.sent_to_vendor_at && (
+                <span className="text-xs font-black text-orange-600">📤 外注中{item.vendor_name ? `（${item.vendor_name}）` : ''}</span>
+              )}
               {isOverdue && <span className="text-xs font-black text-red-600">⚠️ 期限超過</span>}
               {isDueSoon && !isOverdue && <span className="text-xs font-black text-amber-600">⚠️ 明日まで</span>}
             </div>
             <span className="text-[10px] font-black text-indigo-400 font-mono shrink-0">{reqNo}</span>
           </div>
 
-          {/* 顧客名 + 受付日 */}
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
+          {/* 顧客名 + 学校 + 受付日（1行にまとめる） */}
+          <div className="flex items-baseline justify-between gap-2 flex-wrap">
+            <div className="flex items-baseline gap-2 flex-wrap min-w-0">
+              <p className="text-lg font-black text-gray-900 leading-tight">{name}</p>
               {item.child?.school_name && (
-                <p className="text-xs font-black text-amber-600 leading-none mb-0.5">{item.child.school_name}</p>
+                <span className="text-xs font-black text-amber-600">{item.child.school_name}</span>
               )}
-              <p className="text-xl font-black text-gray-900 leading-tight">{name}</p>
               {item.child?.name && item.customer?.name && (
-                <p className="text-[11px] text-gray-400">保護者: {item.customer.name}</p>
+                <span className="text-[11px] text-gray-400">保護者: {item.customer.name}</span>
               )}
             </div>
-            <span className="text-[11px] text-gray-400 shrink-0 pt-0.5">受付 {fmtDate(item.received_date)}</span>
+            <span className="text-[11px] text-gray-400 shrink-0">受付 {fmtDate(item.received_date)}</span>
           </div>
 
-          {/* アイテム・内容 */}
-          <div>
+          {/* アイテム名・お直し内容・お直し項目（大きく表示） */}
+          <div className="space-y-0.5">
             {item.item_name && item.content && item.item_name !== item.content && (
-              <p className="text-[11px] text-gray-400 font-bold leading-none mb-0.5">{item.item_name}</p>
+              <p className="text-sm text-gray-500 font-bold leading-tight">{item.item_name}</p>
             )}
-            <p className="text-sm font-black text-gray-900 leading-snug">
+            <p className="text-base font-black text-gray-900 leading-snug">
               {item.content || item.item_name || '内容未記入'}
             </p>
             {item.repair_type === 'hem' && item.hem_length_mm != null && item.hem_length_mm !== 0 && (
-              <p className="text-xs font-black text-amber-700">裾上げ {item.hem_length_mm > 0 ? '+' : ''}{item.hem_length_mm}mm</p>
+              <p className="text-sm font-black text-amber-700">裾上げ {item.hem_length_mm > 0 ? '+' : ''}{item.hem_length_mm}mm</p>
             )}
             {item.repair_type === 'sleeve' && item.sleeve_adjust_mm != null && item.sleeve_adjust_mm !== 0 && (
-              <p className="text-xs font-black text-blue-700">袖丈 {item.sleeve_adjust_mm > 0 ? '+' : ''}{item.sleeve_adjust_mm}mm</p>
+              <p className="text-sm font-black text-blue-700">袖丈 {item.sleeve_adjust_mm > 0 ? '+' : ''}{item.sleeve_adjust_mm}mm</p>
             )}
             {item.repair_type === 'waist' && item.waist_adjust_mm != null && item.waist_adjust_mm !== 0 && (
-              <p className="text-xs font-black text-purple-700">ウエスト {item.waist_adjust_mm > 0 ? '+' : ''}{item.waist_adjust_mm}mm</p>
+              <p className="text-sm font-black text-purple-700">ウエスト {item.waist_adjust_mm > 0 ? '+' : ''}{item.waist_adjust_mm}mm</p>
             )}
             {item.repair_type === 'embroidery' && item.embroidery_text && (
-              <p className="text-xs font-black text-pink-700">刺繍「{item.embroidery_text}」{item.embroidery_color} {item.embroidery_pos}</p>
-            )}
-            {item.sent_to_vendor_at && (
-              <p className="text-xs font-black text-orange-600">📤 外注中{item.vendor_name ? `（${item.vendor_name}）` : ''}</p>
+              <p className="text-sm font-black text-pink-700">刺繍「{item.embroidery_text}」{item.embroidery_color} {item.embroidery_pos}</p>
             )}
           </div>
 
-          {/* 金額 + 希望日（1行） */}
-          <div className="flex items-center gap-2">
+          {/* 支払い状況 + 希望日（大きく・1行） */}
+          <div className="flex items-center gap-2 flex-wrap">
             {item.price != null && (
               <button onClick={handlePaymentToggle} disabled={loading}
                 style={{ touchAction: 'manipulation' }}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border-2 font-black transition-all active:scale-[0.98] disabled:opacity-50 ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 font-black transition-all active:scale-[0.98] disabled:opacity-50 ${
                   item.prepaid
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
                     : 'bg-red-50 border-red-300 text-red-700'
                 }`}>
-                <Banknote size={14} className="shrink-0" />
-                <span className="text-sm">¥{item.price.toLocaleString()}</span>
-                <span className={`text-[10px] px-1.5 py-0 rounded font-black leading-5 ${
+                <Banknote size={16} className="shrink-0" />
+                <span className="text-base">¥{item.price.toLocaleString()}</span>
+                <span className={`text-[11px] px-1.5 py-0 rounded font-black leading-5 ${
                   item.prepaid ? 'bg-emerald-200/60 text-emerald-800' : 'bg-red-200/60 text-red-800'
                 }`}>
                   {item.prepaid ? '支払済' : '未払い'}
@@ -401,8 +401,8 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
               </button>
             )}
             {item.desired_completion_date && (
-              <span className={`text-xs font-black ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-gray-500'}`}>
-                {isOverdue ? '🚨' : isDueSoon ? '⚠️' : ''}希望{new Date(item.desired_completion_date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}
+              <span className={`text-base font-black ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-gray-600'}`}>
+                {isOverdue ? '🚨' : isDueSoon ? '⚠️' : ''}希望 {new Date(item.desired_completion_date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}
               </span>
             )}
           </div>
@@ -457,7 +457,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
           ) : (
             <button onClick={() => setConfirmPrimary(true)} disabled={loading}
               style={{ touchAction: 'manipulation' }}
-              className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-black text-base rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 transition-all disabled:opacity-50">
+              className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-black text-base rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 transition-all disabled:opacity-50">
               {loading ? <Loader2 size={18} className="animate-spin" /> : '✅'}
               {completeBtnLabel}
             </button>
@@ -531,74 +531,87 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             </button>
           )}
 
-          {/* 写真 (簡易表示) */}
+          {/* 詳細トグル: 電話・写真・受付に戻す・削除（タップで展開） */}
           <button onClick={() => setPhotosOpen(v => !v)}
-            className="flex items-center gap-1 text-[11px] text-gray-400 font-bold py-0.5">
-            <Camera size={11} className="shrink-0" />
-            写真{repairPhotos && repairPhotos.length > 0 ? ` (${repairPhotos.length})` : ''}
-            <ChevronRight size={10} className={`transition-transform ${photosOpen ? 'rotate-90' : ''}`} />
+            style={{ touchAction: 'manipulation' }}
+            className="w-full flex items-center justify-center gap-1 text-[11px] text-gray-400 font-bold pt-0.5 active:opacity-60">
+            {photosOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            {photosOpen ? '閉じる' : '電話・写真・受付に戻す・削除'}
           </button>
-          {photosOpen && (
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              {repairPhotos == null ? (
-                <Loader2 size={14} className="animate-spin text-gray-300" />
-              ) : repairPhotos.length === 0 ? (
-                <p className="text-[10px] text-gray-300">写真なし</p>
-              ) : repairPhotos.map((p, i) => (
-                <div key={i} className="relative w-14 h-14 shrink-0">
-                  <img src={p.url} alt="" className="w-full h-full object-cover rounded-lg border" />
-                  <span className={`absolute bottom-0 left-0 right-0 text-center text-[8px] py-0.5 rounded-b-lg ${p.phase === 'after' ? 'bg-emerald-600/70 text-white' : 'bg-black/40 text-white'}`}>
-                    {p.phase === 'after' ? '完了時' : '受付時'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
 
-          {/* 下部ロウ: 電話 + 受付に戻す + 削除 */}
-          {confirmCancel ? (
-            <div className="rounded-xl border-2 border-red-300 bg-red-50 px-3 py-2.5 space-y-2">
-              <p className="text-sm font-black text-red-700 text-center">本当に削除しますか？</p>
-              <div className="flex gap-2">
-                <button onClick={() => setConfirmCancel(false)}
-                  style={{ touchAction: 'manipulation' }}
-                  className="flex-1 py-2 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-black active:scale-95 transition-all">
-                  戻る
-                </button>
-                <button onClick={async () => {
-                  setLoading(true)
-                  const { error } = await (supabase as any).from('repair_histories').delete().eq('id', item.id)
-                  setLoading(false)
-                  if (error) { onToast('err', '削除に失敗しました'); return }
-                  onToast('ok', 'キャンセルしました')
-                  onRefresh()
-                }} disabled={loading}
-                  style={{ touchAction: 'manipulation' }}
-                  className="flex-1 py-2 rounded-xl bg-red-600 text-white text-sm font-black flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-50">
-                  {loading ? <Loader2 size={16} className="animate-spin" /> : <><Trash2 size={14} />削除する</>}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 pt-0.5">
+          {photosOpen && (
+            <div className="space-y-2.5 pt-2 border-t border-gray-100">
+              {/* 電話 */}
               {item.customer?.tel && (
                 <a href={`tel:${item.customer.tel}`}
-                  className="flex-1 flex items-center gap-1 text-indigo-600 font-bold text-xs truncate">
-                  <Phone size={13} className="shrink-0" />{item.customer.tel}
+                  className="flex items-center gap-1.5 text-indigo-600 font-bold text-sm">
+                  <Phone size={14} className="shrink-0" />{item.customer.tel}
                 </a>
               )}
-              {canRevert && (
-                <button onClick={handleSimpleRevert} disabled={loading}
-                  style={{ touchAction: 'manipulation' }}
-                  className="flex items-center gap-1 px-2 py-1.5 border border-gray-200 bg-gray-50 text-gray-500 font-bold text-xs rounded-lg active:scale-95 transition-all shrink-0">
-                  <RotateCcw size={11} />受付に戻す
-                </button>
+
+              {/* 写真 */}
+              <div>
+                <p className="flex items-center gap-1 text-[11px] text-gray-400 font-bold mb-1">
+                  <Camera size={11} className="shrink-0" />
+                  写真{repairPhotos && repairPhotos.length > 0 ? ` (${repairPhotos.length})` : ''}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {repairPhotos == null ? (
+                    <Loader2 size={14} className="animate-spin text-gray-300" />
+                  ) : repairPhotos.length === 0 ? (
+                    <p className="text-[10px] text-gray-300">写真なし</p>
+                  ) : repairPhotos.map((p, i) => (
+                    <div key={i} className="relative w-14 h-14 shrink-0">
+                      <img src={p.url} alt="" className="w-full h-full object-cover rounded-lg border" />
+                      <span className={`absolute bottom-0 left-0 right-0 text-center text-[8px] py-0.5 rounded-b-lg ${p.phase === 'after' ? 'bg-emerald-600/70 text-white' : 'bg-black/40 text-white'}`}>
+                        {p.phase === 'after' ? '完了時' : '受付時'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 受付に戻す + 削除 */}
+              {confirmCancel ? (
+                <div className="rounded-xl border-2 border-red-300 bg-red-50 px-3 py-2.5 space-y-2">
+                  <p className="text-sm font-black text-red-700 text-center">本当に削除しますか？</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setConfirmCancel(false)}
+                      style={{ touchAction: 'manipulation' }}
+                      className="flex-1 py-2 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-black active:scale-95 transition-all">
+                      戻る
+                    </button>
+                    <button onClick={async () => {
+                      setLoading(true)
+                      const { error } = await (supabase as any).from('repair_histories').delete().eq('id', item.id)
+                      setLoading(false)
+                      if (error) { onToast('err', '削除に失敗しました'); return }
+                      onToast('ok', 'キャンセルしました')
+                      onRefresh()
+                    }} disabled={loading}
+                      style={{ touchAction: 'manipulation' }}
+                      className="flex-1 py-2 rounded-xl bg-red-600 text-white text-sm font-black flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-50">
+                      {loading ? <Loader2 size={16} className="animate-spin" /> : <><Trash2 size={14} />削除する</>}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  {canRevert && (
+                    <button onClick={handleSimpleRevert} disabled={loading}
+                      style={{ touchAction: 'manipulation' }}
+                      className="flex items-center gap-1 px-2.5 py-1.5 border border-gray-200 bg-gray-50 text-gray-500 font-bold text-xs rounded-lg active:scale-95 transition-all">
+                      <RotateCcw size={11} />受付に戻す
+                    </button>
+                  )}
+                  <span className="flex-1" />
+                  <button onClick={() => setConfirmCancel(true)} disabled={loading}
+                    style={{ touchAction: 'manipulation' }}
+                    className="flex items-center gap-1 px-2.5 py-1.5 border border-red-100 bg-red-50 text-red-400 font-bold text-xs rounded-lg active:scale-95 transition-all">
+                    <Trash2 size={11} />削除
+                  </button>
+                </div>
               )}
-              <button onClick={() => setConfirmCancel(true)} disabled={loading}
-                style={{ touchAction: 'manipulation' }}
-                className="flex items-center gap-1 px-2 py-1.5 border border-red-100 bg-red-50 text-red-400 font-bold text-xs rounded-lg active:scale-95 transition-all shrink-0">
-                <Trash2 size={11} />削除
-              </button>
             </div>
           )}
         </div>
