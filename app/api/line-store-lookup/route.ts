@@ -1,4 +1,6 @@
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
+export const revalidate = 0
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
@@ -17,7 +19,16 @@ function customerCaps(rawFeatures: Record<string, unknown>) {
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key)
+  // Next.js App Router は fetch をサーバー側でキャッシュする。Supabase の
+  // 各クエリは同一URLになるためキャッシュ対象となり、会員を追加登録しても
+  // 古いスナップショット（例: 支店A登録前）が返り続ける。global.fetch に
+  // cache:'no-store' を強制し、常に最新のDB状態を取得する。
+  return createClient(url, key, {
+    global: {
+      fetch: (input, init) => fetch(input, { ...init, cache: 'no-store' }),
+    },
+    auth: { persistSession: false },
+  })
 }
 
 export async function GET(req: Request) {
