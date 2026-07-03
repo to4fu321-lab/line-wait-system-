@@ -1,20 +1,59 @@
-export default function OldAdminPage() {
-  return (
-    <div className="min-h-screen bg-gray-800 flex flex-col items-center justify-center px-6">
-      <div className="text-center max-w-sm">
-        <div className="text-5xl mb-4">🔄</div>
-        <h1 className="text-2xl font-black text-white mb-3">URLが変わりました</h1>
-        <p className="text-gray-400 mb-6">
-          多店舗対応により、管理画面のURLが変更されました。
-        </p>
-        <div className="bg-gray-700 rounded-2xl p-5 text-left text-sm text-gray-300">
-          <p className="font-bold text-white mb-2">新しいURL</p>
-          <code className="text-blue-400">/{'{'}店舗ID{'}'}/admin</code>
-          <p className="mt-3 text-gray-400 text-xs">
-            店舗IDはSupabaseの stores テーブルで確認できます。
-          </p>
-        </div>
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Loader2 } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { StoreSelectScreen } from '@/app/[storeId]/admin/_components/StoreSelectScreen'
+import type { StoreInfo } from '@/app/[storeId]/admin/_components/StoreSelectScreen'
+
+// ============================================================
+// スタッフ画面 直接入口
+// LINE/LIFF を経由せずに店舗スタッフ画面へ入るための入口。
+// 店舗一覧から選択 → /{storeId}/admin（PIN → ダッシュボード）へ遷移する。
+// 業種（business_type）による自動振り分けは行わず、常に統一の
+// 管理画面へ入る。
+// ============================================================
+export default function StaffEntryPage() {
+  const router = useRouter()
+  const [stores, setStores] = useState<StoreInfo[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    (supabase as any).from('stores')
+      .select('id, name, pin, group_id, business_type, features')
+      .order('name', { ascending: true })
+      .then(({ data, error }: { data: StoreInfo[] | null; error: { message: string } | null }) => {
+        if (error || !data || data.length === 0) {
+          setError(error?.message ?? '店舗データが見つかりません')
+        } else {
+          setStores(data)
+        }
+        setLoading(false)
+      })
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="min-h-[100dvh] bg-gray-50 flex items-center justify-center">
+        <Loader2 size={36} className="animate-spin text-indigo-600" />
       </div>
-    </div>
+    )
+  }
+
+  return (
+    <>
+      {error && (
+        <div className="fixed top-4 left-4 right-4 bg-red-600 text-white text-sm px-4 py-3 rounded-xl z-50 border border-red-700">
+          エラー: {error}
+        </div>
+      )}
+      <StoreSelectScreen
+        stores={stores}
+        groupCode={null}
+        onSelect={s => router.push(`/${s.id}/admin`)}
+      />
+    </>
   )
 }

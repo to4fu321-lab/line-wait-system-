@@ -804,7 +804,6 @@ export default function StoreAdminPage() {
             setGroupStores((data as StoreInfo[]).filter(s => s.group_id === match.group_id))
             const gc = sessionStorage.getItem('admin_group_code')
             if (gc) setGroupCode(gc); else loadGroupCode(match)
-            if (match.business_type === 'takeout') { router.replace(`/${match.id}/kitchen`); return }
             if (!resolveFeature('tab_queue', match.features ?? {})) { router.replace(`/${match.id}/admin/repairs`); return }
             setView('dashboard'); return
           }
@@ -828,10 +827,6 @@ export default function StoreAdminPage() {
       sessionStorage.setItem('admin_auth', '1')
       sessionStorage.setItem('admin_role', role)
       loadGroupCode(selectedStore)
-      if (selectedStore.business_type === 'takeout') {
-        router.replace(`/${selectedStore.id}/kitchen`)
-        return
-      }
       if (!resolveFeature('tab_queue', selectedStore.features ?? {})) {
         router.replace(`/${selectedStore.id}/admin/repairs`)
         return

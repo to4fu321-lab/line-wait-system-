@@ -101,6 +101,12 @@ export default function RootPage() {
         )}
 
         <div className="mt-8 flex flex-col items-center gap-3">
+          <Link
+            href="/admin"
+            className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/70 px-4 py-2 text-xs font-bold text-zinc-600 backdrop-blur-sm transition-colors hover:bg-white hover:text-zinc-900"
+          >
+            🏪 店舗スタッフの方はこちら
+          </Link>
           <p className="text-[11px] text-zinc-400">
             Powered by LINE × Next.js
           </p>
