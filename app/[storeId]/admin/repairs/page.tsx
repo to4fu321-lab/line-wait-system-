@@ -612,7 +612,7 @@ export default function RepairsPage() {
 
           {/* Title row */}
           <div className="flex items-center gap-2 mb-3">
-            <h1 className="text-sm font-black text-gray-800 tracking-tight whitespace-nowrap">業務ダッシュボード</h1>
+            <h1 className="text-sm font-black text-gray-800 tracking-tight whitespace-nowrap">{isSimpleMode ? '業務一覧' : '業務ダッシュボード'}</h1>
             {/* 開店/閉店ボタン — full mode only */}
             {!isSimpleMode && (
               <button
@@ -652,7 +652,7 @@ export default function RepairsPage() {
                 onClick={() => setDashOpen(v => !v)}
                 style={{ touchAction: 'manipulation' }}
                 className="w-full flex items-center justify-center gap-1 py-1.5 text-[10px] font-bold text-white/60 hover:text-white/90 transition-colors active:opacity-60">
-                <span>ダッシュボード</span>
+                <span>受付中の業務</span>
                 {dashOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               </button>
               {dashOpen && (
