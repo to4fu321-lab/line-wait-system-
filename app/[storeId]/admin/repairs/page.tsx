@@ -659,26 +659,24 @@ export default function RepairsPage() {
               <>
               {(() => {
                 const tiles = ([
-                  { id: 'repair'    as const, emoji: '✂️', label: 'お直し',     count: repairs.length,         urgent: 0 },
-                  { id: 'purchase'  as const, emoji: '📦', label: '追加購入',   count: uniformOrders.length,   urgent: 0 },
-                  { id: 'inquiries' as const, emoji: '💬', label: '問合せ',     count: pendingInquiriesCount,  urgent: urgentInquiriesCount },
-                  hasFeature('repairs_tab_delivery') && { id: 'delivery' as const, emoji: '🎁', label: 'お渡し待ち', count: waiting.length, urgent: 0 },
+                  { id: 'repair'    as const, emoji: '✂️', label: 'お直し',   count: repairs.length,         urgent: 0 },
+                  { id: 'purchase'  as const, emoji: '📦', label: '追加購入', count: uniformOrders.length,   urgent: 0 },
+                  { id: 'inquiries' as const, emoji: '💬', label: '問合せ',   count: pendingInquiriesCount,  urgent: urgentInquiriesCount },
+                  hasFeature('repairs_tab_delivery') && { id: 'delivery' as const, emoji: '🎁', label: 'お渡し', count: waiting.length, urgent: 0 },
                 ].filter(Boolean)) as { id: ActiveTab; emoji: string; label: string; count: number; urgent: number }[]
-                const isOdd = tiles.length % 2 === 1
                 return (
-                  <div className="grid grid-cols-2 gap-px bg-white/15 border-t border-white/15">
-                    {tiles.map((t, i) => {
+                  <div className="grid gap-px bg-white/15 border-t border-white/15" style={{ gridTemplateColumns: `repeat(${tiles.length}, 1fr)` }}>
+                    {tiles.map(t => {
                       const active = tab === t.id
-                      const spanFull = isOdd && i === tiles.length - 1
                       return (
                         <button key={t.id}
                           onClick={() => { setTab(t.id); setSearchText('') }}
                           style={{ touchAction: 'manipulation' }}
-                          className={`relative flex items-center justify-center gap-1.5 py-2.5 px-2 transition-all active:scale-95 ${spanFull ? 'col-span-2' : ''} ${active ? 'bg-white/20' : 'bg-indigo-800 hover:bg-white/10'}`}>
-                          <span className="text-2xl font-black tabular-nums leading-none">{t.count}</span>
-                          <span className="text-xs font-bold opacity-90 whitespace-nowrap">{t.emoji} {t.label}</span>
+                          className={`relative flex flex-col items-center justify-center py-1.5 px-1 transition-all active:scale-95 ${active ? 'bg-white/20' : 'bg-indigo-800 hover:bg-white/10'}`}>
+                          <span className="text-lg font-black tabular-nums leading-none">{t.count}</span>
+                          <span className="text-[10px] font-bold opacity-90 mt-0.5 whitespace-nowrap">{t.emoji} {t.label}</span>
                           {t.urgent > 0 && (
-                            <span className="absolute top-1 right-1.5 bg-red-500 text-white text-[9px] font-black min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center leading-none">
+                            <span className="absolute top-0.5 right-1 bg-red-500 text-white text-[8px] font-black min-w-[14px] h-3.5 px-1 rounded-full flex items-center justify-center leading-none">
                               {t.urgent}
                             </span>
                           )}
@@ -688,29 +686,27 @@ export default function RepairsPage() {
                   </div>
                 )
               })()}
-              {/* 受付セクション — 種類ごとに色分けし新人でも判別しやすく */}
-              <div className="border-t border-white/20">
-                <p className="text-center text-sm font-black text-white pt-2.5 pb-2">
-                  🖐️ お客様の受付はこちら
-                </p>
-                <div className="flex gap-2 px-3 pb-3">
+              {/* 受付セクション — コンパクト（1行ボタン・色分け） */}
+              <div className="border-t border-white/20 px-2.5 pt-1.5 pb-2.5">
+                <p className="text-center text-[11px] font-black text-white/80 pb-1.5">🖐️ お客様の受付</p>
+                <div className="flex gap-1.5">
                   <button onClick={() => setShowNewRepair(true)}
                     style={{ touchAction: 'manipulation' }}
-                    className="flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl bg-rose-500 hover:bg-rose-600 text-white active:scale-[0.97] transition-all shadow-md">
-                    <Scissors size={22} />
-                    <span className="text-[11px] font-black">✂️ お直し</span>
+                    className="flex-1 flex items-center justify-center gap-1 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white active:scale-[0.97] transition-all shadow">
+                    <Scissors size={15} />
+                    <span className="text-[11px] font-black">お直し</span>
                   </button>
                   <button onClick={() => setShowNewOrder(true)}
                     style={{ touchAction: 'manipulation' }}
-                    className="flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl bg-sky-500 hover:bg-sky-600 text-white active:scale-[0.97] transition-all shadow-md">
-                    <ShoppingCart size={22} />
-                    <span className="text-[11px] font-black">📦 追加購入</span>
+                    className="flex-1 flex items-center justify-center gap-1 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white active:scale-[0.97] transition-all shadow">
+                    <ShoppingCart size={15} />
+                    <span className="text-[11px] font-black">追加購入</span>
                   </button>
                   <button onClick={() => { setEditInquiry(null); setShowInqModal(true) }}
                     style={{ touchAction: 'manipulation' }}
-                    className="flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white active:scale-[0.97] transition-all shadow-md">
-                    <MessageSquarePlus size={22} />
-                    <span className="text-[11px] font-black">💬 問合せ</span>
+                    className="flex-1 flex items-center justify-center gap-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white active:scale-[0.97] transition-all shadow">
+                    <MessageSquarePlus size={15} />
+                    <span className="text-[11px] font-black">問合せ</span>
                   </button>
                 </div>
               </div>
@@ -955,7 +951,7 @@ export default function RepairsPage() {
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">💬 問合せ未対応 ({pendingInqAll.length})</p>
                 <div className="space-y-1.5">
                   {pendingInqAll.map(i => (
-                    <InquiryTabCard key={i.id} item={i}
+                    <InquiryTabCard key={i.id} item={i} storeId={storeId} onToast={showToast}
                       onEdit={item => { setEditInquiry(item); setShowInqModal(true) }}
                       onStatusChange={(id, s) => setInquiries(prev => prev.map(x => x.id === id ? { ...x, status: s } : x))}
                       isSimpleMode={isSimpleMode} />
@@ -1400,7 +1396,7 @@ export default function RepairsPage() {
               return (
                 <div className="space-y-2">
                   {filtered.map(inq => (
-                    <InquiryTabCard key={inq.id} item={inq}
+                    <InquiryTabCard key={inq.id} item={inq} storeId={storeId} onToast={showToast}
                       onEdit={item => { setEditInquiry(item); setShowInqModal(true) }}
                       onStatusChange={(id, s) => setInquiries(prev => prev.map(i => i.id === id ? { ...i, status: s } : i))}
                       isSimpleMode={isSimpleMode}

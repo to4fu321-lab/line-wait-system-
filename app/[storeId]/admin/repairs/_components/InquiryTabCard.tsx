@@ -1,27 +1,33 @@
 'use client'
 
-import { useState } from 'react'
-import { Loader2, CheckCheck, ChevronLeft, Sparkles } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Loader2, CheckCheck, ChevronLeft, Sparkles, Mic, Square, Camera } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { fmtReqNo } from './utils'
+import { fmtReqNo, compressImage } from './utils'
 import type { InquiryRow, InquiryStatus, ResponseMethod } from '../../_components/InquiryModal'
 import {
   INQ_TYPE_LABELS, INQ_TYPE_BADGE, INQ_TYPE_BORDER,
   INQ_STATUS_LABELS, INQ_STATUS_BADGE, INQ_METHOD_LABELS,
 } from './constants'
 
-type SimpleStep = 'idle' | 'loading' | 'advice' | 'completing'
+// シンプルモードの対応ステップ: idle→（対応する）→compose→（記録して完了）→method
+type SimpleStep = 'idle' | 'compose' | 'method'
 
-export function InquiryTabCard({ item, onEdit, onStatusChange, isSimpleMode = false }: {
-  item: InquiryRow; onEdit: (item: InquiryRow) => void; onStatusChange: (id: string, s: InquiryStatus) => void
+export function InquiryTabCard({ item, storeId, onEdit, onStatusChange, isSimpleMode = false, onToast }: {
+  item: InquiryRow; storeId: string; onEdit: (item: InquiryRow) => void
+  onStatusChange: (id: string, s: InquiryStatus) => void
   isSimpleMode?: boolean
+  onToast?: (t: 'ok' | 'err', m: string) => void
 }) {
   const [updating,      setUpdating]      = useState(false)
   const [simpleStep,    setSimpleStep]    = useState<SimpleStep>('idle')
+  const [replyText,     setReplyText]     = useState('')
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([])
-  const [selectedReply, setSelectedReply] = useState('')
-  const [showCustom,    setShowCustom]    = useState(false)
-  const [customReply,   setCustomReply]   = useState('')
+  const [aiLoading,     setAiLoading]     = useState(false)
+  const [recording,     setRecording]     = useState(false)
+  const [ocrLoading,    setOcrLoading]    = useState(false)
+  const recognitionRef = useRef<{ stop: () => void } | null>(null)
+  const ocrInputRef    = useRef<HTMLInputElement>(null)
 
   const today = new Date(); today.setHours(0,0,0,0)
   const isOverdue = item.due_date && item.status !== 'completed' && new Date(item.due_date) < today
@@ -38,8 +44,9 @@ export function InquiryTabCard({ item, onEdit, onStatusChange, isSimpleMode = fa
     onStatusChange(item.id, n)
   }
 
-  async function fetchAdvice() {
-    setSimpleStep('loading')
+  // ✨ AI提案を取得（手入力欄にタップで挿入）
+  async function loadAi() {
+    setAiLoading(true)
     try {
       const res = await fetch('/api/inquiry-advice', {
         method: 'POST',
@@ -51,8 +58,7 @@ export function InquiryTabCard({ item, onEdit, onStatusChange, isSimpleMode = fa
         const s: string[] = []
         if (data.sample_reply)       s.push(data.sample_reply)
         if (data.recommended_action) s.push(data.recommended_action)
-        if (s.length < 3) s.push('担当者に確認してお返事します')
-        if (s.length < 3) s.push('ご不便をおかけして申し訳ございません')
+        if (s.length === 0) s.push('担当者に確認してお返事します')
         setAiSuggestions(s.slice(0, 3))
       } else {
         setAiSuggestions(['担当者に確認してお返事します', 'ご不便をおかけして申し訳ございません'])
@@ -60,12 +66,57 @@ export function InquiryTabCard({ item, onEdit, onStatusChange, isSimpleMode = fa
     } catch {
       setAiSuggestions(['担当者に確認してお返事します', 'ご不便をおかけして申し訳ございません'])
     }
-    setSimpleStep('advice')
+    setAiLoading(false)
+  }
+
+  // 🎤 音声入力（Web Speech API・端末非対応時はキーボードのマイクを案内）
+  function toggleVoice() {
+    const w = window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any }
+    const SR = w.SpeechRecognition || w.webkitSpeechRecognition
+    if (!SR) { onToast?.('err', 'この端末は音声入力に未対応です。キーボードのマイクをお使いください'); return }
+    if (recording) { recognitionRef.current?.stop(); setRecording(false); return }
+    try {
+      const rec = new SR()
+      rec.lang = 'ja-JP'; rec.interimResults = false; rec.maxAlternatives = 1
+      rec.onresult = (e: any) => {
+        let text = ''
+        for (let i = e.resultIndex; i < e.results.length; i++) text += e.results[i][0].transcript
+        if (text) setReplyText(prev => (prev ? prev + ' ' : '') + text)
+      }
+      rec.onend   = () => setRecording(false)
+      rec.onerror = () => setRecording(false)
+      recognitionRef.current = rec
+      setRecording(true)
+      rec.start()
+    } catch { setRecording(false); onToast?.('err', '音声入力を開始できませんでした') }
+  }
+
+  // 📷 写真から読み取り（手書きメモ→テキスト）
+  async function handleOcr(file: File) {
+    setOcrLoading(true)
+    try {
+      const base64 = await compressImage(file)
+      const storePin = typeof window !== 'undefined' ? (sessionStorage.getItem(`admin_pin_${storeId}`) ?? '') : ''
+      const res = await fetch('/api/slip-ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mimeType: 'image/jpeg', slipType: 'inquiry', storeId, storePin }),
+      })
+      const json = await res.json()
+      if (!json.ok || !json.data) { onToast?.('err', `読み取り失敗: ${json.error ?? '不明なエラー'}`); return }
+      const text = String(json.data.content ?? '').trim()
+      if (text) setReplyText(prev => [prev, text].filter(Boolean).join('\n'))
+      onToast?.('ok', '📷 写真から読み取りました')
+    } catch (e) {
+      onToast?.('err', `読み取りエラー: ${String(e)}`)
+    } finally {
+      setOcrLoading(false)
+    }
   }
 
   async function completeWithMethod(method: ResponseMethod | '') {
     setUpdating(true)
-    const finalReply = showCustom ? customReply.trim() : selectedReply.trim()
+    const finalReply = replyText.trim()
     const now = new Date().toISOString()
     await (supabase as any).from('inquiries').update({
       status: 'completed',
@@ -77,10 +128,14 @@ export function InquiryTabCard({ item, onEdit, onStatusChange, isSimpleMode = fa
     setUpdating(false)
     onStatusChange(item.id, 'completed')
     setSimpleStep('idle')
-    setSelectedReply('')
-    setCustomReply('')
-    setShowCustom(false)
+    setReplyText('')
+    setAiSuggestions([])
   }
+
+  // ⚡ 即対応（受付時にその場で回答した想定 → 店頭対応で即完了）
+  const immediateComplete = () => completeWithMethod('in_store')
+
+  const resetCompose = () => { setSimpleStep('idle'); setReplyText(''); setAiSuggestions([]) }
 
   // ── シンプルモード ───────────────────────────────────────────────
   if (isSimpleMode) {
@@ -117,74 +172,88 @@ export function InquiryTabCard({ item, onEdit, onStatusChange, isSimpleMode = fa
       )
     }
 
-    // AI読み込み中
-    if (simpleStep === 'loading') {
+    // 対応内容を記録（手入力＋AI＋音声＋OCR）
+    if (simpleStep === 'compose') {
       return (
         <div className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${INQ_TYPE_BORDER[item.type]} shadow-sm`}>
-          <div className="p-6 flex flex-col items-center gap-4">
-            <Loader2 size={36} className="animate-spin text-violet-500" />
-            <p className="text-base font-bold text-gray-600">AIが対応案を考えています…</p>
-          </div>
-        </div>
-      )
-    }
-
-    // 対応案選択
-    if (simpleStep === 'advice') {
-      const canProceed = selectedReply.trim().length > 0 || (showCustom && customReply.trim().length > 0)
-      return (
-        <div className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${INQ_TYPE_BORDER[item.type]} shadow-sm`}>
+          <input ref={ocrInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleOcr(f); e.target.value = '' }} />
           <div className="p-4">
             <div className="flex items-center gap-2 mb-3">
-              <button onClick={() => { setSimpleStep('idle'); setSelectedReply(''); setShowCustom(false) }}
-                className="p-1.5 rounded-xl hover:bg-gray-100 active:scale-95 transition-all">
+              <button onClick={resetCompose} className="p-1.5 rounded-xl hover:bg-gray-100 active:scale-95 transition-all">
                 <ChevronLeft size={20} className="text-gray-500" />
               </button>
-              <p className="text-base font-black text-gray-800">対応案を選んでください</p>
+              <p className="text-base font-black text-gray-800">対応内容を記録</p>
             </div>
-            <p className="text-sm text-gray-500 mb-4 leading-relaxed line-clamp-2">{item.content}</p>
-            <div className="space-y-2.5 mb-5">
-              {aiSuggestions.map((s, i) => (
-                <button key={i} onClick={() => { setSelectedReply(s); setShowCustom(false) }}
-                  className={`w-full text-left px-4 py-3.5 rounded-2xl border-2 text-sm leading-relaxed transition-all active:scale-[0.99] ${
-                    selectedReply === s && !showCustom
-                      ? 'border-violet-500 bg-violet-50 text-violet-900 font-bold'
-                      : 'border-gray-200 text-gray-700 bg-white'
-                  }`}>
-                  {i === 0 && <span className="text-xs font-black text-violet-500 mr-1.5">✨ AI</span>}
-                  {s}
-                </button>
-              ))}
-              <button onClick={() => { setShowCustom(true); setSelectedReply('') }}
-                className={`w-full text-left px-4 py-3.5 rounded-2xl border-2 text-sm transition-all active:scale-[0.99] ${
-                  showCustom
-                    ? 'border-violet-500 bg-violet-50 text-violet-900 font-bold'
-                    : 'border-gray-200 text-gray-500 bg-white'
-                }`}>
-                ✏️ 自分で入力する
+
+            {/* 問合せ内容の参照 */}
+            <div className="bg-gray-50 rounded-xl px-3 py-2 mb-3">
+              <p className="text-xs text-gray-500 leading-relaxed line-clamp-3">{item.content}</p>
+            </div>
+
+            {/* 入力方法ツールバー: AI / 音声 / 写真 */}
+            <div className="grid grid-cols-3 gap-2 mb-2">
+              <button onClick={loadAi} disabled={aiLoading}
+                style={{ touchAction: 'manipulation' }}
+                className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border-2 border-violet-200 bg-violet-50 text-violet-700 text-xs font-black active:scale-95 transition-all disabled:opacity-50">
+                {aiLoading ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}AI提案
               </button>
-              {showCustom && (
-                <textarea
-                  value={customReply}
-                  onChange={e => setCustomReply(e.target.value)}
-                  placeholder="対応内容を入力…"
-                  rows={3}
-                  className="w-full px-4 py-3 rounded-2xl border-2 border-violet-300 text-base text-gray-800 focus:outline-none focus:border-violet-500 resize-none"
-                  autoFocus
-                />
-              )}
+              <button onClick={toggleVoice}
+                style={{ touchAction: 'manipulation' }}
+                className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border-2 text-xs font-black active:scale-95 transition-all ${
+                  recording ? 'border-red-300 bg-red-500 text-white animate-pulse' : 'border-blue-200 bg-blue-50 text-blue-700'
+                }`}>
+                {recording ? <Square size={14} /> : <Mic size={15} />}{recording ? '停止' : '音声'}
+              </button>
+              <button onClick={() => ocrInputRef.current?.click()} disabled={ocrLoading}
+                style={{ touchAction: 'manipulation' }}
+                className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border-2 border-teal-200 bg-teal-50 text-teal-700 text-xs font-black active:scale-95 transition-all disabled:opacity-50">
+                {ocrLoading ? <Loader2 size={15} className="animate-spin" /> : <Camera size={15} />}写真
+              </button>
             </div>
-            <button onClick={() => setSimpleStep('completing')} disabled={!canProceed}
-              className="w-full py-5 rounded-2xl text-base font-black bg-emerald-600 text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-40 shadow-md">
-              <CheckCheck size={18} />完了する
-            </button>
+
+            {/* AI提案チップ（タップで挿入） */}
+            {aiSuggestions.length > 0 && (
+              <div className="space-y-1.5 mb-2">
+                <p className="text-[10px] font-black text-violet-500">タップして挿入</p>
+                {aiSuggestions.map((s, i) => (
+                  <button key={i} onClick={() => setReplyText(prev => (prev ? prev + '\n' : '') + s)}
+                    className="w-full text-left px-3 py-2 rounded-xl border-2 border-violet-200 bg-violet-50 text-sm leading-relaxed text-violet-900 active:scale-[0.99] transition-all">
+                    <span className="text-xs font-black text-violet-500 mr-1">✨</span>{s}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* 手入力欄（音声・写真の結果もここに入る） */}
+            <textarea
+              value={replyText}
+              onChange={e => setReplyText(e.target.value)}
+              placeholder="対応内容を入力（手入力・音声・写真の読み取り結果もここに入ります）…"
+              rows={3}
+              className="w-full px-3 py-2.5 rounded-xl border-2 border-gray-200 text-base text-gray-800 focus:outline-none focus:border-violet-400 resize-none mb-3"
+            />
+
+            {/* 完了アクション */}
+            <div className="space-y-2">
+              <button onClick={immediateComplete} disabled={updating}
+                style={{ touchAction: 'manipulation' }}
+                className="w-full py-3.5 rounded-2xl border-2 border-emerald-300 bg-emerald-50 text-emerald-700 font-black text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50">
+                {updating ? <Loader2 size={16} className="animate-spin" /> : '⚡'}その場で対応済み（すぐ完了）
+              </button>
+              <button onClick={() => setSimpleStep('method')} disabled={updating}
+                style={{ touchAction: 'manipulation' }}
+                className="w-full py-4 rounded-2xl bg-emerald-600 text-white font-black text-base flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-md disabled:opacity-50">
+                <CheckCheck size={18} />記録して完了 →
+              </button>
+            </div>
           </div>
         </div>
       )
     }
 
     // 対応方法選択
-    if (simpleStep === 'completing') {
+    if (simpleStep === 'method') {
       const methods: { value: ResponseMethod | ''; label: string; emoji: string }[] = [
         { value: 'phone',    label: '電話で対応した',    emoji: '📞' },
         { value: 'line',     label: 'LINEで対応した',   emoji: '💬' },
@@ -192,12 +261,11 @@ export function InquiryTabCard({ item, onEdit, onStatusChange, isSimpleMode = fa
         { value: 'email',    label: 'メールで対応した',  emoji: '📧' },
         { value: '',         label: 'その他',            emoji: '✅' },
       ]
-      const backStep: SimpleStep = item.status === 'pending' ? 'advice' : 'idle'
       return (
         <div className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${INQ_TYPE_BORDER[item.type]} shadow-sm`}>
           <div className="p-4">
             <div className="flex items-center gap-2 mb-5">
-              <button onClick={() => setSimpleStep(backStep)}
+              <button onClick={() => setSimpleStep('compose')}
                 className="p-1.5 rounded-xl hover:bg-gray-100 active:scale-95 transition-all">
                 <ChevronLeft size={20} className="text-gray-500" />
               </button>
@@ -245,19 +313,11 @@ export function InquiryTabCard({ item, onEdit, onStatusChange, isSimpleMode = fa
             {new Date(item.created_at).toLocaleDateString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}
             {item.response_method && ` · ${INQ_METHOD_LABELS[item.response_method]}`}
           </p>
-          {item.status === 'pending' ? (
-            <button onClick={e => { e.stopPropagation(); fetchAdvice() }}
-              style={{ touchAction: 'manipulation' }}
-              className="w-full py-5 rounded-2xl text-base font-black bg-violet-600 text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-md shadow-violet-600/20">
-              <Sparkles size={18} />対応する
-            </button>
-          ) : (
-            <button onClick={e => { e.stopPropagation(); setSimpleStep('completing') }}
-              style={{ touchAction: 'manipulation' }}
-              className="w-full py-5 rounded-2xl text-base font-black bg-emerald-600 text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-md shadow-emerald-600/20">
-              <CheckCheck size={18} />完了にする
-            </button>
-          )}
+          <button onClick={e => { e.stopPropagation(); setSimpleStep('compose') }}
+            style={{ touchAction: 'manipulation' }}
+            className="w-full py-5 rounded-2xl text-base font-black bg-violet-600 text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-md shadow-violet-600/20">
+            <Sparkles size={18} />対応する
+          </button>
         </div>
       </div>
     )
