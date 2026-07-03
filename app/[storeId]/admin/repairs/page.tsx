@@ -23,6 +23,7 @@ import { NewOrderModal } from './_components/NewOrderModal'
 import { RepairCard } from './_components/RepairCard'
 import { MakerOrderPanel, UniformMakerOrderPanel } from './_components/PurchaseOrderPanel'
 import { WaitingCard, CompletedCard } from './_components/DeliveryCards'
+import { SimplePurchaseCard } from './_components/SimplePurchaseCard'
 import { EditModal } from './_components/EditModal'
 import { ArrivalCard } from './_components/ArrivalCard'
 import { InquiryTabCard } from './_components/InquiryTabCard'
@@ -249,8 +250,9 @@ export default function RepairsPage() {
     if (tab === 'delivery' && deliverySubTab === 'history' && !histFetched) fetchHistory()
   }, [tab, deliverySubTab, histFetched, fetchHistory])
   // Reset to repair tab if current tab is unavailable in simple mode
+  // （追加購入・問合せはシンプルモードでも表示するため対象外。入荷待ちのみ非対応）
   useEffect(() => {
-    if (isSimpleMode && (tab === 'purchase' || tab === 'arrival' || tab === 'inquiries')) setTab('repair')
+    if (isSimpleMode && tab === 'arrival') setTab('repair')
   }, [isSimpleMode, tab])
 
   // Reset sub-tab to a valid value when entering simple mode
@@ -655,27 +657,37 @@ export default function RepairsPage() {
               </button>
               {dashOpen && (
               <>
-              <div className="flex border-t border-white/20">
-                <button
-                  onClick={() => { setTab('repair'); setSearchText('') }}
-                  style={{ touchAction: 'manipulation' }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 transition-all active:scale-95 ${tab !== 'delivery' ? 'bg-white/15' : 'opacity-55 hover:opacity-75'}`}>
-                  <span className="text-2xl font-black tabular-nums leading-none">{repairs.length}</span>
-                  <span className="text-xs font-bold opacity-90">✂️ お直し</span>
-                </button>
-                {hasFeature('repairs_tab_delivery') && (
-                  <>
-                    <div className="w-px bg-white/20 self-stretch" />
-                    <button
-                      onClick={() => { setTab('delivery'); setSearchText('') }}
-                      style={{ touchAction: 'manipulation' }}
-                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 transition-all active:scale-95 ${tab === 'delivery' ? 'bg-white/15' : 'opacity-55 hover:opacity-75'}`}>
-                      <span className="text-2xl font-black tabular-nums leading-none">{waiting.length}</span>
-                      <span className="text-xs font-bold opacity-90">🎁 お渡し待ち</span>
-                    </button>
-                  </>
-                )}
-              </div>
+              {(() => {
+                const tiles = ([
+                  { id: 'repair'    as const, emoji: '✂️', label: 'お直し',     count: repairs.length,         urgent: 0 },
+                  { id: 'purchase'  as const, emoji: '📦', label: '追加購入',   count: uniformOrders.length,   urgent: 0 },
+                  { id: 'inquiries' as const, emoji: '💬', label: '問合せ',     count: pendingInquiriesCount,  urgent: urgentInquiriesCount },
+                  hasFeature('repairs_tab_delivery') && { id: 'delivery' as const, emoji: '🎁', label: 'お渡し待ち', count: waiting.length, urgent: 0 },
+                ].filter(Boolean)) as { id: ActiveTab; emoji: string; label: string; count: number; urgent: number }[]
+                const isOdd = tiles.length % 2 === 1
+                return (
+                  <div className="grid grid-cols-2 gap-px bg-white/15 border-t border-white/15">
+                    {tiles.map((t, i) => {
+                      const active = tab === t.id
+                      const spanFull = isOdd && i === tiles.length - 1
+                      return (
+                        <button key={t.id}
+                          onClick={() => { setTab(t.id); setSearchText('') }}
+                          style={{ touchAction: 'manipulation' }}
+                          className={`relative flex items-center justify-center gap-1.5 py-2.5 px-2 transition-all active:scale-95 ${spanFull ? 'col-span-2' : ''} ${active ? 'bg-white/20' : 'bg-indigo-800 hover:bg-white/10'}`}>
+                          <span className="text-2xl font-black tabular-nums leading-none">{t.count}</span>
+                          <span className="text-xs font-bold opacity-90 whitespace-nowrap">{t.emoji} {t.label}</span>
+                          {t.urgent > 0 && (
+                            <span className="absolute top-1 right-1.5 bg-red-500 text-white text-[9px] font-black min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center leading-none">
+                              {t.urgent}
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
               {/* 受付セクション — 種類ごとに色分けし新人でも判別しやすく */}
               <div className="border-t border-white/20">
                 <p className="text-center text-sm font-black text-white pt-2.5 pb-2">
@@ -1075,6 +1087,42 @@ export default function RepairsPage() {
                 )}
               </>
             )}
+          </div>
+
+        ) : tab === 'purchase' && isSimpleMode ? (
+          /* ── ②追加購入（シンプルモード） ────────────────────── */
+          <div className="space-y-2">
+            <div className="relative">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text" value={searchText} onChange={e => setSearchText(e.target.value)}
+                placeholder="名前・品名で絞り込み"
+                className="w-full pl-9 pr-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:border-indigo-500 focus:outline-none shadow-sm"
+              />
+            </div>
+            {(() => {
+              const list = uniformOrders.filter(o =>
+                matchSearch([o.maker, o.customer?.name, o.child?.name, o.child?.school_name, ...(o.items?.map(i => i.item_name) ?? [])])
+              )
+              if (list.length === 0) {
+                return (
+                  <div className="text-center py-16 text-gray-400">
+                    <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                      <ShoppingCart size={28} className="opacity-40" />
+                    </div>
+                    <p className="text-sm font-bold">{searchText ? '該当する追加購入がありません' : '対応中の追加購入はありません'}</p>
+                    {!searchText && <p className="text-xs mt-2 text-gray-400">受付の「📦 追加購入」から登録できます</p>}
+                  </div>
+                )
+              }
+              return (
+                <div className="space-y-1.5">
+                  {list.map(o => (
+                    <SimplePurchaseCard key={o.id} item={o} onRefresh={fetchAll} onToast={showToast} />
+                  ))}
+                </div>
+              )
+            })()}
           </div>
 
         ) : tab === 'purchase' ? (
