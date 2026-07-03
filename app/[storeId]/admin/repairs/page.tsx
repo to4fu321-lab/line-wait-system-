@@ -645,73 +645,78 @@ export default function RepairsPage() {
             )}
           </div>
 
-          {/* Dashboard card — simple mode: two big tiles */}
+          {/* Dashboard — simple mode: 2セクション（進行中の業務／新規受付）に分離 */}
           {simpleModeLoaded && isSimpleMode && (
-            <div className="bg-gradient-to-br from-indigo-700 to-indigo-800 rounded-2xl overflow-hidden text-white shadow-lg shadow-indigo-600/25">
-              <button
-                onClick={() => setDashOpen(v => !v)}
-                style={{ touchAction: 'manipulation' }}
-                className="w-full flex items-center justify-center gap-1 py-1.5 text-[10px] font-bold text-white/60 hover:text-white/90 transition-colors active:opacity-60">
-                <span>受付中の業務</span>
-                {dashOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-              </button>
-              {dashOpen && (
-              <>
-              {(() => {
-                const tiles = ([
-                  { id: 'repair'    as const, emoji: '✂️', label: 'お直し',   count: repairs.length,         urgent: 0 },
-                  { id: 'purchase'  as const, emoji: '📦', label: '追加購入', count: uniformOrders.length,   urgent: 0 },
-                  { id: 'inquiries' as const, emoji: '💬', label: '問合せ',   count: pendingInquiriesCount,  urgent: urgentInquiriesCount },
-                  hasFeature('repairs_tab_delivery') && { id: 'delivery' as const, emoji: '🎁', label: 'お渡し', count: waiting.length, urgent: 0 },
-                ].filter(Boolean)) as { id: ActiveTab; emoji: string; label: string; count: number; urgent: number }[]
-                return (
-                  <div className="grid gap-px bg-white/15 border-t border-white/15" style={{ gridTemplateColumns: `repeat(${tiles.length}, 1fr)` }}>
-                    {tiles.map(t => {
-                      const active = tab === t.id
-                      return (
-                        <button key={t.id}
-                          onClick={() => { setTab(t.id); setSearchText('') }}
-                          style={{ touchAction: 'manipulation' }}
-                          className={`relative flex flex-col items-center justify-center py-1.5 px-1 transition-all active:scale-95 ${active ? 'bg-white/20' : 'bg-indigo-800 hover:bg-white/10'}`}>
-                          <span className="text-lg font-black tabular-nums leading-none">{t.count}</span>
-                          <span className="text-[10px] font-bold opacity-90 mt-0.5 whitespace-nowrap">{t.emoji} {t.label}</span>
-                          {t.urgent > 0 && (
-                            <span className="absolute top-0.5 right-1 bg-red-500 text-white text-[8px] font-black min-w-[14px] h-3.5 px-1 rounded-full flex items-center justify-center leading-none">
-                              {t.urgent}
-                            </span>
-                          )}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )
-              })()}
-              {/* 受付セクション — コンパクト（1行ボタン・色分け） */}
-              <div className="border-t border-white/20 px-2.5 pt-1.5 pb-2.5">
-                <p className="text-center text-[11px] font-black text-white/80 pb-1.5">🖐️ お客様の受付</p>
-                <div className="flex gap-1.5">
+            <div className="space-y-2">
+              {/* ── ① 進行中の業務（現状確認エリア・紫） ── */}
+              <div className="bg-gradient-to-br from-indigo-700 to-indigo-800 rounded-2xl overflow-hidden text-white shadow-lg shadow-indigo-600/25">
+                <button
+                  onClick={() => setDashOpen(v => !v)}
+                  style={{ touchAction: 'manipulation' }}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-black text-white/90 hover:text-white transition-colors active:opacity-60">
+                  <span>📋 進行中の業務</span>
+                  {dashOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                </button>
+                {dashOpen && (() => {
+                  const tiles = ([
+                    { id: 'repair'    as const, emoji: '✂️', label: 'お直し',   count: repairs.length,         urgent: 0 },
+                    { id: 'purchase'  as const, emoji: '📦', label: '追加購入', count: uniformOrders.length,   urgent: 0 },
+                    { id: 'inquiries' as const, emoji: '💬', label: '問合せ',   count: pendingInquiriesCount,  urgent: urgentInquiriesCount },
+                    hasFeature('repairs_tab_delivery') && { id: 'delivery' as const, emoji: '🎁', label: 'お渡し', count: waiting.length, urgent: 0 },
+                  ].filter(Boolean)) as { id: ActiveTab; emoji: string; label: string; count: number; urgent: number }[]
+                  return (
+                    <div className="grid gap-px bg-white/15 border-t border-white/15" style={{ gridTemplateColumns: `repeat(${tiles.length}, 1fr)` }}>
+                      {tiles.map(t => {
+                        const active = tab === t.id
+                        return (
+                          <button key={t.id}
+                            onClick={() => { setTab(t.id); setSearchText('') }}
+                            style={{ touchAction: 'manipulation' }}
+                            className={`relative flex flex-col items-center justify-center py-2 px-1 transition-all active:scale-95 ${active ? 'bg-white/20' : 'bg-indigo-800 hover:bg-white/10'}`}>
+                            <span className="text-xl font-black tabular-nums leading-none">{t.count}</span>
+                            <span className="text-[10px] font-bold opacity-90 mt-0.5 whitespace-nowrap">{t.emoji} {t.label}</span>
+                            {t.urgent > 0 && (
+                              <span className="absolute top-0.5 right-1 bg-red-500 text-white text-[8px] font-black min-w-[14px] h-3.5 px-1 rounded-full flex items-center justify-center leading-none">
+                                {t.urgent}
+                              </span>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
+              </div>
+
+              {/* ── ② 新規受付（操作エリア・薄グレーで分離） ── */}
+              <div className="bg-gray-50 rounded-2xl border border-gray-200 shadow-sm px-3 pt-2.5 pb-3">
+                <div className="flex items-center gap-1.5 mb-2 px-0.5">
+                  <span className="inline-flex items-center gap-1 text-xs font-black text-white bg-indigo-600 px-2.5 py-1 rounded-full shadow-sm">
+                    <Plus size={13} strokeWidth={3} /> 新規受付
+                  </span>
+                  <span className="text-[10px] text-gray-400 font-bold">お客様の受付はこちら</span>
+                </div>
+                <div className="flex gap-2">
                   <button onClick={() => setShowNewRepair(true)}
                     style={{ touchAction: 'manipulation' }}
-                    className="flex-1 flex items-center justify-center gap-1 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white active:scale-[0.97] transition-all shadow">
-                    <Scissors size={15} />
-                    <span className="text-[11px] font-black">お直し</span>
+                    className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white active:scale-[0.97] transition-all shadow-sm">
+                    <Scissors size={18} />
+                    <span className="text-[11px] font-black">お直し受付</span>
                   </button>
                   <button onClick={() => setShowNewOrder(true)}
                     style={{ touchAction: 'manipulation' }}
-                    className="flex-1 flex items-center justify-center gap-1 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white active:scale-[0.97] transition-all shadow">
-                    <ShoppingCart size={15} />
+                    className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white active:scale-[0.97] transition-all shadow-sm">
+                    <ShoppingCart size={18} />
                     <span className="text-[11px] font-black">追加購入</span>
                   </button>
                   <button onClick={() => { setEditInquiry(null); setShowInqModal(true) }}
                     style={{ touchAction: 'manipulation' }}
-                    className="flex-1 flex items-center justify-center gap-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white active:scale-[0.97] transition-all shadow">
-                    <MessageSquarePlus size={15} />
-                    <span className="text-[11px] font-black">問合せ</span>
+                    className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white active:scale-[0.97] transition-all shadow-sm">
+                    <MessageSquarePlus size={18} />
+                    <span className="text-[11px] font-black">問合せ受付</span>
                   </button>
                 </div>
               </div>
-              </>
-              )}
             </div>
           )}
 
