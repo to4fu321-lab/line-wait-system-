@@ -17,6 +17,7 @@ import { SchoolDeadlineAlert } from './_components/SchoolDeadlineAlert'
 import { PinScreen } from './_components/PinScreen'
 import { WaitingCard, CallingCard, HistoryCard } from './_components/QueueCards'
 import { supabase, getTodayStart } from '@/lib/supabase'
+import { useConnectionStatus } from '@/lib/useConnectionStatus'
 import type { Queue, QueueStatus } from '@/types/database'
 import {
   CATEGORY_LABELS, CATEGORY_ICONS, STATUS_LABELS,
@@ -121,7 +122,12 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     const { data } = await (supabase as any).from('queues').select('*')
       .eq('store_id', store.id).gte('created_at', getTodayStart())
       .order('ticket_number', { ascending: true })
-    if (data) setQueues(data)
+    // オフライン時は data が null になるため既存表示を保持する
+    if (data) {
+      setQueues(data)
+      // 接続断に備えて最新の順番待ちをローカルキャッシュに保存
+      try { localStorage.setItem(`queue_cache_${store.id}`, JSON.stringify(data)) } catch { /* quota等は無視 */ }
+    }
     setRefreshing(false)
   }, [store.id])
 
@@ -140,6 +146,11 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
   }, [store.id])
 
   useEffect(() => {
+    // オフライン起動・再読込に備え、まずローカルキャッシュを即時表示（その後 fetch で上書き）
+    try {
+      const cached = localStorage.getItem(`queue_cache_${store.id}`)
+      if (cached) setQueues(JSON.parse(cached))
+    } catch { /* パース失敗は無視 */ }
     fetchStoreStatus(); fetchQueues(); fetchTodayReservations()
     if (typeof window !== 'undefined' && 'Notification' in window && (window as any).Notification.permission === 'granted') {
       setupPush(store.id)
@@ -151,6 +162,17 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
     const pollId = setInterval(() => { fetchQueues() }, 10000)
     return () => { supabase.removeChannel(channel); clearInterval(pollId) }
   }, [store.id, fetchQueues, fetchStoreStatus, fetchTodayReservations])
+
+  // 接続復帰時（オフライン→オンライン）に最新データを即時再取得
+  const { isOnline } = useConnectionStatus()
+  const prevOnlineRef = useRef(isOnline)
+  useEffect(() => {
+    const wasOnline = prevOnlineRef.current
+    prevOnlineRef.current = isOnline
+    if (!wasOnline && isOnline) {
+      fetchQueues(); fetchStoreStatus(); fetchTodayReservations()
+    }
+  }, [isOnline, fetchQueues, fetchStoreStatus, fetchTodayReservations])
 
   const handleToggleOpen = async () => {
     if (isOpen === null) return

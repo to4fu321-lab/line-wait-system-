@@ -5,6 +5,7 @@ import { DeviceModeProvider } from './_components/DeviceModeProvider'
 import { SideNav } from './_components/SideNav'
 import { OrderReminderBanner } from './_components/OrderReminderBanner'
 import { FeedbackButton } from './_components/FeedbackButton'
+import OfflineBanner from '@/app/_components/OfflineBanner'
 import { useDeviceMode } from '@/lib/useDeviceMode'
 
 function AdminLayoutInner({ children }: { children: ReactNode }) {
@@ -13,6 +14,7 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
   if (isTablet) {
     return (
       <div className="flex h-[100dvh] bg-gray-50">
+        <OfflineBanner />
         <OrderReminderBanner />
         <SideNav />
         <main className="flex-1 min-w-0 overflow-y-auto">
@@ -26,6 +28,7 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
   // phone mode: pass through, BottomNav is rendered inside each page
   return (
     <>
+      <OfflineBanner />
       <OrderReminderBanner />
       {children}
       <FeedbackButton />
