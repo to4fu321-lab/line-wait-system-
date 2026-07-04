@@ -11,10 +11,12 @@ import Link from 'next/link'
 import {
   ChevronLeft, Search, Plus, Minus, Trash2, Loader2, X, Printer,
   ShoppingCart, User, Scissors, Package, Tag, Check, UserPlus,
-  ChevronRight, RotateCcw,
+  ChevronRight, RotateCcw, Coins, AlertTriangle,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
+import { fetchOpenSession } from '@/lib/registerSession'
+import type { RegisterSession } from '@/types/register'
 import { BottomNav } from '../_components/BottomNav'
 import {
   PAYMENT_METHODS, PAYMENT_METHOD_LABELS, PAYMENT_METHOD_ICONS,
@@ -43,6 +45,13 @@ export default function RegisterPage() {
   const [products,     setProducts]     = useState<ProductRow[]>([])
   const [customers,    setCustomers]    = useState<CustomerRow[]>([])
   const [loading,      setLoading]      = useState(true)
+
+  // ── レジセッション（会計はオープン中セッションへ紐付け）──────
+  const [regSession, setRegSession] = useState<RegisterSession | null>(null)
+  const refreshSession = useCallback(async () => {
+    if (!storeId) return
+    setRegSession(await fetchOpenSession(supabase as any, storeId))
+  }, [storeId])
 
   // ── 顧客 ──────────────────────────────────────────────────
   const [custMode,      setCustMode]      = useState<'walkin' | 'search'>('walkin')
@@ -111,9 +120,20 @@ export default function RegisterPage() {
         price: Number(p.base_price_tax_in ?? p.base_price_tax_out ?? 0),
       })))
       setCustomers((custs ?? []) as CustomerRow[])
+      await refreshSession()
       setLoading(false)
     })()
-  }, [storeId])
+  }, [storeId, refreshSession])
+
+  // レジのオープン/締めをリアルタイム反映
+  useEffect(() => {
+    if (!storeId) return
+    const ch = supabase
+      .channel(`reg_sess_${storeId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'register_sessions', filter: `store_id=eq.${storeId}` }, () => refreshSession())
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [storeId, refreshSession])
 
   // ── 顧客選択 → 未払い取得 ─────────────────────────────────
   const selectCustomer = useCallback(async (c: CustomerRow) => {
@@ -181,10 +201,15 @@ export default function RegisterPage() {
   // ── 会計確定 ────────────────────────────────────────────────
   const checkout = async () => {
     if (cart.length === 0) return showToast(false, '明細がありません')
+    if (!regSession) return showToast(false, 'レジがオープンしていません。先にレジをオープンしてください')
     if (payment === 'cash' && received < total) return showToast(false, '預かり金額が不足しています')
     setSaving(true)
     const db = supabase as any
     try {
+      // オープン中セッションを再確認（締め済みへの計上を防止）
+      const live = await fetchOpenSession(db, storeId)
+      if (!live) { setSaving(false); return showToast(false, 'レジが締められています。再度オープンしてください') }
+
       const start = new Date(); start.setHours(0, 0, 0, 0)
       const { count } = await db.from('sales').select('id', { count: 'exact', head: true })
         .eq('store_id', storeId).gte('created_at', start.toISOString())
@@ -193,6 +218,7 @@ export default function RegisterPage() {
       const { data: sale, error: saleErr } = await db.from('sales').insert({
         store_id: storeId, sale_number: saleNumber,
         customer_id: selectedCust?.id ?? null,
+        register_session_id: live.id,
         subtotal, tax, total, tax_rate: taxRate, tax_inclusive: taxInclusive,
         payment_method: payment,
         cash_received: payment === 'cash' ? received : null,
@@ -318,6 +344,14 @@ export default function RegisterPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-36">
+          {!regSession && (
+            <Link href={`/${storeId}/admin/register/cash`}
+              className="flex items-center gap-2 bg-amber-50 border border-amber-300 rounded-2xl px-4 py-3 text-sm">
+              <AlertTriangle size={18} className="text-amber-500 shrink-0" />
+              <span className="flex-1 font-bold text-amber-800">レジが未オープンです。会計するにはオープンが必要です</span>
+              <ChevronRight size={16} className="text-amber-500" />
+            </Link>
+          )}
           {/* 支払方法 */}
           <div className="bg-white rounded-2xl p-4 shadow-sm">
             <p className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">お支払い方法</p>
@@ -383,10 +417,10 @@ export default function RegisterPage() {
 
         {/* 会計ボタン */}
         <div className="fixed bottom-0 inset-x-0 p-4 bg-white border-t" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
-          <button onClick={checkout} disabled={saving || (payment === 'cash' && received < total)}
+          <button onClick={checkout} disabled={saving || !regSession || (payment === 'cash' && received < total)}
             className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-black text-lg flex items-center justify-center gap-2 disabled:opacity-40 active:scale-[0.98] transition-all shadow-lg shadow-indigo-600/30">
             {saving ? <Loader2 size={22} className="animate-spin" /> : <Check size={22} />}
-            {yen(total)} を会計する
+            {regSession ? `${yen(total)} を会計する` : 'レジをオープンしてください'}
           </button>
         </div>
       </div>
@@ -479,10 +513,23 @@ export default function RegisterPage() {
         <ShoppingCart size={18} className="text-indigo-500" />
         <h1 className="font-black text-base flex-1 text-gray-900">{storeName || 'レジ'}</h1>
         <span className="text-[11px] text-gray-400">{taxInclusive ? '内税' : '外税'} {taxRate}%</span>
+        <Link href={`/${storeId}/admin/register/cash`}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-black ${regSession ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+          <Coins size={13} />{regSession ? 'オープン中' : 'レジ締'}
+        </Link>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-lg mx-auto px-4 py-3 space-y-3">
+
+          {!regSession && (
+            <Link href={`/${storeId}/admin/register/cash`}
+              className="flex items-center gap-2 bg-amber-50 border border-amber-300 rounded-2xl px-4 py-3 text-sm">
+              <AlertTriangle size={18} className="text-amber-500 shrink-0" />
+              <span className="flex-1 font-bold text-amber-800">レジが未オープンです。タップしてオープン</span>
+              <ChevronRight size={16} className="text-amber-500" />
+            </Link>
+          )}
 
           {/* ── 顧客セクション ────────────────────────────────── */}
           <div className="bg-white rounded-2xl p-3 shadow-sm">
