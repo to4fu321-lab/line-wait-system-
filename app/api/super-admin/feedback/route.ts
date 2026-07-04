@@ -1,23 +1,15 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { assertSuperAdmin } from '@/lib/auth/verifyAdmin'
-
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key, {
-    global: { fetch: (input, init) => fetch(input as RequestInfo, { ...init, cache: 'no-store' }) },
-  })
-}
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 // 運用側のみ閲覧・更新可（assertSuperAdmin）。現場フィードバックの一覧/ステータス更新。
 export async function GET(req: Request) {
   const denied = assertSuperAdmin(req)
   if (denied) return denied
   try {
-    const supabase = getSupabase()
+    const supabase = createAdminClient({ noStore: true })
     const { data, error } = await supabase
       .from('feedback')
       .select('*')
@@ -40,7 +32,7 @@ export async function PATCH(req: Request) {
     if (!['new', 'triaged', 'done', 'wontfix'].includes(status)) {
       return NextResponse.json({ error: 'status の値が不正です' }, { status: 400 })
     }
-    const supabase = getSupabase()
+    const supabase = createAdminClient({ noStore: true })
     const { error } = await supabase
       .from('feedback')
       .update({ status, updated_at: new Date().toISOString() })

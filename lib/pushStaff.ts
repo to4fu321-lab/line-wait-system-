@@ -4,16 +4,16 @@
 //   既存 push-admin と同じ web-push / VAPID を使用。
 // ============================================================
 import webpush from 'web-push'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
-const VAPID_PUBLIC  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BAmZx5b8ScrgrqWa822FdQhtfHV2CSyqvxNeQX-Ds1KsqztPPRtZRyBP_LaQZmCLejg8Ivd7Gu4cBxKtNwodb3o'
-const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY            || 'C_FaNHSoxtJikB1p6Q2dOai2DwhnsFTn6ERAGIeJtBY'
-webpush.setVapidDetails('mailto:to4fu321@gmail.com', VAPID_PUBLIC, VAPID_PRIVATE)
-
-function sb() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key)
+// 秘密鍵はコードに埋め込まない（必ず env で設定する。漏洩時はローテーション）
+const VAPID_PUBLIC  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY            || ''
+const vapidReady = !!(VAPID_PUBLIC && VAPID_PRIVATE)
+if (vapidReady) {
+  webpush.setVapidDetails('mailto:to4fu321@gmail.com', VAPID_PUBLIC, VAPID_PRIVATE)
+} else {
+  console.warn('[pushStaff] VAPID キーが未設定のためスタッフ向けプッシュ通知は無効です')
 }
 
 // staffIds（複数可）宛に通知。テストモードの店舗はスキップ。
@@ -25,8 +25,8 @@ export async function pushToStaff(opts: {
   url: string
 }): Promise<{ sent: number }> {
   const { storeId, staffIds, title, body, url } = opts
-  if (!staffIds.length) return { sent: 0 }
-  const supabase = sb()
+  if (!vapidReady || !staffIds.length) return { sent: 0 }
+  const supabase = createAdminClient()
 
   const { data: store } = await (supabase.from('stores') as any)
     .select('is_test_mode').eq('id', storeId).single()

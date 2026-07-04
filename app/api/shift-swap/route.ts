@@ -1,25 +1,20 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 // ============================================================
 // シフト交換（shift_swaps）
 //   request → accept(相手承諾) → approve(店長承認で staff_id 入替) / reject / cancel
 //   入替は service-role で原子的に。
 // ============================================================
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key)
-}
 
 export async function POST(req: Request) {
   try {
     const body = await req.json()
     const { action, storeId } = body
     if (!action || !storeId) return NextResponse.json({ error: 'action と storeId は必須' }, { status: 400 })
-    const sb = getSupabase()
+    const sb = createAdminClient()
 
     switch (action) {
       case 'request': {

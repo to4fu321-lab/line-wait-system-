@@ -1,13 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key)
-}
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 // POST /api/customers/link-line { storeId, customerId, lineUserId }
 // 既存顧客レコードに line_user_id を後付け（LINE連携QR用）
@@ -19,7 +13,7 @@ export async function POST(req: NextRequest) {
     if (!storeId || !customerId || !lineUserId) {
       return NextResponse.json({ ok: false, error: 'storeId, customerId, lineUserId required' }, { status: 400 })
     }
-    const supabase = getSupabase()
+    const supabase = createAdminClient()
 
     // 同一 line_user_id が他レコードに付いている場合は外す（重複防止）
     await supabase.from('customers')

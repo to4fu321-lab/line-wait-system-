@@ -1,15 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyLineSignature } from '@/lib/lineSignature'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 export const dynamic = 'force-dynamic'
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
-}
 
 // LINE webhook 署名検証（fail-close 共通実装）
 function verifySignature(body: string, sig: string): boolean {
@@ -52,7 +45,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const supabase = getSupabase()
+  const supabase = createAdminClient()
 
   for (const event of body.events ?? []) {
     if (event.type !== 'message' || event.message?.type !== 'text') continue

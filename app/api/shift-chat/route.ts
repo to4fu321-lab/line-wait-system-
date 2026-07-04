@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 // ============================================================
 // AIチャット申請（自然言語 → 申請内容の構造化）
@@ -10,11 +10,6 @@ import { createClient } from '@supabase/supabase-js'
 //   Anthropic で意図抽出 → 確認用の提案(JSON)を返す。
 //   実際のDB書き込みはクライアント側で確認後に行う（人の確認を必須化）。
 // ============================================================
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key)
-}
 
 const WEEK = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -27,7 +22,7 @@ export async function POST(req: NextRequest) {
     if (!apiKey) return NextResponse.json({ ok: false, error: 'AI機能が未設定です（ANTHROPIC_API_KEY）' }, { status: 500 })
 
     // 同店スタッフ名（交換相手の解決用）
-    const sb = getSupabase()
+    const sb = createAdminClient()
     const { data: staff } = await sb.from('staff').select('id, name').eq('store_id', storeId).eq('active', true)
     const roster = (staff ?? []) as { id: string; name: string }[]
 

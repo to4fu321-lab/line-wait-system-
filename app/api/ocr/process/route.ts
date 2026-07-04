@@ -2,21 +2,15 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // Vercel Pro: 最大300秒
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { runSchoolManualOcr } from '@/lib/ocr/engine'
-
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key)
-}
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 // POST /api/ocr/process
 //   multipart/form-data: storeId, files[]（'files' or 'images'）
 //   ファイル受信 → ocr_jobs 登録 → 同期解析 → 学校マッチング → 結果を返す
 export async function POST(req: NextRequest) {
   let jobId: string | null = null
-  const supabase = getSupabase()
+  const supabase = createAdminClient()
   try {
     const form = await req.formData()
     const storeId = String(form.get('storeId') ?? '')

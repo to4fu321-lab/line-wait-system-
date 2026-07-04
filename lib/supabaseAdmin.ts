@@ -11,20 +11,29 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
  */
 let warned = false
 
-export function createAdminClient(): SupabaseClient {
+/**
+ * noStore: Next.js App Router は fetch をサーバー側でキャッシュする。
+ * Supabase の各クエリは同一URLになるためキャッシュ対象となり、
+ * 更新後も古いスナップショットが返り続けることがある。
+ * 最新のDB状態が必要なルートでは { noStore: true } を指定する。
+ */
+export function createAdminClient(options?: { noStore?: boolean }): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   if (!url) throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set')
 
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (serviceKey) return createClient(url, serviceKey)
-
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!anonKey) {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!key) {
     throw new Error('SUPABASE_SERVICE_ROLE_KEY / NEXT_PUBLIC_SUPABASE_ANON_KEY のいずれも未設定です')
   }
-  if (!warned) {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY && !warned) {
     warned = true
     console.warn('[supabaseAdmin] SUPABASE_SERVICE_ROLE_KEY が未設定のため anon キーで代替します。RLS の制約を受けます。')
   }
-  return createClient(url, anonKey)
+
+  return createClient(url, key, {
+    auth: { persistSession: false },
+    ...(options?.noStore
+      ? { global: { fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, { ...init, cache: 'no-store' as const }) } }
+      : {}),
+  })
 }

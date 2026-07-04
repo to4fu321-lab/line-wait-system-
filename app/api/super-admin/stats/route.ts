@@ -1,16 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { assertSuperAdmin } from '@/lib/auth/verifyAdmin'
-
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key, {
-    global: { fetch: (input, init) => fetch(input as RequestInfo, { ...init, cache: 'no-store' }) },
-  })
-}
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 function getTodayStart() {
   const jstOffset = 9 * 60 * 60 * 1000
@@ -25,7 +17,7 @@ export async function GET(req: Request) {
   const denied = assertSuperAdmin(req)
   if (denied) return denied
   try {
-    const supabase = getSupabase()
+    const supabase = createAdminClient({ noStore: true })
 
     const [{ data: stores, error }, { data: groups }] = await Promise.all([
       supabase.from('stores').select('*').order('name', { ascending: true }),

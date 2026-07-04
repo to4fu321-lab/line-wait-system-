@@ -1,13 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key)
-}
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 export async function POST(
   req: Request,
@@ -16,7 +10,7 @@ export async function POST(
   try {
     const { pin } = await req.json()
     const { companyId } = params
-    const supabase = getSupabase()
+    const supabase = createAdminClient()
 
     // 会社（グループ）をcodeで検索
     const { data: group, error: groupErr } = await supabase

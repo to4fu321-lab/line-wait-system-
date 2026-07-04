@@ -4,10 +4,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import webpush from 'web-push'
 import { supabase } from '@/lib/supabase'
 
-const VAPID_PUBLIC  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BAmZx5b8ScrgrqWa822FdQhtfHV2CSyqvxNeQX-Ds1KsqztPPRtZRyBP_LaQZmCLejg8Ivd7Gu4cBxKtNwodb3o'
-const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY            || 'C_FaNHSoxtJikB1p6Q2dOai2DwhnsFTn6ERAGIeJtBY'
-
-webpush.setVapidDetails('mailto:to4fu321@gmail.com', VAPID_PUBLIC, VAPID_PRIVATE)
+// 秘密鍵はコードに埋め込まない（必ず env で設定する。漏洩時はローテーション）
+const VAPID_PUBLIC  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY            || ''
+const vapidReady = !!(VAPID_PUBLIC && VAPID_PRIVATE)
+if (vapidReady) {
+  webpush.setVapidDetails('mailto:to4fu321@gmail.com', VAPID_PUBLIC, VAPID_PRIVATE)
+} else {
+  console.warn('[push-admin] VAPID キーが未設定のためブラウザプッシュ通知は無効です')
+}
 
 type PushType = 'queue_new' | 'purchase_new'
 
@@ -16,6 +21,7 @@ export async function POST(req: NextRequest) {
     storeId: string; type: PushType; title: string; body: string; url: string
   }
   if (!storeId) return NextResponse.json({ ok: false, error: 'no storeId' }, { status: 400 })
+  if (!vapidReady) return NextResponse.json({ ok: true, sent: 0, skipped: true, reason: 'vapid_not_configured' })
 
   // 店舗の push_settings を確認してタイプが無効なら送信しない
   const { data: store } = await (supabase.from('stores') as any)

@@ -13,19 +13,13 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { computeSessionSummary } from '@/lib/registerSession'
 import {
   buildClosingReport, sumDenominations, emptyMethodMap,
   type DenominationCounts,
 } from '@/types/register'
 import { PAYMENT_METHODS, type PaymentMethod } from '@/types/sales'
-
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key)
-}
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 export async function POST(req: Request) {
   try {
@@ -45,7 +39,7 @@ export async function POST(req: Request) {
     }
     if (!storeId || !sessionId) return NextResponse.json({ error: 'storeId, sessionId required' }, { status: 400 })
 
-    const db = getSupabase()
+    const db = createAdminClient()
 
     const { data: session } = await db.from('register_sessions')
       .select('*').eq('id', sessionId).eq('store_id', storeId).single()

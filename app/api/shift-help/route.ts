@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 // ============================================================
 // 店舗間スタッフヘルプ(同一グループ内)
@@ -10,13 +10,8 @@ import { createClient } from '@supabase/supabase-js'
 //   actions: create_request / list_group_requests / offer / assign
 //            / decline_offer / cancel
 // ============================================================
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key)
-}
 
-type SB = ReturnType<typeof getSupabase>
+type SB = ReturnType<typeof createAdminClient>
 
 async function getStore(sb: SB, storeId: string) {
   const { data } = await sb.from('stores').select('id, name, group_id').eq('id', storeId).maybeSingle()
@@ -30,7 +25,7 @@ export async function POST(req: Request) {
     if (!action || !storeId) {
       return NextResponse.json({ error: 'action と storeId は必須です' }, { status: 400 })
     }
-    const sb = getSupabase()
+    const sb = createAdminClient()
     const store = await getStore(sb, storeId)
     if (!store) return NextResponse.json({ error: '店舗が見つかりません' }, { status: 404 })
     if (!store.group_id) return NextResponse.json({ error: 'この店舗はグループに属していません' }, { status: 400 })

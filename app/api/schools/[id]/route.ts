@@ -1,20 +1,14 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key)
-}
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 // GET /api/schools/:id
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const supabase = getSupabase()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('schools')
     .select('*')
@@ -33,7 +27,7 @@ export async function PUT(
   const body = await req.json()
   const { name, kana, short_name, notes, active, sort_order, updated_by } = body
 
-  const supabase = getSupabase()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('schools')
     .update({ name, kana, short_name, notes, active, sort_order, updated_by })
@@ -50,7 +44,7 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const supabase = getSupabase()
+  const supabase = createAdminClient()
   const { error } = await supabase
     .from('schools')
     .delete()

@@ -3,18 +3,12 @@ export const dynamic = 'force-dynamic'
 import { timingSafeEqual } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 // ============================================================
 // お直し価格表/マニュアルの写真 → 服種・項目・価格を構造化
 //   既存のOCRルート(slip-ocr)と同じ Anthropic vision・store認証を使用。
 // ============================================================
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
-}
 
 function safeEqual(a: string, b: string): boolean {
   const bufA = Buffer.from(a)
@@ -33,7 +27,7 @@ export async function POST(req: NextRequest) {
     if (!storeId || !storePin) {
       return NextResponse.json({ ok: false, error: '認証情報が必要です (storeId + storePin)' }, { status: 401 })
     }
-    const { data: store } = await getSupabase().from('stores').select('pin').eq('id', storeId).single()
+    const { data: store } = await createAdminClient().from('stores').select('pin').eq('id', storeId).single()
     if (!store) {
       return NextResponse.json({ ok: false, error: '店舗が見つかりません' }, { status: 401 })
     }

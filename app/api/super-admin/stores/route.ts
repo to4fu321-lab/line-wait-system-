@@ -1,14 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { assertSuperAdmin } from '@/lib/auth/verifyAdmin'
-
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key)
-}
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 export async function POST(req: Request) {
   const denied = assertSuperAdmin(req)
@@ -20,7 +14,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: '店舗名は必須です' }, { status: 400 })
     }
 
-    const supabase = getSupabase()
+    const supabase = createAdminClient()
     let finalGroupId: string | null = groupId || null
 
     // 新規会社を作成（URLコードは任意・空欄可。groups.code は null 許容）

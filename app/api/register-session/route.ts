@@ -8,21 +8,15 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { fetchOpenSession, computeSessionSummary } from '@/lib/registerSession'
 import { makeSessionNumber, sumDenominations } from '@/types/register'
-
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key)
-}
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 export async function GET(req: Request) {
   try {
     const storeId = new URL(req.url).searchParams.get('storeId')
     if (!storeId) return NextResponse.json({ error: 'storeId required' }, { status: 400 })
-    const db = getSupabase()
+    const db = createAdminClient()
     const session = await fetchOpenSession(db as any, storeId)
     if (!session) return NextResponse.json({ open: false, session: null, summary: null })
     const summary = await computeSessionSummary(db as any, session)
@@ -52,7 +46,7 @@ export async function POST(req: Request) {
     }
     if (!storeId) return NextResponse.json({ error: 'storeId required' }, { status: 400 })
 
-    const db = getSupabase()
+    const db = createAdminClient()
 
     // 二重オープン防止
     const existing = await fetchOpenSession(db as any, storeId)

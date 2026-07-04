@@ -1,18 +1,13 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 // ============================================================
 // スタッフPIN照合(スタッフportalログイン)
 //   クライアントで eq('pin',...) を晒さず、service-role で照合。
 //   一致時のみ最小限のスタッフ情報を返す。
 // ============================================================
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key)
-}
 
 export async function POST(req: Request) {
   try {
@@ -20,7 +15,7 @@ export async function POST(req: Request) {
     if (!storeId || !pin || String(pin).length < 4) {
       return NextResponse.json({ error: 'PINを入力してください' }, { status: 400 })
     }
-    const supabase = getSupabase()
+    const supabase = createAdminClient()
 
     const { data: staff, error } = await supabase
       .from('staff')

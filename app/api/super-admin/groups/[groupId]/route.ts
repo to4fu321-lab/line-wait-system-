@@ -1,14 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { assertSuperAdmin } from '@/lib/auth/verifyAdmin'
-
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key)
-}
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 export async function PUT(req: Request, { params }: { params: { groupId: string } }) {
   const denied = assertSuperAdmin(req)
@@ -25,7 +19,7 @@ export async function PUT(req: Request, { params }: { params: { groupId: string 
       return NextResponse.json({ error: '更新項目がありません' }, { status: 400 })
     }
 
-    const supabase = getSupabase()
+    const supabase = createAdminClient()
     const { error } = await supabase.from('groups').update(update).eq('id', groupId)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true })
@@ -39,7 +33,7 @@ export async function DELETE(req: Request, { params }: { params: { groupId: stri
   if (denied) return denied
   try {
     const { groupId } = params
-    const supabase = getSupabase()
+    const supabase = createAdminClient()
     const { error } = await supabase.from('groups').delete().eq('id', groupId)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true })

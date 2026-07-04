@@ -1,17 +1,9 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 const TRIAL_DAYS = 30
-
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key, {
-    global: { fetch: (input, init) => fetch(input as RequestInfo, { ...init, cache: 'no-store' }) },
-  })
-}
 
 // 無料体験のセルフ開始。店舗をその場で発行し、storeId と PIN を返す（即ログイン可）。
 export async function POST(req: Request) {
@@ -21,7 +13,7 @@ export async function POST(req: Request) {
     if (!name) return NextResponse.json({ ok: false, error: 'お店の名前を入力してください' }, { status: 400 })
     if (name.length > 50) return NextResponse.json({ ok: false, error: 'お店の名前が長すぎます' }, { status: 400 })
 
-    const supabase = getSupabase()
+    const supabase = createAdminClient({ noStore: true })
     const pin = String(Math.floor(1000 + Math.random() * 9000)) // 4桁
 
     const features = {

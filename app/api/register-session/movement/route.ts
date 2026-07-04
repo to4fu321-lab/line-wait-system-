@@ -6,13 +6,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key)
-}
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 export async function POST(req: Request) {
   try {
@@ -32,7 +26,7 @@ export async function POST(req: Request) {
     const amt = Math.round(Number(amount) || 0)
     if (amt <= 0) return NextResponse.json({ error: 'amount must be positive' }, { status: 400 })
 
-    const db = getSupabase()
+    const db = createAdminClient()
 
     // セッションがオープン中か検証（締め後の追加を防止）
     const { data: session } = await db.from('register_sessions')

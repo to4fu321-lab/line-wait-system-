@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 // ============================================================
 // AIシフト（両輪：割当はコードで決定的に・説明はLLM補助）
@@ -9,12 +9,7 @@ import { createClient } from '@supabase/supabase-js'
 //   action=fill_candidates  … 欠員に対する補充候補をスコア順に抽出
 // 再現性のため割当ロジックはルールベース。LLMは将来 説明文付与に使用。
 // ============================================================
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key)
-}
-type SB = ReturnType<typeof getSupabase>
+type SB = ReturnType<typeof createAdminClient>
 
 const FITTING_TYPES = ['uniform', 'jersey', 'fitting']
 function isFitting(purpose: string | null, st: string | null): boolean {
@@ -73,7 +68,7 @@ export async function POST(req: Request) {
     const body = await req.json()
     const { action, storeId, date } = body
     if (!action || !storeId || !date) return NextResponse.json({ ok: false, error: 'action/storeId/date は必須' }, { status: 400 })
-    const sb = getSupabase()
+    const sb = createAdminClient()
 
     const { blocks, startMin, endMin } = await computeRequirements(sb, storeId, date)
     const peak = blocks.reduce((a, b) => Math.max(a, b.required), 0)

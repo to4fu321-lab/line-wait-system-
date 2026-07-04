@@ -1,15 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key, {
-    global: { fetch: (input, init) => fetch(input as RequestInfo, { ...init, cache: 'no-store' }) },
-  })
-}
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 const KIND_LABEL: Record<string, string> = { request: '要望', bug: '不具合', question: '質問' }
 
@@ -25,7 +17,7 @@ export async function POST(req: Request) {
     if (!text) return NextResponse.json({ ok: false, error: '内容が空です' }, { status: 400 })
     if (text.length > 4000) return NextResponse.json({ ok: false, error: '内容が長すぎます' }, { status: 400 })
 
-    const supabase = getSupabase()
+    const supabase = createAdminClient({ noStore: true })
 
     // 店名を解決（任意）
     let storeName: string | null = null

@@ -1,13 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key)
-}
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 export async function PATCH(req: Request) {
   try {
@@ -15,7 +9,7 @@ export async function PATCH(req: Request) {
     if (!storeId || typeof isOpen !== 'boolean') {
       return NextResponse.json({ error: 'storeId and isOpen required' }, { status: 400 })
     }
-    const supabase = getSupabase()
+    const supabase = createAdminClient()
     const { error, count } = await supabase
       .from('stores')
       .update({ is_open: isOpen }, { count: 'exact' })

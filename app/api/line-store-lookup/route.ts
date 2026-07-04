@@ -3,7 +3,7 @@ export const fetchCache = 'force-no-store'
 export const revalidate = 0
 
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 import { resolveFeature } from '@/lib/features'
 
 // 顧客向けに公開する機能可否（リッチメニュー action の遷移先判定に使う）
@@ -16,21 +16,6 @@ function customerCaps(rawFeatures: Record<string, unknown>) {
   }
 }
 
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  // Next.js App Router は fetch をサーバー側でキャッシュする。Supabase の
-  // 各クエリは同一URLになるためキャッシュ対象となり、会員を追加登録しても
-  // 古いスナップショット（例: 支店A登録前）が返り続ける。global.fetch に
-  // cache:'no-store' を強制し、常に最新のDB状態を取得する。
-  return createClient(url, key, {
-    global: {
-      fetch: (input, init) => fetch(input, { ...init, cache: 'no-store' }),
-    },
-    auth: { persistSession: false },
-  })
-}
-
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const userId = searchParams.get('userId')
@@ -38,7 +23,7 @@ export async function GET(req: Request) {
   const noStore = { headers: { 'Cache-Control': 'no-store' } }
   if (!userId) return NextResponse.json({ stores: [] }, noStore)
 
-  const supabase = getSupabase()
+  const supabase = createAdminClient({ noStore: true })
 
   // ① 制服店：customers テーブルから登録済み店舗を取得
   // biz=takeout の場合は line-home-takeout 用の呼び出しのため、

@@ -2,8 +2,8 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyLineSignature } from '@/lib/lineSignature'
-import { createClient } from '@supabase/supabase-js'
 import { getLiffBaseUrl, getLineToken, getLineSecret } from '@/lib/line-config'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 import {
   getOrCreateTodayTasks, regenerateTodayTasks, buildTaskListMessage,
   parseDoneReply, completeTask, lineReply,
@@ -14,13 +14,6 @@ const TOKEN    = getLineToken('uniform')
 const SECRET   = getLineSecret('uniform')
 const LIFF_BASE = getLiffBaseUrl('uniform')
 
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
-}
-
 function verifySignature(body: string, sig: string) {
   return verifyLineSignature(body, sig, SECRET)
 }
@@ -29,7 +22,7 @@ function verifySignature(body: string, sig: string) {
 async function handleStaffText(
   event: { replyToken: string; source: { userId: string }; message: { text: string } },
 ): Promise<boolean> {
-  const supabase = getSupabase()
+  const supabase = createAdminClient()
   const userId = event.source.userId
   const text = (event.message.text ?? '').trim()
 

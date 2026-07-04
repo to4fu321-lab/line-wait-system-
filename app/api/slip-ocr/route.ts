@@ -3,14 +3,7 @@ export const dynamic = 'force-dynamic'
 import { timingSafeEqual } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { createClient } from '@supabase/supabase-js'
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
-}
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 function safeEqual(a: string, b: string): boolean {
   const bufA = Buffer.from(a)
@@ -143,7 +136,7 @@ export async function POST(req: NextRequest) {
     if (!storeId || !storePin) {
       return NextResponse.json({ ok: false, error: '認証情報が必要です (storeId + storePin)' }, { status: 401 })
     }
-    const supabase = getSupabase()
+    const supabase = createAdminClient()
     const { data: store } = await supabase
       .from('stores')
       .select('pin')

@@ -1,14 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import type { SchoolManualItem } from '@/lib/ocr/schemas/school-manual'
-
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  return createClient(url, key)
-}
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 const CATEGORY_LIST = [
   '制服（上着）', 'スラックス・スカート', 'シャツ・ブラウス', 'セーター・ベスト',
@@ -44,7 +38,7 @@ interface ImportBody {
 
 // POST /api/ocr/import/[id] — プレビュー確定内容を DB へ保存
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = getSupabase()
+  const supabase = createAdminClient()
   try {
     const body = (await req.json()) as ImportBody
     const { storeId, school, items } = body
