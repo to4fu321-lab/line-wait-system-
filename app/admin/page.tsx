@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { StoreSelectScreen } from '@/app/[storeId]/admin/_components/StoreSelectScreen'
 import type { StoreInfo } from '@/app/[storeId]/admin/_components/StoreSelectScreen'
 
@@ -21,17 +20,17 @@ export default function StaffEntryPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    (supabase as any).from('stores')
-      .select('id, name, pin, group_id, business_type, features')
-      .order('name', { ascending: true })
-      .then(({ data, error }: { data: StoreInfo[] | null; error: { message: string } | null }) => {
+    fetch('/api/admin/stores')
+      .then(res => res.json())
+      .then(({ stores: data, error }: { stores?: StoreInfo[]; error?: string }) => {
         if (error || !data || data.length === 0) {
-          setError(error?.message ?? '店舗データが見つかりません')
+          setError(error ?? '店舗データが見つかりません')
         } else {
           setStores(data)
         }
         setLoading(false)
       })
+      .catch(err => { setError(String(err)); setLoading(false) })
   }, [])
 
   if (loading) {

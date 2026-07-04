@@ -2,7 +2,8 @@
 
 import { Store, ChevronRight, LayoutDashboard } from 'lucide-react'
 
-interface StoreInfo { id: string; name: string; pin: string; group_id?: string | null; business_type?: string; features?: Record<string, unknown> | null }
+// pin は含めない（PIN照合は /api/admin/verify-pin でサーバー側のみで行う）
+interface StoreInfo { id: string; name: string; group_id?: string | null; business_type?: string; features?: Record<string, unknown> | null }
 
 // ============================================================
 // 店舗選択画面

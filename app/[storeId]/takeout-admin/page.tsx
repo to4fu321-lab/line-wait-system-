@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { PinScreen, verifyStorePinApi } from '@/app/_components/PinScreen'
 import type { Menu, TakeoutOrder, TakeoutSettings } from '@/types/takeout'
 import type { KitchenStation } from '@/types/kitchen-scheduler'
 
@@ -51,52 +52,6 @@ const ICON_PALETTE: { cat: string; icons: string[] }[] = [
     icons: ['❄️', '🧊', '🔪', '⚡', '🧺', '📦', '🪣', '⚙️', '🧹', '🧽'],
   },
 ]
-
-// ─── PIN認証画面 ───────────────────────────────────────────
-function PinScreen({ storePin, onAuth }: { storePin: string; onAuth: () => void }) {
-  const [pin,   setPin]   = useState('')
-  const [error, setError] = useState(false)
-
-  const handleDigit = (d: string) => {
-    if (pin.length >= 4) return
-    const next = pin + d
-    setPin(next)
-    setError(false)
-    if (next.length === 4) {
-      if (next === storePin) { onAuth() }
-      else { setTimeout(() => { setPin(''); setError(true) }, 400) }
-    }
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-6">
-      <div className="text-center mb-8">
-        <div className="text-5xl mb-3">🥡</div>
-        <h1 className="text-2xl font-bold text-gray-800">テイクアウト管理</h1>
-        <p className="text-gray-500 text-sm mt-1">PINを入力してください</p>
-      </div>
-      <div className="flex gap-4 mb-8">
-        {[0,1,2,3].map(i => (
-          <div key={i} className={`w-4 h-4 rounded-full transition-all ${
-            pin.length > i ? (error ? 'bg-red-400' : 'bg-blue-500') : 'bg-gray-300'
-          }`} />
-        ))}
-      </div>
-      {error && <p className="text-red-500 text-sm mb-4">PINが違います</p>}
-      <div className="grid grid-cols-3 gap-3 w-56">
-        {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((d, i) => (
-          <button key={i}
-            onClick={() => d === '⌫' ? setPin(p => p.slice(0,-1)) : d && handleDigit(d)}
-            className={`h-14 rounded-xl text-xl font-bold transition-all active:scale-90 ${
-              d === '' ? 'invisible' :
-              d === '⌫' ? 'bg-gray-200 text-gray-500' :
-              'bg-white text-gray-800 shadow-sm border border-gray-200'
-            }`}>{d}</button>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 // ─── メニュー管理 ──────────────────────────────────────────
 function MenuManager({ storeId }: { storeId: string }) {
@@ -740,17 +695,16 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
 
 export default function TakeoutAdminPage({ params }: { params: { storeId: string } }) {
   const { storeId } = params
-  const [storePin,  setStorePin]  = useState('')
   const [storeName, setStoreName] = useState('')
+  const [loaded,    setLoaded]    = useState(false)
   const [authed,    setAuthed]    = useState(false)
   const [tab,       setTab]       = useState<Tab>('menus')
 
   useEffect(() => {
-    (supabase as any).from('stores').select('name, pin').eq('id', storeId).single()
-      .then(({ data }: { data: any }) => {
-        if (!data) return
-        const d = data as { name: string; pin: string }
-        setStoreName(d.name); setStorePin(d.pin)
+    (supabase as any).from('stores').select('name').eq('id', storeId).single()
+      .then(({ data }: { data: { name: string } | null }) => {
+        if (data) setStoreName(data.name)
+        setLoaded(true)
       })
     const ok  = sessionStorage.getItem('admin_auth')     === '1'
     const sid = sessionStorage.getItem('admin_store_id') === storeId
@@ -763,8 +717,11 @@ export default function TakeoutAdminPage({ params }: { params: { storeId: string
     setAuthed(true)
   }
 
-  if (!storePin) return <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-400">読み込み中...</div>
-  if (!authed)   return <PinScreen storePin={storePin} onAuth={handleAuth} />
+  if (!loaded) return <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-400">読み込み中...</div>
+  if (!authed) return (
+    <PinScreen title="テイクアウト管理" emoji="🥡" subtitle={storeName}
+      verify={pin => verifyStorePinApi(storeId, pin)} onAuth={handleAuth} />
+  )
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">

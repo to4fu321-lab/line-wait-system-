@@ -14,7 +14,7 @@ import { StoreSelectScreen } from './_components/StoreSelectScreen'
 import type { StoreInfo } from './_components/StoreSelectScreen'
 import { resolveFeature } from '@/lib/features'
 import { SchoolDeadlineAlert } from './_components/SchoolDeadlineAlert'
-import { PinScreen } from './_components/PinScreen'
+import { PinScreen, verifyStorePinApi } from '@/app/_components/PinScreen'
 import { WaitingCard, CallingCard, HistoryCard } from './_components/QueueCards'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import { useConnectionStatus } from '@/lib/useConnectionStatus'
@@ -790,10 +790,11 @@ export default function StoreAdminPage() {
   }, [])
 
   useEffect(() => {
-    (supabase as any).from('stores').select('id, name, pin, group_id, business_type, features').order('name', { ascending: true })
-      .then(({ data, error }: { data: any; error: any }) => {
+    fetch('/api/admin/stores')
+      .then(res => res.json())
+      .then(({ stores: data, error }: { stores?: StoreInfo[]; error?: string }) => {
         if (error || !data || data.length === 0) {
-          setFetchError(error?.message ?? '店舗データが見つかりません'); setView('select_store'); return
+          setFetchError(error ?? '店舗データが見つかりません'); setView('select_store'); return
         }
         setStores(data as StoreInfo[])
         const saved = sessionStorage.getItem('admin_store_id')
@@ -855,9 +856,10 @@ export default function StoreAdminPage() {
     </>
   )
   if (view === 'pin' && selectedStore) return (
-    <PinScreen storeName={selectedStore.name} storePin={selectedStore.pin}
-      ownerPin={String(selectedStore.features?.owner_pin ?? '')}
-      storeId={selectedStore.id} onAuth={handleAuth} onBack={() => setView('select_store')} />
+    <PinScreen title="スタッフ専用" emoji="🔒"
+      headerExtra={<p className="text-indigo-600 font-bold mt-1 text-lg">{selectedStore.name}</p>}
+      verify={pin => verifyStorePinApi(selectedStore.id, pin)}
+      onAuth={handleAuth} onBack={() => setView('select_store')} backLabel="← 店舗を選び直す" />
   )
   if (view === 'dashboard' && selectedStore) return (
     <AdminDashboard store={selectedStore} groupCode={groupCode} onLogout={handleLogout} />

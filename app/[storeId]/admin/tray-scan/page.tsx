@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { resolveFeature } from '@/lib/features'
-import { PinScreen } from '../_components/PinScreen'
+import { PinScreen, verifyStorePinApi } from '@/app/_components/PinScreen'
 import {
   SLIP_TYPE_LABELS, summarizeScan, promoteScan,
   type ScanSlipType,
@@ -34,7 +34,7 @@ export default function TrayScanPage() {
   const router = useRouter()
 
   const [view, setView] = useState<View>('loading')
-  const [store, setStore] = useState<{ id: string; name: string; pin: string } | null>(null)
+  const [store, setStore] = useState<{ id: string; name: string } | null>(null)
   const [scanState, setScanState] = useState<ScanState>('starting')
   const [result, setResult] = useState<ScanResult | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
@@ -51,13 +51,17 @@ export default function TrayScanPage() {
   // ── 店舗ロード & PIN ────────────────────────────────────────
   useEffect(() => {
     if (!storeId) return
-    ;(supabase as any).from('stores').select('id, name, pin, features').eq('id', storeId).single()
-      .then(({ data }: { data: { id: string; name: string; pin: string; features: Record<string, unknown> } | null }) => {
+    fetch(`/api/admin/stores?storeId=${storeId}`)
+      .then(res => res.json())
+      .then(async ({ stores }: { stores?: { id: string; name: string; features: Record<string, unknown> }[] }) => {
+        const data = stores?.[0]
         if (!data) { setView('disabled'); return }
         if (!resolveFeature('tray_scan', data.features ?? {})) { setView('disabled'); return }
         setStore(data)
+        // 保存済みPINがあればサーバーで再照合してPIN入力をスキップ
         const saved = typeof window !== 'undefined' ? sessionStorage.getItem(`admin_pin_${storeId}`) : null
-        setView(saved === data.pin ? 'ready' : 'pin')
+        if (saved && await verifyStorePinApi(storeId, saved)) { setView('ready'); return }
+        setView('pin')
       })
   }, [storeId])
 
@@ -286,7 +290,9 @@ export default function TrayScanPage() {
     </div>
   )
   if (view === 'pin' && store) return (
-    <PinScreen storeName={store.name} storePin={store.pin} storeId={store.id}
+    <PinScreen title="スタッフ専用" emoji="🔒"
+      headerExtra={<p className="text-indigo-600 font-bold mt-1 text-lg">{store.name}</p>}
+      verify={pin => verifyStorePinApi(store.id, pin)}
       onAuth={() => setView('ready')} onBack={() => router.push(`/${storeId}/admin`)} />
   )
 
