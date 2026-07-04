@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "gen:types": "supabase gen types typescript --project-id ffbixfbddxguhdhayqqy --schema public > types/supabase.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
