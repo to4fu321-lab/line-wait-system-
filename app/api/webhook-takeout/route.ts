@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import crypto from 'crypto'
+import { verifyLineSignature } from '@/lib/lineSignature'
 import { getLiffBaseUrl, getLineToken, getLineSecret } from '@/lib/line-config'
 
 // テイクアウト専門店向け LINE チャンネルの webhook
@@ -10,8 +10,7 @@ const SECRET   = getLineSecret('takeout')
 const LIFF_BASE = getLiffBaseUrl('takeout')
 
 function verifySignature(body: string, sig: string) {
-  if (!SECRET) return true
-  return crypto.createHmac('sha256', SECRET).update(body).digest('base64') === sig
+  return verifyLineSignature(body, sig, SECRET)
 }
 
 export async function POST(req: NextRequest) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import crypto from 'crypto'
+import { verifyLineSignature } from '@/lib/lineSignature'
 import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
@@ -11,11 +11,9 @@ function getSupabase() {
   )
 }
 
-// LINE webhook signature verification (same pattern as app/api/webhook/route.ts)
+// LINE webhook 署名検証（fail-close 共通実装）
 function verifySignature(body: string, sig: string): boolean {
-  const secret = process.env.LINE_CHANNEL_SECRET ?? ''
-  if (!secret) return true
-  return crypto.createHmac('sha256', secret).update(body).digest('base64') === sig
+  return verifyLineSignature(body, sig, process.env.LINE_CHANNEL_SECRET ?? '')
 }
 
 // Send LINE reply message

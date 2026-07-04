@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import crypto from 'crypto'
+import { verifyLineSignature } from '@/lib/lineSignature'
 import { createClient } from '@supabase/supabase-js'
 import { getLiffBaseUrl, getLineToken, getLineSecret } from '@/lib/line-config'
 import {
@@ -22,8 +22,7 @@ function getSupabase() {
 }
 
 function verifySignature(body: string, sig: string) {
-  if (!SECRET) return true
-  return crypto.createHmac('sha256', SECRET).update(body).digest('base64') === sig
+  return verifyLineSignature(body, sig, SECRET)
 }
 
 // ── かんたんLINEモード: スタッフからのテキストを処理 ──────────
