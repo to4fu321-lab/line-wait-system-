@@ -7,21 +7,11 @@ import {
 import { supabase } from '@/lib/supabase'
 import type { IntakeFormType } from './types'
 import { INTAKE_OPTIONS } from './types'
+import { Field } from '@/app/_components/Field'
 
 // ============================================================
 // 共通フィールドラベル
 // ============================================================
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-xs font-bold text-gray-600 mb-1.5">
-        {label}{required && <span className="text-red-600 ml-1">*</span>}
-      </label>
-      {children}
-    </div>
-  )
-}
-
 // ============================================================
 // 統合新規依頼受付フォーム
 // ============================================================

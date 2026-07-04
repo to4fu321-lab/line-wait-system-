@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 
-const supabase = createAdminClient()
 
 function jstToday() {
   const now = new Date()
@@ -17,6 +16,7 @@ function jstTomorrow() {
 }
 
 export async function POST(req: NextRequest) {
+  const supabase = createAdminClient()
   try {
     const { storeId, mode, handoverNote } = await req.json()
     if (!storeId) return NextResponse.json({ error: 'storeId required' }, { status: 400 })

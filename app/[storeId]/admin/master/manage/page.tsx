@@ -26,6 +26,7 @@ import {
 } from '@/types/master'
 import ManualImportWizard from './_components/ManualImportWizard'
 import { Toast } from '@/app/_components/Toast'
+import { Field } from '@/app/_components/Field'
 import type {
   SchoolMaster, SizeSet, ProductMaster, SchoolRequirement, Price,
 } from '@/types/master'
@@ -35,17 +36,6 @@ const BTN_PRIMARY = 'inline-flex items-center justify-center gap-1.5 px-4 py-2.5
 const BTN_GHOST = 'inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-gray-300 text-gray-700 text-sm font-bold hover:bg-gray-50'
 
 // ── 小物 ──────────────────────────────────────────────────────
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-xs font-bold text-gray-600 mb-1">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      {children}
-    </div>
-  )
-}
-
 function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   return (
     <div className="fixed inset-0 z-[70] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>

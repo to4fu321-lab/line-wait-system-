@@ -23,21 +23,11 @@ import {
 } from '@/types/repair'
 import { seedRepairPresets, SIZE_RANGE_PRESETS } from '@/lib/repairPresets'
 import { Toast } from '@/app/_components/Toast'
+import { Field } from '@/app/_components/Field'
 
 const INPUT = 'w-full border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:border-indigo-500 bg-white'
 
 // ── 小物 ──────────────────────────────────────────────────────
-function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-xs font-bold text-gray-600 mb-1">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-        {hint && <span className="ml-1 font-normal text-gray-400">{hint}</span>}
-      </label>
-      {children}
-    </div>
-  )
-}
 function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   return (
     <div className="fixed inset-0 z-[70] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>

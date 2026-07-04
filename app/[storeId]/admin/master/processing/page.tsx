@@ -19,17 +19,9 @@ import {
   PRODUCT_CATEGORY_OPTIONS, PROCESSING_INPUT_TYPE_OPTIONS,
 } from '@/types/master'
 import type { ProcessingOption } from '@/types/master'
+import { Field } from '@/app/_components/Field'
 
 const INPUT = 'w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:outline-none'
-
-function Field({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {
-  return (
-    <div className={full ? 'col-span-2' : ''}>
-      <label className="text-[11px] font-bold text-gray-600 mb-1 block">{label}</label>
-      {children}
-    </div>
-  )
-}
 
 const INPUT_TYPE_LABEL = (v: string) =>
   PROCESSING_INPUT_TYPE_OPTIONS.find((o) => o.value === v)?.label ?? v

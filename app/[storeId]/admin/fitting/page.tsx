@@ -14,6 +14,7 @@ import { GRADE_OPTIONS } from '@/types/crm'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { MeasurementSchoolPanel } from '@/app/_components/MeasurementSchoolPanel'
 import { Toast } from '@/app/_components/Toast'
+import { Field } from '@/app/_components/Field'
 
 // ── 型定義 ───────────────────────────────────────────────────
 type FittingStep = 'customer' | 'measure' | 'confirm' | 'done'
@@ -63,17 +64,6 @@ function recommendVariant(heightCm: number, variants: VariantRow[]): VariantRow 
 }
 
 // ── 小コンポーネント ─────────────────────────────────────────
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-xs font-bold text-gray-500 mb-1.5">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      {children}
-    </div>
-  )
-}
-
 const INPUT = 'w-full border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm bg-white focus:outline-none focus:border-indigo-500'
 const SELECT = 'w-full border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm bg-white focus:outline-none focus:border-indigo-500'
 

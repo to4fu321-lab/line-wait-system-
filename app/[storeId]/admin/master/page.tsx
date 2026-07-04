@@ -19,6 +19,7 @@ import {
 import type { Availability } from '@/lib/availability'
 import { AvailabilityEditor } from './_components/AvailabilityEditor'
 import { Toast } from '@/app/_components/Toast'
+import { Field } from '@/app/_components/Field'
 
 // ── 型 ────────────────────────────────────────────────────────
 // お直し料金マスタは /master/repair（服種>項目>オプションの3階層）へ移行済み。
@@ -26,18 +27,6 @@ import { Toast } from '@/app/_components/Toast'
 type MasterTab      = 'schools' | 'staff' | 'presets'
 type SchoolView     = 'schools' | 'school_detail' | 'products' | 'variants'
 type SchoolDetailTab = 'catalog' | 'regulations' | 'grades' | 'tips' | 'ocr'
-
-// ── Toast ─────────────────────────────────────────────────────
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-xs font-bold text-gray-600 mb-1">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      {children}
-    </div>
-  )
-}
 
 const INPUT = 'w-full border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:border-indigo-500 bg-white'
 
