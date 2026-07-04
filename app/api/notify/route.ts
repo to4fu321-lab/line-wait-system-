@@ -13,6 +13,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, skipped: true, reason: 'no_line_user_id' })
   }
 
+  // ── なりすまし・スパム送信防止 ──────────────────────────────
+  // storeId を必須にし、lineUserId がその店舗の整理券 or 顧客に
+  // 実際に紐づいている場合のみ送信を許可する
+  if (!storeId) {
+    return NextResponse.json({ ok: false, error: 'storeId is required' }, { status: 400 })
+  }
+  const [{ data: ownedQueue }, { data: ownedCustomer }] = await Promise.all([
+    (supabase as any).from('queues')
+      .select('id').eq('store_id', storeId).eq('line_user_id', lineUserId).limit(1),
+    (supabase as any).from('customers')
+      .select('id').eq('store_id', storeId).eq('line_user_id', lineUserId).limit(1),
+  ])
+  if (!ownedQueue?.length && !ownedCustomer?.length) {
+    return NextResponse.json({ ok: false, error: 'この店舗に紐づかない宛先には送信できません' }, { status: 403 })
+  }
+
   if (process.env.LINE_NOTIFY_DISABLED === 'true') {
     console.log(`[LINE通知無効] No.${ticketNumber} ${customerName} 様 – LINE_NOTIFY_DISABLED=true`)
     return NextResponse.json({ ok: true, skipped: true, reason: 'disabled' })

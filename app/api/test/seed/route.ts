@@ -2,14 +2,19 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { assertStorePin } from '@/lib/auth/storeAuth'
 
 function daysAgo(n: number) {
   return new Date(Date.now() - n * 86400000).toISOString().slice(0, 10)
 }
 
 export async function POST(req: NextRequest) {
-  const { storeId } = await req.json()
+  const { storeId, storePin } = await req.json()
   if (!storeId) return NextResponse.json({ ok: false, error: 'no storeId' }, { status: 400 })
+
+  // テストデータ投入も本番DBへの書き込みのため、店舗PIN（または super-admin）必須
+  const denied = await assertStorePin(req, { storeId, storePin })
+  if (denied) return denied
 
   const today = new Date().toISOString().slice(0, 10)
   const created: string[] = []

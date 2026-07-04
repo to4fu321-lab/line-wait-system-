@@ -341,10 +341,11 @@ export default function RepairsPage() {
     if (!storeId) return
     setDummyLoading(true)
     try {
+      const storePin = sessionStorage.getItem(`admin_pin_${storeId}`) ?? ''
       const res = await fetch(`/api/admin/seed-test-data`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storeId, dryRun: false, count: 15 }),
+        body: JSON.stringify({ storeId, dryRun: false, count: 15, storePin }),
       })
       const json = await res.json()
       if (!res.ok || !json.ok) {

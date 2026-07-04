@@ -1,17 +1,7 @@
 export const dynamic = 'force-dynamic'
 
-import { timingSafeEqual } from 'crypto'
 import { NextResponse } from 'next/server'
-
-function safeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a)
-  const bufB = Buffer.from(b)
-  if (bufA.length !== bufB.length) {
-    timingSafeEqual(bufA, bufA)
-    return false
-  }
-  return timingSafeEqual(bufA, bufB)
-}
+import { safeEqual } from '@/lib/auth/safeEqual'
 
 /**
  * POST /api/super-admin/auth
@@ -44,7 +34,9 @@ export async function POST(req: Request) {
       httpOnly:  true,
       secure:    process.env.NODE_ENV === 'production',
       sameSite:  'strict',
-      path:      '/api/super-admin',   // cookie is only sent to /api/super-admin/*
+      // /api/super-admin/* に加えて /api/test/* 等の運用系ルートでも
+      // super-admin 判定に使うため /api 全体に送る（HttpOnly なのでJSからは読めない）
+      path:      '/api',
       maxAge:    86400,                // 24 hours
     })
     return res

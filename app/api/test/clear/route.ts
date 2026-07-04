@@ -2,10 +2,15 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { assertStorePin } from '@/lib/auth/storeAuth'
 
 export async function POST(req: NextRequest) {
-  const { storeId } = await req.json()
+  const { storeId, storePin } = await req.json()
   if (!storeId) return NextResponse.json({ ok: false, error: 'no storeId' }, { status: 400 })
+
+  // 顧客・整理券を削除する破壊的APIのため、店舗PIN（または super-admin）必須
+  const denied = await assertStorePin(req, { storeId, storePin })
+  if (denied) return denied
 
   const deleted: string[] = []
 

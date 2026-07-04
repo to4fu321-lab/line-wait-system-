@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { safeEqual } from '@/lib/auth/safeEqual'
+import { hasSuperAdminSession } from '@/lib/auth/verifyAdmin'
 
 export type StoreRole = 'owner' | 'staff'
 
@@ -35,9 +36,7 @@ export async function assertStorePin(
   req: Request,
   body: { storeId?: string; storePin?: string },
 ): Promise<NextResponse | null> {
-  const adminSecret = process.env.SUPER_ADMIN_SECRET
-  const headerVal = req.headers.get('x-admin-secret') ?? ''
-  if (adminSecret && headerVal && safeEqual(headerVal, adminSecret)) return null
+  if (hasSuperAdminSession(req)) return null
 
   if (!body.storeId || !body.storePin) {
     return NextResponse.json({ ok: false, error: '認証情報が必要です (storeId + storePin)' }, { status: 401 })

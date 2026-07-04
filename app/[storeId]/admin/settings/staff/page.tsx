@@ -178,9 +178,10 @@ export default function StaffSettingsPage() {
   const handleTestModeToggle = async () => {
     const next = !isTestMode
     setIsTestMode(next)
+    const storePin = sessionStorage.getItem(`admin_pin_${storeId}`) ?? ''
     await fetch('/api/test/mode', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ storeId, enabled: next }),
+      body: JSON.stringify({ storeId, enabled: next, storePin }),
     })
   }
 

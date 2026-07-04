@@ -1,15 +1,25 @@
-import { timingSafeEqual } from 'crypto'
 import { NextResponse } from 'next/server'
+import { safeEqual } from '@/lib/auth/safeEqual'
 
-function safeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a)
-  const bufB = Buffer.from(b)
-  // Prevent length-based timing leak: always run comparison, return false if lengths differ
-  if (bufA.length !== bufB.length) {
-    timingSafeEqual(bufA, bufA)
-    return false
-  }
-  return timingSafeEqual(bufA, bufB)
+/**
+ * super-admin シークレットを持っているか（ヘッダー or HttpOnly cookie）。
+ * 認可の必須条件ではなく「super-admin なら通す」の判定に使う。
+ */
+export function hasSuperAdminSession(req: Request): boolean {
+  const secret = process.env.SUPER_ADMIN_SECRET
+  if (!secret) return false
+
+  const headerVal = req.headers.get('x-admin-secret') ?? ''
+  if (headerVal && safeEqual(headerVal, secret)) return true
+
+  const cookie = req.headers.get('cookie') ?? ''
+  const sessionVal =
+    cookie
+      .split(';')
+      .map(c => c.trim())
+      .find(c => c.startsWith('super_admin_session='))
+      ?.slice('super_admin_session='.length) ?? ''
+  return !!sessionVal && safeEqual(sessionVal, secret)
 }
 
 /**
@@ -30,19 +40,7 @@ export function assertSuperAdmin(req: Request): NextResponse | null {
     )
   }
 
-  // 1. x-admin-secret header
-  const headerVal = req.headers.get('x-admin-secret') ?? ''
-  if (headerVal && safeEqual(headerVal, secret)) return null
-
-  // 2. HttpOnly session cookie (set by /api/super-admin/auth on PIN login)
-  const cookie = req.headers.get('cookie') ?? ''
-  const sessionVal =
-    cookie
-      .split(';')
-      .map(c => c.trim())
-      .find(c => c.startsWith('super_admin_session='))
-      ?.slice('super_admin_session='.length) ?? ''
-  if (sessionVal && safeEqual(sessionVal, secret)) return null
+  if (hasSuperAdminSession(req)) return null
 
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 }

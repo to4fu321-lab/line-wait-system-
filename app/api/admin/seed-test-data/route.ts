@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { assertStorePin } from '@/lib/auth/storeAuth'
 
 // ─── テストデータ定義 ──────────────────────────────────────────
 
@@ -41,8 +42,13 @@ function daysLater(n: number): string {
 
 // ─── GET: ドライラン（追加予定件数を返す） ──────────────────────
 export async function GET(req: NextRequest) {
-  const storeId = req.nextUrl.searchParams.get('storeId')
+  const storeId  = req.nextUrl.searchParams.get('storeId')
+  const storePin = req.nextUrl.searchParams.get('storePin') ?? undefined
   if (!storeId) return NextResponse.json({ error: 'storeId required' }, { status: 400 })
+
+  // 顧客名を含む情報を返すため認証必須
+  const denied = await assertStorePin(req, { storeId, storePin })
+  if (denied) return denied
 
   const [{ data: customers }, { data: children }] = await Promise.all([
     (supabase as any).from('customers').select('id, name').eq('store_id', storeId).limit(50),
@@ -60,13 +66,18 @@ export async function GET(req: NextRequest) {
 // ─── POST: テストデータ投入 ─────────────────────────────────────
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
-  const { storeId, dryRun = true, count = 15 } = body as {
+  const { storeId, dryRun = true, count = 15, storePin } = body as {
     storeId?: string
     dryRun?: boolean
     count?: number
+    storePin?: string
   }
 
   if (!storeId) return NextResponse.json({ error: 'storeId required' }, { status: 400 })
+
+  // 本番DBへの書き込みのため、店舗PIN（または super-admin）必須
+  const denied = await assertStorePin(req, { storeId, storePin })
+  if (denied) return denied
 
   // 実在する顧客・子供を取得
   const [{ data: customersRaw, error: custErr }, { data: childrenRaw }] = await Promise.all([
