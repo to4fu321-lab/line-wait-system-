@@ -5,6 +5,7 @@ import type { Shift } from '@/types/shifts'
 import type { Staff } from '@/types/master'
 import type { PaintValue } from './ShiftPaintBar'
 import { fmtHM, dowOf, workedMinutes, fmtDurationH } from '../_lib/time'
+import { todayJst } from '@/lib/date'
 
 const WEEK = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -28,7 +29,7 @@ export function ShiftWeekGrid({
   onPaintRow?: (staffId: string) => void
 }) {
   const painting = paint !== null
-  const today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
+  const today = todayJst()
   const draftCount = shifts.filter(s => s.status === 'draft').length
 
   // staff_id+date -> shifts

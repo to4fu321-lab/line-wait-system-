@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, Loader2, Check } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { ShiftRequest, ShiftRequestKind } from '@/types/shifts'
+import { todayJst } from '@/lib/date'
 
 const sb = supabase as any
 const WEEK = ['日', '月', '火', '水', '木', '金', '土']
@@ -12,7 +13,7 @@ const WEEK = ['日', '月', '火', '水', '木', '金', '土']
 export function SubmitRequest({ storeId, staffId, onToast }: {
   storeId: string; staffId: string; onToast: (m: string, t?: 'ok' | 'err') => void
 }) {
-  const t = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
+  const t = todayJst()
   const [ym, setYm] = useState({ y: Number(t.slice(0, 4)), m: Number(t.slice(5, 7)) })
   const [reqs, setReqs] = useState<Record<string, ShiftRequest>>({})
   const [loading, setLoading] = useState(true)

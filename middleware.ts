@@ -37,11 +37,9 @@ export function middleware(request: NextRequest) {
         if (code) target.searchParams.set('code', code)
         if (oauthState) target.searchParams.set('state', oauthState)
         target.searchParams.set('liff.state', newLiffState)
-
-// ★追加
-target.searchParams.set('to', decoded)
-
-return NextResponse.redirect(target)
+        // 未登録ユーザーがQRコードで来た場合の遷移先も to パラメータで引き継ぐ
+        target.searchParams.set('to', decoded)
+        return NextResponse.redirect(target)
       }
       if (decoded.startsWith('/line-home')) {
         // liff.state と OAuth params (code/state) を保持してリダイレクト

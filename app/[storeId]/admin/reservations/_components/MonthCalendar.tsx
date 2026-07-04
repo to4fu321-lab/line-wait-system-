@@ -7,8 +7,8 @@
 import { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { loadMonthInfo, type DayInfo, type DayLevel } from '../_lib/month'
+import { todayJst } from '@/lib/date'
 
-function todayJst(): string { return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10) }
 
 const WEEK = ['日', '月', '火', '水', '木', '金', '土']
 

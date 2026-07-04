@@ -9,6 +9,7 @@ import {
   Loader2, X, Phone, CheckCheck, BellRing, UserX, Ruler,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { toJstDateString, toJstTimeString } from '@/lib/date'
 import {
   RESERVATION_STATUS_LABELS, RESERVATION_STATUS_COLORS,
   type Reservation, type ReservationStatus,
@@ -20,10 +21,10 @@ export type ReservationFull = Reservation & {
 }
 
 function fmtTime(isoStr: string) {
-  return new Date(new Date(isoStr).getTime() + 9 * 3600000).toISOString().slice(11, 16)
+  return toJstTimeString(isoStr)
 }
 function fmtMd(isoStr: string) {
-  const d = new Date(new Date(isoStr).getTime() + 9 * 3600000).toISOString().slice(0, 10)
+  const d = toJstDateString(isoStr)
   const [, m, day] = d.split('-')
   return `${parseInt(m)}/${parseInt(day)}`
 }

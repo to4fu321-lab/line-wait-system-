@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { resolveFeature } from '@/lib/features'
 import { initLiff, getLineProfile } from '@/lib/liff'
+import { todayJst, toJstTimeString } from '@/lib/date'
 import {
   CalendarDays, Clock, User, FileText, Check,
   Loader2, ChevronLeft, ChevronRight, GraduationCap, Plus, X, ShoppingBag,
@@ -20,9 +21,6 @@ const GRADE_OPTIONS = ['中学1年', '中学2年', '中学3年', '高校1年', '
 // ============================================================
 // ユーティリティ
 // ============================================================
-function todayJst(): string {
-  return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
-}
 
 function addDays(dateStr: string, n: number): string {
   const d = new Date(dateStr + 'T12:00:00Z')
@@ -396,8 +394,7 @@ export default function ReservePage() {
         for (const r of (reservations ?? [])) {
           // 試着室(採寸)を使う予約のみ枠を消費する
           if (!isFittingService(r.service_type ?? '', r.purpose ?? '')) continue
-          const jstTime = new Date(new Date(r.reserved_at).getTime() + 9 * 3600000)
-            .toISOString().slice(11, 16)
+          const jstTime = toJstTimeString(r.reserved_at)
           const [rh, rm] = jstTime.split(':').map(Number)
           const rStart    = rh * 60 + rm
           const rDuration = durationMap[r.service_type] ?? selectedService.duration_min

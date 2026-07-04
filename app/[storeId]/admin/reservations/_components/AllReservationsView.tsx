@@ -8,9 +8,10 @@ import { Loader2, Search, CalendarDays } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { RESERVATION_STATUS_LABELS, type ReservationStatus } from '@/types/reservations'
 import { ReservationCard, type ReservationFull } from './ReservationCard'
+import { todayJst } from '@/lib/date'
 
 function todayStartTs(): string {
-  const d = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
+  const d = todayJst()
   return `${d}T00:00:00+09:00`
 }
 function telDigits(s: string | null | undefined): string { return (s ?? '').replace(/[^0-9]/g, '') }

@@ -4,9 +4,8 @@
 import type { Shift } from '@/types/shifts'
 import type { Staff } from '@/types/master'
 
-export function todayJst(): string {
-  return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
-}
+// 後方互換のための再エクスポート（実装は lib/date.ts）
+export { todayJst } from '@/lib/date'
 
 // 'HH:MM' / 'HH:MM:SS' → 分
 export function toMinutes(t: string): number {

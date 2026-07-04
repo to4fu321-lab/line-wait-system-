@@ -4,6 +4,7 @@
 //   容量にカウントするのは採寸系(isFitting)の予約のみ。
 // ============================================================
 import { supabase } from '@/lib/supabase'
+import { toJstTimeString } from '@/lib/date'
 
 const sb = supabase as any
 
@@ -85,7 +86,7 @@ export async function computeSlotInfo(storeId: string, date: string, service: Re
     let overlap = 0
     for (const r of (reservations ?? []) as { reserved_at: string; purpose: string | null; service_type: string | null }[]) {
       if (!isFitting(r.purpose, r.service_type)) continue // ★採寸のみ枠消費
-      const jst = new Date(new Date(r.reserved_at).getTime() + 9 * 3600000).toISOString().slice(11, 16)
+      const jst = toJstTimeString(r.reserved_at)
       const [rh, rm] = jst.split(':').map(Number)
       const rStart = rh * 60 + rm
       const rEnd = rStart + (durationMap[r.service_type ?? ''] ?? slotDuration)

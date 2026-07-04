@@ -5,9 +5,8 @@ export function fmtDate(d: string | null): string {
   return new Date(d).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })
 }
 
-export function todayJst(): string {
-  return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
-}
+// 後方互換のための再エクスポート（実装は lib/date.ts）
+export { todayJst } from '@/lib/date'
 
 export async function compressImage(file: File, maxDim = 1400, quality = 0.82): Promise<string> {
   return new Promise((resolve, reject) => {

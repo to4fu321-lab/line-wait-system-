@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import type { Shift } from '@/types/shifts'
+import { todayJst } from '@/lib/date'
 
 const WEEK = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -15,7 +16,7 @@ export function ShiftMonthCalendar({
   onNext: () => void
   onSelectDay: (date: string) => void
 }) {
-  const today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
+  const today = todayJst()
 
   // date -> shifts
   const byDate: Record<string, Shift[]> = {}

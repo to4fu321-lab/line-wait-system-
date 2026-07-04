@@ -6,6 +6,7 @@ import type { Staff } from '@/types/master'
 import type { ShiftHelpRequest } from '@/types/shifts'
 import { HELP_REQUEST_STATUS_LABELS, HELP_OFFER_STATUS_LABELS } from '@/types/shifts'
 import { fmtDateJp, fmtHM } from '../_lib/time'
+import { todayJst } from '@/lib/date'
 
 const INPUT = 'w-full border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:border-indigo-500 bg-white'
 
@@ -158,7 +159,7 @@ function IncomingCard({ req, staff, busy, onOffer }: {
 function NewRequestSheet({ storeId, onClose, onCreated, onToast }: {
   storeId: string; onClose: () => void; onCreated: () => void; onToast: (m: string, t?: 'ok' | 'err') => void
 }) {
-  const [date, setDate] = useState(new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10))
+  const [date, setDate] = useState(todayJst())
   const [start, setStart] = useState('10:00')
   const [end, setEnd] = useState('18:00')
   const [headcount, setHeadcount] = useState(1)

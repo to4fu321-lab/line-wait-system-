@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { assertStorePin } from '@/lib/auth/storeAuth'
+import { todayJst } from '@/lib/date'
 
 function daysAgo(n: number) {
   return new Date(Date.now() - n * 86400000).toISOString().slice(0, 10)
@@ -102,10 +103,10 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. 整理券（待ち）3件 — 身長・体重の事前入力テスト用
-    const todayJst = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
+    const todayStr = todayJst()
     const { data: maxRows } = await (supabase as any).from('queues')
       .select('ticket_number').eq('store_id', storeId)
-      .gte('created_at', todayJst + 'T00:00:00+09:00')
+      .gte('created_at', todayStr + 'T00:00:00+09:00')
       .order('ticket_number', { ascending: false }).limit(1)
     const baseTicket = (maxRows?.[0]?.ticket_number ?? 0)
 

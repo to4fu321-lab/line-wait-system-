@@ -5,12 +5,13 @@ import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Shift } from '@/types/shifts'
 import { fmtHM, workedMinutes, fmtDurationH } from '../../admin/shifts/_lib/time'
+import { todayJst } from '@/lib/date'
 
 const sb = supabase as any
 const WEEK = ['日', '月', '火', '水', '木', '金', '土']
 
 export function MyShifts({ staffId, homeStoreId }: { staffId: string; homeStoreId: string }) {
-  const t = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
+  const t = todayJst()
   const [ym, setYm] = useState({ y: Number(t.slice(0, 4)), m: Number(t.slice(5, 7)) })
   const [shifts, setShifts] = useState<Shift[]>([])
   const [storeNames, setStoreNames] = useState<Record<string, string>>({})

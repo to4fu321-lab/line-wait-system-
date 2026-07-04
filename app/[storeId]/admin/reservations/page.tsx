@@ -16,6 +16,7 @@ import { ReservationCard, type ReservationFull } from './_components/Reservation
 import { AllReservationsView } from './_components/AllReservationsView'
 import { NewOrderModal } from '../repairs/_components/NewOrderModal'
 import { Toast } from '@/app/_components/Toast'
+import { todayJst, toJstTimeString } from '@/lib/date'
 import {
   RESERVATION_STATUS_LABELS,
   type ReservationStatus,
@@ -24,17 +25,10 @@ import {
 // ============================================================
 // ユーティリティ
 // ============================================================
-function todayJst() {
-  return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
-}
 function addDays(dateStr: string, n: number) {
   const d = new Date(dateStr + 'T12:00:00Z')
   d.setDate(d.getDate() + n)
   return d.toISOString().slice(0, 10)
-}
-function fmtTime(isoStr: string) {
-  return new Date(new Date(isoStr).getTime() + 9 * 3600000)
-    .toISOString().slice(11, 16)
 }
 function fmtDateJp(dateStr: string) {
   const [, m, d] = dateStr.split('-')
@@ -71,7 +65,7 @@ function QueueRefCard({ q, storeId }: { q: QueueRef; storeId: string }) {
     <div className="rounded-2xl border bg-gray-50 border-gray-200 p-4 flex items-center gap-3 opacity-70">
       <div className="shrink-0 text-center w-12">
         <p className="text-xl font-black tabular-nums text-gray-500 leading-tight">
-          {fmtTime(q.created_at)}
+          {toJstTimeString(q.created_at)}
         </p>
         <p className="text-[9px] text-gray-600 mt-0.5">受付</p>
       </div>

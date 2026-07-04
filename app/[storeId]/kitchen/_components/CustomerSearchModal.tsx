@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { TakeoutOrder, Menu } from '@/types/takeout'
 import { guessMenuIcon } from '@/lib/menu-icons'
+import { getTodayStart } from '@/lib/date'
 
 interface Props {
   storeId:   string
@@ -34,9 +35,6 @@ export default function CustomerSearchModal({ storeId, onClose, onRefresh }: Pro
   const [pickupTime,      setPickupTime]      = useState('')
 
   const loadData = useCallback(async () => {
-    const jstOffset = 9 * 60 * 60 * 1000
-    const now       = new Date(Date.now() + jstOffset)
-    const todayJst  = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - jstOffset)
 
     const [activeRes, completedRes, menusRes] = await Promise.all([
       supabase
@@ -50,7 +48,7 @@ export default function CustomerSearchModal({ storeId, onClose, onRefresh }: Pro
         .select('*, items:takeout_order_items(*)')
         .eq('store_id', storeId)
         .eq('status', 'completed')
-        .gte('created_at', todayJst.toISOString())
+        .gte('created_at', getTodayStart())
         .order('created_at', { ascending: false }),
       supabase
         .from('menus')

@@ -5,6 +5,7 @@
 // ============================================================
 import { supabase } from '@/lib/supabase'
 import { isFitting, loadServices } from './slots'
+import { toJstDateString } from '@/lib/date'
 
 const sb = supabase as any
 const WEEKDAY_KEYS = ['slots_sun', 'slots_mon', 'slots_tue', 'slots_wed', 'slots_thu', 'slots_fri', 'slots_sat'] as const
@@ -72,7 +73,7 @@ export async function loadMonthInfo(storeId: string, year: number, month: number
   const bookedMap: Record<string, number> = {}
   for (const r of (resv ?? []) as { reserved_at: string; purpose: string | null; service_type: string | null }[]) {
     if (!isFitting(r.purpose, r.service_type)) continue
-    const d = new Date(new Date(r.reserved_at).getTime() + 9 * 3600000).toISOString().slice(0, 10)
+    const d = toJstDateString(r.reserved_at)
     bookedMap[d] = (bookedMap[d] ?? 0) + 1
   }
 

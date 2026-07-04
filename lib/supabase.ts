@@ -17,11 +17,5 @@ export const supabase = createClient<Database>(
   { realtime: { params: { eventsPerSecond: 10 } } }
 )
 
-export function getTodayStart(): string {
-  const jstOffset = 9 * 60 * 60 * 1000
-  const jstNow = new Date(Date.now() + jstOffset)
-  const jstMidnightUTC = new Date(
-    Date.UTC(jstNow.getUTCFullYear(), jstNow.getUTCMonth(), jstNow.getUTCDate()) - jstOffset
-  )
-  return jstMidnightUTC.toISOString()
-}
+// 後方互換のための再エクスポート（実装は lib/date.ts）
+export { getTodayStart } from '@/lib/date'

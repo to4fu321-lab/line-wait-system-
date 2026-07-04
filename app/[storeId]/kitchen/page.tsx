@@ -14,6 +14,7 @@ import ItemCookView        from './_components/ItemCookView'
 import StarBurst           from './_components/StarBurst'
 import CustomerSearchModal from './_components/CustomerSearchModal'
 import { getLiffId } from '@/lib/line-config'
+import { getTodayStart } from '@/lib/date'
 
 // ── QRコードモーダル ──────────────────────────────────────────
 function QRModal({ storeId, storeName, onClose }: { storeId: string; storeName: string; onClose: () => void }) {
@@ -155,15 +156,12 @@ export default function KitchenPage({ params }: { params: { storeId: string } })
   }, [storeId])
 
   const loadTodayCount = useCallback(async () => {
-    const jstOffset = 9 * 60 * 60 * 1000
-    const now       = new Date(Date.now() + jstOffset)
-    const todayJst  = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - jstOffset)
     const { count } = await supabase
       .from('takeout_orders')
       .select('*', { count: 'exact', head: true })
       .eq('store_id', storeId)
       .eq('status', 'completed')
-      .gte('created_at', todayJst.toISOString())
+      .gte('created_at', getTodayStart())
     setTodayCount(count ?? 0)
   }, [storeId])
 

@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import type { LeaveRequest, LeaveType } from '@/types/shifts'
 import { LEAVE_TYPE_LABELS } from '@/types/shifts'
 import { fmtDateJp } from '../../admin/shifts/_lib/time'
+import { todayJst } from '@/lib/date'
 
 const sb = supabase as any
 const INPUT = 'w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500'
@@ -13,7 +14,7 @@ const INPUT = 'w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focu
 export function LeaveForm({ storeId, staffId, onToast }: {
   storeId: string; staffId: string; onToast: (m: string, t?: 'ok' | 'err') => void
 }) {
-  const today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
+  const today = todayJst()
   const [list, setList] = useState<LeaveRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)

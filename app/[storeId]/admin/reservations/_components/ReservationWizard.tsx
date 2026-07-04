@@ -13,6 +13,7 @@ import type { CustResult } from '../../repairs/_components/types'
 import { INFO_PURPOSES, type InfoPurpose } from '../_lib/purposes'
 import { computeSlotInfo, loadServices, type SlotInfo, type ResvService } from '../_lib/slots'
 import { MonthCalendar } from './MonthCalendar'
+import { todayJst } from '@/lib/date'
 
 type Child = { id: string; name: string; school_name: string | null }
 type StepKey = 'customer' | 'purpose' | 'datetime' | 'confirm'
@@ -27,7 +28,6 @@ function choiceLabel(c: Choice | null): string | null {
   return c.kind === 'fitting' ? c.service.label : c.info.label
 }
 
-function todayJst(): string { return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10) }
 function addDays(d: string, n: number): string { const x = new Date(d + 'T12:00:00Z'); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10) }
 function fmtDate(d: string): string { const x = new Date(d + 'T12:00:00Z'); const w = ['日', '月', '火', '水', '木', '金', '土']; return `${x.getUTCMonth() + 1}/${x.getUTCDate()}（${w[x.getUTCDay()]}）` }
 
