@@ -12,6 +12,7 @@ import { checkNewStudentConflicts } from '@/lib/uniformAllocation'
 import type { ConflictItem } from '@/lib/uniformAllocation'
 import { AllocationWarningModal } from '../repairs/_components/AllocationWarningModal'
 import { BottomNav } from '../_components/BottomNav'
+import { Toast } from '@/app/_components/Toast'
 
 // ── 型定義 ──────────────────────────────────────────────────
 interface OrderItem {
@@ -60,15 +61,6 @@ const PAY_COLORS: Record<string, string> = {
 }
 
 // ── Toast ────────────────────────────────────────────────────
-function Toast({ msg, type, onClose }: { msg: string; type: 'ok'|'err'; onClose: () => void }) {
-  useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t) }, [onClose])
-  return (
-    <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-5 py-3 rounded-2xl text-sm font-bold shadow-2xl ${
-      type === 'err' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'
-    }`}>{msg}</div>
-  )
-}
-
 // ── EditOrderModal ────────────────────────────────────────────
 function EditOrderModal({
   order, onSaved, onClose,

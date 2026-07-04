@@ -22,18 +22,11 @@ import {
   type PriceUnit, type MeasurementDef, type RepairManual, type ManualSeverity,
 } from '@/types/repair'
 import { seedRepairPresets, SIZE_RANGE_PRESETS } from '@/lib/repairPresets'
+import { Toast } from '@/app/_components/Toast'
 
 const INPUT = 'w-full border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:border-indigo-500 bg-white'
 
 // ── 小物 ──────────────────────────────────────────────────────
-function Toast({ msg, type, onClose }: { msg: string; type: 'ok' | 'err'; onClose: () => void }) {
-  useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t) }, [onClose])
-  return (
-    <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[80] px-5 py-3 rounded-2xl text-white text-sm font-bold shadow-2xl max-w-xs text-center ${
-      type === 'err' ? 'bg-red-600' : 'bg-gray-900'
-    }`}>{msg}</div>
-  )
-}
 function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) {
   return (
     <div>

@@ -18,6 +18,7 @@ import {
 } from '@/types/master'
 import type { Availability } from '@/lib/availability'
 import { AvailabilityEditor } from './_components/AvailabilityEditor'
+import { Toast } from '@/app/_components/Toast'
 
 // ── 型 ────────────────────────────────────────────────────────
 // お直し料金マスタは /master/repair（服種>項目>オプションの3階層）へ移行済み。
@@ -27,15 +28,6 @@ type SchoolView     = 'schools' | 'school_detail' | 'products' | 'variants'
 type SchoolDetailTab = 'catalog' | 'regulations' | 'grades' | 'tips' | 'ocr'
 
 // ── Toast ─────────────────────────────────────────────────────
-function Toast({ msg, type, onClose }: { msg: string; type: 'ok' | 'err'; onClose: () => void }) {
-  useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t) }, [onClose])
-  return (
-    <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-5 py-3 rounded-2xl text-white text-sm font-bold shadow-2xl max-w-xs text-center ${
-      type === 'err' ? 'bg-red-600' : 'bg-gray-900 border border-gray-700'
-    }`}>{msg}</div>
-  )
-}
-
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>

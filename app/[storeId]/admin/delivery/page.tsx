@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fmtDate, todayJst } from '@/lib/adminUtils'
+import { Toast } from '@/app/_components/Toast'
 
 // ── types ─────────────────────────────────────────────────────
 
@@ -38,29 +39,6 @@ interface DeliveryItem {
 }
 
 // ── utils ─────────────────────────────────────────────────────
-
-function Toast({ msg, type, onUndo }: { msg: string; type: 'ok' | 'err' | 'undo'; onUndo?: () => Promise<void> | void }) {
-  const [undoing, setUndoing] = useState(false)
-  const handleUndo = async () => {
-    if (!onUndo || undoing) return
-    setUndoing(true)
-    await onUndo()
-    setUndoing(false)
-  }
-  return (
-    <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-5 py-3 rounded-2xl text-white text-sm font-bold shadow-2xl animate-fade-in max-w-xs ${
-      type === 'err' ? 'bg-red-600' : 'bg-gray-900 border border-gray-700'
-    }`}>
-      <span className="flex-1">{msg}</span>
-      {onUndo && (
-        <button onClick={handleUndo} disabled={undoing}
-          className="shrink-0 px-3 py-1 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-black active:scale-95 transition-all disabled:opacity-50">
-          {undoing ? '…' : '取消し'}
-        </button>
-      )}
-    </div>
-  )
-}
 
 // ── 支払いバッジ ───────────────────────────────────────────────
 

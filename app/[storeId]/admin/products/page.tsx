@@ -6,26 +6,13 @@ import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../_components/BottomNav'
 import type { Product } from '@/types/products'
 import { CATEGORY_OPTIONS, GENDER_OPTIONS } from '@/types/products'
+import { Toast } from '@/app/_components/Toast'
 import {
   Package, Plus, X, Pencil, Trash2, Upload, Search, ChevronDown, ChevronUp,
   ToggleLeft, ToggleRight, AlertCircle, Loader2,
 } from 'lucide-react'
 
-// ─── Toast ──────────────────────────────────────────────────────────────────
-
 type ToastKind = 'success' | 'error'
-function Toast({ message, kind }: { message: string; kind: ToastKind }) {
-  return (
-    <div
-      className={`fixed top-4 left-1/2 -translate-x-1/2 z-[200] px-5 py-3 rounded-2xl shadow-2xl text-white text-sm font-semibold pointer-events-none ${
-        kind === 'success' ? 'bg-emerald-600' : 'bg-red-600'
-      }`}
-    >
-      {message}
-    </div>
-  )
-}
-
 // ─── Empty form ──────────────────────────────────────────────────────────────
 
 type FormState = {
@@ -442,7 +429,7 @@ export default function ProductsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
-      {toast && <Toast message={toast.message} kind={toast.kind} />}
+      {toast && <Toast msg={toast.message} type={toast.kind === 'success' ? 'ok' : 'err'} zIndex={200} />}
 
       {/* Header */}
       <header className="sticky top-0 z-30 bg-gray-50/90 backdrop-blur border-b border-gray-200 px-4 py-3 flex items-center gap-3">

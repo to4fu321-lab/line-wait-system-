@@ -25,6 +25,7 @@ import {
   WASHABLE_OPTIONS, SIZE_SET_CATEGORY_OPTIONS, BODY_TYPE_OPTIONS,
 } from '@/types/master'
 import ManualImportWizard from './_components/ManualImportWizard'
+import { Toast } from '@/app/_components/Toast'
 import type {
   SchoolMaster, SizeSet, ProductMaster, SchoolRequirement, Price,
 } from '@/types/master'
@@ -34,15 +35,6 @@ const BTN_PRIMARY = 'inline-flex items-center justify-center gap-1.5 px-4 py-2.5
 const BTN_GHOST = 'inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-gray-300 text-gray-700 text-sm font-bold hover:bg-gray-50'
 
 // ── 小物 ──────────────────────────────────────────────────────
-function Toast({ msg, type, onClose }: { msg: string; type: 'ok' | 'err'; onClose: () => void }) {
-  useEffect(() => { const t = setTimeout(onClose, 2800); return () => clearTimeout(t) }, [onClose])
-  return (
-    <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[80] px-5 py-3 rounded-2xl text-white text-sm font-bold shadow-2xl ${
-      type === 'err' ? 'bg-red-600' : 'bg-gray-900'
-    }`}>{msg}</div>
-  )
-}
-
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>

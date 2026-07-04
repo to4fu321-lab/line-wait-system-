@@ -13,6 +13,7 @@ import { RecentCustomers, type RecentCust } from '../_components/RecentCustomers
 import { GRADE_OPTIONS } from '@/types/crm'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { MeasurementSchoolPanel } from '@/app/_components/MeasurementSchoolPanel'
+import { Toast } from '@/app/_components/Toast'
 
 // ── 型定義 ───────────────────────────────────────────────────
 type FittingStep = 'customer' | 'measure' | 'confirm' | 'done'
@@ -62,15 +63,6 @@ function recommendVariant(heightCm: number, variants: VariantRow[]): VariantRow 
 }
 
 // ── 小コンポーネント ─────────────────────────────────────────
-function Toast({ msg, type, onClose }: { msg: string; type: 'ok' | 'err'; onClose: () => void }) {
-  useEffect(() => { const t = setTimeout(onClose, 3500); return () => clearTimeout(t) }, [onClose])
-  return (
-    <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[70] px-5 py-3 rounded-2xl text-white text-sm font-bold shadow-2xl max-w-sm text-center ${
-      type === 'err' ? 'bg-red-600' : 'bg-gray-900'
-    }`}>{msg}</div>
-  )
-}
-
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
