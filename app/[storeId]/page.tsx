@@ -7,7 +7,8 @@ import {
   ChevronRight, Users, AlertCircle, Plus, GraduationCap, Pencil, ShoppingBag, User,
 } from 'lucide-react'
 import ECShopView from './ECShopView'
-import { supabase, getTodayStart } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
+import { fetchCustomerSession, saveCustomer, fetchQueueState, issueTicket, ticketAction } from '@/lib/customerApi'
 import type { Queue, WaitThreshold } from '@/types/database'
 import { DEFAULT_THRESHOLDS, getWaitMessage } from '@/types/database'
 import type { Customer, Child } from '@/types/crm'
@@ -75,7 +76,6 @@ export default function CustomerPage() {
 
   const allowRemoteRef = useRef(false)
   const pendingHeightWeightRef = useRef<{ height: string; weight: string } | null>(null)
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const ticketRef  = useRef<Queue | null>(null)
   const ticketKey  = `queue_ticket_id_${storeId}`
   const dateKey    = `queue_ticket_date_${storeId}`
@@ -83,6 +83,28 @@ export default function CustomerPage() {
   const cardStyle: React.CSSProperties = {
     boxShadow: `0 24px 60px -20px rgb(${theme.colors.primaryRgb} / 0.22), 0 1px 0 0 rgb(255 255 255 / 0.65) inset`,
   }
+
+  // 受付開閉と待ち組数をまとめて更新(queues は RLS で直読み不可のため API 経由)
+  const refreshOpenAndCount = useCallback(async () => {
+    try {
+      const { isOpen, waitingCount: count } = await fetchQueueState(storeId)
+      setStoreOpen(isOpen)
+      setWaitingCount(count)
+    } catch { /* 取得失敗は無視 */ }
+  }, [storeId])
+
+  // LINE 本人の顧客・お子様を state に反映
+  const loadCustomerIntoState = useCallback(async (): Promise<Customer | null> => {
+    try {
+      const { customer: cust, children: kids } = await fetchCustomerSession(storeId)
+      if (cust) {
+        setCustomer(cust)
+        setChildren(kids as Child[])
+        if ((kids as Child[]).length === 1) setSelectedChild((kids as Child[])[0])
+      }
+      return cust
+    } catch { return null }
+  }, [storeId])
 
   // ── 初期化 ────────────────────────────────────────────
   useEffect(() => {
@@ -127,7 +149,7 @@ export default function CustomerPage() {
       const savedId   = localStorage.getItem(ticketKey)
       const savedDate = localStorage.getItem(dateKey)
       if (savedId && savedDate === new Date().toDateString()) {
-        const { data: t } = await (supabase as any).from('queues').select('*').eq('id', savedId).single()
+        const { ticket: t } = await fetchQueueState(storeId, savedId).catch(() => ({ ticket: null }))
         if (t) {
           setTicket(t)
           setView(
@@ -137,22 +159,7 @@ export default function CustomerPage() {
             : 'queue_waiting'
           )
           // チケット復元時も既存顧客を読み込む（二重登録防止）
-          if (profile?.userId) {
-            try {
-              const { data: custRows } = await (supabase as any).from('customers')
-                .select('*').eq('store_id', storeId).eq('line_user_id', profile.userId)
-                .order('created_at', { ascending: false }).limit(1)
-              const cust = custRows?.[0] && !custRows[0].deleted_at ? custRows[0] : null
-              if (cust) {
-                setCustomer(cust)
-                const { data: childList } = await (supabase as any).from('children')
-                  .select('*').eq('customer_id', cust.id).order('created_at', { ascending: true })
-                const kids = childList ?? []
-                setChildren(kids)
-                if (kids.length === 1) setSelectedChild(kids[0])
-              }
-            } catch { /* 顧客情報が取れなくても続行 */ }
-          }
+          if (profile?.userId) await loadCustomerIntoState()
           return
         }
       }
@@ -176,10 +183,8 @@ export default function CustomerPage() {
         // action=queue の場合は待ち人数を取得してから confirm_queue へ直接遷移
         if (action === 'queue') {
           try {
-            const { count } = await (supabase as any).from('queues')
-              .select('*', { count: 'exact', head: true })
-              .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
-            setWaitingCount(count ?? 0)
+            const { waitingCount: count } = await fetchQueueState(storeId)
+            setWaitingCount(count)
           } catch { /* 取得失敗は無視 */ }
           setView('confirm_queue')
         } else {
@@ -206,26 +211,12 @@ export default function CustomerPage() {
       } catch { /* チェック失敗時は通す（ブロックしない） */ }
 
       // 既存顧客チェック
-      let cust: Customer | null = null
-      try {
-        const { data: custRows } = await (supabase as any).from('customers')
-          .select('*').eq('store_id', storeId).eq('line_user_id', profile.userId)
-          .order('created_at', { ascending: false }).limit(1)
-        cust = custRows?.[0] && !custRows[0].deleted_at ? custRows[0] : null
-        if (cust) {
-          setCustomer(cust)
-          const { data: childList } = await (supabase as any).from('children')
-            .select('*').eq('customer_id', cust.id).order('created_at', { ascending: true })
-          const kids = childList ?? []
-          setChildren(kids)
-          if (kids.length === 1) setSelectedChild(kids[0])
-        }
-      } catch { /* 顧客情報が取れなくても続行 */ }
+      const cust: Customer | null = await loadCustomerIntoState()
 
-      const { count } = await (supabase as any).from('queues')
-        .select('*', { count: 'exact', head: true })
-        .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
-      setWaitingCount(count ?? 0)
+      try {
+        const { waitingCount: count } = await fetchQueueState(storeId)
+        setWaitingCount(count)
+      } catch { /* 取得失敗は無視 */ }
       if (action === 'repair')   { setView('repair_speak');   return }
       if (action === 'purchase') { setView('purchase_ec');    return }
       // 順番待ちは受付中のときだけ確認画面へ。停止中は通常メニューを表示し、
@@ -242,56 +233,32 @@ export default function CustomerPage() {
     } })()
   }, [storeId, ticketKey, dateKey])
 
-  // ── チケット購読 ──────────────────────────────────────
-  const fetchWaitingAhead = useCallback(async (t: Queue) => {
-    const { count } = await (supabase as any).from('queues')
-      .select('*', { count: 'exact', head: true })
-      .eq('store_id', storeId).in('status', ['waiting', 'calling'])
-      .lt('ticket_number', t.ticket_number).gte('created_at', getTodayStart())
-    setWaitingAhead(count ?? 0)
-  }, [storeId])
-
+  // ── チケット状態のポーリング ──────────────────────────
+  // queues は RLS でクライアント直読み・Realtime購読が不可のため、
+  // /api/queue/state を定期取得してステータスと待ち組数を更新する。
   useEffect(() => { ticketRef.current = ticket }, [ticket])
-
 
   useEffect(() => {
     if (!ticket || !['queue_waiting', 'queue_calling'].includes(view)) return
-    fetchWaitingAhead(ticket)
 
     const checkStatus = async () => {
       const t = ticketRef.current
       if (!t) return
-      fetchWaitingAhead(t)
-      // realtime 取りこぼし補完: ステータスをポーリングで確認
-      const { data } = await (supabase as any).from('queues').select('status').eq('id', t.id).single()
-      if (data && data.status !== t.status) {
-        setTicket(prev => prev ? { ...prev, status: data.status } : prev)
-        if (data.status === 'calling')   { setView('queue_calling');   playAlertSound(); if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([300,100,300,100,300]) }
-        if (data.status === 'completed') setView('queue_completed')
-        if (data.status === 'cancelled') setView('queue_cancelled')
-      }
+      try {
+        const { ticket: fresh, waitingAhead: ahead } = await fetchQueueState(storeId, t.id)
+        if (ahead != null) setWaitingAhead(ahead)
+        if (fresh && fresh.status !== t.status) {
+          setTicket(fresh)
+          if (fresh.status === 'calling')   { setView('queue_calling');   playAlertSound(); if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([300,100,300,100,300]) }
+          if (fresh.status === 'completed') setView('queue_completed')
+          if (fresh.status === 'cancelled') setView('queue_cancelled')
+        }
+      } catch { /* 次のポーリングで再試行 */ }
     }
+    checkStatus()
     const pollId = setInterval(checkStatus, 8000)
-    if (channelRef.current) supabase.removeChannel(channelRef.current)
-    const ch = supabase.channel(`ticket-${ticket.id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'queues', filter: `id=eq.${ticket.id}` },
-        payload => {
-          const updated = payload.new as Queue
-          setTicket(updated)
-          if (updated.status === 'calling') {
-            setView('queue_calling')
-            playAlertSound()
-            if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300])
-          }
-          if (updated.status === 'completed') setView('queue_completed')
-          if (updated.status === 'cancelled') setView('queue_cancelled')
-        })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'queues', filter: `store_id=eq.${storeId}` },
-        () => { if (ticketRef.current) fetchWaitingAhead(ticketRef.current) })
-      .subscribe()
-    channelRef.current = ch
-    return () => { clearInterval(pollId); supabase.removeChannel(ch) }
-  }, [ticket?.id, view, storeId, fetchWaitingAhead])
+    return () => { clearInterval(pollId) }
+  }, [ticket?.id, view, storeId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 友達追加後・再チェックして目的選択へ ────────────
   const handleFriendProceed = async () => {
@@ -309,28 +276,8 @@ export default function CustomerPage() {
       setFriendNotYet(false)
 
       // 顧客情報を取得（任意）
-      try {
-        const { data: custRows } = await (supabase as any).from('customers')
-          .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId)
-          .order('created_at', { ascending: false }).limit(1)
-        const cust = custRows?.[0] && !custRows[0].deleted_at ? custRows[0] : null
-        if (cust) {
-          setCustomer(cust)
-          const { data: childList } = await (supabase as any).from('children')
-            .select('*').eq('customer_id', cust.id).order('created_at', { ascending: true })
-          const kids = childList ?? []
-          setChildren(kids)
-          if (kids.length === 1) setSelectedChild(kids[0])
-        }
-      } catch { /* 顧客情報は任意 */ }
-
-      const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
-      setStoreOpen(sd?.is_open !== false)
-      const { count } = await (supabase as any).from('queues')
-        .select('*', { count: 'exact', head: true })
-        .eq('store_id', storeId).in('status', ['waiting', 'calling'])
-        .gte('created_at', getTodayStart())
-      setWaitingCount(count ?? 0)
+      await loadCustomerIntoState()
+      await refreshOpenAndCount()
       if (!customer) { setView('register'); return }
       setView('purpose')
     } catch (e) {
@@ -350,23 +297,9 @@ export default function CustomerPage() {
     if (!userId) { setRegisterError('LINE認証に失敗しました。LINEアプリから開き直してください。'); return }
     setSubmitting(true); setRegisterError('')
     try {
-      const { data: existingRows } = await (supabase as any).from('customers')
-        .select('*').eq('store_id', storeId).eq('line_user_id', userId)
-        .order('created_at', { ascending: false }).limit(1)
-      const existing = existingRows?.[0] ? existingRows[0] : null
-      let cust
-      if (existing) {
-        const { data: updated } = await ((supabase as any).from('customers') as any)
-          .update({ name: name.trim(), tel: tel || null, deleted_at: null })
-          .eq('id', existing.id).select().single()
-        cust = updated ?? existing
-      } else {
-        const { data: newCust } = await ((supabase as any).from('customers') as any).insert({
-          store_id: storeId, line_user_id: userId,
-          name: name.trim(), tel: tel || null,
-        }).select().single()
-        cust = newCust
-      }
+      const { customer: cust } = await saveCustomer(storeId, {
+        customer: { name: name.trim(), tel: tel || null },
+      })
       if (!cust) throw new Error('登録に失敗しました')
       setCustomer(cust)
       setView('purpose')
@@ -399,64 +332,35 @@ export default function CustomerPage() {
     setSubmitting(true)
     setRegisterError('')
     try {
-      const { data: existingRows } = await (supabase as any).from('customers')
-        .select('*').eq('store_id', storeId).eq('line_user_id', userId)
-        .order('created_at', { ascending: false }).limit(1)
-      const existing = existingRows?.[0] ? existingRows[0] : null
-
-      let cust
-      if (existing) {
-        const { data: updated, error: updateErr } = await (supabase as any).from('customers').update({
-          name: d.parentName, kana: d.parentKana || null, tel: d.tel || null, deleted_at: null,
-        }).eq('id', existing.id).select().single()
-        if (updateErr) throw new Error(updateErr.message)
-        cust = updated ?? existing
-      } else {
-        const { data: newCust, error: insertErr } = await (supabase as any).from('customers').insert({
-          store_id: storeId, line_user_id: userId,
-          name: d.parentName, kana: d.parentKana || null, tel: d.tel || null,
-        }).select().single()
-        if (insertErr) throw new Error(insertErr.message)
-        cust = newCust
-      }
+      const { customer: cust, children: kids, child: newChild } = await saveCustomer(storeId, {
+        customer: { name: d.parentName, kana: d.parentKana || null, tel: d.tel || null },
+        childInsert: {
+          name: d.childName, kana: d.childKana || null,
+          school_id: d.schoolId || null, school_name: d.schoolName || null,
+          grade: d.grade || null, gender: d.gender || null,
+        },
+      })
       if (!cust) throw new Error('登録に失敗しました（不明なエラー）')
       setCustomer(cust)
-
-      const { data: newChild, error: childErr } = await (supabase as any).from('children').insert({
-        customer_id: cust.id, store_id: storeId,
-        name: d.childName, kana: d.childKana || null,
-        school_id: d.schoolId || null, school_name: d.schoolName || null,
-        grade: d.grade || null, gender: d.gender || null,
-      }).select().single()
-      if (childErr) throw new Error(childErr.message)
-
-      const updatedChildren = [...children, ...(newChild ? [newChild] : [])]
-      setChildren(updatedChildren)
-      if (newChild) setSelectedChild(newChild)
-
-      const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
-      setStoreOpen(sd?.is_open !== false)
+      setChildren(kids as Child[])
+      if (newChild) setSelectedChild(newChild as Child)
 
       // 既に待ち画面にいる場合（待ちながら登録）は詳細を更新して画面移動しない
       if (ticketRef.current) {
-        const qUpdate: Record<string, unknown> = {
+        await ticketAction(storeId, ticketRef.current.id, 'set_info', {
           customer_name: d.parentName,
           customer_id:   cust.id,
           child_name:    newChild?.name ?? null,
           child_id:      newChild?.id ?? null,
           school_name:   d.schoolName || null,
-        }
-        if (d.heightCm) qUpdate.details = { height: d.heightCm, ...(d.weightKg ? { weight: d.weightKg } : {}) }
-        await (supabase as any).from('queues').update(qUpdate).eq('id', ticketRef.current.id)
+          ...(d.heightCm ? { details: { height: d.heightCm, ...(d.weightKg ? { weight: d.weightKg } : {}) } } : {}),
+        })
         setTicket(prev => prev ? { ...prev, customer_name: d.parentName, child_name: newChild?.name ?? prev.child_name } : prev)
         setQueueRegDone(true)
         return
       }
 
-      const { count } = await (supabase as any).from('queues')
-        .select('*', { count: 'exact', head: true })
-        .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
-      setWaitingCount(count ?? 0)
+      await refreshOpenAndCount()
       // 登録完了後は必ずメニュー（purpose）へ。
       // 以前は URL の ?action= を再適用して順番待ち・購入画面へ自動遷移して
       // いたが、意図しないジャンプの原因になるため廃止。
@@ -473,35 +377,30 @@ export default function CustomerPage() {
     if (!customer) return
     setSubmitting(true)
     try {
-      const { data: newChild } = await (supabase as any).from('children').insert({
-        customer_id: customer.id, store_id: storeId,
-        name: d.childName, kana: d.childKana || null,
-        school_id: d.schoolId || null, school_name: d.schoolName || null,
-        grade: d.grade || null, gender: d.gender || null,
-      }).select().single()
+      const { child: newChild } = await saveCustomer(storeId, {
+        childInsert: {
+          name: d.childName, kana: d.childKana || null,
+          school_id: d.schoolId || null, school_name: d.schoolName || null,
+          grade: d.grade || null, gender: d.gender || null,
+        },
+      })
       if (newChild) {
-        setChildren(prev => [...prev, newChild])
-        setSelectedChild(newChild)
+        setChildren(prev => [...prev, newChild as Child])
+        setSelectedChild(newChild as Child)
         setShowAddChild(false)
         setWaitingEditMode(null)
         // 待ち中なら子供情報・身長体重をキューに保存して画面移動しない
         if (ticketRef.current) {
-          const qUpdate: Record<string, unknown> = {
-            child_name:  newChild.name || null,
-            child_id:    newChild.id,
+          await ticketAction(storeId, ticketRef.current.id, 'set_info', {
+            child_name:  (newChild as Child).name || null,
+            child_id:    (newChild as Child).id,
             school_name: d.schoolName || null,
-          }
-          if (d.heightCm) qUpdate.details = { height: d.heightCm, ...(d.weightKg ? { weight: d.weightKg } : {}) }
-          await (supabase as any).from('queues').update(qUpdate).eq('id', ticketRef.current.id)
-          setTicket(prev => prev ? { ...prev, child_name: newChild.name, child_id: newChild.id } : prev)
+            ...(d.heightCm ? { details: { height: d.heightCm, ...(d.weightKg ? { weight: d.weightKg } : {}) } } : {}),
+          })
+          setTicket(prev => prev ? { ...prev, child_name: (newChild as Child).name, child_id: (newChild as Child).id } : prev)
           return
         }
-        const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
-        setStoreOpen(sd?.is_open !== false)
-        const { count } = await (supabase as any).from('queues')
-          .select('*', { count: 'exact', head: true })
-          .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
-        setWaitingCount(count ?? 0)
+        await refreshOpenAndCount()
         setView('purpose')
       }
     } catch (e) { console.error(e) }
@@ -513,26 +412,15 @@ export default function CustomerPage() {
     if (issuing) return
     setIssuing(true)
     try {
-      const { data: nextNum } = await (supabase as any).rpc('get_next_ticket_number', { p_store_id: storeId })
       const hw = pendingHeightWeightRef.current
       pendingHeightWeightRef.current = null
-      const { data: t, error } = await (supabase as any).from('queues').insert({
-        store_id:      storeId,
-        ticket_number: nextNum as number,
-        status:        'waiting',
-        customer_name: customer?.name ?? lineProfile?.displayName ?? '未登録',
-        child_name:    selectedChild?.name ?? null,
-        school_name:   selectedChild?.school_name ?? null,
-        category:      'fitting',
-        gender:        selectedChild?.gender ?? 'other',
-        line_user_id:  lineProfile?.userId ?? null,
-        is_remote:     isRemote,
-        checked_in:    !isRemote,
-        customer_id:   customer?.id ?? null,
-        child_id:      selectedChild?.id ?? null,
-        ...(hw ? { details: { height: hw.height, ...(hw.weight ? { weight: hw.weight } : {}) } } : {}),
-      }).select().single()
-      if (error || !t) throw error
+      // 採番・登録・顧客紐づけはサーバーAPI側(LIFFトークンで本人確認)
+      const t = await issueTicket(storeId, {
+        childId:  selectedChild?.id ?? null,
+        isRemote,
+        details:  hw ? { height: hw.height, ...(hw.weight ? { weight: hw.weight } : {}) } : null,
+      })
+      if (!t) throw new Error('受付に失敗しました')
       localStorage.setItem(ticketKey, t.id)
       localStorage.setItem(dateKey, new Date().toDateString())
       setTicket(t)
@@ -560,26 +448,11 @@ export default function CustomerPage() {
 
       // queue_waiting 移行時に顧客・お子様を同期（未設定時の取得 + 既存顧客の再同期）
       try {
-        if (!customer && lineProfile?.userId) {
-          const { data: rows } = await (supabase as any).from('customers')
-            .select('*').eq('store_id', storeId).eq('line_user_id', lineProfile.userId)
-            .order('created_at', { ascending: false }).limit(1)
-          const found = rows?.[0] && !(rows[0] as Customer).deleted_at ? rows[0] as Customer : null
-          if (found) {
-            setCustomer(found)
-            const { data: childList } = await (supabase as any).from('children')
-              .select('*').eq('customer_id', found.id).order('created_at', { ascending: true })
-            const kids = (childList ?? []) as Child[]
-            setChildren(kids)
-            if (!selectedChild && kids.length >= 1) setSelectedChild(kids[0])
-          }
-        } else if (customer?.id) {
-          // 既存顧客のお子様リストを再取得（追加・変更を反映）
-          const { data: childList } = await (supabase as any).from('children')
-            .select('*').eq('customer_id', customer.id).order('created_at', { ascending: true })
-          const kids = (childList ?? []) as Child[]
-          setChildren(kids)
-          if (!selectedChild && kids.length >= 1) setSelectedChild(kids[0])
+        const { customer: found, children: kids } = await fetchCustomerSession(storeId)
+        if (found) {
+          setCustomer(found)
+          setChildren(kids as Child[])
+          if (!selectedChild && (kids as Child[]).length >= 1) setSelectedChild((kids as Child[])[0])
         }
       } catch { /* 取得失敗は無視 */ }
     } catch (e) {
@@ -601,7 +474,7 @@ export default function CustomerPage() {
   const handleCancel = async () => {
     if (!ticketRef.current) return
     setCancelLoading(true)
-    await (supabase as any).from('queues').update({ status: 'cancelled' }).eq('id', ticketRef.current.id)
+    try { await ticketAction(storeId, ticketRef.current.id, 'cancel') } catch { /* 二重キャンセル等は無視 */ }
     localStorage.removeItem(ticketKey); localStorage.removeItem(dateKey)
     setCancelModal(false); setCancelLoading(false)
     setView('queue_self_cancelled')
@@ -610,13 +483,7 @@ export default function CustomerPage() {
   const handleReset = async () => {
     localStorage.removeItem(ticketKey); localStorage.removeItem(dateKey)
     setTicket(null); setWaitingAhead(0); setIssuing(false)
-    if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null }
-    const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
-    setStoreOpen(sd?.is_open !== false)
-    const { count } = await (supabase as any).from('queues')
-      .select('*', { count: 'exact', head: true })
-      .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
-    setWaitingCount(count ?? 0)
+    await refreshOpenAndCount()
     setView('purpose')
   }
 
@@ -689,12 +556,7 @@ export default function CustomerPage() {
           <button key={child.id}
             onClick={async () => {
               setSelectedChild(child)
-              const { data: sd } = await (supabase as any).from('stores').select('is_open').eq('id', storeId).single()
-              setStoreOpen(sd?.is_open !== false)
-              const { count } = await (supabase as any).from('queues')
-                .select('*', { count: 'exact', head: true })
-                .eq('store_id', storeId).in('status', ['waiting', 'calling']).gte('created_at', getTodayStart())
-              setWaitingCount(count ?? 0)
+              await refreshOpenAndCount()
               setView('purpose')
             }}
             className="w-full bg-white/70 backdrop-blur-xl rounded-2xl border border-white/50 p-4 text-left active:scale-[0.98] transition-all"
@@ -1127,7 +989,7 @@ export default function CustomerPage() {
                             onSaved={async updated => {
                               setCustomer(updated)
                               if (ticket?.id) {
-                                await (supabase as any).from('queues').update({ customer_name: updated.name, customer_id: customer.id }).eq('id', ticket.id)
+                                await ticketAction(storeId, ticket.id, 'set_info', { customer_name: updated.name, customer_id: customer.id })
                                 setTicket(prev => prev ? { ...prev, customer_name: updated.name } : prev)
                               }
                             }}
@@ -1156,7 +1018,7 @@ export default function CustomerPage() {
                                 onClick={async () => {
                                   setSelectedChild(child)
                                   if (ticket?.id) {
-                                    await (supabase as any).from('queues').update({ child_name: child.name, child_id: child.id, school_name: child.school_name ?? null, gender: child.gender ?? 'other' }).eq('id', ticket.id)
+                                    await ticketAction(storeId, ticket.id, 'set_info', { child_name: child.name, child_id: child.id, school_name: child.school_name ?? null, gender: child.gender ?? 'other' })
                                   }
                                 }}>
                                 <GraduationCap size={15} className={`shrink-0 ${isSelected ? 'text-indigo-500' : 'text-zinc-400'}`} />
@@ -1179,7 +1041,7 @@ export default function CustomerPage() {
                                       setSelectedChild(updated)
                                       setChildren(prev => prev.map(c => c.id === updated.id ? updated : c))
                                       if (ticket?.id) {
-                                        await (supabase as any).from('queues').update({ school_name: updated.school_name ?? null, child_name: updated.name, gender: updated.gender ?? 'other' }).eq('id', ticket.id)
+                                        await ticketAction(storeId, ticket.id, 'set_info', { school_name: updated.school_name ?? null, child_name: updated.name, gender: updated.gender ?? 'other' })
                                       }
                                     }}
                                     onClose={() => setWaitingEditMode(null)} />
@@ -1270,7 +1132,7 @@ export default function CustomerPage() {
                         </button>
                         <button
                           onClick={async () => {
-                            await (supabase as any).from('queues').update({ checked_in: true }).eq('id', ticket.id)
+                            await ticketAction(storeId, ticket.id, 'checkin')
                             setTicket(prev => prev ? { ...prev, checked_in: true } : prev)
                             setArrivalModal(false)
                           }}
@@ -1337,7 +1199,7 @@ export default function CustomerPage() {
       </div>
       <div className="px-6 pb-10">
         <button onClick={async () => {
-          await (supabase as any).from('queues').update({ status: 'completed' }).eq('id', ticket.id)
+          try { await ticketAction(storeId, ticket.id, 'complete') } catch { /* 既に完了等は無視 */ }
           setView('queue_completed')
         }} className="w-full bg-emerald-500 text-white text-xl font-black py-5 rounded-2xl shadow-xl active:scale-95 transition-all">
           ✅ スタッフから案内を受けました

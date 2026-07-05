@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { resolveFeature } from '@/lib/features'
 import { initLiff, getLineProfile } from '@/lib/liff'
+import { fetchCustomerSession, saveCustomer, createReservation, fetchReservationsOfDay } from '@/lib/customerApi'
 import { todayJst, toJstTimeString } from '@/lib/date'
 import {
   CalendarDays, Clock, User, FileText, Check,
@@ -161,15 +162,16 @@ function FallbackForm({ storeId, storeName, initialName, selfOrderEnabled }: { s
           onClick={async () => {
             setSubmitting(true)
             setErrorMsg('')
-            const { error } = await (supabase as any).from('reservations').insert({
-              store_id: storeId,
-              reserved_at: new Date(`${date}T12:00:00+09:00`).toISOString(),
-              status: 'confirmed',
-              notes: [name ? `お名前: ${name}` : null, note || null].filter(Boolean).join('\n') || null,
-            })
+            try {
+              await createReservation(storeId, {
+                reservedAt: new Date(`${date}T12:00:00+09:00`).toISOString(),
+                notes: [name ? `お名前: ${name}` : null, note || null].filter(Boolean).join('\n') || undefined,
+              })
+              setStep('done')
+            } catch {
+              setErrorMsg('予約の送信に失敗しました。もう一度お試しください。')
+            }
             setSubmitting(false)
-            if (error) setErrorMsg('予約の送信に失敗しました。もう一度お試しください。')
-            else setStep('done')
           }}
           className="w-full py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-base transition-colors flex items-center justify-center gap-2">
           {submitting ? <Loader2 size={18} className="animate-spin" /> : <CalendarDays size={18} />}
@@ -263,10 +265,8 @@ export default function ReservePage() {
             setLineUserId(profile.userId)
             // CRM登録名を優先、なければLINE表示名
             try {
-              const { data: regCust } = await (supabase as any)
-                .from('customers').select('name').eq('store_id', storeId)
-                .eq('line_user_id', profile.userId).maybeSingle()
-              setName(regCust?.name || (profile.displayName ?? ''))
+              const { customer } = await fetchCustomerSession(storeId)
+              setName(customer?.name || (profile.displayName ?? ''))
             } catch {
               setName(profile.displayName ?? '')
             }
@@ -301,17 +301,13 @@ export default function ReservePage() {
   // ============================================================
   // お子様ロード（採寸サービス選択時）
   // ============================================================
-  const loadChildren = useCallback(async (lUserId: string) => {
+  const loadChildren = useCallback(async (_lUserId: string) => {
     setLoadingChildren(true)
-    // LINE IDから顧客を検索
-    const { data: cust } = await (supabase as any)
-      .from('customers').select('id, name').eq('store_id', storeId)
-      .eq('line_user_id', lUserId).maybeSingle()
-    if (cust) {
-      setCustomerId(cust.id)
-      if (cust.name) setName(cust.name) // 採寸サービス選択時も登録名で上書き
-      const { data: kids } = await (supabase as any).from('children').select('id, name, school_name, school_id, grade, gender')
-        .eq('customer_id', cust.id).order('created_at')
+    // LINE本人の顧客+お子様(サーバーAPIで本人確認)
+    const { customer, children: kids } = await fetchCustomerSession(storeId)
+    if (customer) {
+      setCustomerId(customer.id)
+      if (customer.name) setName(customer.name) // 採寸サービス選択時も登録名で上書き
       setChildren((kids ?? []) as ChildRow[])
     }
     // 学校マスターを取得
@@ -364,16 +360,8 @@ export default function ReservePage() {
         30,  // 30分間隔（最短ジャージ採寸と同じ）
       )
 
-      // 4. 対象日の全予約をまとめて取得（サービス種別問わず）
-      const dayStart = `${selectedDate}T00:00:00+09:00`
-      const dayEnd   = `${selectedDate}T23:59:59+09:00`
-      const { data: reservations } = await (supabase as any)
-        .from('reservations')
-        .select('reserved_at, service_type, purpose')
-        .eq('store_id', storeId)
-        .gte('reserved_at', dayStart)
-        .lte('reserved_at', dayEnd)
-        .neq('status', 'cancelled')
+      // 4. 対象日の全予約をまとめて取得（サービス種別問わず、非PII列のみのAPI経由）
+      const { reservations } = await fetchReservationsOfDay(storeId, selectedDate)
 
       // サービスタイプ→所要時間のマップを構築
       const durationMap: Record<string, number> = {}
@@ -397,7 +385,7 @@ export default function ReservePage() {
           const jstTime = toJstTimeString(r.reserved_at)
           const [rh, rm] = jstTime.split(':').map(Number)
           const rStart    = rh * 60 + rm
-          const rDuration = durationMap[r.service_type] ?? selectedService.duration_min
+          const rDuration = durationMap[r.service_type ?? ''] ?? selectedService.duration_min
           const rEnd      = rStart + rDuration
           // 重複判定: [tStart, tEnd) と [rStart, rEnd) が重なる
           if (tStart < rEnd && tEnd > rStart) overlapCount++
@@ -431,36 +419,20 @@ export default function ReservePage() {
 
     const reservedAt = `${selectedDate}T${selectedTime}:00+09:00`
 
-    // LINE ユーザーから顧客 ID を取得
-    let customerId: string | null = null
-    if (lineUserId) {
-      try {
-        const { data: customer } = await (supabase as any)
-          .from('customers').select('id')
-          .eq('store_id', storeId).eq('line_user_id', lineUserId)
-          .single()
-        if (customer) customerId = customer.id
-      } catch { /* ignore */ }
-    }
-
-    const { error } = await (supabase as any).from('reservations').insert({
-      store_id:     storeId,
-      customer_id:  customerId,
-      child_id:     selectedChild?.id ?? null,
-      line_user_id: lineUserId,
-      reserved_at:  reservedAt,
-      service_type: selectedService.service_type,
-      purpose:      selectedService.label,
-      status:       'confirmed',
-      notes:        [name ? `お名前: ${name}` : null, note || null].filter(Boolean).join('\n') || null,
-    })
-
-    setSubmitting(false)
-    if (error) {
-      setErrorMsg('予約の送信に失敗しました。もう一度お試しください。')
-    } else {
+    try {
+      // 顧客の紐づけはサーバー側(LIFFトークン検証)で行う
+      await createReservation(storeId, {
+        childId:     selectedChild?.id ?? null,
+        reservedAt,
+        serviceType: selectedService.service_type,
+        purpose:     selectedService.label,
+        notes:       [name ? `お名前: ${name}` : null, note || null].filter(Boolean).join('\n') || undefined,
+      })
       setPageState('done')
+    } catch {
+      setErrorMsg('予約の送信に失敗しました。もう一度お試しください。')
     }
+    setSubmitting(false)
   }
 
   // ============================================================
@@ -643,15 +615,19 @@ export default function ReservePage() {
                         if (!ncName.trim() || !customerId) return
                         setNcSaving(true)
                         const schoolName = schools.find(s => s.id === ncSchoolId)?.name ?? null
-                        const { data } = await (supabase as any).from('children').insert({
-                          customer_id: customerId, store_id: storeId,
-                          name: ncName.trim(), school_id: ncSchoolId || null,
-                          school_name: schoolName, grade: ncGrade || null, gender: ncGender || null,
-                        }).select().single()
+                        let newChild: ChildRow | null = null
+                        try {
+                          const { child } = await saveCustomer(storeId, {
+                            childInsert: {
+                              name: ncName.trim(), school_id: ncSchoolId || null,
+                              school_name: schoolName, grade: ncGrade || null, gender: ncGender || null,
+                            },
+                          })
+                          newChild = child as ChildRow | null
+                        } catch { /* 失敗時はボタン再押下で再試行 */ }
                         setNcSaving(false)
-                        if (data) {
-                          const newChild = data as ChildRow
-                          setChildren(prev => [...prev, newChild])
+                        if (newChild) {
+                          setChildren(prev => [...prev, newChild as ChildRow])
                           setSelectedChild(newChild)
                           setShowAddChild(false)
                           setStep('datetime')

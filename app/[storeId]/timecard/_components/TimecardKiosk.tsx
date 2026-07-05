@@ -4,12 +4,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { Loader2, LogIn, LogOut, Check, X, Delete } from 'lucide-react'
 import type { TimeRecord, Shift } from '@/types/shifts'
 import type { Staff } from '@/types/master'
-import { loadStaff } from '../../admin/shifts/_lib/data'
 import { fmtHM, todayJst } from '../../admin/shifts/_lib/time'
-import { loadTodayRecords, loadTodayShifts, clockIn, clockOut, phaseOf, verifyStaffPin, type ClockPhase } from '../../admin/shifts/_lib/timecard'
+import { phaseOf } from '../../admin/shifts/_lib/timecard'
 
 const clockStr = (ts?: string | null) => ts ? new Date(ts).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : ''
 
+// 店頭kioskはセッション無し端末のため、staff/time_records/shifts の
+// 読み書きは全て /api/timecard/*(service_role)経由で行う。
 export function TimecardKiosk({ storeId, storeName, requirePin }: {
   storeId: string; storeName: string; requirePin: boolean
 }) {
@@ -23,16 +24,31 @@ export function TimecardKiosk({ storeId, storeName, requirePin }: {
   const [toast, setToast] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
-    const [recs, shs] = await Promise.all([loadTodayRecords(storeId, today), loadTodayShifts(storeId, today)])
-    setRecords(recs); setShifts(shs)
+    try {
+      const res = await fetch(`/api/timecard/state?storeId=${storeId}&date=${today}`, { cache: 'no-store' })
+      if (!res.ok) return
+      const json = await res.json()
+      setStaff((json.staff ?? []) as Staff[])
+      const recMap = new Map<string, TimeRecord>()
+      for (const r of (json.records ?? []) as TimeRecord[]) {
+        if (!recMap.has(r.staff_id)) recMap.set(r.staff_id, r) // 先頭＝最新
+      }
+      setRecords(recMap)
+      const shiftMap = new Map<string, Shift>()
+      for (const s of (json.shifts ?? []) as Shift[]) {
+        if (!shiftMap.has(s.staff_id)) shiftMap.set(s.staff_id, s)
+      }
+      setShifts(shiftMap)
+    } finally {
+      setLoading(false)
+    }
   }, [storeId, today])
 
   useEffect(() => {
-    loadStaff(storeId).then(s => { setStaff(s.filter(x => x.active)); setLoading(false) })
     refresh()
     const poll = setInterval(refresh, 10000)
     return () => clearInterval(poll)
-  }, [storeId, refresh])
+  }, [refresh])
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' })), 1000)
@@ -41,18 +57,17 @@ export function TimecardKiosk({ storeId, storeName, requirePin }: {
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2500) }
 
-  // 実打刻（PIN確認済 or 不要）
-  const doClock = async (s: Staff) => {
-    const rec = records.get(s.id)
-    const phase = phaseOf(rec)
-    if (phase === 'working' && rec) {
-      await clockOut(rec.id)
-      flash(`${s.name} さん 退勤しました　お疲れさまでした`)
-    } else {
-      await clockIn(storeId, s.id, today, shifts.get(s.id)?.id ?? null)
-      flash(`${s.name} さん 出勤しました`)
-    }
+  // 実打刻(必要ならPINも一緒にサーバー照合)。成功時 true。
+  const doClock = async (s: Staff, pin?: string): Promise<boolean> => {
+    const res = await fetch('/api/timecard/clock', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storeId, staffId: s.id, date: today, pin }),
+    })
+    if (!res.ok) return false
+    const { action } = await res.json()
+    flash(action === 'out' ? `${s.name} さん 退勤しました　お疲れさまでした` : `${s.name} さん 出勤しました`)
     refresh()
+    return true
   }
 
   const onTap = (s: Staff) => {
@@ -113,9 +128,13 @@ export function TimecardKiosk({ storeId, storeName, requirePin }: {
       </div>
 
       {pinFor && (
-        <PinModal staff={pinFor} storeId={storeId}
+        <PinModal staff={pinFor}
           onClose={() => setPinFor(null)}
-          onOk={async () => { const s = pinFor; setPinFor(null); await doClock(s) }}
+          onSubmit={async pin => {
+            const ok = await doClock(pinFor, pin)
+            if (ok) setPinFor(null)
+            return ok
+          }}
         />
       )}
 
@@ -130,9 +149,9 @@ export function TimecardKiosk({ storeId, storeName, requirePin }: {
   )
 }
 
-// 名前タップ後のPIN確認
-function PinModal({ staff, storeId, onClose, onOk }: {
-  staff: Staff; storeId: string; onClose: () => void; onOk: () => void
+// 名前タップ後のPIN確認(照合と打刻はサーバー側で同時に行う)
+function PinModal({ staff, onClose, onSubmit }: {
+  staff: Staff; onClose: () => void; onSubmit: (pin: string) => Promise<boolean>
 }) {
   const [pin, setPin] = useState('')
   const [error, setError] = useState(false)
@@ -140,9 +159,8 @@ function PinModal({ staff, storeId, onClose, onOk }: {
 
   const submit = async (value: string) => {
     setBusy(true)
-    const ok = await verifyStaffPin(storeId, staff.id, value)
-    if (ok) onOk()
-    else { setTimeout(() => { setPin(''); setError(true); setBusy(false) }, 250) }
+    const ok = await onSubmit(value)
+    if (!ok) { setTimeout(() => { setPin(''); setError(true); setBusy(false) }, 250) }
   }
   const press = (d: string) => {
     if (pin.length >= 4 || busy) return

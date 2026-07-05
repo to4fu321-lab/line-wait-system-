@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { applyStaffSession } from '@/lib/staffSessionClient'
 
 // スタッフ個人PINで本人特定（/api/staff/verify でサーバ照合）
 export function StaffPinScreen({ storeId, storeName, onAuth }: {
@@ -21,6 +22,8 @@ export function StaffPinScreen({ storeId, storeName, onAuth }: {
       })
       const json = await res.json()
       if (!res.ok) { setTimeout(() => { setPin(''); setError(true); setBusy(false) }, 300); return }
+      // 店舗スコープの Supabase Auth セッションを適用(シフト等の RLS 通過に必須)
+      if (json.session) await applyStaffSession(json.session)
       onAuth(json.staff)
     } catch {
       setTimeout(() => { setPin(''); setError(true); setBusy(false) }, 300)

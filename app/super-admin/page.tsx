@@ -131,7 +131,8 @@ function StoreCard({
           takeoutPending, takeoutPreparing, takeoutReady, takeoutCompletedToday } = stat
 
   const [name,    setName]    = useState(store.name)
-  const [pin,     setPin]     = useState(store.pin ?? '')
+  // PIN はハッシュ保存のため現在値は表示できない。入力時のみ変更を送る
+  const [pin,     setPin]     = useState('')
   const [groupId, setGroupId] = useState(store.group_id ?? '')
   const [bizType, setBizType] = useState<'uniform' | 'takeout'>((store.business_type as 'uniform' | 'takeout') ?? 'uniform')
   const [features, setFeatures] = useState<Record<string, unknown>>(store.features ?? {})
@@ -150,7 +151,7 @@ function StoreCard({
     const justOpened = isEditing && !wasEditingRef.current
     wasEditingRef.current = isEditing
     if (justOpened) {
-      setName(store.name); setPin(store.pin ?? '')
+      setName(store.name); setPin('')
       setGroupId(store.group_id ?? '')
       setBizType((store.business_type as 'uniform' | 'takeout') ?? 'uniform')
       setFeatures(store.features ?? {})
@@ -163,13 +164,9 @@ function StoreCard({
     if (csvExporting) return
     setCsvExporting(true)
     try {
-      const { data } = await (supabase as any)
-        .from('customers')
-        .select('name, kana, tel, line_user_id, created_at, children(name, school_name, grade, admission_year)')
-        .eq('store_id', store.id)
-        .is('deleted_at', null)
-        .order('kana', { ascending: true })
-        .limit(5000)
+      // customers は RLS でクライアント直読み不可のため super-admin API 経由
+      const res = await fetch(`/api/super-admin/customers-export?storeId=${store.id}`)
+      const { customers: data } = await res.json()
       const rows: string[][] = [
         ['保護者名', 'フリガナ', '電話番号', 'LINE連携', 'お子様名', '学校名', '学年', '入学年度', '登録日'],
       ]
@@ -272,9 +269,10 @@ function StoreCard({
                 className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none resize-none" />
             </div>
             <div>
-              <label className="text-[10px] text-gray-400 mb-1 block">PIN</label>
+              <label className="text-[10px] text-gray-400 mb-1 block">PIN（変更する場合のみ入力）</label>
               <input value={pin} onChange={e => setPin(e.target.value)} maxLength={4} inputMode="numeric"
-                className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none" />
+                placeholder="****"
+                className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />
             </div>
             <div>
               <label className="text-[10px] text-gray-400 mb-1 block">会社</label>
@@ -609,11 +607,9 @@ function NotificationBillingSummary({ storeStats }: { storeStats: StoreStats[] }
         ? `${y-1}-12-01`
         : `${y}-${String(m-1).padStart(2,'0')}-01`
 
-      const { data } = await (supabase as any)
-        .from('notification_logs')
-        .select('store_id, recipient_count, total_amount, sent_at')
-        .gte('sent_at', prevStart)
-        .order('sent_at', { ascending: false })
+      // このスコープはローカルの fetch コールバックが window.fetch を隠すため明示
+      const res = await window.fetch(`/api/super-admin/notification-logs?since=${prevStart}`)
+      const { logs: data } = await res.json()
 
       if (!data) { setRows([]); setLoading(false); return }
 

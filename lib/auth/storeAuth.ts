@@ -1,30 +1,29 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabaseAdmin'
-import { safeEqual } from '@/lib/auth/safeEqual'
 import { hasSuperAdminSession } from '@/lib/auth/verifyAdmin'
 
 export type StoreRole = 'owner' | 'staff'
 
 /**
  * 店舗PINをサーバー側で照合する。
- * - features.owner_pin と一致 → 'owner'
- * - stores.pin と一致 → 'staff'
+ * PIN は DB 上 bcrypt ハッシュで保存されており、照合は
+ * SECURITY DEFINER 関数 verify_store_pin(service_role 専用)が行う。
+ * - owner_pin_hash と一致 → 'owner'
+ * - stores.pin(ハッシュ)と一致 → 'staff'
  * - 不一致 → null
  */
 export async function verifyStorePin(storeId: string, pin: string): Promise<StoreRole | null> {
   if (!storeId || !pin) return null
   const supabase = createAdminClient()
-  const { data: store } = await supabase
-    .from('stores')
-    .select('pin, features')
-    .eq('id', storeId)
-    .maybeSingle()
-  if (!store) return null
-
-  const ownerPin = String((store.features as Record<string, unknown> | null)?.owner_pin ?? '')
-  if (ownerPin && safeEqual(pin, ownerPin)) return 'owner'
-  if (store.pin && safeEqual(pin, String(store.pin))) return 'staff'
-  return null
+  const { data, error } = await supabase.rpc('verify_store_pin', {
+    p_store_id: storeId,
+    p_pin: pin,
+  })
+  if (error) {
+    console.error('[verifyStorePin]', error.message)
+    return null
+  }
+  return data === 'owner' ? 'owner' : data === 'staff' ? 'staff' : null
 }
 
 /**

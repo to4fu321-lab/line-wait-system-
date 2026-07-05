@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { fetchQueueState, ticketAction } from '@/lib/customerApi'
 
 function DetailsForm() {
   const { storeId } = useParams<{ storeId: string }>()
@@ -19,28 +19,23 @@ function DetailsForm() {
   const [error,        setError]        = useState<string | null>(null)
   const [ticketNumber, setTicketNumber] = useState<number | null>(null)
   const [notFound,     setNotFound]     = useState(false)
-  const [lineUserId,   setLineUserId]   = useState<string | null>(null)
 
   useEffect(() => {
-    if (!ticketId) return
-    ;(supabase as any)
-      .from('queues')
-      .select('ticket_number, details, line_user_id')
-      .eq('id', ticketId)
-      .single()
-      .then(({ data, error: err }: { data: any; error: any }) => {
-        if (err || !data) { setNotFound(true); return }
-        setTicketNumber(data.ticket_number)
-        setLineUserId(data.line_user_id ?? null)
-        const d = (data.details ?? {}) as Record<string, string>
+    if (!ticketId || !storeId) return
+    fetchQueueState(storeId, ticketId)
+      .then(({ ticket }) => {
+        if (!ticket) { setNotFound(true); return }
+        setTicketNumber(ticket.ticket_number)
+        const d = (ticket.details ?? {}) as Record<string, string>
         if (d.height)      setHeight(d.height)
         if (d.weight)      setWeight(d.weight)
         if (d.parentPhone) setParentPhone(d.parentPhone)
       })
-  }, [ticketId])
+      .catch(() => setNotFound(true))
+  }, [ticketId, storeId])
 
   const handleSave = async () => {
-    if (!ticketId) return
+    if (!ticketId || !storeId) return
     setLoading(true)
     setError(null)
 
@@ -49,25 +44,14 @@ function DetailsForm() {
     if (weight.trim())      details.weight      = weight.trim()
     if (parentPhone.trim()) details.parentPhone = parentPhone.trim()
 
-    const { error: updateErr } = await (supabase as any)
-      .from('queues')
-      .update({ details })
-      .eq('id', ticketId)
-
-    if (!updateErr && parentPhone.trim() && lineUserId && storeId) {
-      await (supabase as any)
-        .from('customers')
-        .update({ tel: parentPhone.trim() })
-        .eq('store_id', storeId)
-        .eq('line_user_id', lineUserId)
-    }
-
-    setLoading(false)
-    if (updateErr) {
-      setError('保存に失敗しました。もう一度お試しください。')
-    } else {
+    try {
+      // details 保存 + parentPhone は紐づく顧客の tel にも反映(サーバー側)
+      await ticketAction(storeId, ticketId, 'set_details', { details, parentPhone: parentPhone.trim() })
       setSaved(true)
+    } catch {
+      setError('保存に失敗しました。もう一度お試しください。')
     }
+    setLoading(false)
   }
 
   if (!ticketId || notFound) {

@@ -70,14 +70,15 @@ TRUNCATE / TRIGGER / REFERENCES は完全に剥奪（クライアント側で使
 - `anon` / `authenticated` の UPDATE 許可カラムが上記6カラムのみ
 - `anon` / `authenticated` のテーブルレベル権限（INSERT/DELETE等）が0件
 
-## 既知の残課題
+## 既知の残課題 → 2026-07-05 に恒久対応済み
 
-- **`features` カラムは引き続き anon から SELECT 可能**（多数の画面が
-  `resolveFeature()` で機能フラグを読むために必要なため、丸ごと非公開には
-  できない）。この JSONB 内に同居する `owner_pin` は読み取り可能なまま。
-  恒久対応として `owner_pin` を別カラム（例: `stores.owner_pin`、anonから
-  非公開）に分離することを推奨。実施時は `lib/auth/storeAuth.ts` の
-  `verifyStorePin` の参照先を合わせて変更すること。
-- 他のテーブルにも同様に緩い anon ポリシー（`USING(true)` かつ
-  `ALL`コマンド）が存在しないか、時間のあるときに横展開で確認したい。
-  今回は `stores` テーブルのみを対象とした。
+**この文書の残課題は `supabase/migrations/20260705_rls_production_hardening.sql`
+で全て解消した。詳細は `docs/migrations/2026-07-05-rls-production-hardening.md`
+を参照。** 以下は当時の記録として残す。
+
+- ~~**`features` の `owner_pin` が anon から読み取り可能**~~
+  → `stores.owner_pin_hash` 列へ bcrypt ハッシュで移送し、`features` からキーを
+  削除。照合は `verify_store_pin`(service_role 専用 RPC)で行う。
+- ~~**他テーブルの緩い anon ポリシーの横展開確認**~~
+  → 全 public テーブルのポリシーを再構築。anon は公開マスタの SELECT のみ、
+  スタッフ操作は Supabase Auth の JWT(`app_metadata.store_id`)で自店舗に限定。

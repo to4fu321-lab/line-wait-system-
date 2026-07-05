@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { assertSuperAdmin } from '@/lib/auth/verifyAdmin'
 import { createAdminClient } from '@/lib/supabaseAdmin'
+import { hashPin } from '@/lib/auth/pinHash'
 
 export async function POST(req: Request) {
   const denied = assertSuperAdmin(req)
@@ -27,10 +28,10 @@ export async function POST(req: Request) {
       finalGroupId = newGroup.id
     }
 
-    // 店舗を作成
+    // 店舗を作成(PIN はハッシュ化して保存)
     const { data: store, error: storeErr } = await supabase
       .from('stores')
-      .insert({ name: storeName.trim(), pin: storePin || '0000', group_id: finalGroupId, business_type: businessType || 'uniform' })
+      .insert({ name: storeName.trim(), pin: await hashPin(storePin || '0000'), group_id: finalGroupId, business_type: businessType || 'uniform' })
       .select().single()
 
     if (storeErr) return NextResponse.json({ error: storeErr.message }, { status: 500 })
