@@ -3,7 +3,7 @@
 import React from 'react'
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { Bell, BellOff, Store, Clock, Loader2, Check, GraduationCap, Users, ChevronRight, ChevronDown, Scissors, CalendarDays, Monitor, HelpCircle } from 'lucide-react'
+import { Bell, BellOff, Store, Clock, Loader2, Check, GraduationCap, Users, ChevronRight, ChevronDown, Scissors, CalendarDays, Monitor, HelpCircle, BookOpen } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../../_components/BottomNav'
@@ -287,6 +287,19 @@ export default function StaffSettingsPage() {
             </Link>
           )}
 
+          {/* 📖 使い方ガイド */}
+          <Link href={`/${storeId}/admin/guide`}
+            className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-indigo-200 hover:border-indigo-400 active:scale-[0.98] transition-all shadow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center shrink-0">
+              <BookOpen size={28} className="text-indigo-600" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-black text-lg text-indigo-700">使い方ガイド</p>
+              <p className="text-sm text-gray-500 mt-0.5">はじめての方はこちら</p>
+            </div>
+            <ChevronRight size={20} className="text-indigo-400 shrink-0" />
+          </Link>
+
           {/* ❓ Q&A */}
           <Link href={`/${storeId}/admin/qa`}
             className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-violet-200 hover:border-violet-400 active:scale-[0.98] transition-all shadow-sm">
@@ -502,6 +515,17 @@ export default function StaffSettingsPage() {
 
         {/* 🏪 店舗・アカウント */}
         <Section emoji="🏪" title="店舗・アカウント" open={openSections.has('store')} onToggle={() => toggleSection('store')}>
+          <Link href={`/${storeId}/admin/guide`}
+            className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 active:scale-[0.98] transition-all">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center shrink-0">
+              <BookOpen size={26} className="text-indigo-600" />
+            </div>
+            <div className="text-left flex-1">
+              <p className="font-black text-lg text-indigo-700">使い方ガイド</p>
+              <p className="text-indigo-500 text-sm mt-0.5">はじめての方はこちら</p>
+            </div>
+            <ChevronRight size={18} className="text-indigo-400 shrink-0" />
+          </Link>
           <Link href={`/${storeId}/admin/qa`}
             className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-violet-200 bg-violet-50 hover:bg-violet-100 active:scale-[0.98] transition-all">
             <div className="w-14 h-14 rounded-2xl bg-violet-100 flex items-center justify-center shrink-0">
