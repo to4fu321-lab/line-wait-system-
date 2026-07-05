@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, usePathname } from 'next/navigation'
 import { MessageSquarePlus, X, Loader2, Check } from 'lucide-react'
 
 type Kind = 'request' | 'bug' | 'question'
@@ -15,8 +15,12 @@ const KINDS: { value: Kind; label: string; emoji: string }[] = [
 // 現場からの要望・不具合・質問をその場で投稿するフローティングボタン。
 // 管理画面レイアウトに常設し、思った瞬間に送れるようにする。
 export function FeedbackButton() {
-  const params  = useParams<{ storeId: string }>()
-  const storeId = params?.storeId ?? ''
+  const params   = useParams<{ storeId: string }>()
+  const storeId  = params?.storeId ?? ''
+  const pathname = usePathname()
+  // レジ画面はフローティングのカートバー（合計金額表示）が画面下部に常設されるため、
+  // ボタンをその上に逃がして合計金額と重ならないようにする。
+  const onRegister = /\/admin\/register\/?$/.test(pathname ?? '')
 
   const [open, setOpen]     = useState(false)
   const [kind, setKind]     = useState<Kind>('request')
@@ -58,7 +62,7 @@ export function FeedbackButton() {
         onClick={() => { reset(); setOpen(true) }}
         title="要望・不具合を送る"
         style={{ touchAction: 'manipulation' }}
-        className="fixed bottom-24 right-4 z-40 flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-gray-900/90 hover:bg-gray-900 text-white shadow-lg backdrop-blur active:scale-95 transition-all">
+        className={`fixed ${onRegister ? 'bottom-[calc(10rem+env(safe-area-inset-bottom))]' : 'bottom-24'} right-4 z-40 flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-gray-900/90 hover:bg-gray-900 text-white shadow-lg backdrop-blur active:scale-95 transition-all`}>
         <MessageSquarePlus size={18} />
         <span className="text-xs font-bold">要望・不具合</span>
       </button>
