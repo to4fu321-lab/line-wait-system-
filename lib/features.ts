@@ -253,13 +253,12 @@ export function resolveFeature(
   return true
 }
 
-// 契約時のみ有効化するアドオン/β機能
+// 契約時のみ有効化するアドオン/β機能（プラン定義より優先して常にOFF）
+// pos・shift_* はプラン定義（例: フル）通りに動作させたいため対象外
+// （2026-07-05: レジ・シフトが「フル」でもOFFのままになる不具合の修正）
 export const ADDON_DEFAULT_OFF: FeatureKey[] = [
   'sms_notify', 'followup_notify',
-  'today_tasks_ui', 'pos',
-  'shift_management', 'shift_inter_store',
-  'shift_attendance', 'shift_leave', 'shift_swap', 'staff_push',
-  'shift_demand', 'shift_dashboard', 'shift_ai',
+  'today_tasks_ui',
 ]
 
 // ── エリア定義（AIシーズンメッセージ用）────────────────────────
