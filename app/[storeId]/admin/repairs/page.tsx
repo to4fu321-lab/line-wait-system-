@@ -613,7 +613,7 @@ export default function RepairsPage() {
 
           {/* Title row */}
           <div className="flex items-center gap-2 mb-3">
-            <h1 className="text-sm font-black text-gray-800 tracking-tight whitespace-nowrap">{isSimpleMode ? '業務一覧' : '業務ダッシュボード'}</h1>
+            <h1 className="text-sm font-black text-gray-800 tracking-tight whitespace-nowrap">業務一覧</h1>
             {/* 開店/閉店ボタン — full mode only */}
             {!isSimpleMode && (
               <button
@@ -646,8 +646,8 @@ export default function RepairsPage() {
             )}
           </div>
 
-          {/* Dashboard — simple mode: 2セクション（進行中の業務／新規受付）に分離 */}
-          {simpleModeLoaded && isSimpleMode && (
+          {/* Dashboard — 2セクション（進行中の業務／新規受付）。シンプル/フル共通UI */}
+          {simpleModeLoaded && (
             <div className="space-y-2">
               {/* ── ① 進行中の業務（現状確認エリア・紫） ── */}
               <div className="bg-gradient-to-br from-indigo-700 to-indigo-800 rounded-2xl overflow-hidden text-white shadow-lg shadow-indigo-600/25">
@@ -659,19 +659,26 @@ export default function RepairsPage() {
                   {dashOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                 </button>
                 {dashOpen && (() => {
-                  const tiles = ([
+                  const tiles = ((isSimpleMode ? [
                     { id: 'repair'    as const, emoji: '✂️', label: 'お直し',   count: repairs.length,         urgent: 0 },
                     { id: 'purchase'  as const, emoji: '📦', label: '追加購入', count: uniformOrders.length,   urgent: 0 },
                     { id: 'inquiries' as const, emoji: '💬', label: '問合せ',   count: pendingInquiriesCount,  urgent: urgentInquiriesCount },
                     hasFeature('repairs_tab_delivery') && { id: 'delivery' as const, emoji: '🎁', label: 'お渡し', count: waiting.length, urgent: 0 },
-                  ].filter(Boolean)) as { id: ActiveTab; emoji: string; label: string; count: number; urgent: number }[]
+                  ] : [
+                    { id: 'repair'    as const, emoji: '✂️', label: 'お直し',   count: repairs.length,         urgent: 0 },
+                    hasFeature('repairs_tab_purchase') && { id: 'purchase' as const, emoji: '📦', label: '発注', count: purchaseUnordered.length + uniformOrders.length, urgent: 0 },
+                    hasFeature('repairs_tab_arrival')  && { id: 'arrival'  as const, emoji: '🚚', label: '入荷待ち', count: purchaseOnOrder.length + purchaseStocked.length, urgent: 0 },
+                    hasFeature('repairs_tab_delivery') && { id: 'delivery' as const, emoji: '🎁', label: 'お渡し', count: waiting.length, urgent: 0 },
+                    { id: 'inquiries' as const, emoji: '💬', label: '問合せ',   count: pendingInquiriesCount,  urgent: urgentInquiriesCount },
+                  ]).filter(Boolean)) as { id: ActiveTab; emoji: string; label: string; count: number; urgent: number }[]
                   return (
+                    <>
                     <div className="grid gap-px bg-white/15 border-t border-white/15" style={{ gridTemplateColumns: `repeat(${tiles.length}, 1fr)` }}>
                       {tiles.map(t => {
                         const active = tab === t.id
                         return (
                           <button key={t.id}
-                            onClick={() => { setTab(t.id); setSearchText('') }}
+                            onClick={() => { setTab(t.id); setSearchText(''); setBatchSelected(new Set()); setPendingFilter(false) }}
                             style={{ touchAction: 'manipulation' }}
                             className={`relative flex flex-col items-center justify-center py-2 px-1 transition-all active:scale-95 ${active ? 'bg-white/20' : 'bg-indigo-800 hover:bg-white/10'}`}>
                             <span className="text-xl font-black tabular-nums leading-none">{t.count}</span>
@@ -685,6 +692,21 @@ export default function RepairsPage() {
                         )
                       })}
                     </div>
+                    {/* 要対応フィルタ — フルモードのみ（旧ダッシュボードの機能を維持） */}
+                    {!isSimpleMode && (
+                      <button
+                        onClick={() => setPendingFilter(prev => !prev)}
+                        style={{ touchAction: 'manipulation' }}
+                        className={`w-full flex items-center justify-center gap-2 py-2 text-[11px] font-black border-t border-white/15 transition-colors active:opacity-60 ${
+                          pendingFilter ? 'bg-amber-400/20 text-amber-200' : 'text-white/90 hover:bg-white/10'
+                        }`}>
+                        <span>⚠️ 要対応 {pendingCount}件</span>
+                        <span className="opacity-50">/ 全{totalActive}件</span>
+                        {overdueRepairs.length > 0 && <span className="text-red-300">🚨 {overdueRepairs.length}</span>}
+                        {pendingFilter && <span className="bg-amber-400/30 px-1.5 py-0.5 rounded-full text-[9px]">絞込中</span>}
+                      </button>
+                    )}
+                    </>
                   )
                 })()}
               </div>
@@ -722,162 +744,6 @@ export default function RepairsPage() {
                 )}
               </div>
             </div>
-          )}
-
-          {/* Dashboard card — full mode */}
-          {simpleModeLoaded && !isSimpleMode && (
-          <div className="bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-600 rounded-2xl px-4 pt-2 pb-0 text-white shadow-lg shadow-indigo-600/25">
-            <button
-              onClick={() => setDashOpen(v => !v)}
-              style={{ touchAction: 'manipulation' }}
-              className="w-full flex items-center justify-center gap-1 py-1 text-[10px] font-bold text-white/60 hover:text-white/90 transition-colors active:opacity-60">
-              <span>ダッシュボード</span>
-              {dashOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-            </button>
-            {dashOpen && (
-            <div className="border-t border-white/20 pt-3">
-            {(() => {
-              const pendingInquiries = pendingInquiriesCount
-              const urgentInquiries  = urgentInquiriesCount
-              const dashTabs = [
-                { id: 'repair'    as const, emoji: '✂️', label: 'お直し',   count: repairs.length,                                     urgent: 0 },
-                hasFeature('repairs_tab_purchase') && { id: 'purchase'  as const, emoji: '📦', label: '発注',     count: purchaseUnordered.length + uniformOrders.length,    urgent: 0 },
-                hasFeature('repairs_tab_arrival')  && { id: 'arrival'   as const, emoji: '🚚', label: '入荷待ち', count: purchaseOnOrder.length + purchaseStocked.length,     urgent: 0 },
-                hasFeature('repairs_tab_delivery') && { id: 'delivery'  as const, emoji: '🎁', label: 'お渡し',   count: waiting.length,                                     urgent: 0 },
-                { id: 'inquiries' as const, emoji: '💬', label: '問合せ',   count: pendingInquiries,                                   urgent: urgentInquiries },
-              ].filter(Boolean) as { id: ActiveTab; emoji: string; label: string; count: number; urgent: number }[]
-              const togglePending = () => setPendingFilter(prev => !prev)
-              if (!isTablet) {
-                return (
-                  <div className="flex items-stretch gap-2 pb-2">
-                    {/* 要対応 tappable area */}
-                    <button className="flex-1 text-left active:opacity-80 transition-opacity" onClick={togglePending}>
-                      <p className="text-[9px] font-bold opacity-60 uppercase tracking-widest mb-0.5">
-                        {pendingFilter ? '▶ 要対応' : '要対応'}
-                      </p>
-                      <div className="flex items-baseline gap-1.5">
-                        <span className={`text-4xl font-black leading-none tabular-nums ${pendingFilter ? 'text-amber-300' : ''}`}>{pendingCount}</span>
-                        <span className="text-sm font-bold opacity-60">件</span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[9px] opacity-40">全{totalActive}</span>
-                        {overdueRepairs.length > 0 && <span className="text-[9px] text-red-300 font-black">🚨 {overdueRepairs.length}</span>}
-                        {pendingFilter && <span className="text-[9px] text-amber-300 font-black">絞込中</span>}
-                      </div>
-                    </button>
-                    {/* Tab list — horizontal scroll */}
-                    <div className="flex gap-1 shrink-0 self-center overflow-x-auto no-scrollbar">
-                      {dashTabs.map(t => {
-                        const isInq = t.id === 'inquiries'
-                        const hasAlert = isInq && (t.urgent > 0 || t.count > 0)
-                        return (
-                          <button key={t.id}
-                            onClick={() => { setTab(t.id); setSearchText(''); setBatchSelected(new Set()); setPendingFilter(false) }}
-                            className={`rounded-xl px-2 py-1.5 text-center transition-all active:scale-[0.97] min-w-[48px] shrink-0 relative ${
-                              tab === t.id
-                                ? hasAlert ? 'bg-red-500/30 ring-1 ring-red-300/50' : 'bg-white/20 ring-1 ring-white/30'
-                                : hasAlert ? 'bg-red-500/20 opacity-90' : 'hover:bg-white/10 opacity-60'
-                            }`}>
-                            <p className={`text-lg font-black leading-none tabular-nums ${hasAlert ? 'text-red-200' : ''}`}>
-                              {t.count > 0 ? t.count : <span className="opacity-30">0</span>}
-                            </p>
-                            <p className="text-[9px] font-bold mt-0.5 opacity-80">{t.emoji} {t.label}</p>
-                            {t.urgent > 0 && (
-                              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center leading-none">
-                                {t.urgent}
-                              </span>
-                            )}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              }
-              // Tablet mode: original two-row layout
-              return (
-                <>
-                  <div className="flex items-start gap-4 mb-3">
-                    <button className="flex-1 text-left active:opacity-80 transition-opacity" onClick={togglePending}>
-                      <p className="text-[10px] font-bold opacity-60 uppercase tracking-widest mb-0.5">
-                        {pendingFilter ? '▶ 要対応（絞込中）' : '要対応'}
-                      </p>
-                      <div className="flex items-baseline gap-2">
-                        <span className={`text-5xl font-black leading-none tabular-nums ${pendingFilter ? 'text-amber-300' : ''}`}>{pendingCount}</span>
-                        <span className="text-base font-bold opacity-60">件</span>
-                        <span className="text-[10px] opacity-40 font-medium">/ 全{totalActive}</span>
-                      </div>
-                    </button>
-                    {overdueRepairs.length > 0 && (
-                      <div className="bg-red-500/25 border border-red-400/40 rounded-2xl px-3 py-2 text-center min-w-[52px]">
-                        <p className="text-2xl font-black text-red-100 leading-none">{overdueRepairs.length}</p>
-                        <p className="text-[9px] font-bold text-red-200 mt-0.5">🚨 期限超過</p>
-                      </div>
-                    )}
-                  </div>
-                  <div className="grid gap-1 border-t border-white/15 pt-2 -mx-4 px-4"
-                    style={{ gridTemplateColumns: `repeat(${dashTabs.length}, 1fr)` }}>
-                    {dashTabs.map(t => {
-                      const isInq = t.id === 'inquiries'
-                      const hasAlert = isInq && (t.urgent > 0 || t.count > 0)
-                      return (
-                        <button key={t.id} onClick={() => { setTab(t.id); setSearchText(''); setBatchSelected(new Set()); setPendingFilter(false) }}
-                          className={`rounded-t-xl py-2.5 text-center transition-all active:scale-[0.97] relative ${
-                            tab === t.id
-                              ? hasAlert ? 'bg-red-500/30 ring-1 ring-red-300/50' : 'bg-white/20 ring-1 ring-white/30'
-                              : hasAlert ? 'bg-red-500/20 opacity-90' : 'hover:bg-white/10 opacity-70'
-                          }`}>
-                          <p className={`text-xl font-black leading-none tabular-nums ${hasAlert ? 'text-red-200' : ''}`}>
-                            {t.count > 0 ? t.count : <span className="opacity-30">0</span>}
-                          </p>
-                          <p className="text-[10px] font-bold mt-0.5 opacity-80">{t.emoji} {t.label}</p>
-                          {t.urgent > 0 && (
-                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center leading-none">
-                              {t.urgent}
-                            </span>
-                          )}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </>
-              )
-            })()}
-            </div>
-            )}
-            {/* 受付ボタン折りたたみ */}
-            <div className="border-t border-white/20 -mx-4">
-              <button
-                onClick={() => setReceiptOpen(v => !v)}
-                style={{ touchAction: 'manipulation' }}
-                className="w-full flex items-center justify-center gap-1 py-1.5 text-[10px] font-bold text-white/60 hover:text-white/90 transition-colors active:opacity-60">
-                <span>受付</span>
-                {receiptOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-              </button>
-              {receiptOpen && (
-                <div className="flex gap-2 px-4 pb-3">
-                  <button onClick={() => setShowNewRepair(true)}
-                    style={{ touchAction: 'manipulation' }}
-                    className="flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl bg-white/15 hover:bg-white/25 text-white active:scale-[0.97] transition-all">
-                    <Scissors size={18} />
-                    <span className="text-[10px] font-black">✂️ お直し</span>
-                  </button>
-                  <button onClick={() => setShowNewOrder(true)}
-                    style={{ touchAction: 'manipulation' }}
-                    className="flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl bg-white/15 hover:bg-white/25 text-white active:scale-[0.97] transition-all">
-                    <ShoppingCart size={18} />
-                    <span className="text-[10px] font-black">📦 追加購入</span>
-                  </button>
-                  <button onClick={() => { setEditInquiry(null); setShowInqModal(true) }}
-                    style={{ touchAction: 'manipulation' }}
-                    className="flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl bg-white/15 hover:bg-white/25 text-white active:scale-[0.97] transition-all">
-                    <MessageSquarePlus size={18} />
-                    <span className="text-[10px] font-black">💬 問合せ</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
           )}
 
         </div>
