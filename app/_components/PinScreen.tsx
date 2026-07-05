@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
+import { applyStaffSession, type StaffSessionTokens } from '@/lib/staffSessionClient'
 
 // ============================================================
 // PIN認証画面（共通コンポーネント）
@@ -127,6 +128,11 @@ export async function verifyStorePinApi(storeId: string, pin: string): Promise<'
   if (!res.ok) return null
   const json = await res.json()
   if (!json.ok) return null
+  // 店舗スコープの Supabase Auth セッションを適用(RLS 通過に必須)
+  if (json.session) {
+    const ok = await applyStaffSession(json.session as StaffSessionTokens)
+    if (!ok) return null
+  }
   sessionStorage.setItem('admin_auth', '1')
   sessionStorage.setItem(`admin_pin_${storeId}`, pin)
   return json.role === 'owner' ? 'owner' : 'staff'

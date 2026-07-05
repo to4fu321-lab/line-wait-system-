@@ -15,6 +15,7 @@ import type { StoreInfo } from './_components/StoreSelectScreen'
 import { resolveFeature } from '@/lib/features'
 import { SchoolDeadlineAlert } from './_components/SchoolDeadlineAlert'
 import { PinScreen, verifyStorePinApi } from '@/app/_components/PinScreen'
+import { hasStaffSession, clearStaffSession } from '@/lib/staffSessionClient'
 import { WaitingCard, CallingCard, HistoryCard } from './_components/QueueCards'
 import { supabase, getTodayStart } from '@/lib/supabase'
 import { useConnectionStatus } from '@/lib/useConnectionStatus'
@@ -792,13 +793,15 @@ export default function StoreAdminPage() {
   useEffect(() => {
     fetch('/api/admin/stores')
       .then(res => res.json())
-      .then(({ stores: data, error }: { stores?: StoreInfo[]; error?: string }) => {
+      .then(async ({ stores: data, error }: { stores?: StoreInfo[]; error?: string }) => {
         if (error || !data || data.length === 0) {
           setFetchError(error ?? '店舗データが見つかりません'); setView('select_store'); return
         }
         setStores(data as StoreInfo[])
         const saved = sessionStorage.getItem('admin_store_id')
-        if (saved && saved === storeId && sessionStorage.getItem('admin_auth') === '1') {
+        // Supabase Auth セッション(RLS通過に必須)が生きている場合のみ復元
+        if (saved && saved === storeId && sessionStorage.getItem('admin_auth') === '1'
+            && await hasStaffSession(saved)) {
           const match = (data as StoreInfo[]).find(s => s.id === saved)
           if (match) {
             setSelectedStore(match)
@@ -837,6 +840,7 @@ export default function StoreAdminPage() {
   }
   const handleLogout = () => {
     sessionStorage.removeItem('admin_auth'); sessionStorage.removeItem('admin_store_id'); sessionStorage.removeItem('admin_role')
+    clearStaffSession()
     setSelectedStore(null); setView('select_store')
   }
 

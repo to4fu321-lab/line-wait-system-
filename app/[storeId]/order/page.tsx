@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { initLiff, getLineProfile, type LiffProfile } from '@/lib/liff'
+import { lookupTakeoutOrder, placeTakeoutOrder, addTakeoutItems, fetchTakeoutState } from '@/lib/customerApi'
 import { guessMenuIcon } from '@/lib/menu-icons'
 import type { Menu, MenuCategory, TakeoutOrder } from '@/types/takeout'
 
@@ -68,7 +69,7 @@ export default function OrderPage() {
   const [currentOrder, setCurrentOrder] = useState<TakeoutOrder | null>(null)
   const [orderStatus,  setOrderStatus]  = useState('')
 
-  const channelRef  = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const pollRef     = useRef<ReturnType<typeof setInterval> | null>(null)
   const slotsRef    = useRef(buildPickupSlots())
 
   // ── Load menus & categories ────────────────
@@ -83,22 +84,22 @@ export default function OrderPage() {
     } catch { /* categories table might not exist — show flat list */ }
   }, [storeId])
 
-  // ── Subscribe to order status ──────────────
+  // ── Subscribe to order status (ポーリング) ──
+  // takeout_orders は RLS で anon から読めないため API 経由で10秒ごとに確認
   const subscribeOrder = useCallback((orderId: string) => {
-    if (channelRef.current) supabase.removeChannel(channelRef.current)
-    channelRef.current = supabase
-      .channel(`order-status-${orderId}`)
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'takeout_orders', filter: `id=eq.${orderId}`,
-      }, payload => {
-        const o = payload.new as TakeoutOrder
-        setOrderStatus(o.status)
-        setCurrentOrder(prev => prev ? { ...prev, ...o } : o)
-      })
-      .subscribe()
-  }, [])
+    if (pollRef.current) clearInterval(pollRef.current)
+    pollRef.current = setInterval(async () => {
+      try {
+        const { order } = await fetchTakeoutState(storeId, orderId)
+        if (order) {
+          setOrderStatus(order.status)
+          setCurrentOrder(prev => prev ? { ...prev, ...order } : order)
+        }
+      } catch { /* 次のポーリングで再試行 */ }
+    }, 10000)
+  }, [storeId])
 
-  useEffect(() => () => { channelRef.current && supabase.removeChannel(channelRef.current) }, [])
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
 
   // ── Initialise: LIFF → existing order check → menu ──
   useEffect(() => {
@@ -114,18 +115,10 @@ export default function OrderPage() {
           setLineProfile(profile)
           setCustomerName(profile.displayName ?? '')
 
-          // Already have an active order for this LINE user?
-          const { data: existing } = await supabase
-            .from('takeout_orders')
-            .select('*, items:takeout_order_items(*)')
-            .eq('store_id', storeId)
-            .eq('line_user_id', profile.userId)
-            .in('status', ['pending', 'preparing', 'ready'])
-            .order('created_at', { ascending: false })
-            .limit(1)
-
-          if (existing?.[0]) {
-            const order = existing[0] as TakeoutOrder
+          // Already have an active order for this LINE user? (本人確認はサーバー側)
+          const { order: existing } = await lookupTakeoutOrder(storeId)
+          if (existing) {
+            const order = existing as TakeoutOrder
             setCurrentOrder(order)
             setOrderStatus(order.status)
             subscribeOrder(order.id)
@@ -163,50 +156,17 @@ export default function OrderPage() {
     if (cart.length === 0 || submitting) return
     setSubmitting(true)
     try {
-      const { data: orderNumber, error: numErr } = await supabase
-        .rpc('get_next_order_number', { p_store_id: storeId } as never)
-      if (numErr || !orderNumber) throw numErr ?? new Error('No order number')
+      // 採番・登録・金額計算はサーバーAPI側で実行
+      const order = await placeTakeoutOrder(storeId, {
+        customerName: customerName.trim(),
+        notes:        notes.trim(),
+        pickupTime:   pickupSlot,
+        items:        cart.map(i => ({ menuId: i.menu.id, quantity: i.quantity })),
+      }) as TakeoutOrder
 
-      const { data: order, error: orderErr } = await supabase
-        .from('takeout_orders')
-        .insert({
-          store_id:      storeId,
-          order_number:  orderNumber as string,
-          customer_name: customerName.trim() || lineProfile?.displayName || null,
-          line_user_id:  lineProfile?.userId ?? null,
-          status:        'pending',
-          total_amount:  cartTotal,
-          pickup_time:   pickupSlot,
-          order_source:  'line',
-          notes:         notes.trim() || null,
-        } as never)
-        .select()
-        .single()
-      if (orderErr || !order) throw orderErr
-
-      const orderId = (order as { id: string }).id
-      await supabase.from('takeout_order_items').insert(
-        cart.map(i => ({
-          order_id:   orderId,
-          menu_id:    i.menu.id,
-          name:       i.menu.name,
-          unit_price: i.menu.price,
-          quantity:   i.quantity,
-          is_done:    false,
-        })) as never
-      )
-
-      // Populate items locally so the UI renders immediately without a refetch
-      const fullOrder: TakeoutOrder = {
-        ...(order as TakeoutOrder),
-        items: cart.map(i => ({
-          id: '', order_id: orderId, menu_id: i.menu.id, name: i.menu.name,
-          unit_price: i.menu.price, quantity: i.quantity, notes: null, is_done: false, created_at: '',
-        })),
-      }
-      setCurrentOrder(fullOrder)
+      setCurrentOrder(order)
       setOrderStatus('pending')
-      subscribeOrder(orderId)
+      subscribeOrder(order.id)
       setCart([])
       setView('ordered')
 
@@ -215,7 +175,7 @@ export default function OrderPage() {
         fetch('/api/notify-takeout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orderId, status: 'confirmed' }),
+          body: JSON.stringify({ orderId: order.id, status: 'confirmed' }),
         }).catch(() => {/* 通知失敗は無視 */})
       }
     } catch (e) {
@@ -231,27 +191,11 @@ export default function OrderPage() {
     if (!currentOrder || cart.length === 0 || submitting) return
     setSubmitting(true)
     try {
-      await Promise.all([
-        supabase.from('takeout_order_items').insert(
-          cart.map(i => ({
-            order_id:   currentOrder.id,
-            menu_id:    i.menu.id,
-            name:       i.menu.name,
-            unit_price: i.menu.price,
-            quantity:   i.quantity,
-            is_done:    false,
-          })) as never
-        ),
-        supabase.from('takeout_orders')
-          .update({ total_amount: (currentOrder.total_amount ?? 0) + cartTotal } as never)
-          .eq('id', currentOrder.id),
-      ])
-      // Refresh order items for display
-      const { data: refreshed } = await supabase
-        .from('takeout_orders')
-        .select('*, items:takeout_order_items(*)')
-        .eq('id', currentOrder.id)
-        .single()
+      // 追加登録・合計更新はサーバーAPI側で実行
+      const refreshed = await addTakeoutItems(
+        storeId, currentOrder.id,
+        cart.map(i => ({ menuId: i.menu.id, quantity: i.quantity })),
+      )
       if (refreshed) setCurrentOrder(refreshed as TakeoutOrder)
       setCart([])
       setView('ordered')
@@ -493,7 +437,7 @@ export default function OrderPage() {
     const isReady = orderStatus === 'ready'
 
     const handleNewOrder = async () => {
-      if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null }
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
       setCurrentOrder(null)
       setOrderStatus('')
       setCart([])

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { PinScreen, verifyStorePinApi } from '@/app/_components/PinScreen'
+import { hasStaffSession } from '@/lib/staffSessionClient'
 import type { Menu, TakeoutOrder, TakeoutSettings } from '@/types/takeout'
 import type { KitchenStation } from '@/types/kitchen-scheduler'
 
@@ -706,9 +707,12 @@ export default function TakeoutAdminPage({ params }: { params: { storeId: string
         if (data) setStoreName(data.name)
         setLoaded(true)
       })
-    const ok  = sessionStorage.getItem('admin_auth')     === '1'
-    const sid = sessionStorage.getItem('admin_store_id') === storeId
-    if (ok && sid) setAuthed(true)
+    ;(async () => {
+      const ok  = sessionStorage.getItem('admin_auth')     === '1'
+      const sid = sessionStorage.getItem('admin_store_id') === storeId
+      // Supabase Auth セッション(RLS通過に必須)が生きている場合のみ復元
+      if (ok && sid && await hasStaffSession(storeId)) setAuthed(true)
+    })()
   }, [storeId])
 
   const handleAuth = () => {

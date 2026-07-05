@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { useStoreTheme } from '@/lib/theme-context'
 import { supabase } from '@/lib/supabase'
+import { saveCustomer, placeEcOrder } from '@/lib/customerApi'
 import type { School, SchoolProduct, SchoolProductVariant } from '@/types/master'
 import type { LiffProfile } from '@/lib/liff'
 import { GRADE_OPTIONS } from '@/types/crm'
@@ -138,11 +139,11 @@ export default function ECShopView({
   const handleSaveSchool = async () => {
     setSavingSchool(true)
     if (childId) {
-      await (supabase as any).from('children').update({
-        school_name: editSchool.trim() || null,
-        grade: editGrade || null,
-        updated_at: new Date().toISOString(),
-      }).eq('id', childId)
+      try {
+        await saveCustomer(storeId, {
+          childUpdate: { id: childId, school_name: editSchool.trim() || null, grade: editGrade || null },
+        })
+      } catch { /* 保存失敗でも画面上の選択は反映する */ }
     }
     setChildSchoolName(editSchool.trim() || null)
     setChildGrade(editGrade || null)
@@ -188,20 +189,11 @@ export default function ECShopView({
     if (!customerId) return
     setOrdering(true); setOrderError('')
     try {
-      const today = new Date().toISOString().slice(0, 10)
-      // purchase_orders に各商品を1件ずつ登録（CRM案件に反映）
-      const purchaseRows = cart.map(i => ({
-        store_id:     storeId,
-        customer_id:  customerId,
-        child_id:     childId ?? null,
-        item_name:    `${i.productName}${i.sizeLabel ? ` ${i.sizeLabel}` : ''}`,
-        notes:        i.qty > 1 ? `${i.qty}点` : null,
-        price:        i.unitPrice * i.qty,
-        status:       'ordered',
-        ordered_date: today,
-      }))
-      const { error: pErr } = await (supabase as any).from('purchase_orders').insert(purchaseRows)
-      if (pErr) throw new Error(pErr.message)
+      // purchase_orders への登録はサーバーAPI経由(価格はサーバー側で再解決)
+      await placeEcOrder(storeId, {
+        childId: childId ?? null,
+        items: cart.map(i => ({ variantId: i.variantId, qty: i.qty })),
+      })
       fetch('/api/push-admin', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
