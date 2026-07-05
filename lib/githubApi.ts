@@ -82,6 +82,16 @@ export async function mergeBranchIntoMain(config: GithubConfig, head: string, ba
   return { ok: false, error: `${base}への反映に失敗しました (status=${res.status}): ${detail}` }
 }
 
+// GITHUB_TOKEN が実際にGitHubへアクセスできるかの簡易チェック。
+// コメント取得・PR検索は失敗時に黙って空を返す設計のため、管理画面側で
+// 「なぜ表示されないか」を示すために使う（トークン失効・権限不足の切り分け用）。
+export async function checkGithubAuth(config: GithubConfig): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const res = await fetch(`https://api.github.com/repos/${config.repo}`, { headers: headers(config.token) })
+  if (res.ok) return { ok: true }
+  const detail = await res.text().catch(() => '')
+  return { ok: false, status: res.status, error: detail }
+}
+
 export interface GithubComment {
   id: number
   body: string
