@@ -43,8 +43,12 @@ export async function findPrByBranch(config: GithubConfig, branch: string, base?
     { headers: headers(config.token) },
   )
   if (!res.ok) return null
-  const list = await res.json() as GithubPr[]
-  return list[0] ?? null
+  // 一覧取得エンドポイントは merged が常に false で返る（merged_at はある）ため、
+  // マージ済み判定は merged_at の有無から自前で導出する。
+  const list = await res.json() as Array<Omit<GithubPr, 'merged'> & { merged_at: string | null }>
+  const pr = list[0]
+  if (!pr) return null
+  return { ...pr, merged: pr.merged_at != null }
 }
 
 export async function mergePr(config: GithubConfig, prNumber: number): Promise<{ ok: true } | { ok: false; error: string }> {
