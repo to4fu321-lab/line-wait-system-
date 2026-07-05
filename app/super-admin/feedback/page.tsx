@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Loader2, RefreshCw, MessageSquare, ExternalLink } from 'lucide-react'
+import { Loader2, RefreshCw, MessageSquare, ExternalLink, Sparkles, CheckCircle2 } from 'lucide-react'
 import { PinScreen, verifySuperAdminPin } from '@/app/_components/PinScreen'
 
 interface Feedback {
@@ -15,6 +15,11 @@ interface Feedback {
   status: 'new' | 'triaged' | 'done' | 'wontfix' | string
   issue_number: number | null
   issue_url: string | null
+  priority: 'urgent' | 'high' | 'medium' | 'low' | null
+  ai_category: string | null
+  ai_recommendation: string | null
+  ai_implementable: boolean | null
+  approved_at: string | null
   created_at: string
 }
 
@@ -29,6 +34,13 @@ const STATUSES: { value: string; label: string }[] = [
   { value: 'done',    label: '対応済' },
   { value: 'wontfix', label: '見送り' },
 ]
+const PRIORITY_META: Record<string, { label: string; cls: string; order: number }> = {
+  urgent: { label: '緊急', cls: 'bg-red-600/30 text-red-200 border-red-500/40',       order: 0 },
+  high:   { label: '高',   cls: 'bg-orange-500/20 text-orange-300 border-orange-500/30', order: 1 },
+  medium: { label: '中',   cls: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30', order: 2 },
+  low:    { label: '低',   cls: 'bg-gray-600/20 text-gray-400 border-gray-600/30',       order: 3 },
+}
+const priorityOrder = (p: string | null) => (p && PRIORITY_META[p] ? PRIORITY_META[p].order : 99)
 
 export default function FeedbackAdminPage() {
   const [authed, setAuthed]   = useState(false)
@@ -36,6 +48,7 @@ export default function FeedbackAdminPage() {
   const [rows, setRows]       = useState<Feedback[]>([])
   const [loading, setLoading] = useState(false)
   const [filter, setFilter]   = useState<string>('all')
+  const [approving, setApproving] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -56,6 +69,21 @@ export default function FeedbackAdminPage() {
     })
   }
 
+  const approve = async (id: string) => {
+    setApproving(id)
+    const res = await fetch('/api/super-admin/feedback', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, approve: true }),
+    })
+    if (res.ok) {
+      setRows(rs => rs.map(r => r.id === id ? { ...r, approved_at: new Date().toISOString() } : r))
+    } else {
+      const json = await res.json().catch(() => ({}))
+      alert(json.error ?? '承認に失敗しました')
+    }
+    setApproving(null)
+  }
+
   if (!checked) {
     return <div className="min-h-screen bg-gray-900 flex items-center justify-center"><Loader2 size={32} className="animate-spin text-gray-500" /></div>
   }
@@ -64,7 +92,9 @@ export default function FeedbackAdminPage() {
       verify={verifySuperAdminPin} onAuth={load} />
   )
 
-  const filtered = filter === 'all' ? rows : rows.filter(r => r.status === filter)
+  const filtered = (filter === 'all' ? rows : rows.filter(r => r.status === filter))
+    .slice()
+    .sort((a, b) => priorityOrder(a.priority) - priorityOrder(b.priority))
   const counts = STATUSES.reduce((a, s) => ({ ...a, [s.value]: rows.filter(r => r.status === s.value).length }), {} as Record<string, number>)
 
   return (
@@ -101,10 +131,12 @@ export default function FeedbackAdminPage() {
         ) : (
           filtered.map(f => {
             const k = KIND_META[f.kind] ?? { label: f.kind, cls: 'bg-gray-700 text-gray-300 border-gray-600' }
+            const p = f.priority ? PRIORITY_META[f.priority] : null
             return (
               <div key={f.id} className="bg-gray-800 border border-gray-700 rounded-2xl p-4 space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${k.cls}`}>{k.label}</span>
+                  {p && <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${p.cls}`}>優先度: {p.label}</span>}
                   {f.store_name && <span className="text-xs text-gray-300 font-bold">{f.store_name}</span>}
                   <span className="text-[11px] text-gray-500 ml-auto">{new Date(f.created_at).toLocaleString('ja-JP')}</span>
                 </div>
@@ -120,6 +152,27 @@ export default function FeedbackAdminPage() {
                     <ExternalLink size={11} /> GitHub Issue #{f.issue_number}
                   </a>
                 )}
+
+                {f.ai_recommendation && (
+                  <div className="bg-gray-900/60 border border-indigo-500/20 rounded-xl p-3 space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-300">
+                      <Sparkles size={12} /> AIによる分析{f.ai_category ? `：${f.ai_category}` : ''}
+                    </div>
+                    <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">{f.ai_recommendation}</p>
+                    {f.approved_at ? (
+                      <p className="flex items-center gap-1 text-[11px] font-bold text-emerald-400 pt-0.5">
+                        <CheckCircle2 size={12} /> 承認済み（{new Date(f.approved_at).toLocaleString('ja-JP')}）・自動実装を依頼中
+                      </p>
+                    ) : (
+                      <button onClick={() => approve(f.id)} disabled={approving === f.id || !f.issue_number}
+                        className="mt-1 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40 flex items-center gap-1.5">
+                        {approving === f.id ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                        承認して自動実装を依頼
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex gap-1.5 pt-1">
                   {STATUSES.map(s => (
                     <button key={s.value} onClick={() => setStatus(f.id, s.value)}

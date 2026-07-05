@@ -2,11 +2,15 @@ export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabaseAdmin'
+import { analyzeFeedback, type FeedbackPriority } from '@/lib/feedbackAi'
 
 const KIND_LABEL: Record<string, string> = { request: '要望', bug: '不具合', question: '質問' }
+const PRIORITY_LABEL: Record<FeedbackPriority, string> = { urgent: '緊急', high: '高', medium: '中', low: '低' }
 
 // 現場フィードバックの受付。Supabaseに保存し、GITHUB_TOKEN があれば Issue を自動作成する。
-// Issue作成は失敗してもフィードバック保存は成立させる（投稿を止めない）。
+// AIによる優先度・対応方針の判定も行い、Issue本文に記載する（実装の自動着手はしない。
+// スーパー管理画面で運用者が承認したものだけ GitHub Actions が実装する）。
+// AI分析・Issue作成は失敗してもフィードバック保存は成立させる（投稿を止めない）。
 export async function POST(req: Request) {
   try {
     const body = await req.json() as {
@@ -26,6 +30,9 @@ export async function POST(req: Request) {
       storeName = (data as { name?: string } | null)?.name ?? null
     }
 
+    // AIトリアージ（優先度・分類・対応方針）。失敗しても投稿は継続する。
+    const ai = await analyzeFeedback({ kind, body: text, storeName })
+
     // 保存
     const { data: inserted, error } = await supabase.from('feedback').insert({
       store_id:   body.storeId || null,
@@ -34,6 +41,10 @@ export async function POST(req: Request) {
       body:       text,
       page_url:   body.pageUrl ?? null,
       user_agent: body.userAgent ?? null,
+      priority:            ai?.priority ?? null,
+      ai_category:         ai?.category ?? null,
+      ai_recommendation:   ai?.recommendation ?? null,
+      ai_implementable:    ai?.implementable ?? null,
     }).select('id').single()
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
 
@@ -51,13 +62,20 @@ export async function POST(req: Request) {
           body.pageUrl ? `**画面**: \`${body.pageUrl}\`` : null,
           body.userAgent ? `**端末**: ${body.userAgent}` : null,
           `**feedback id**: ${feedbackId}`,
+          ai ? `**AI優先度**: ${PRIORITY_LABEL[ai.priority]}` : null,
+          ai ? `**AI分類**: ${ai.category}` : null,
           '',
           '---',
           '',
           text,
+          ai ? '\n---\n\n**🤖 AIによる分析（参考）**\n\n' + ai.recommendation : null,
+          ai ? `\n_自動実装候補: ${ai.implementable ? 'あり（スーパー管理画面で承認すると自動実装されます）' : 'なし（要判断）'}_` : null,
           '',
           '_アプリ内フィードバックから自動作成_',
         ].filter(Boolean).join('\n')
+
+        const labels = ['feedback', KIND_LABEL[kind] ?? kind]
+        if (ai) labels.push(`priority:${ai.priority}`)
 
         const res = await fetch(`https://api.github.com/repos/${repo}/issues`, {
           method: 'POST',
@@ -68,7 +86,7 @@ export async function POST(req: Request) {
             'Content-Type': 'application/json',
             'User-Agent': 'line-wait-system-feedback',
           },
-          body: JSON.stringify({ title, body: issueBody, labels: ['feedback', KIND_LABEL[kind] ?? kind] }),
+          body: JSON.stringify({ title, body: issueBody, labels }),
         })
         if (res.ok) {
           const issue = await res.json() as { number?: number; html_url?: string }
