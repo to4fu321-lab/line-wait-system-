@@ -3,8 +3,17 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { assertSuperAdmin } from '@/lib/auth/verifyAdmin'
 import { createAdminClient } from '@/lib/supabaseAdmin'
+import { getGithubConfig, addLabel, findPrByBranch, mergePr, type GithubPr } from '@/lib/githubApi'
+
+interface FeedbackRow {
+  id: string
+  issue_number: number | null
+  approved_at: string | null
+}
 
 // 運用側のみ閲覧・更新可（assertSuperAdmin）。現場フィードバックの一覧/ステータス更新。
+// 承認済み（approved_at あり）の行は、ブランチ名 auto/feedback-<issue番号> でPRを検索し、
+// PR状況（未作成・レビュー中・マージ済み）を pr フィールドに載せて返す。
 export async function GET(req: Request) {
   const denied = assertSuperAdmin(req)
   if (denied) return denied
@@ -16,7 +25,21 @@ export async function GET(req: Request) {
       .order('created_at', { ascending: false })
       .limit(500)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ feedback: data ?? [] })
+
+    const rows = (data ?? []) as FeedbackRow[]
+    const config = getGithubConfig()
+    const prByFeedbackId = new Map<string, GithubPr | null>()
+
+    if (config) {
+      const targets = rows.filter(r => r.approved_at && r.issue_number)
+      await Promise.all(targets.map(async r => {
+        const pr = await findPrByBranch(config, `auto/feedback-${r.issue_number}`)
+        prByFeedbackId.set(r.id, pr)
+      }))
+    }
+
+    const feedback = rows.map(r => ({ ...r, pr: prByFeedbackId.get(r.id) ?? null }))
+    return NextResponse.json({ feedback })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     return NextResponse.json({ error: msg }, { status: 500 })
@@ -27,12 +50,15 @@ export async function PATCH(req: Request) {
   const denied = assertSuperAdmin(req)
   if (denied) return denied
   try {
-    const { id, status, approve } = await req.json() as { id?: string; status?: string; approve?: boolean }
+    const { id, status, approve, mergePr: shouldMergePr, prNumber } = await req.json() as {
+      id?: string; status?: string; approve?: boolean; mergePr?: boolean; prNumber?: number
+    }
     if (!id) return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
 
     const supabase = createAdminClient({ noStore: true })
 
     if (approve) return await approveForAutofix(supabase, id)
+    if (shouldMergePr) return await mergeFeedbackPr(prNumber)
 
     if (!status) return NextResponse.json({ error: 'status が必要です' }, { status: 400 })
     if (!['new', 'triaged', 'done', 'wontfix'].includes(status)) {
@@ -68,35 +94,13 @@ async function approveForAutofix(
     return NextResponse.json({ error: 'GitHub Issue が未作成のため承認できません' }, { status: 400 })
   }
 
-  const token = process.env.GITHUB_TOKEN
-  const repo  = process.env.GITHUB_REPO || 'to4fu321-lab/line-wait-system-'
-  if (!token) return NextResponse.json({ error: 'GITHUB_TOKEN が未設定です' }, { status: 500 })
+  const config = getGithubConfig()
+  if (!config) return NextResponse.json({ error: 'GITHUB_TOKEN が未設定です' }, { status: 500 })
 
-  const label = 'approved-for-autofix'
-  const headers = {
-    'Authorization': `Bearer ${token}`,
-    'Accept': 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28',
-    'Content-Type': 'application/json',
-    'User-Agent': 'line-wait-system-feedback',
-  }
-
-  let labelRes = await fetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}/labels`, {
-    method: 'POST', headers, body: JSON.stringify({ labels: [label] }),
-  })
-  if (labelRes.status === 404) {
-    // ラベル自体が未作成の場合は作成してから再試行する
-    await fetch(`https://api.github.com/repos/${repo}/labels`, {
-      method: 'POST', headers, body: JSON.stringify({ name: label, color: '1a7f37', description: '承認済み・自動実装対象' }),
-    })
-    labelRes = await fetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}/labels`, {
-      method: 'POST', headers, body: JSON.stringify({ labels: [label] }),
-    })
-  }
-  if (!labelRes.ok) {
-    const detail = await labelRes.text().catch(() => '')
-    console.error(`[feedback/approve] GitHub ラベル付与に失敗しました (status=${labelRes.status}): ${detail}`)
-    return NextResponse.json({ error: `GitHub ラベル付与に失敗しました: ${detail}` }, { status: 502 })
+  const labelResult = await addLabel(config, issueNumber, 'approved-for-autofix')
+  if (!labelResult.ok) {
+    console.error(`[feedback/approve] ${labelResult.error}`)
+    return NextResponse.json({ error: labelResult.error }, { status: 502 })
   }
 
   const { error: updateError } = await supabase
@@ -105,5 +109,20 @@ async function approveForAutofix(
     .eq('id', id)
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
 
+  return NextResponse.json({ ok: true })
+}
+
+// PRマージ: 自動実装フローが作成したPR（dev宛）をマージする。本番（main）反映は別エンドポイント。
+async function mergeFeedbackPr(prNumber?: number): Promise<NextResponse> {
+  if (!prNumber) return NextResponse.json({ error: 'prNumber が必要です' }, { status: 400 })
+
+  const config = getGithubConfig()
+  if (!config) return NextResponse.json({ error: 'GITHUB_TOKEN が未設定です' }, { status: 500 })
+
+  const result = await mergePr(config, prNumber)
+  if (!result.ok) {
+    console.error(`[feedback/merge-pr] ${result.error}`)
+    return NextResponse.json({ error: result.error }, { status: 502 })
+  }
   return NextResponse.json({ ok: true })
 }
