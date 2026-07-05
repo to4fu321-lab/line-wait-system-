@@ -1,14 +1,15 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { fetchQueueState, fetchTakeoutState } from '@/lib/customerApi'
 
 // ──────────────────────────────────────────────
 // EC風 進捗トラッキングページ
 //   /[storeId]/progress?order=<takeoutOrderId>   … テイクアウト注文
 //   /[storeId]/progress?queue=<queueId>          … 整理券（呼び出し）
-// LINE通知の「進捗を見る」ボタンから開く。Supabase Realtime で自動更新。
+// LINE通知の「進捗を見る」ボタンから開く。ポーリングで自動更新。
 // ──────────────────────────────────────────────
 
 type StepState = 'done' | 'current' | 'todo'
@@ -59,85 +60,50 @@ function ProgressContent() {
   const [loading, setLoading]       = useState(true)
   const [notFound, setNotFound]     = useState(false)
 
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
-
   const isTakeout = !!orderId
   const steps = isTakeout ? TAKEOUT_STEPS : QUEUE_STEPS
 
-  // 整理券の待ち組数を計算
-  const loadQueuePosition = useCallback(async (ticketNumber: number) => {
-    const { count } = await supabase
-      .from('queues')
-      .select('id', { count: 'exact', head: true })
-      .eq('store_id', storeId)
-      .eq('status', 'waiting')
-      .lt('ticket_number', ticketNumber)
-    setPosition(count ?? 0)
-  }, [storeId])
-
-  // 初期ロード
-  const load = useCallback(async () => {
-    setLoading(true)
+  // 初期ロード + ポーリング更新
+  // (queues / takeout_orders は RLS でクライアント直読み不可のため API 経由)
+  const load = useCallback(async (initial = false) => {
+    if (initial) setLoading(true)
     try {
-      const { data: store } = await supabase.from('stores').select('name').eq('id', storeId).single()
-      setStoreName((store as { name?: string } | null)?.name ?? '')
+      if (initial) {
+        const { data: store } = await supabase.from('stores').select('name').eq('id', storeId).single()
+        setStoreName((store as { name?: string } | null)?.name ?? '')
+      }
 
       if (orderId) {
-        const { data } = await supabase
-          .from('takeout_orders')
-          .select('*, items:takeout_order_items(name, quantity)')
-          .eq('id', orderId)
-          .single()
-        if (!data) { setNotFound(true); return }
-        const o = data as any
-        setStatus(o.status)
-        setOrderNum(o.order_number ?? '')
-        setCustomer(o.customer_name ?? '')
-        setItems((o.items ?? []).map((i: any) => ({ name: i.name, quantity: i.quantity })))
+        const { order } = await fetchTakeoutState(storeId, orderId)
+        if (!order) { setNotFound(true); return }
+        setStatus(order.status)
+        setOrderNum(order.order_number ?? '')
+        setCustomer(order.customer_name ?? '')
+        setItems((order.items ?? []).map((i: any) => ({ name: i.name, quantity: i.quantity })))
       } else if (queueId) {
-        const { data } = await supabase
-          .from('queues')
-          .select('ticket_number, customer_name, status')
-          .eq('id', queueId)
-          .single()
-        if (!data) { setNotFound(true); return }
-        const q = data as any
-        setStatus(q.status)
-        setOrderNum(String(q.ticket_number).padStart(3, '0'))
-        setCustomer(q.customer_name ?? '')
-        if (q.status === 'waiting') await loadQueuePosition(q.ticket_number)
+        const { ticket, waitingAhead } = await fetchQueueState(storeId, queueId)
+        if (!ticket) { setNotFound(true); return }
+        setStatus(ticket.status)
+        setOrderNum(String(ticket.ticket_number).padStart(3, '0'))
+        setCustomer(ticket.customer_name ?? '')
+        setPosition(ticket.status === 'waiting' ? (waitingAhead ?? 0) : null)
       } else {
         setNotFound(true)
       }
+    } catch {
+      if (initial) setNotFound(true)
     } finally {
-      setLoading(false)
+      if (initial) setLoading(false)
     }
-  }, [storeId, orderId, queueId, loadQueuePosition])
+  }, [storeId, orderId, queueId])
 
-  // Realtime購読
+  // ポーリング更新(Realtime は anon から購読不可)
   useEffect(() => {
-    load()
-    const table  = orderId ? 'takeout_orders' : 'queues'
-    const rowId  = orderId || queueId
-    if (!rowId) return
-    if (channelRef.current) supabase.removeChannel(channelRef.current)
-    channelRef.current = supabase
-      .channel(`progress-${table}-${rowId}`)
-      .on('postgres_changes',
-        { event: 'UPDATE', schema: 'public', table, filter: `id=eq.${rowId}` },
-        (payload: any) => {
-          const row = payload.new
-          setStatus(row.status)
-          if (orderId && row.order_number) setOrderNum(row.order_number)
-          if (queueId && row.ticket_number != null) {
-            setOrderNum(String(row.ticket_number).padStart(3, '0'))
-            if (row.status === 'waiting') loadQueuePosition(row.ticket_number)
-            else setPosition(null)
-          }
-        })
-      .subscribe()
-    return () => { channelRef.current && supabase.removeChannel(channelRef.current) }
-  }, [load, orderId, queueId, loadQueuePosition])
+    load(true)
+    if (!(orderId || queueId)) return
+    const pollId = setInterval(() => load(false), 10000)
+    return () => clearInterval(pollId)
+  }, [load, orderId, queueId])
 
   const currentIdx = steps.findIndex(s => s.key === status)
   const cancelled = status === 'cancelled'

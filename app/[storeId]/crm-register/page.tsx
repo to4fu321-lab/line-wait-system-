@@ -5,10 +5,10 @@ import { useParams, useRouter } from 'next/navigation'
 import { Loader2, CheckCircle2, MessageCircle, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { initLiff, getLineProfile, openAddFriend } from '@/lib/liff'
+import { fetchCustomerSession, saveCustomer } from '@/lib/customerApi'
 import { resolveFeature } from '@/lib/features'
 import { useStoreTheme } from '@/lib/theme-context'
 import { InitialRegistrationForm, SimpleRegistrationForm } from '@/app/_components/RegistrationForms'
-import type { Customer } from '@/types/crm'
 
 type View = 'loading' | 'add_friend' | 'new_form' | 'done' | 'not_line'
 
@@ -38,15 +38,9 @@ export default function CrmRegisterPage() {
 
   // 既存顧客なら本体ページ（メニュー）へ委譲する。crm-register は
   // 「新規QRからの会員登録」専用に絞る。
-  const routeAfterIdentity = async (userId: string) => {
-    const { data: existing } = await (supabase as any)
-      .from('customers')
-      .select('id, deleted_at')
-      .eq('store_id', storeId)
-      .eq('line_user_id', userId)
-      .order('created_at', { ascending: true })
-    const alive = (existing ?? []).filter((c: { deleted_at: string | null }) => !c.deleted_at)
-    if (alive.length > 0) { router.replace(`/${storeId}`); return }
+  const routeAfterIdentity = async () => {
+    const { customer } = await fetchCustomerSession(storeId)
+    if (customer) { router.replace(`/${storeId}`); return }
     setView('new_form')
   }
 
@@ -86,7 +80,7 @@ export default function CrmRegisterPage() {
         const { friend } = await res.json()
         if (!friend) { setView('add_friend'); return }
 
-        await routeAfterIdentity(profile.userId)
+        await routeAfterIdentity()
       } catch {
         setView('not_line')
       }
@@ -101,7 +95,7 @@ export default function CrmRegisterPage() {
       const res = await fetch(`/api/check-friend?userId=${lineUserId}`)
       const { friend } = await res.json()
       if (friend) {
-        await routeAfterIdentity(lineUserId)
+        await routeAfterIdentity()
       } else {
         setFriendFailed(true)
       }
@@ -137,32 +131,13 @@ export default function CrmRegisterPage() {
     if (!userId || saving) return
     setSaving(true)
     try {
-      const { data: existingRows } = await (supabase as any).from('customers')
-        .select('*').eq('store_id', storeId).eq('line_user_id', userId)
-        .order('created_at', { ascending: false }).limit(1)
-      const existing = existingRows?.[0] ? existingRows[0] : null
-
-      let cust: Customer
-      if (existing) {
-        const { data: updated, error } = await (supabase as any).from('customers').update({
-          name: d.parentName, kana: d.parentKana || null, tel: d.tel || null, deleted_at: null,
-        }).eq('id', existing.id).select().single()
-        if (error) throw new Error(error.message)
-        cust = (updated ?? existing) as Customer
-      } else {
-        const { data: newCust, error } = await (supabase as any).from('customers').insert({
-          store_id: storeId, line_user_id: userId,
-          name: d.parentName, kana: d.parentKana || null, tel: d.tel || null,
-        }).select().single()
-        if (error) throw new Error(error.message)
-        cust = newCust as Customer
-      }
-
-      await (supabase as any).from('children').insert({
-        customer_id: cust.id, store_id: storeId,
-        name: d.childName, kana: d.childKana || null,
-        school_id: d.schoolId || null, school_name: d.schoolName || null,
-        grade: d.grade || null, gender: d.gender || null,
+      await saveCustomer(storeId, {
+        customer: { name: d.parentName, kana: d.parentKana || null, tel: d.tel || null },
+        childInsert: {
+          name: d.childName, kana: d.childKana || null,
+          school_id: d.schoolId || null, school_name: d.schoolName || null,
+          grade: d.grade || null, gender: d.gender || null,
+        },
       })
 
       notifyRegistered(d.parentName, d.schoolName || undefined)
@@ -184,18 +159,9 @@ export default function CrmRegisterPage() {
     if (!userId || saving) return
     setSaving(true)
     try {
-      const { data: existingRows } = await (supabase as any).from('customers')
-        .select('*').eq('store_id', storeId).eq('line_user_id', userId)
-        .order('created_at', { ascending: false }).limit(1)
-      const existing = existingRows?.[0] ? existingRows[0] : null
-      if (existing) {
-        await (supabase as any).from('customers')
-          .update({ name: d.name, tel: d.tel || null, deleted_at: null }).eq('id', existing.id)
-      } else {
-        await (supabase as any).from('customers').insert({
-          store_id: storeId, line_user_id: userId, name: d.name, tel: d.tel || null,
-        })
-      }
+      await saveCustomer(storeId, {
+        customer: { name: d.name, tel: d.tel || null },
+      })
       notifyRegistered(d.name)
       setDoneName(d.name)
       setSaving(false)

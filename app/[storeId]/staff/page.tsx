@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { CalendarCheck, MessageCircle, HandHelping, LogOut, Loader2, Clock, FilePlus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { hasStaffSession, clearStaffSession } from '@/lib/staffSessionClient'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { Toast } from '@/app/_components/Toast'
 import { MessageThread } from '../admin/shifts/_components/MessageThread'
@@ -45,13 +46,19 @@ export default function StaffPortal() {
 
   useEffect(() => {
     if (!storeId) return
-    sb.from('stores').select('name').eq('id', storeId).single().then(({ data }: any) => setStoreName(data?.name ?? '店舗'))
-    try { const raw = sessionStorage.getItem(sessKey); if (raw) setSession(JSON.parse(raw)) } catch {}
-    setReady(true)
+    ;(async () => {
+      sb.from('stores').select('name').eq('id', storeId).single().then(({ data }: any) => setStoreName(data?.name ?? '店舗'))
+      try {
+        const raw = sessionStorage.getItem(sessKey)
+        // Supabase Auth セッション(RLS通過に必須)が生きている場合のみ復元
+        if (raw && await hasStaffSession(storeId)) setSession(JSON.parse(raw))
+      } catch {}
+      setReady(true)
+    })()
   }, [storeId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const onAuth = (staff: StaffSession) => { setSession(staff); try { sessionStorage.setItem(sessKey, JSON.stringify(staff)) } catch {} }
-  const logout = () => { setSession(null); try { sessionStorage.removeItem(sessKey) } catch {} }
+  const logout = () => { setSession(null); try { sessionStorage.removeItem(sessKey) } catch {}; clearStaffSession() }
 
   if (!ready || !loaded) return <div className="min-h-[100dvh] grid place-items-center"><Loader2 className="animate-spin text-indigo-300" /></div>
 

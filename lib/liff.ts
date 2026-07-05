@@ -85,6 +85,21 @@ export async function getLineProfile(): Promise<LiffProfile | null> {
   }
 }
 
+/**
+ * LIFF アクセストークンを取得(サーバーAPIでの本人検証用)。
+ * LIFF 外・未ログイン時は null。
+ */
+export async function getLineAccessToken(): Promise<string | null> {
+  const liff = await initLiff()
+  if (!liff) return null
+  try {
+    if (!liff.isLoggedIn()) return null
+    return liff.getAccessToken()
+  } catch {
+    return null
+  }
+}
+
 /** LINE内ブラウザ（LIFFクライアント含む）で開かれているか */
 export function isInLineApp(): boolean {
   if (liffInstance) {

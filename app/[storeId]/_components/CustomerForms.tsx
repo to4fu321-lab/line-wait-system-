@@ -8,8 +8,9 @@
 //   - WaitingFirstChildForm: 待ち中の保護者＋お子様一括登録
 // ============================================================
 import { useState } from 'react'
+import { useParams } from 'next/navigation'
 import { AlertCircle, Loader2 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { saveCustomer, ticketAction } from '@/lib/customerApi'
 import type { Customer, Child } from '@/types/crm'
 import { GRADE_OPTIONS, SCHOOL_OPTIONS } from '@/types/crm'
 import { useStoreTheme } from '@/lib/theme-context'
@@ -148,6 +149,8 @@ export function WaitingCustomerEditForm({
   onClose: () => void
 }) {
   const theme = useStoreTheme()
+  const params = useParams<{ storeId: string }>()
+  const storeId = params?.storeId ?? ''
   const [name,       setName]       = useState(customer.name)
   const [kana,       setKana]       = useState(customer.kana ?? '')
   const [tel,        setTel]        = useState(customer.tel ?? '')
@@ -165,19 +168,21 @@ export function WaitingCustomerEditForm({
   const handleSave = async () => {
     if (!name.trim()) return
     setSaving(true)
-    const [custResult, childResult] = await Promise.all([
-      ((supabase as any).from('customers') as any)
-        .update({ name: name.trim(), kana: kana.trim() || null, tel: tel.trim() || null })
-        .eq('id', customer.id).select().single(),
-      selectedChild
-        ? ((supabase as any).from('children') as any)
-            .update({ name: childName.trim() || selectedChild.name, kana: childKana.trim() || null, school_name: schoolName.trim() || null, grade: grade || null })
-            .eq('id', selectedChild.id).select().single()
-        : Promise.resolve({ data: null, error: null }),
-    ])
+    try {
+      const { customer: updatedCust, child: updatedChild } = await saveCustomer(storeId, {
+        customer: { name: name.trim(), kana: kana.trim() || null, tel: tel.trim() || null },
+        ...(selectedChild ? {
+          childUpdate: {
+            id: selectedChild.id,
+            name: childName.trim() || selectedChild.name, kana: childKana.trim() || null,
+            school_name: schoolName.trim() || null, grade: grade || null,
+          },
+        } : {}),
+      })
+      if (updatedCust) onSaved(updatedCust as Customer)
+      if (updatedChild && onChildSaved) onChildSaved(updatedChild as Child)
+    } catch { /* 保存失敗時はそのまま閉じる(再編集可能) */ }
     setSaving(false)
-    if (!custResult.error && custResult.data) onSaved(custResult.data as Customer)
-    if (!childResult.error && childResult.data && onChildSaved) onChildSaved(childResult.data as Child)
     onClose()
   }
 
@@ -248,6 +253,8 @@ export function ChildEditInline({ child, schools, gradeOptions, onSaved, onClose
   onClose: () => void
 }) {
   const theme = useStoreTheme()
+  const params = useParams<{ storeId: string }>()
+  const storeId = params?.storeId ?? ''
   const [name,     setName]     = useState(child.name)
   const [schoolId, setSchoolId] = useState(
     child.school_id ?? schools.find(s => s.name === child.school_name)?.id ?? ''
@@ -261,11 +268,19 @@ export function ChildEditInline({ child, schools, gradeOptions, onSaved, onClose
     if (!name.trim()) return
     setSaving(true)
     const school = schools.find(s => s.id === schoolId)
-    const { data, error } = await ((supabase as any).from('children') as any)
-      .update({ name: name.trim(), school_id: school?.id ?? null, school_name: school?.name ?? null, grade: grade || null, gender: gender || null })
-      .eq('id', child.id).select().single()
-    setSaving(false)
-    if (!error && data) { onSaved(data as Child); onClose() }
+    try {
+      const { child: updated } = await saveCustomer(storeId, {
+        childUpdate: {
+          id: child.id,
+          name: name.trim(), school_id: school?.id ?? null, school_name: school?.name ?? null,
+          grade: grade || null, gender: gender || null,
+        },
+      })
+      setSaving(false)
+      if (updated) { onSaved(updated as Child); onClose() }
+    } catch {
+      setSaving(false)
+    }
   }
 
   return (
@@ -352,34 +367,27 @@ export function WaitingFirstChildForm({
     if (!gender)              { setError('性別を選択してください'); return }
     setSaving(true); setError('')
     try {
-      const [custResult, childResult] = await Promise.all([
-        ((supabase as any).from('customers') as any)
-          .update({ name: parent.name.trim(), kana: parent.kana.trim() || null, tel: tel.trim() || null })
-          .eq('id', customer.id).select().single(),
-        (supabase as any).from('children').insert({
-          customer_id: customer.id, store_id: storeId,
+      const { customer: updatedCust, child: newChild } = await saveCustomer(storeId, {
+        customer: { name: parent.name.trim(), kana: parent.kana.trim() || null, tel: tel.trim() || null },
+        childInsert: {
           name: child.name.trim(), kana: child.kana.trim() || null,
           school_id: resolvedSchoolId || null, school_name: resolvedSchoolName.trim() || null,
           grade: grade || null, gender: gender || null,
-        }).select().single(),
-      ])
-      if (custResult.error) throw new Error(custResult.error.message)
-      if (childResult.error) throw new Error(childResult.error.message)
-      const updatedCust = custResult.data as Customer
-      const newChild    = childResult.data as Child
+        },
+      })
+      if (!updatedCust || !newChild) throw new Error('保存に失敗しました')
       if (ticketId) {
-        const qUpdate: Record<string, unknown> = {
+        await ticketAction(storeId, ticketId, 'set_info', {
           customer_name: parent.name.trim(),
-          customer_id:   customer.id,
+          customer_id:   (updatedCust as Customer).id,
           child_name:    child.name.trim() || null,
-          child_id:      newChild.id,
+          child_id:      (newChild as Child).id,
           school_name:   resolvedSchoolName.trim() || null,
           gender:        gender || null,
-        }
-        if (heightCm) qUpdate.details = { height: heightCm, ...(weightKg ? { weight: weightKg } : {}) }
-        await (supabase as any).from('queues').update(qUpdate).eq('id', ticketId)
+          ...(heightCm ? { details: { height: heightCm, ...(weightKg ? { weight: weightKg } : {}) } } : {}),
+        })
       }
-      onSaved(updatedCust, newChild)
+      onSaved(updatedCust as Customer, newChild as Child)
     } catch (e) {
       setError(e instanceof Error ? e.message : '保存に失敗しました')
     }

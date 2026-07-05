@@ -15,6 +15,8 @@ import StarBurst           from './_components/StarBurst'
 import CustomerSearchModal from './_components/CustomerSearchModal'
 import { getLiffId } from '@/lib/line-config'
 import { getTodayStart } from '@/lib/date'
+import { PinScreen, verifyStorePinApi } from '@/app/_components/PinScreen'
+import { hasStaffSession } from '@/lib/staffSessionClient'
 
 // ── QRコードモーダル ──────────────────────────────────────────
 function QRModal({ storeId, storeName, onClose }: { storeId: string; storeName: string; onClose: () => void }) {
@@ -120,9 +122,33 @@ function sortOrders(orders: TakeoutOrder[], targetMinutes: number): TakeoutOrder
 }
 
 
+// ── PIN認証ゲート ─────────────────────────────────────────────
+// キッチン画面は注文の読み書きを行うためスタッフセッション必須。
+// 管理画面ログイン済み(同一店舗)ならそのまま通す。
 export default function KitchenPage({ params }: { params: { storeId: string } }) {
   const { storeId } = params
+  const [gateLoaded, setGateLoaded] = useState(false)
+  const [authed,     setAuthed]     = useState(false)
+  const [gateName,   setGateName]   = useState('')
 
+  useEffect(() => {
+    ;(async () => {
+      const { data } = await (supabase as any).from('stores').select('name').eq('id', storeId).single()
+      if (data?.name) setGateName(data.name)
+      if (await hasStaffSession(storeId)) setAuthed(true)
+      setGateLoaded(true)
+    })()
+  }, [storeId])
+
+  if (!gateLoaded) return <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-400">読み込み中...</div>
+  if (!authed) return (
+    <PinScreen title="キッチンモニター" emoji="🍳" subtitle={gateName}
+      verify={pin => verifyStorePinApi(storeId, pin)} onAuth={() => setAuthed(true)} />
+  )
+  return <KitchenInner storeId={storeId} />
+}
+
+function KitchenInner({ storeId }: { storeId: string }) {
   const [orders,     setOrders]     = useState<TakeoutOrder[]>([])
   const [settings,   setSettings]   = useState<TakeoutSettings>({})
   const [menus,      setMenus]      = useState<Menu[]>([])

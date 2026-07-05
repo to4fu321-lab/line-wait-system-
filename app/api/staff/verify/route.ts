@@ -2,11 +2,13 @@ export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabaseAdmin'
+import { createStaffSession } from '@/lib/auth/staffSession'
 
 // ============================================================
 // スタッフPIN照合(スタッフportalログイン)
 //   クライアントで eq('pin',...) を晒さず、service-role で照合。
-//   一致時のみ最小限のスタッフ情報を返す。
+//   一致時のみ最小限のスタッフ情報 + 店舗スコープの Supabase Auth
+//   セッションを返す(以後のシフト読み書きは authenticated RLS)。
 // ============================================================
 
 export async function POST(req: Request) {
@@ -31,6 +33,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'PINが違います' }, { status: 401 })
     }
 
+    const session = await createStaffSession(String(storeId))
+    if (!session) {
+      return NextResponse.json({ error: 'セッションの発行に失敗しました' }, { status: 500 })
+    }
+
     return NextResponse.json({
       staff: {
         id:    (staff as any).id,
@@ -40,6 +47,7 @@ export async function POST(req: Request) {
         color: (staff as any).color,
         store_id: (staff as any).store_id,
       },
+      session,
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

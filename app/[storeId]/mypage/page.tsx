@@ -13,7 +13,8 @@ import {
   RefreshCw, GraduationCap, Ruler, Edit2, X,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { initLiff, getLineProfile } from '@/lib/liff'
+import { initLiff } from '@/lib/liff'
+import { fetchMypage, saveCustomer } from '@/lib/customerApi'
 import type { Customer, Child, PurchaseOrder, RepairHistory } from '@/types/crm'
 import {
   PURCHASE_STATUS_LABELS, PURCHASE_STATUS_COLORS,
@@ -72,85 +73,40 @@ export default function MyPage() {
         .single()
       if (storeData) setStore(storeData)
 
-      // LIFF初期化 + LINE profile取得
+      // LIFF初期化 + マイページデータ一式(本人確認はサーバー側)
       await initLiff()
-      const profile = await getLineProfile()
-      if (!profile?.userId) {
+      let payload
+      try {
+        payload = await fetchMypage(storeId)
+      } catch {
         router.replace(`/${storeId}`)
         return
       }
-
-      // 顧客レコード取得
-      const { data: custRows } = await (supabase as any)
-        .from('customers')
-        .select('*')
-        .eq('store_id', storeId)
-        .eq('line_user_id', profile.userId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-      const cust = custRows?.[0] && !custRows[0].deleted_at ? custRows[0] : null
-      if (!cust) {
+      if (!payload.customer) {
         router.replace(`/${storeId}`)
         return
       }
-      setCustomer(cust)
+      setCustomer(payload.customer)
 
-      // お子様・注文・お直しを並列取得
-      const [childRes, purchaseRes, repairRes] = await Promise.all([
-        (supabase as any)
-          .from('children')
-          .select('*')
-          .eq('customer_id', cust.id)
-          .order('created_at', { ascending: true }),
-
-        (supabase as any)
-          .from('purchase_orders')
-          .select('*')
-          .eq('customer_id', cust.id)
-          .eq('store_id', storeId)
-          .order('created_at', { ascending: false })
-          .limit(20),
-
-        (supabase as any)
-          .from('repair_histories')
-          .select('*')
-          .eq('customer_id', cust.id)
-          .eq('store_id', storeId)
-          .order('created_at', { ascending: false })
-          .limit(20),
-      ])
-
-      const kids: Child[] = childRes.data ?? []
+      const kids: Child[] = (payload.children ?? []) as Child[]
       setChildren(kids)
-      setPurchases(purchaseRes.data ?? [])
-      setRepairs(repairRes.data ?? [])
+      setPurchases((payload.purchases ?? []) as PurchaseOrder[])
+      setRepairs((payload.repairs ?? []) as RepairHistory[])
 
-      // 採寸記録: 各お子様の身長・体重履歴をqueuesから取得
-      if (kids.length > 0) {
-        try {
-          const { data: queueRows } = await (supabase as any)
-            .from('queues')
-            .select('child_id, created_at, details')
-            .in('child_id', kids.map((c: Child) => c.id))
-            .not('details', 'is', null)
-            .order('created_at', { ascending: false })
-            .limit(50)
-
-          const byChild: Record<string, { height: string; weight?: string; date: string }[]> = {}
-          for (const q of (queueRows ?? [])) {
-            if (!q.child_id || !q.details?.height) continue
-            if (!byChild[q.child_id]) byChild[q.child_id] = []
-            if (byChild[q.child_id].length < 5) {
-              byChild[q.child_id].push({
-                height: q.details.height,
-                weight: q.details.weight,
-                date: q.created_at,
-              })
-            }
-          }
-          setMeasurementsByChild(byChild)
-        } catch { /* サイズ履歴は任意 */ }
+      // 採寸記録: 各お子様の身長・体重履歴(queues details 由来)
+      const byChild: Record<string, { height: string; weight?: string; date: string }[]> = {}
+      for (const q of (payload.queueMeasurements ?? [])) {
+        if (!q.child_id || !q.details?.height) continue
+        if (!byChild[q.child_id]) byChild[q.child_id] = []
+        if (byChild[q.child_id].length < 5) {
+          byChild[q.child_id].push({
+            height: q.details.height,
+            weight: q.details.weight,
+            date: q.created_at,
+          })
+        }
       }
+      setMeasurementsByChild(byChild)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'データの取得に失敗しました')
     }
@@ -180,12 +136,7 @@ export default function MyPage() {
         grade:          editForm.grade || null,
         admission_year: editForm.admission_year ? parseInt(editForm.admission_year) : null,
       }
-      const { error } = await (supabase as any)
-        .from('children')
-        .update(updates)
-        .eq('id', editingChild.id)
-        .eq('customer_id', customer.id)
-      if (error) throw error
+      await saveCustomer(storeId, { childUpdate: { id: editingChild.id, ...updates } })
       setChildren(prev => prev.map(c => c.id === editingChild.id ? { ...c, ...updates } : c))
       setEditingChild(null)
     } catch (e) {
