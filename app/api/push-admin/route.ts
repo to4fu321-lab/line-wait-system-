@@ -1,18 +1,15 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import webpush from 'web-push'
+import { webpush, setupWebPush } from '@/lib/webPushSetup'
 import { supabase } from '@/lib/supabase'
 
 // 秘密鍵はコードに埋め込まない（必ず env で設定する。漏洩時はローテーション）
-const VAPID_PUBLIC  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
-const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY            || ''
-const vapidReady = !!(VAPID_PUBLIC && VAPID_PRIVATE)
-if (vapidReady) {
-  webpush.setVapidDetails('mailto:to4fu321@gmail.com', VAPID_PUBLIC, VAPID_PRIVATE)
-} else {
-  console.warn('[push-admin] VAPID キーが未設定のためブラウザプッシュ通知は無効です')
-}
+const vapidReady = setupWebPush(
+  'mailto:to4fu321@gmail.com',
+  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '',
+  process.env.VAPID_PRIVATE_KEY || '',
+)
 
 type PushType = 'queue_new' | 'purchase_new'
 
