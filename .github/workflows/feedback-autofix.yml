@@ -40,6 +40,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: dev
           fetch-depth: 0
 
       - name: Claude implement approved fix
@@ -51,6 +52,8 @@ jobs:
             あなたはこのリポジトリ（Next.js 14 / Supabase / Tailwind）の保守担当です。
             対象 Issue: #${{ github.event.issue.number || github.event.inputs.issue_number }}
             このIssueは運用者が「自動実装してよい」と承認済みです。
+            作業ブランチは `dev` からチェックアウト済みです。PRは必ず `dev` をベースに作成してください
+            （`main` への反映はスーパー管理画面から別途行うため、ここでは触れない）。
 
             手順:
             1. `gh issue view ${{ github.event.issue.number || github.event.inputs.issue_number }}` で内容を読む。
@@ -60,9 +63,10 @@ jobs:
             2. 対応方針を決める:
                - 【質問】コードに関係しない質問 → Issue にていねいに日本語で回答コメントし、`question` ラベルで完了。PRは作らない。
                - 【軽微で安全な修正】文言・ラベル・色・小さなUI不具合・明確な小バグなど、影響範囲が狭く自明なもの
-                 → 新しいブランチ `auto/feedback-${{ github.event.issue.number || github.event.inputs.issue_number }}` を作成し、
-                   最小限の変更を実装。可能なら `npm run build` で確認。`Closes #<番号>` を含む PR を作成。
-                   既存のコード規約・周辺の書き方に合わせること。
+                 → `dev` から新しいブランチ `auto/feedback-${{ github.event.issue.number || github.event.inputs.issue_number }}` を作成し、
+                   最小限の変更を実装。可能なら `npm run build` で確認。
+                   `gh pr create --base dev --head auto/feedback-<番号> ...` で `dev` 宛の PR を作成し、
+                   本文に `Closes #<番号>` を含める。既存のコード規約・周辺の書き方に合わせること。
                - 【判断・設計が必要 / 影響が広い / 不明確】承認されていても実装が危険と判断した場合
                  → コードは変更せず、Issue に「なぜ自動実装を見送ったか・対応案・必要な確認事項」を
                    日本語でコメントし、`needs-decision` ラベルを付けて終了。運用者の承認より安全側の判断を優先する。

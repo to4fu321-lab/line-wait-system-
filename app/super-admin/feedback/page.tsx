@@ -1,8 +1,16 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Loader2, RefreshCw, MessageSquare, ExternalLink, Sparkles, CheckCircle2 } from 'lucide-react'
+import { Loader2, RefreshCw, MessageSquare, ExternalLink, Sparkles, CheckCircle2, GitPullRequest, Rocket } from 'lucide-react'
 import { PinScreen, verifySuperAdminPin } from '@/app/_components/PinScreen'
+
+interface FeedbackPr {
+  number: number
+  html_url: string
+  state: 'open' | 'closed'
+  merged: boolean
+  title: string
+}
 
 interface Feedback {
   id: string
@@ -21,6 +29,7 @@ interface Feedback {
   ai_implementable: boolean | null
   approved_at: string | null
   created_at: string
+  pr: FeedbackPr | null
 }
 
 const KIND_META: Record<string, { label: string; cls: string }> = {
@@ -49,6 +58,9 @@ export default function FeedbackAdminPage() {
   const [loading, setLoading] = useState(false)
   const [filter, setFilter]   = useState<string>('all')
   const [approving, setApproving] = useState<string | null>(null)
+  const [mergingPr, setMergingPr] = useState<number | null>(null)
+  const [deployInfo, setDeployInfo] = useState<{ aheadBy: number } | null>(null)
+  const [deploying, setDeploying] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -57,6 +69,11 @@ export default function FeedbackAdminPage() {
     const json = await res.json()
     if (res.ok) { setRows(json.feedback ?? []); setAuthed(true) }
     setChecked(true); setLoading(false)
+
+    fetch('/api/super-admin/deploy', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setDeployInfo({ aheadBy: d.aheadBy }) })
+      .catch(() => {})
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -84,6 +101,37 @@ export default function FeedbackAdminPage() {
     setApproving(null)
   }
 
+  const mergePr = async (feedbackId: string, prNumber: number) => {
+    if (!confirm(`PR #${prNumber} を dev へマージします。よろしいですか？`)) return
+    setMergingPr(prNumber)
+    const res = await fetch('/api/super-admin/feedback', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: feedbackId, mergePr: true, prNumber }),
+    })
+    if (res.ok) {
+      setRows(rs => rs.map(r => r.id === feedbackId && r.pr ? { ...r, pr: { ...r.pr, merged: true, state: 'closed' } } : r))
+      fetch('/api/super-admin/deploy', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (d) setDeployInfo({ aheadBy: d.aheadBy }) }).catch(() => {})
+    } else {
+      const json = await res.json().catch(() => ({}))
+      alert(json.error ?? 'PRマージに失敗しました')
+    }
+    setMergingPr(null)
+  }
+
+  const deployToMain = async () => {
+    if (!confirm('dev の内容を本番（main）へ反映します。よろしいですか？')) return
+    setDeploying(true)
+    const res = await fetch('/api/super-admin/deploy', { method: 'POST' })
+    if (res.ok) {
+      setDeployInfo({ aheadBy: 0 })
+      alert('本番へ反映しました。Vercelのデプロイ完了までしばらくお待ちください。')
+    } else {
+      const json = await res.json().catch(() => ({}))
+      alert(json.error ?? '本番反映に失敗しました')
+    }
+    setDeploying(false)
+  }
+
   if (!checked) {
     return <div className="min-h-screen bg-gray-900 flex items-center justify-center"><Loader2 size={32} className="animate-spin text-gray-500" /></div>
   }
@@ -100,11 +148,20 @@ export default function FeedbackAdminPage() {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="sticky top-0 z-20 bg-gray-900/90 backdrop-blur border-b border-white/10 px-4 py-3">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
+        <div className="max-w-2xl mx-auto flex items-center justify-between gap-2">
           <h1 className="font-black text-base flex items-center gap-2"><MessageSquare size={18} /> フィードバック</h1>
-          <button onClick={load} disabled={loading} className="p-2 rounded-xl bg-gray-800 active:scale-90 transition disabled:opacity-50">
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-          </button>
+          <div className="flex items-center gap-2">
+            {deployInfo && deployInfo.aheadBy > 0 && (
+              <button onClick={deployToMain} disabled={deploying}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50">
+                {deploying ? <Loader2 size={14} className="animate-spin" /> : <Rocket size={14} />}
+                本番へ反映（dev +{deployInfo.aheadBy}）
+              </button>
+            )}
+            <button onClick={load} disabled={loading} className="p-2 rounded-xl bg-gray-800 active:scale-90 transition disabled:opacity-50">
+              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -160,9 +217,36 @@ export default function FeedbackAdminPage() {
                     </div>
                     <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">{f.ai_recommendation}</p>
                     {f.approved_at ? (
-                      <p className="flex items-center gap-1 text-[11px] font-bold text-emerald-400 pt-0.5">
-                        <CheckCircle2 size={12} /> 承認済み（{new Date(f.approved_at).toLocaleString('ja-JP')}）・自動実装を依頼中
-                      </p>
+                      <>
+                        <p className="flex items-center gap-1 text-[11px] font-bold text-emerald-400 pt-0.5">
+                          <CheckCircle2 size={12} /> 承認済み（{new Date(f.approved_at).toLocaleString('ja-JP')}）
+                        </p>
+                        {f.pr ? (
+                          f.pr.merged ? (
+                            <p className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
+                              <CheckCircle2 size={12} /> PR #{f.pr.number} マージ済み（dev反映済み）
+                            </p>
+                          ) : f.pr.state === 'closed' ? (
+                            <p className="flex items-center gap-1 text-[11px] font-bold text-gray-400">
+                              PR #{f.pr.number} はクローズ済み（マージされていません）
+                            </p>
+                          ) : (
+                            <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                              <a href={f.pr.html_url} target="_blank" rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-300 hover:text-indigo-200">
+                                <GitPullRequest size={12} /> PR #{f.pr.number}: {f.pr.title}
+                              </a>
+                              <button onClick={() => mergePr(f.id, f.pr!.number)} disabled={mergingPr === f.pr.number}
+                                className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 flex items-center gap-1">
+                                {mergingPr === f.pr.number ? <Loader2 size={11} className="animate-spin" /> : <GitPullRequest size={11} />}
+                                devへマージ
+                              </button>
+                            </div>
+                          )
+                        ) : (
+                          <p className="text-[11px] text-gray-500 pt-0.5">自動実装を依頼中（PRはまだ作成されていません）</p>
+                        )}
+                      </>
                     ) : (
                       <button onClick={() => approve(f.id)} disabled={approving === f.id || !f.issue_number}
                         className="mt-1 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40 flex items-center gap-1.5">
