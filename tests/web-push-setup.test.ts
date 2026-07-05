@@ -33,4 +33,18 @@ describe('setupWebPush', () => {
     const { setupWebPush } = await import('@/lib/webPushSetup')
     expect(setupWebPush('mailto:a@b.com', '', '')).toBe(false)
   })
+
+  it('前後に空白・改行が混入していても trim して受け付ける（コピペ時の混入対策）', async () => {
+    vi.resetModules()
+    const { setupWebPush } = await import('@/lib/webPushSetup')
+    expect(setupWebPush('mailto:a@b.com', `  ${validPublic}\n`, `${validPrivate}\n`)).toBe(true)
+  })
+
+  it('通常のBase64（+/=を含む）は URL-safe でないため例外を投げず false（今回の再発ケース）', async () => {
+    vi.resetModules()
+    const { setupWebPush } = await import('@/lib/webPushSetup')
+    const notUrlSafe = 'a+b/c=='
+    expect(() => setupWebPush('mailto:a@b.com', validPublic, notUrlSafe)).not.toThrow()
+    expect(setupWebPush('mailto:a@b.com', validPublic, notUrlSafe)).toBe(false)
+  })
 })
