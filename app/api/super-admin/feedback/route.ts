@@ -95,6 +95,7 @@ async function approveForAutofix(
   }
   if (!labelRes.ok) {
     const detail = await labelRes.text().catch(() => '')
+    console.error(`[feedback/approve] GitHub ラベル付与に失敗しました (status=${labelRes.status}): ${detail}`)
     return NextResponse.json({ error: `GitHub ラベル付与に失敗しました: ${detail}` }, { status: 502 })
   }
 

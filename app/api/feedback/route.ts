@@ -93,8 +93,16 @@ export async function POST(req: Request) {
           await supabase.from('feedback')
             .update({ issue_number: issue.number ?? null, issue_url: issue.html_url ?? null })
             .eq('id', feedbackId)
+        } else {
+          const detail = await res.text().catch(() => '')
+          console.error(`[feedback] GitHub Issue作成に失敗しました (status=${res.status}): ${detail}`)
         }
-      } catch { /* Issue作成失敗はフィードバック保存に影響させない */ }
+      } catch (err) {
+        // Issue作成失敗はフィードバック保存に影響させない。原因調査のためログにだけ残す。
+        console.error('[feedback] GitHub Issue作成中に例外が発生しました:', err)
+      }
+    } else {
+      console.warn('[feedback] GITHUB_TOKEN が未設定のため GitHub Issue を作成しませんでした')
     }
 
     return NextResponse.json({ ok: true, id: feedbackId })
