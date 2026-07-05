@@ -1,6 +1,6 @@
 // GitHub REST API 呼び出しの共通ヘルパー。
 // フィードバックの自動実装フロー（Issue作成・承認ラベル・PR確認・マージ・
-// devのmainへの反映）で使う最小限のラッパー。
+// 個別案件のmainへの昇格）で使う最小限のラッパー。
 
 export interface GithubConfig {
   token: string
@@ -34,10 +34,12 @@ export interface GithubPr {
 }
 
 // ブランチ名からPRを検索する（auto/feedback-<issue番号> の命名規則に依存）。
-export async function findPrByBranch(config: GithubConfig, branch: string): Promise<GithubPr | null> {
+// 同じブランチが dev 宛・main 宛の2つのPRを同時に持ちうるため、base を指定して絞り込む。
+export async function findPrByBranch(config: GithubConfig, branch: string, base?: string): Promise<GithubPr | null> {
   const owner = config.repo.split('/')[0]
+  const baseQuery = base ? `&base=${base}` : ''
   const res = await fetch(
-    `https://api.github.com/repos/${config.repo}/pulls?head=${owner}:${branch}&state=all`,
+    `https://api.github.com/repos/${config.repo}/pulls?head=${owner}:${branch}&state=all${baseQuery}`,
     { headers: headers(config.token) },
   )
   if (!res.ok) return null
@@ -56,30 +58,22 @@ export async function mergePr(config: GithubConfig, prNumber: number): Promise<{
   return { ok: false, error: `PRマージに失敗しました (status=${res.status}): ${detail}` }
 }
 
-export interface BranchCompare {
-  ahead_by: number
-  behind_by: number
-}
-
-export async function compareBranches(config: GithubConfig, base: string, head: string): Promise<BranchCompare | null> {
-  const res = await fetch(`https://api.github.com/repos/${config.repo}/compare/${base}...${head}`, {
-    headers: headers(config.token),
-  })
-  if (!res.ok) return null
-  const data = await res.json() as BranchCompare
-  return data
-}
-
-// dev を main へ反映する（fast-forward可能ならfast-forward、そうでなければmergeコミット）。
-export async function mergeBranchIntoMain(config: GithubConfig, head: string, base = 'main'): Promise<{ ok: true } | { ok: false; error: string }> {
-  const res = await fetch(`https://api.github.com/repos/${config.repo}/merges`, {
+// 承認済み・dev反映済みのfeedbackブランチを、単独でmain宛にPR化する（本番への個別昇格）。
+// dev宛PRとは独立したPRなので、devに他の案件が積まれていてもそれらは巻き込まない。
+export async function createPrToMain(config: GithubConfig, branch: string, issueNumber: number): Promise<{ ok: true; pr: GithubPr } | { ok: false; error: string }> {
+  const res = await fetch(`https://api.github.com/repos/${config.repo}/pulls`, {
     method: 'POST',
     headers: headers(config.token),
-    body: JSON.stringify({ base, head, commit_message: `merge: ${head}を${base}へ反映（スーパー管理画面から）` }),
+    body: JSON.stringify({
+      title: `本番反映: フィードバック #${issueNumber} (${branch})`,
+      head: branch,
+      base: 'main',
+      body: `\`${branch}\` の内容を dev で検証済みのまま本番(main)へ反映します。\n\nCloses #${issueNumber}`,
+    }),
   })
-  if (res.ok || res.status === 204) return { ok: true }
+  if (res.ok) return { ok: true, pr: await res.json() as GithubPr }
   const detail = await res.text().catch(() => '')
-  return { ok: false, error: `${base}への反映に失敗しました (status=${res.status}): ${detail}` }
+  return { ok: false, error: `本番PRの作成に失敗しました (status=${res.status}): ${detail}` }
 }
 
 // GITHUB_TOKEN が実際にGitHubへアクセスできるかの簡易チェック。

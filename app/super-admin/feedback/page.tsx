@@ -38,6 +38,7 @@ interface Feedback {
   approved_at: string | null
   created_at: string
   pr: FeedbackPr | null
+  prMain: FeedbackPr | null
   comments: FeedbackComment[]
 }
 
@@ -68,8 +69,7 @@ export default function FeedbackAdminPage() {
   const [filter, setFilter]   = useState<string>('all')
   const [approving, setApproving] = useState<string | null>(null)
   const [mergingPr, setMergingPr] = useState<number | null>(null)
-  const [deployInfo, setDeployInfo] = useState<{ aheadBy: number } | null>(null)
-  const [deploying, setDeploying] = useState(false)
+  const [promoting, setPromoting] = useState<string | null>(null)
   const [replyText, setReplyText] = useState<Record<string, string>>({})
   const [sendingReply, setSendingReply] = useState<string | null>(null)
   const [githubError, setGithubError] = useState<string | null>(null)
@@ -81,11 +81,6 @@ export default function FeedbackAdminPage() {
     const json = await res.json()
     if (res.ok) { setRows(json.feedback ?? []); setAuthed(true); setGithubError(json.githubError ?? null) }
     setChecked(true); setLoading(false)
-
-    fetch('/api/super-admin/deploy', { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setDeployInfo({ aheadBy: d.aheadBy }) })
-      .catch(() => {})
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -113,21 +108,38 @@ export default function FeedbackAdminPage() {
     setApproving(null)
   }
 
-  const mergePr = async (feedbackId: string, prNumber: number) => {
-    if (!confirm(`PR #${prNumber} を dev へマージします。よろしいですか？`)) return
+  const mergePr = async (feedbackId: string, prNumber: number, target: 'pr' | 'prMain' = 'pr') => {
+    const label = target === 'pr' ? 'dev' : 'main（本番）'
+    if (!confirm(`PR #${prNumber} を${label}へマージします。よろしいですか？`)) return
     setMergingPr(prNumber)
     const res = await fetch('/api/super-admin/feedback', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: feedbackId, mergePr: true, prNumber }),
     })
     if (res.ok) {
-      setRows(rs => rs.map(r => r.id === feedbackId && r.pr ? { ...r, pr: { ...r.pr, merged: true, state: 'closed' } } : r))
-      fetch('/api/super-admin/deploy', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => { if (d) setDeployInfo({ aheadBy: d.aheadBy }) }).catch(() => {})
+      setRows(rs => rs.map(r => r.id === feedbackId && r[target] ? { ...r, [target]: { ...r[target]!, merged: true, state: 'closed' } } : r))
     } else {
       const json = await res.json().catch(() => ({}))
       alert(json.error ?? 'PRマージに失敗しました')
     }
     setMergingPr(null)
+  }
+
+  const promoteToMain = async (feedbackId: string) => {
+    if (!confirm('このPRの内容だけを本番（main）へ反映するPRを作成します。よろしいですか？')) return
+    setPromoting(feedbackId)
+    const res = await fetch('/api/super-admin/feedback', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: feedbackId, promote: true }),
+    })
+    if (res.ok) {
+      const json = await res.json()
+      setRows(rs => rs.map(r => r.id === feedbackId ? { ...r, prMain: json.pr } : r))
+    } else {
+      const json = await res.json().catch(() => ({}))
+      alert(json.error ?? '本番PRの作成に失敗しました')
+    }
+    setPromoting(null)
   }
 
   const sendReply = async (id: string) => {
@@ -153,20 +165,6 @@ export default function FeedbackAdminPage() {
     setSendingReply(null)
   }
 
-  const deployToMain = async () => {
-    if (!confirm('dev の内容を本番（main）へ反映します。よろしいですか？')) return
-    setDeploying(true)
-    const res = await fetch('/api/super-admin/deploy', { method: 'POST' })
-    if (res.ok) {
-      setDeployInfo({ aheadBy: 0 })
-      alert('本番へ反映しました。Vercelのデプロイ完了までしばらくお待ちください。')
-    } else {
-      const json = await res.json().catch(() => ({}))
-      alert(json.error ?? '本番反映に失敗しました')
-    }
-    setDeploying(false)
-  }
-
   if (!checked) {
     return <div className="min-h-screen bg-gray-900 flex items-center justify-center"><Loader2 size={32} className="animate-spin text-gray-500" /></div>
   }
@@ -186,13 +184,6 @@ export default function FeedbackAdminPage() {
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-2">
           <h1 className="font-black text-base flex items-center gap-2"><MessageSquare size={18} /> フィードバック</h1>
           <div className="flex items-center gap-2">
-            {deployInfo && deployInfo.aheadBy > 0 && (
-              <button onClick={deployToMain} disabled={deploying}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50">
-                {deploying ? <Loader2 size={14} className="animate-spin" /> : <Rocket size={14} />}
-                本番へ反映（dev +{deployInfo.aheadBy}）
-              </button>
-            )}
             <button onClick={load} disabled={loading} className="p-2 rounded-xl bg-gray-800 active:scale-90 transition disabled:opacity-50">
               <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
             </button>
@@ -264,9 +255,40 @@ export default function FeedbackAdminPage() {
                         </p>
                         {f.pr ? (
                           f.pr.merged ? (
-                            <p className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
-                              <CheckCircle2 size={12} /> PR #{f.pr.number} マージ済み（dev反映済み）
-                            </p>
+                            <>
+                              <p className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
+                                <CheckCircle2 size={12} /> PR #{f.pr.number} マージ済み（dev反映済み）
+                              </p>
+                              {f.prMain ? (
+                                f.prMain.merged ? (
+                                  <p className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
+                                    <Rocket size={12} /> 本番反映済み（PR #{f.prMain.number}）
+                                  </p>
+                                ) : f.prMain.state === 'closed' ? (
+                                  <p className="flex items-center gap-1 text-[11px] font-bold text-gray-400">
+                                    本番PR #{f.prMain.number} はクローズ済み（マージされていません）
+                                  </p>
+                                ) : (
+                                  <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                                    <a href={f.prMain.html_url} target="_blank" rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-300 hover:text-indigo-200">
+                                      <GitPullRequest size={12} /> 本番PR #{f.prMain.number}
+                                    </a>
+                                    <button onClick={() => mergePr(f.id, f.prMain!.number, 'prMain')} disabled={mergingPr === f.prMain.number}
+                                      className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 flex items-center gap-1">
+                                      {mergingPr === f.prMain.number ? <Loader2 size={11} className="animate-spin" /> : <Rocket size={11} />}
+                                      本番へマージ
+                                    </button>
+                                  </div>
+                                )
+                              ) : (
+                                <button onClick={() => promoteToMain(f.id)} disabled={promoting === f.id}
+                                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600/80 hover:bg-emerald-500 text-white disabled:opacity-40 flex items-center gap-1.5 mt-0.5">
+                                  {promoting === f.id ? <Loader2 size={11} className="animate-spin" /> : <Rocket size={11} />}
+                                  本番へ昇格（このPRだけ）
+                                </button>
+                              )}
+                            </>
                           ) : f.pr.state === 'closed' ? (
                             <p className="flex items-center gap-1 text-[11px] font-bold text-gray-400">
                               PR #{f.pr.number} はクローズ済み（マージされていません）
