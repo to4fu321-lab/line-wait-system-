@@ -72,13 +72,14 @@ export default function FeedbackAdminPage() {
   const [deploying, setDeploying] = useState(false)
   const [replyText, setReplyText] = useState<Record<string, string>>({})
   const [sendingReply, setSendingReply] = useState<string | null>(null)
+  const [githubError, setGithubError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     const res = await fetch('/api/super-admin/feedback', { cache: 'no-store' })
     if (res.status === 401) { setAuthed(false); setChecked(true); setLoading(false); return }
     const json = await res.json()
-    if (res.ok) { setRows(json.feedback ?? []); setAuthed(true) }
+    if (res.ok) { setRows(json.feedback ?? []); setAuthed(true); setGithubError(json.githubError ?? null) }
     setChecked(true); setLoading(false)
 
     fetch('/api/super-admin/deploy', { cache: 'no-store' })
@@ -200,6 +201,12 @@ export default function FeedbackAdminPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-3">
+        {githubError && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2.5 text-xs text-red-300 leading-relaxed">
+            <span className="font-bold">GitHub連携エラー：</span>PR・コメントの表示や承認・マージが動きません。<br />
+            {githubError}
+          </div>
+        )}
         {/* フィルタ */}
         <div className="flex flex-wrap gap-2">
           <button onClick={() => setFilter('all')}

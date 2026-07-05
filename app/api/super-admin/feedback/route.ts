@@ -5,7 +5,7 @@ import { assertSuperAdmin } from '@/lib/auth/verifyAdmin'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import {
   getGithubConfig, addLabel, findPrByBranch, mergePr,
-  getIssueComments, postIssueComment, dispatchAutofixWorkflow,
+  getIssueComments, postIssueComment, dispatchAutofixWorkflow, checkGithubAuth,
   type GithubPr, type GithubComment,
 } from '@/lib/githubApi'
 
@@ -34,17 +34,28 @@ export async function GET(req: Request) {
     const config = getGithubConfig()
     const prByFeedbackId = new Map<string, GithubPr | null>()
     const commentsByFeedbackId = new Map<string, GithubComment[]>()
+    let githubError: string | null = null
 
     if (config) {
       const targets = rows.filter(r => r.approved_at && r.issue_number)
-      await Promise.all(targets.map(async r => {
-        const [pr, comments] = await Promise.all([
-          findPrByBranch(config, `auto/feedback-${r.issue_number}`),
-          getIssueComments(config, r.issue_number!),
-        ])
-        prByFeedbackId.set(r.id, pr)
-        commentsByFeedbackId.set(r.id, comments)
-      }))
+      if (targets.length > 0) {
+        const auth = await checkGithubAuth(config)
+        if (!auth.ok) {
+          githubError = `GitHub連携エラー (status=${auth.status}): ${auth.error}`
+          console.error(`[feedback/GET] ${githubError}`)
+        } else {
+          await Promise.all(targets.map(async r => {
+            const [pr, comments] = await Promise.all([
+              findPrByBranch(config, `auto/feedback-${r.issue_number}`),
+              getIssueComments(config, r.issue_number!),
+            ])
+            prByFeedbackId.set(r.id, pr)
+            commentsByFeedbackId.set(r.id, comments)
+          }))
+        }
+      }
+    } else {
+      githubError = 'GITHUB_TOKEN が未設定です'
     }
 
     const feedback = rows.map(r => ({
@@ -52,7 +63,7 @@ export async function GET(req: Request) {
       pr: prByFeedbackId.get(r.id) ?? null,
       comments: commentsByFeedbackId.get(r.id) ?? [],
     }))
-    return NextResponse.json({ feedback })
+    return NextResponse.json({ feedback, githubError })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     return NextResponse.json({ error: msg }, { status: 500 })
