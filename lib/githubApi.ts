@@ -82,6 +82,50 @@ export async function mergeBranchIntoMain(config: GithubConfig, head: string, ba
   return { ok: false, error: `${base}への反映に失敗しました (status=${res.status}): ${detail}` }
 }
 
+export interface GithubComment {
+  id: number
+  body: string
+  author: string
+  isBot: boolean
+  created_at: string
+}
+
+// Issueのコメント欄を取得する。スーパー管理画面でのやり取りスレッド表示に使う。
+export async function getIssueComments(config: GithubConfig, issueNumber: number): Promise<GithubComment[]> {
+  const res = await fetch(`https://api.github.com/repos/${config.repo}/issues/${issueNumber}/comments?per_page=50`, {
+    headers: headers(config.token),
+  })
+  if (!res.ok) return []
+  const list = await res.json() as Array<{ id: number; body: string; user: { login: string; type: string } | null; created_at: string }>
+  return list.map(c => ({
+    id: c.id,
+    body: c.body,
+    author: c.user?.login ?? '不明',
+    isBot: c.user?.type === 'Bot',
+    created_at: c.created_at,
+  }))
+}
+
+export async function postIssueComment(config: GithubConfig, issueNumber: number, body: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const res = await fetch(`https://api.github.com/repos/${config.repo}/issues/${issueNumber}/comments`, {
+    method: 'POST', headers: headers(config.token), body: JSON.stringify({ body }),
+  })
+  if (res.ok) return { ok: true }
+  const detail = await res.text().catch(() => '')
+  return { ok: false, error: `コメント投稿に失敗しました (status=${res.status}): ${detail}` }
+}
+
+// 運用者がスーパー管理画面でコメントを送ったあと、Claudeに続きを検討させるための再実行トリガー。
+export async function dispatchAutofixWorkflow(config: GithubConfig, issueNumber: number): Promise<{ ok: true } | { ok: false; error: string }> {
+  const res = await fetch(`https://api.github.com/repos/${config.repo}/actions/workflows/feedback-autofix.yml/dispatches`, {
+    method: 'POST', headers: headers(config.token),
+    body: JSON.stringify({ ref: 'main', inputs: { issue_number: String(issueNumber) } }),
+  })
+  if (res.ok || res.status === 204) return { ok: true }
+  const detail = await res.text().catch(() => '')
+  return { ok: false, error: `ワークフロー再実行に失敗しました (status=${res.status}): ${detail}` }
+}
+
 export async function addLabel(config: GithubConfig, issueNumber: number, label: string): Promise<{ ok: true } | { ok: false; error: string }> {
   let res = await fetch(`https://api.github.com/repos/${config.repo}/issues/${issueNumber}/labels`, {
     method: 'POST', headers: headers(config.token), body: JSON.stringify({ labels: [label] }),

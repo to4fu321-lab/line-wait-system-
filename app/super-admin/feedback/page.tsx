@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Loader2, RefreshCw, MessageSquare, ExternalLink, Sparkles, CheckCircle2, GitPullRequest, Rocket } from 'lucide-react'
+import { Loader2, RefreshCw, MessageSquare, ExternalLink, Sparkles, CheckCircle2, GitPullRequest, Rocket, Send, Bot, User } from 'lucide-react'
 import { PinScreen, verifySuperAdminPin } from '@/app/_components/PinScreen'
 
 interface FeedbackPr {
@@ -10,6 +10,14 @@ interface FeedbackPr {
   state: 'open' | 'closed'
   merged: boolean
   title: string
+}
+
+interface FeedbackComment {
+  id: number
+  body: string
+  author: string
+  isBot: boolean
+  created_at: string
 }
 
 interface Feedback {
@@ -30,6 +38,7 @@ interface Feedback {
   approved_at: string | null
   created_at: string
   pr: FeedbackPr | null
+  comments: FeedbackComment[]
 }
 
 const KIND_META: Record<string, { label: string; cls: string }> = {
@@ -61,6 +70,8 @@ export default function FeedbackAdminPage() {
   const [mergingPr, setMergingPr] = useState<number | null>(null)
   const [deployInfo, setDeployInfo] = useState<{ aheadBy: number } | null>(null)
   const [deploying, setDeploying] = useState(false)
+  const [replyText, setReplyText] = useState<Record<string, string>>({})
+  const [sendingReply, setSendingReply] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -116,6 +127,29 @@ export default function FeedbackAdminPage() {
       alert(json.error ?? 'PRマージに失敗しました')
     }
     setMergingPr(null)
+  }
+
+  const sendReply = async (id: string) => {
+    const text = (replyText[id] ?? '').trim()
+    if (!text) return
+    setSendingReply(id)
+    const res = await fetch('/api/super-admin/feedback', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, comment: text }),
+    })
+    if (res.ok) {
+      setReplyText(rt => ({ ...rt, [id]: '' }))
+      setRows(rs => rs.map(r => r.id === id ? {
+        ...r,
+        comments: [...r.comments, { id: Date.now(), body: `**運用者からの返信（スーパー管理画面より）**\n\n${text}`, author: 'あなた', isBot: false, created_at: new Date().toISOString() }],
+      } : r))
+      // Claudeの再検討には時間がかかるため、少し待ってから自動で最新状態を取得する
+      setTimeout(load, 25000)
+    } else {
+      const json = await res.json().catch(() => ({}))
+      alert(json.error ?? '送信に失敗しました')
+    }
+    setSendingReply(null)
   }
 
   const deployToMain = async () => {
@@ -245,6 +279,37 @@ export default function FeedbackAdminPage() {
                           )
                         ) : (
                           <p className="text-[11px] text-gray-500 pt-0.5">自動実装を依頼中（PRはまだ作成されていません）</p>
+                        )}
+
+                        {f.comments.length > 0 && (
+                          <div className="space-y-1.5 pt-1.5 border-t border-white/10">
+                            {f.comments.map(c => (
+                              <div key={c.id} className="flex gap-1.5 text-xs">
+                                {c.isBot
+                                  ? <Bot size={13} className="text-indigo-400 shrink-0 mt-0.5" />
+                                  : <User size={13} className="text-gray-400 shrink-0 mt-0.5" />}
+                                <div className="min-w-0">
+                                  <span className="text-[10px] font-bold text-gray-400">{c.isBot ? 'Claude' : c.author}</span>
+                                  <p className="text-gray-200 whitespace-pre-wrap leading-relaxed break-words">{c.body}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {!f.pr?.merged && (
+                          <div className="flex items-end gap-1.5 pt-1">
+                            <textarea
+                              value={replyText[f.id] ?? ''}
+                              onChange={e => setReplyText(rt => ({ ...rt, [f.id]: e.target.value }))}
+                              placeholder="Claudeへの返信・追加の指示を入力"
+                              rows={2}
+                              className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-gray-600 resize-none focus:border-indigo-500 focus:outline-none" />
+                            <button onClick={() => sendReply(f.id)} disabled={sendingReply === f.id || !(replyText[f.id] ?? '').trim()}
+                              className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40 shrink-0">
+                              {sendingReply === f.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                            </button>
+                          </div>
                         )}
                       </>
                     ) : (
