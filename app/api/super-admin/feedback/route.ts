@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 import { assertSuperAdmin } from '@/lib/auth/verifyAdmin'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import {
-  getGithubConfig, addLabel, findPrByBranch, mergePr,
+  getGithubConfig, addLabel, findPrByBranch, mergePr, createPrToMain,
   getIssueComments, postIssueComment, dispatchAutofixWorkflow, checkGithubAuth,
   type GithubPr, type GithubComment,
 } from '@/lib/githubApi'
@@ -33,6 +33,7 @@ export async function GET(req: Request) {
     const rows = (data ?? []) as FeedbackRow[]
     const config = getGithubConfig()
     const prByFeedbackId = new Map<string, GithubPr | null>()
+    const prMainByFeedbackId = new Map<string, GithubPr | null>()
     const commentsByFeedbackId = new Map<string, GithubComment[]>()
     let githubError: string | null = null
 
@@ -45,11 +46,14 @@ export async function GET(req: Request) {
           console.error(`[feedback/GET] ${githubError}`)
         } else {
           await Promise.all(targets.map(async r => {
-            const [pr, comments] = await Promise.all([
-              findPrByBranch(config, `auto/feedback-${r.issue_number}`),
+            const branch = `auto/feedback-${r.issue_number}`
+            const [pr, prMain, comments] = await Promise.all([
+              findPrByBranch(config, branch, 'dev'),
+              findPrByBranch(config, branch, 'main'),
               getIssueComments(config, r.issue_number!),
             ])
             prByFeedbackId.set(r.id, pr)
+            prMainByFeedbackId.set(r.id, prMain)
             commentsByFeedbackId.set(r.id, comments)
           }))
         }
@@ -61,6 +65,7 @@ export async function GET(req: Request) {
     const feedback = rows.map(r => ({
       ...r,
       pr: prByFeedbackId.get(r.id) ?? null,
+      prMain: prMainByFeedbackId.get(r.id) ?? null,
       comments: commentsByFeedbackId.get(r.id) ?? [],
     }))
     return NextResponse.json({ feedback, githubError })
@@ -74,8 +79,8 @@ export async function PATCH(req: Request) {
   const denied = assertSuperAdmin(req)
   if (denied) return denied
   try {
-    const { id, status, approve, mergePr: shouldMergePr, prNumber, comment } = await req.json() as {
-      id?: string; status?: string; approve?: boolean; mergePr?: boolean; prNumber?: number; comment?: string
+    const { id, status, approve, mergePr: shouldMergePr, prNumber, comment, promote } = await req.json() as {
+      id?: string; status?: string; approve?: boolean; mergePr?: boolean; prNumber?: number; comment?: string; promote?: boolean
     }
     if (!id) return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
 
@@ -84,6 +89,7 @@ export async function PATCH(req: Request) {
     if (approve) return await approveForAutofix(supabase, id)
     if (shouldMergePr) return await mergeFeedbackPr(prNumber)
     if (comment) return await postCommentAndRerun(supabase, id, comment)
+    if (promote) return await promoteFeedbackToMain(supabase, id)
 
     if (!status) return NextResponse.json({ error: 'status が必要です' }, { status: 400 })
     if (!['new', 'triaged', 'done', 'wontfix'].includes(status)) {
@@ -137,7 +143,7 @@ async function approveForAutofix(
   return NextResponse.json({ ok: true })
 }
 
-// PRマージ: 自動実装フローが作成したPR（dev宛）をマージする。本番（main）反映は別エンドポイント。
+// PRマージ: dev宛・main宛どちらのPRもこれでマージする（base非依存）。
 async function mergeFeedbackPr(prNumber?: number): Promise<NextResponse> {
   if (!prNumber) return NextResponse.json({ error: 'prNumber が必要です' }, { status: 400 })
 
@@ -150,6 +156,43 @@ async function mergeFeedbackPr(prNumber?: number): Promise<NextResponse> {
     return NextResponse.json({ error: result.error }, { status: 502 })
   }
   return NextResponse.json({ ok: true })
+}
+
+// 本番昇格: dev宛PRがマージ済みであることを確認し、同じブランチからmain宛の第二PRを作る
+// （既にあれば作らず既存を返す＝冪等）。これにより dev に他の未昇格案件が積まれていても
+// 巻き込まず、この案件の差分だけを本番へ反映できる。マージは mergeFeedbackPr を別途呼ぶ。
+async function promoteFeedbackToMain(
+  supabase: ReturnType<typeof createAdminClient>,
+  id: string,
+): Promise<NextResponse> {
+  const { data, error } = await supabase
+    .from('feedback')
+    .select('issue_number')
+    .eq('id', id)
+    .single()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  const issueNumber = (data as { issue_number: number | null } | null)?.issue_number
+  if (!issueNumber) return NextResponse.json({ error: 'GitHub Issue が未作成です' }, { status: 400 })
+
+  const config = getGithubConfig()
+  if (!config) return NextResponse.json({ error: 'GITHUB_TOKEN が未設定です' }, { status: 500 })
+
+  const branch = `auto/feedback-${issueNumber}`
+  const devPr = await findPrByBranch(config, branch, 'dev')
+  if (!devPr?.merged) {
+    return NextResponse.json({ error: 'dev へのマージが完了していないため、本番へ昇格できません' }, { status: 400 })
+  }
+
+  const existing = await findPrByBranch(config, branch, 'main')
+  if (existing) return NextResponse.json({ ok: true, pr: existing })
+
+  const created = await createPrToMain(config, branch, issueNumber)
+  if (!created.ok) {
+    console.error(`[feedback/promote] ${created.error}`)
+    return NextResponse.json({ error: created.error }, { status: 502 })
+  }
+  return NextResponse.json({ ok: true, pr: created.pr })
 }
 
 // 運用者からの返信をGitHub Issueにコメントとして投稿し、Claudeに続きを検討させるため
