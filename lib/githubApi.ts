@@ -30,6 +30,7 @@ export interface GithubPr {
   state: 'open' | 'closed'
   merged: boolean
   title: string
+  body: string | null
   mergeable: boolean | null
 }
 

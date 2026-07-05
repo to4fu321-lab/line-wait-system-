@@ -10,6 +10,7 @@ interface FeedbackPr {
   state: 'open' | 'closed'
   merged: boolean
   title: string
+  body: string | null
 }
 
 interface FeedbackComment {
@@ -259,6 +260,12 @@ export default function FeedbackAdminPage() {
                               <p className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
                                 <CheckCircle2 size={12} /> PR #{f.pr.number} マージ済み（dev反映済み）
                               </p>
+                              {f.pr.body && (
+                                <div className="bg-gray-900/60 border border-white/10 rounded-lg px-2.5 py-2">
+                                  <p className="text-[10px] font-bold text-gray-500 mb-1">対応内容（PR #{f.pr.number}）</p>
+                                  <p className="text-xs text-gray-300 whitespace-pre-wrap leading-relaxed break-words">{f.pr.body}</p>
+                                </div>
+                              )}
                               {f.prMain ? (
                                 f.prMain.merged ? (
                                   <p className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
@@ -294,16 +301,24 @@ export default function FeedbackAdminPage() {
                               PR #{f.pr.number} はクローズ済み（マージされていません）
                             </p>
                           ) : (
-                            <div className="flex items-center gap-2 flex-wrap pt-0.5">
-                              <a href={f.pr.html_url} target="_blank" rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-300 hover:text-indigo-200">
-                                <GitPullRequest size={12} /> PR #{f.pr.number}: {f.pr.title}
-                              </a>
-                              <button onClick={() => mergePr(f.id, f.pr!.number)} disabled={mergingPr === f.pr.number}
-                                className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 flex items-center gap-1">
-                                {mergingPr === f.pr.number ? <Loader2 size={11} className="animate-spin" /> : <GitPullRequest size={11} />}
-                                devへマージ
-                              </button>
+                            <div className="space-y-1.5 pt-0.5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <a href={f.pr.html_url} target="_blank" rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-300 hover:text-indigo-200">
+                                  <GitPullRequest size={12} /> PR #{f.pr.number}: {f.pr.title}
+                                </a>
+                                <button onClick={() => mergePr(f.id, f.pr!.number)} disabled={mergingPr === f.pr.number}
+                                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 flex items-center gap-1">
+                                  {mergingPr === f.pr.number ? <Loader2 size={11} className="animate-spin" /> : <GitPullRequest size={11} />}
+                                  devへマージ
+                                </button>
+                              </div>
+                              {f.pr.body && (
+                                <div className="bg-gray-900/60 border border-white/10 rounded-lg px-2.5 py-2">
+                                  <p className="text-[10px] font-bold text-gray-500 mb-1">対応内容（PR #{f.pr.number}）</p>
+                                  <p className="text-xs text-gray-300 whitespace-pre-wrap leading-relaxed break-words">{f.pr.body}</p>
+                                </div>
+                              )}
                             </div>
                           )
                         ) : (
