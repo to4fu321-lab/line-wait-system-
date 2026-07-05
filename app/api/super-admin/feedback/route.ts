@@ -3,7 +3,11 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { assertSuperAdmin } from '@/lib/auth/verifyAdmin'
 import { createAdminClient } from '@/lib/supabaseAdmin'
-import { getGithubConfig, addLabel, findPrByBranch, mergePr, type GithubPr } from '@/lib/githubApi'
+import {
+  getGithubConfig, addLabel, findPrByBranch, mergePr,
+  getIssueComments, postIssueComment, dispatchAutofixWorkflow,
+  type GithubPr, type GithubComment,
+} from '@/lib/githubApi'
 
 interface FeedbackRow {
   id: string
@@ -29,16 +33,25 @@ export async function GET(req: Request) {
     const rows = (data ?? []) as FeedbackRow[]
     const config = getGithubConfig()
     const prByFeedbackId = new Map<string, GithubPr | null>()
+    const commentsByFeedbackId = new Map<string, GithubComment[]>()
 
     if (config) {
       const targets = rows.filter(r => r.approved_at && r.issue_number)
       await Promise.all(targets.map(async r => {
-        const pr = await findPrByBranch(config, `auto/feedback-${r.issue_number}`)
+        const [pr, comments] = await Promise.all([
+          findPrByBranch(config, `auto/feedback-${r.issue_number}`),
+          getIssueComments(config, r.issue_number!),
+        ])
         prByFeedbackId.set(r.id, pr)
+        commentsByFeedbackId.set(r.id, comments)
       }))
     }
 
-    const feedback = rows.map(r => ({ ...r, pr: prByFeedbackId.get(r.id) ?? null }))
+    const feedback = rows.map(r => ({
+      ...r,
+      pr: prByFeedbackId.get(r.id) ?? null,
+      comments: commentsByFeedbackId.get(r.id) ?? [],
+    }))
     return NextResponse.json({ feedback })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
@@ -50,8 +63,8 @@ export async function PATCH(req: Request) {
   const denied = assertSuperAdmin(req)
   if (denied) return denied
   try {
-    const { id, status, approve, mergePr: shouldMergePr, prNumber } = await req.json() as {
-      id?: string; status?: string; approve?: boolean; mergePr?: boolean; prNumber?: number
+    const { id, status, approve, mergePr: shouldMergePr, prNumber, comment } = await req.json() as {
+      id?: string; status?: string; approve?: boolean; mergePr?: boolean; prNumber?: number; comment?: string
     }
     if (!id) return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
 
@@ -59,6 +72,7 @@ export async function PATCH(req: Request) {
 
     if (approve) return await approveForAutofix(supabase, id)
     if (shouldMergePr) return await mergeFeedbackPr(prNumber)
+    if (comment) return await postCommentAndRerun(supabase, id, comment)
 
     if (!status) return NextResponse.json({ error: 'status が必要です' }, { status: 400 })
     if (!['new', 'triaged', 'done', 'wontfix'].includes(status)) {
@@ -124,5 +138,44 @@ async function mergeFeedbackPr(prNumber?: number): Promise<NextResponse> {
     console.error(`[feedback/merge-pr] ${result.error}`)
     return NextResponse.json({ error: result.error }, { status: 502 })
   }
+  return NextResponse.json({ ok: true })
+}
+
+// 運用者からの返信をGitHub Issueにコメントとして投稿し、Claudeに続きを検討させるため
+// ワークフローを再実行する。needs-decisionへの回答など、スーパー管理画面だけで
+// やり取りを完結させるための入口。
+async function postCommentAndRerun(
+  supabase: ReturnType<typeof createAdminClient>,
+  id: string,
+  comment: string,
+): Promise<NextResponse> {
+  const text = comment.trim()
+  if (!text) return NextResponse.json({ error: 'コメントが空です' }, { status: 400 })
+
+  const { data, error } = await supabase
+    .from('feedback')
+    .select('issue_number')
+    .eq('id', id)
+    .single()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  const issueNumber = (data as { issue_number: number | null } | null)?.issue_number
+  if (!issueNumber) return NextResponse.json({ error: 'GitHub Issue が未作成です' }, { status: 400 })
+
+  const config = getGithubConfig()
+  if (!config) return NextResponse.json({ error: 'GITHUB_TOKEN が未設定です' }, { status: 500 })
+
+  const commentResult = await postIssueComment(config, issueNumber, `**運用者からの返信（スーパー管理画面より）**\n\n${text}`)
+  if (!commentResult.ok) {
+    console.error(`[feedback/comment] ${commentResult.error}`)
+    return NextResponse.json({ error: commentResult.error }, { status: 502 })
+  }
+
+  const dispatchResult = await dispatchAutofixWorkflow(config, issueNumber)
+  if (!dispatchResult.ok) {
+    console.error(`[feedback/comment] ${dispatchResult.error}`)
+    return NextResponse.json({ error: `コメントは投稿されましたが再実行に失敗しました: ${dispatchResult.error}` }, { status: 502 })
+  }
+
   return NextResponse.json({ ok: true })
 }
