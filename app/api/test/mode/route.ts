@@ -1,10 +1,11 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 import { assertStorePin } from '@/lib/auth/storeAuth'
 
 export async function POST(req: NextRequest) {
+  const supabase = createAdminClient()
   const { storeId, enabled, storePin } = await req.json()
   if (!storeId || typeof enabled !== 'boolean') {
     return NextResponse.json({ ok: false, error: 'invalid params' }, { status: 400 })

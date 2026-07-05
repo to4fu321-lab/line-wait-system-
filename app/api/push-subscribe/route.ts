@@ -1,9 +1,10 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 export async function POST(req: NextRequest) {
+  const supabase = createAdminClient()
   const { storeId, subscription, staffId, kind } = await req.json()
   if (!storeId || !subscription?.endpoint) {
     return NextResponse.json({ ok: false, error: 'invalid params' }, { status: 400 })
@@ -21,6 +22,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const supabase = createAdminClient()
   const { endpoint } = await req.json()
   if (!endpoint) return NextResponse.json({ ok: false }, { status: 400 })
   await (supabase.from('push_subscriptions') as any).delete().eq('endpoint', endpoint)

@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 import { getLiffBaseUrl, getLineToken } from '@/lib/line-config'
 import { pushCard } from '@/lib/line-flex'
 
@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
   if (!purchaseOrderId) {
     return NextResponse.json({ ok: false, error: 'purchaseOrderId is required' }, { status: 400 })
   }
+  const supabase = createAdminClient()
 
   const { data: order, error: orderErr } = await (supabase as any)
     .from('purchase_orders')

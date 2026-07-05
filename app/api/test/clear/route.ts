@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 import { assertStorePin } from '@/lib/auth/storeAuth'
 
 export async function POST(req: NextRequest) {
@@ -11,6 +11,7 @@ export async function POST(req: NextRequest) {
   // 顧客・整理券を削除する破壊的APIのため、店舗PIN（または super-admin）必須
   const denied = await assertStorePin(req, { storeId, storePin })
   if (denied) return denied
+  const supabase = createAdminClient()
 
   const deleted: string[] = []
 

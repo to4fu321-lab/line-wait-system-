@@ -1,7 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase, getTodayStart } from '@/lib/supabase'
+import { getTodayStart } from '@/lib/supabase'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 import { pushCard, ogTicketUrl, resolveOrigin } from '@/lib/line-flex'
 import { getLiffBaseUrl, getLineToken } from '@/lib/line-config'
 
@@ -25,6 +26,7 @@ export async function POST(req: NextRequest) {
   if (!storeId) {
     return NextResponse.json({ ok: false, error: 'storeId is required' }, { status: 400 })
   }
+  const supabase = createAdminClient()
 
   // 1. stores から notice_threshold と店舗名を取得
   let noticeThreshold = 3

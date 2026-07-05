@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 import { assertStorePin } from '@/lib/auth/storeAuth'
 
 // ─── テストデータ定義 ──────────────────────────────────────────
@@ -49,6 +49,7 @@ export async function GET(req: NextRequest) {
   // 顧客名を含む情報を返すため認証必須
   const denied = await assertStorePin(req, { storeId, storePin })
   if (denied) return denied
+  const supabase = createAdminClient()
 
   const [{ data: customers }, { data: children }] = await Promise.all([
     (supabase as any).from('customers').select('id, name').eq('store_id', storeId).limit(50),
@@ -78,6 +79,7 @@ export async function POST(req: NextRequest) {
   // 本番DBへの書き込みのため、店舗PIN（または super-admin）必須
   const denied = await assertStorePin(req, { storeId, storePin })
   if (denied) return denied
+  const supabase = createAdminClient()
 
   // 実在する顧客・子供を取得
   const [{ data: customersRaw, error: custErr }, { data: childrenRaw }] = await Promise.all([

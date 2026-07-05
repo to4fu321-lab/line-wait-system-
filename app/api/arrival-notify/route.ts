@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 import { getLineToken } from '@/lib/line-config'
 import { pushCard } from '@/lib/line-flex'
 
@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
   if (!storeId || !kind || !id) {
     return NextResponse.json({ ok: false, error: 'storeId / kind / id は必須です' }, { status: 400 })
   }
+  const supabase = createAdminClient()
 
   const { data: store } = await (supabase as any)
     .from('stores')

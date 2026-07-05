@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { webpush, setupWebPush } from '@/lib/webPushSetup'
-import { supabase } from '@/lib/supabase'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 
 // 秘密鍵はコードに埋め込まない（必ず env で設定する。漏洩時はローテーション）
 const vapidReady = setupWebPush(
@@ -14,6 +14,7 @@ const vapidReady = setupWebPush(
 type PushType = 'queue_new' | 'purchase_new'
 
 export async function POST(req: NextRequest) {
+  const supabase = createAdminClient()
   const { storeId, type, title, body, url } = await req.json() as {
     storeId: string; type: PushType; title: string; body: string; url: string
   }

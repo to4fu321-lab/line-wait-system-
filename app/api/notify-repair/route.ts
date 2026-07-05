@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 import { getLineToken } from '@/lib/line-config'
 import { pushCard } from '@/lib/line-flex'
 
@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
   if (!repairId) {
     return NextResponse.json({ ok: false, error: 'repairId required' }, { status: 400 })
   }
+  const supabase = createAdminClient()
 
   const storeLabel = storeName ? `【${storeName}】` : ''
   const reqText    = reqNo ? `\n依頼番号：${reqNo}` : ''

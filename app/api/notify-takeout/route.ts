@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 import { getLineToken, getLiffBaseUrl } from '@/lib/line-config'
 import { pushCard, ogTicketUrl, resolveOrigin, type CardOptions, type CardKind } from '@/lib/line-flex'
 
@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
     if (!orderId || !status) {
       return NextResponse.json({ ok: false, reason: 'invalid_params' }, { status: 400 })
     }
+    const supabase = createAdminClient()
 
     const { data: order } = await (supabase as any)
       .from('takeout_orders')

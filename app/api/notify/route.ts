@@ -1,7 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase, getTodayStart } from '@/lib/supabase'
+import { getTodayStart } from '@/lib/supabase'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 import { getLiffBaseUrl, getLineToken, storeBizType } from '@/lib/line-config'
 import { pushCard, ogTicketUrl, resolveOrigin, type CardOptions } from '@/lib/line-flex'
 
@@ -19,6 +20,7 @@ export async function POST(req: NextRequest) {
   if (!storeId) {
     return NextResponse.json({ ok: false, error: 'storeId is required' }, { status: 400 })
   }
+  const supabase = createAdminClient()
   const [{ data: ownedQueue }, { data: ownedCustomer }] = await Promise.all([
     (supabase as any).from('queues')
       .select('id').eq('store_id', storeId).eq('line_user_id', lineUserId).limit(1),

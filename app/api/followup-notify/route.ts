@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 import { getLineToken } from '@/lib/line-config'
 import { pushMessages } from '@/lib/line-flex'
 
@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
   if (!storeId || !childIds?.length || !message?.trim()) {
     return NextResponse.json({ ok: false, error: 'storeId / childIds / message は必須です' }, { status: 400 })
   }
+  const supabase = createAdminClient()
 
   const { data: store } = await (supabase as any)
     .from('stores').select('is_test_mode, business_type, features').eq('id', storeId).single()
@@ -80,6 +81,7 @@ export async function GET(req: NextRequest) {
   const gradeYear = req.nextUrl.searchParams.get('gradeYear')
 
   if (!storeId) return NextResponse.json({ ok: false, error: 'storeId is required' }, { status: 400 })
+  const supabase = createAdminClient()
 
   const { data: store } = await (supabase as any)
     .from('stores').select('features').eq('id', storeId).single()

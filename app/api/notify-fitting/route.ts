@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createAdminClient } from '@/lib/supabaseAdmin'
 import { getLineToken, storeBizType } from '@/lib/line-config'
 import { pushCard } from '@/lib/line-flex'
 
@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
   if (process.env.LINE_NOTIFY_DISABLED === 'true') {
     return NextResponse.json({ ok: true, skipped: true, reason: 'disabled' })
   }
+  const supabase = createAdminClient()
 
   const { data: store } = await (supabase as any)
     .from('stores').select('name, business_type, is_test_mode')
