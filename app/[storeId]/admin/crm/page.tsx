@@ -1007,6 +1007,11 @@ export default function CRMPage() {
                                     ? <span className="flex items-center gap-1 text-emerald-600 text-xs"><MessageCircle size={11} />LINE連携済み</span>
                                     : <span className="text-gray-400 text-xs">LINE未連携</span>
                                   }
+                                  {selectedCustomer.created_at && (
+                                    <span className="text-gray-400 text-xs">
+                                      {new Date(selectedCustomer.created_at).toLocaleDateString('ja-JP')} 登録
+                                    </span>
+                                  )}
                                 </div>
                                 {selectedCustomer.notes && (
                                   <p className="text-gray-500 text-xs mt-1 bg-gray-100 rounded-lg px-2 py-1">📝 {selectedCustomer.notes}</p>

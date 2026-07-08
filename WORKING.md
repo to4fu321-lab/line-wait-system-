@@ -4,3 +4,4 @@
 > フォーマット: `- [Claude Code] 触るファイルパス一覧 — 作業内容 (YYYY-MM-DD HH:MM)`
 
 <!-- 作業中のエントリをここに追記-->
+- [Claude Code] app/[storeId]/admin/crm/page.tsx — 顧客詳細パネルに会員登録日を表示 (2026-07-08 17:30)
