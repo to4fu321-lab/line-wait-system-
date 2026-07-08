@@ -20,7 +20,9 @@ export async function GET(req: Request) {
     const supabase = createAdminClient({ noStore: true })
 
     const [{ data: stores, error }, { data: groups }] = await Promise.all([
-      supabase.from('stores').select('*').order('name', { ascending: true }),
+      supabase.from('stores')
+        .select('id, name, group_id, business_type, features, is_open, theme_color')
+        .order('name', { ascending: true }),
       supabase.from('groups').select('*').order('name', { ascending: true }),
     ])
 
