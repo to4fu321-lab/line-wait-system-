@@ -1,5 +1,5 @@
-const CACHE = 'takaya-v3'
-const OFFLINE_URLS = ['/', '/manifest.json', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png']
+const CACHE = 'takaya-v4'
+const OFFLINE_URLS = ['/manifest.json', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png']
 
 // インストール時に静的アセットをキャッシュ
 self.addEventListener('install', event => {
@@ -26,6 +26,10 @@ self.addEventListener('fetch', event => {
   if (!url.protocol.startsWith('http')) return
   // API・Supabase は常にネットワーク
   if (url.pathname.startsWith('/api/') || url.hostname.includes('supabase')) return
+  // ページ遷移(HTML)は常にネットワークから取得する。SW経由でキャッシュを返すと
+  // デプロイ更新後に古いHTMLが読まれ、存在しなくなったビルドのCSS/JSを参照して
+  // 真っ黒な未スタイル画面になることがある（再読み込みで直る症状の原因）。
+  if (event.request.mode === 'navigate') return
 
   event.respondWith(
     fetch(event.request)
