@@ -1,9 +1,9 @@
 import Link from 'next/link'
-import { listStoreThemes } from '@/config/themes'
+
+const DEMO_STORE_ID = '00000000-0000-0000-0000-000000000010'
+const DEMO_PIN = '0000'
 
 export default function RootPage() {
-  const stores = listStoreThemes()
-
   return (
     <main className="min-h-screen relative overflow-hidden">
       {/* 背景グラデーション（汎用） */}
@@ -59,54 +59,52 @@ export default function RootPage() {
           </ol>
         </div>
 
-        {/* デモ用：登録店舗一覧 */}
-        {stores.length > 0 && (
-          <div
-            className="bg-white/70 backdrop-blur-2xl rounded-3xl border border-white/60 p-5"
-            style={{
-              boxShadow: `
-                0 24px 60px -20px rgba(99, 102, 241, 0.18),
-                0 1px 0 0 rgb(255 255 255 / 0.65) inset
-              `,
-            }}
+        {/* 体験（サンプル店舗） */}
+        <div
+          className="bg-white/70 backdrop-blur-2xl rounded-3xl border border-white/60 p-6 space-y-3"
+          style={{
+            boxShadow: `
+              0 24px 60px -20px rgba(99, 102, 241, 0.18),
+              0 1px 0 0 rgb(255 255 255 / 0.65) inset
+            `,
+          }}
+        >
+          <h2 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest">
+            サンプル店舗で試す
+          </h2>
+
+          <Link
+            href={`/${DEMO_STORE_ID}?demo=1`}
+            className="flex items-center gap-3 rounded-2xl px-4 py-3.5 bg-white hover:bg-zinc-50 border border-zinc-200 transition-colors group"
           >
-            <h2 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3">
-              デモ店舗
-            </h2>
-            <div className="space-y-2">
-              {stores.map(s => (
-                <Link
-                  key={s.storeId}
-                  href={`/${s.storeId}`}
-                  className="flex items-center gap-3 rounded-2xl px-3 py-2.5 hover:bg-white/80 transition-colors group"
-                >
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center text-xl text-white shrink-0"
-                    style={{
-                      background: `linear-gradient(135deg, ${s.colors.primary}, ${s.colors.accent})`,
-                      boxShadow: `0 6px 16px -6px rgb(${s.colors.primaryRgb} / 0.5)`,
-                    }}
-                  >
-                    {s.logoEmoji}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-zinc-900 truncate">{s.storeName}</p>
-                    <p className="text-[11px] text-zinc-500 truncate">{s.tagline}</p>
-                  </div>
-                  <span className="text-zinc-300 group-hover:text-zinc-500 transition-colors">→</span>
-                </Link>
-              ))}
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl text-white shrink-0"
+              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+              🙋
             </div>
-          </div>
-        )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-zinc-900">お客様の操作画面を見る</p>
+              <p className="text-[11px] text-zinc-400">受付・登録画面を体験モードで操作できます</p>
+            </div>
+            <span className="text-zinc-300 group-hover:text-zinc-500 transition-colors">→</span>
+          </Link>
+
+          <Link
+            href={`/${DEMO_STORE_ID}/admin`}
+            className="flex items-center gap-3 rounded-2xl px-4 py-3.5 bg-white hover:bg-zinc-50 border border-zinc-200 transition-colors group"
+          >
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl text-white shrink-0"
+              style={{ background: 'linear-gradient(135deg, #ec4899, #f97316)' }}>
+              🏪
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-zinc-900">スタッフ管理画面を試す</p>
+              <p className="text-[11px] text-zinc-400">PIN: <span className="font-mono font-bold text-zinc-600">{DEMO_PIN}</span> でログインできます</p>
+            </div>
+            <span className="text-zinc-300 group-hover:text-zinc-500 transition-colors">→</span>
+          </Link>
+        </div>
 
         <div className="mt-8 flex flex-col items-center gap-3">
-          <Link
-            href="/admin"
-            className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/70 px-4 py-2 text-xs font-bold text-zinc-600 backdrop-blur-sm transition-colors hover:bg-white hover:text-zinc-900"
-          >
-            🏪 店舗スタッフの方はこちら
-          </Link>
           <p className="text-[11px] text-zinc-400">
             Powered by LINE × Next.js
           </p>

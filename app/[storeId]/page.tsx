@@ -22,6 +22,10 @@ import { AddChildForm, WaitingCustomerEditForm, ChildEditInline, WaitingFirstChi
 import { playAlertSound } from './_lib/alertSound'
 
 const LINE_BASIC_ID = process.env.NEXT_PUBLIC_LINE_BASIC_ID || 'cyx2612b'
+// トップページの「サンプル店舗で試す」からのみ有効な体験モード。
+// このIDの店舗以外では絶対に有効化しない（LINEログイン必須の判定を
+// 例外的にスキップするため、対象を厳密に固定する）。
+const DEMO_STORE_ID = '00000000-0000-0000-0000-000000000010'
 
 type View =
   | 'loading' | 'add_friend' | 'welcome' | 'register' | 'purpose' | 'confirm_queue'
@@ -73,6 +77,8 @@ export default function CustomerPage() {
   // あり、店舗全体の開閉ではない。受付停止中でも来店予約・お直し・
   // ネット注文は通常メニューから利用できる（画面を占有しない）。
   const [storeOpen, setStoreOpen] = useState(true)
+  // トップページの「サンプル店舗で試す」から来た体験モード（実データは書き込まれない）
+  const [isDemo, setIsDemo] = useState(false)
 
   const allowRemoteRef = useRef(false)
   const pendingHeightWeightRef = useRef<{ height: string; weight: string } | null>(null)
@@ -139,6 +145,30 @@ export default function CustomerPage() {
       if (schoolRows && schoolRows.length > 0) {
         setSchools(schoolRows as { id: string; name: string }[])
         setStoreSchoolOptions(schoolRows.map((s: { name: string }) => s.name))
+      }
+
+      // 体験モード（サンプル店舗限定）: LINEアプリ内判定を飛ばして画面を見てもらう。
+      // 表示用のダミープロフィールを置くだけで、送信系API(saveCustomer/issueTicket等)は
+      // 呼び出しのたびに本物のLINEアクセストークンを取得・サーバー検証するため、
+      // ここで実データが書き込まれることはない。
+      const isDemoMode = storeId === DEMO_STORE_ID && new URLSearchParams(window.location.search).get('demo') === '1'
+      if (isDemoMode) {
+        setIsDemo(true)
+        setLineProfile({ userId: 'demo-preview', displayName: '体験ユーザー' })
+        const urlParams = new URLSearchParams(window.location.search)
+        const rawAction = urlParams.get('action') as 'queue' | 'repair' | 'purchase' | null
+        const action =
+          rawAction === 'queue'    ? (canQueue    ? rawAction : null)
+        : rawAction === 'repair'   ? (canRepair   ? rawAction : null)
+        : rawAction === 'purchase' ? (canPurchase ? rawAction : null)
+        : rawAction
+        if (action) setUrlAction(action)
+        try {
+          const { waitingCount: count } = await fetchQueueState(storeId)
+          setWaitingCount(count)
+        } catch { /* 取得失敗は無視 */ }
+        setView(action === 'queue' ? 'confirm_queue' : 'purpose')
+        return
       }
 
       await initLiff()
@@ -601,6 +631,7 @@ export default function CustomerPage() {
   // ── 初回登録 ─────────────────────────────────────────
   if (view === 'register') return (
     <main className="min-h-[100dvh] px-5 py-10 max-w-md mx-auto">
+      {isDemo && <DemoBanner />}
       <div className="text-center mb-6">
         <div className="w-14 h-14 mx-auto mb-3 rounded-2xl flex items-center justify-center text-2xl"
           style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
@@ -677,6 +708,7 @@ export default function CustomerPage() {
   // ── サービス案内（旧: 目的選択） ──────────────────────────
   if (view === 'purpose') return (
     <main className="min-h-[100dvh] px-5 py-10 max-w-md mx-auto">
+      {isDemo && <DemoBanner />}
       <div className="text-center mb-8">
         <div className="w-14 h-14 mx-auto mb-3 rounded-2xl flex items-center justify-center text-2xl"
           style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`, boxShadow: `0 12px 30px -8px rgb(${theme.colors.primaryRgb} / 0.5)` }}>
@@ -823,6 +855,7 @@ export default function CustomerPage() {
   // ── 整理券発行確認（リッチメニュー左ボタン経由）──────
   if (view === 'confirm_queue') return (
     <main className="min-h-[100dvh] flex flex-col items-center justify-center px-5 py-10 max-w-md mx-auto gap-6">
+      {isDemo && <DemoBanner />}
       <div className="text-center">
         <div className="w-16 h-16 mx-auto mb-3 rounded-2xl flex items-center justify-center text-3xl"
           style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`,
@@ -1330,4 +1363,14 @@ export default function CustomerPage() {
   )
 
   return null
+}
+
+// トップページの「サンプル店舗で試す」から来た体験モードであることを示すバナー。
+// 実際の受付・登録の送信にはLINEログインが必要（体験モードでは送信できない）ことを案内する。
+function DemoBanner() {
+  return (
+    <div className="mb-4 rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-700 text-center font-bold">
+      🎬 体験モードで画面をご覧いただけます。実際の送信にはLINEでのログインが必要です
+    </div>
+  )
 }
