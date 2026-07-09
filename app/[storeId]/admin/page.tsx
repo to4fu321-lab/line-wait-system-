@@ -37,7 +37,7 @@ function urlBase64ToUint8Array(base64: string) {
   return Uint8Array.from(Array.from(raw).map(c => c.charCodeAt(0)))
 }
 
-type AdminView       = 'loading' | 'select_store' | 'pin' | 'dashboard'
+type AdminView       = 'loading' | 'not_found' | 'select_store' | 'pin' | 'dashboard'
 type FocusedSection  = 'calling' | 'waiting' | 'completed' | 'cancelled' | null
 
 // ============================================================
@@ -781,7 +781,6 @@ export default function StoreAdminPage() {
   const { storeId } = useParams<{ storeId: string }>()
   const router = useRouter()
   const [view,          setView]          = useState<AdminView>('loading')
-  const [stores,        setStores]        = useState<StoreInfo[]>([])
   const [groupStores,   setGroupStores]   = useState<StoreInfo[]>([])
   const [groupCode,     setGroupCode]     = useState<string | null>(() => sessionStorage.getItem('admin_group_code'))
   const [selectedStore, setSelectedStore] = useState<StoreInfo | null>(null)
@@ -793,39 +792,39 @@ export default function StoreAdminPage() {
     if (data?.code) { sessionStorage.setItem('admin_group_code', data.code); setGroupCode(data.code) }
   }, [])
 
+  // 同一グループ内の兄弟店舗一覧を取得（支店切替UI用。認証前は自店舗以外を
+  // 一切列挙しないよう、常に groupId で絞り込んで取得する）
+  const loadGroupStores = useCallback(async (store: StoreInfo) => {
+    if (!store.group_id) { setGroupStores([store]); return }
+    const res = await fetch(`/api/admin/stores?groupId=${store.group_id}`)
+    const { stores: data } = await res.json().catch(() => ({ stores: null }))
+    setGroupStores((data as StoreInfo[] | null) ?? [store])
+  }, [])
+
   useEffect(() => {
-    fetch('/api/admin/stores')
+    if (!storeId) { setView('not_found'); return }
+    // 認証前は自分の storeId 以外の店舗情報を一切取得しない
+    fetch(`/api/admin/stores?storeId=${storeId}`)
       .then(res => res.json())
       .then(async ({ stores: data, error }: { stores?: StoreInfo[]; error?: string }) => {
-        if (error || !data || data.length === 0) {
-          setFetchError(error ?? '店舗データが見つかりません'); setView('select_store'); return
+        const match = (data as StoreInfo[] | undefined)?.[0]
+        if (error || !match) {
+          setFetchError(error ?? '店舗が見つかりません'); setView('not_found'); return
         }
-        setStores(data as StoreInfo[])
-        const saved = sessionStorage.getItem('admin_store_id')
+        setSelectedStore(match)
         // Supabase Auth セッション(RLS通過に必須)が生きている場合のみ復元
+        const saved = sessionStorage.getItem('admin_store_id')
         if (saved && saved === storeId && sessionStorage.getItem('admin_auth') === '1'
             && await hasStaffSession(saved)) {
-          const match = (data as StoreInfo[]).find(s => s.id === saved)
-          if (match) {
-            setSelectedStore(match)
-            setGroupStores((data as StoreInfo[]).filter(s => s.group_id === match.group_id))
-            const gc = sessionStorage.getItem('admin_group_code')
-            if (gc) setGroupCode(gc); else loadGroupCode(match)
-            if (!resolveFeature('tab_queue', match.features ?? {})) { router.replace(`/${match.id}/admin/repairs`); return }
-            setView('dashboard'); return
-          }
+          const gc = sessionStorage.getItem('admin_group_code')
+          if (gc) setGroupCode(gc); else loadGroupCode(match)
+          loadGroupStores(match) // ログアウト後の店舗切替UI用に事前取得
+          if (!resolveFeature('tab_queue', match.features ?? {})) { router.replace(`/${match.id}/admin/repairs`); return }
+          setView('dashboard'); return
         }
-        if (storeId) {
-          const match = (data as StoreInfo[]).find(s => s.id === storeId)
-          if (match) {
-            setSelectedStore(match)
-            setGroupStores((data as StoreInfo[]).filter(s => s.group_id === match.group_id))
-            setView('pin'); return
-          }
-        }
-        setView('select_store')
+        setView('pin')
       })
-  }, [storeId, loadGroupCode])
+  }, [storeId, loadGroupCode, loadGroupStores])
 
   const handleSelectStore = (s: StoreInfo) => { setSelectedStore(s); setView('pin') }
   const handleAuth = (role: 'owner' | 'staff') => {
@@ -834,6 +833,7 @@ export default function StoreAdminPage() {
       sessionStorage.setItem('admin_auth', '1')
       sessionStorage.setItem('admin_role', role)
       loadGroupCode(selectedStore)
+      loadGroupStores(selectedStore) // ログアウト後の店舗切替UI用に事前取得
       if (!resolveFeature('tab_queue', selectedStore.features ?? {})) {
         router.replace(`/${selectedStore.id}/admin/repairs`)
         return
@@ -852,15 +852,20 @@ export default function StoreAdminPage() {
       <Loader2 size={36} className="animate-spin text-indigo-600" />
     </div>
   )
-  if (view === 'select_store') return (
-    <>
+  if (view === 'not_found' || (view === 'select_store' && groupStores.length === 0)) return (
+    <div className="min-h-[100dvh] bg-gray-50 flex flex-col items-center justify-center gap-3 px-6 text-center">
       {fetchError && (
         <div className="fixed top-4 left-4 right-4 bg-red-600 text-white text-sm px-4 py-3 rounded-xl z-50 backdrop-blur-sm border border-red-700">
           エラー: {fetchError}
         </div>
       )}
-      <StoreSelectScreen stores={groupStores.length > 0 ? groupStores : stores} groupCode={groupCode} onSelect={handleSelectStore} />
-    </>
+      <Store size={40} className="text-gray-300" />
+      <p className="text-gray-500 font-bold">店舗が見つかりません</p>
+      <p className="text-gray-400 text-sm max-w-xs">URLをご確認のうえ、お店ごとのブックマーク/QRコードから管理画面を開いてください。</p>
+    </div>
+  )
+  if (view === 'select_store') return (
+    <StoreSelectScreen stores={groupStores} groupCode={groupCode} onSelect={handleSelectStore} />
   )
   if (view === 'pin' && selectedStore) return (
     <PinScreen title="スタッフ専用" emoji="🔒"
