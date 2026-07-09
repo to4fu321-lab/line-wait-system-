@@ -410,14 +410,15 @@ export default function RepairsPage() {
   }
 
   // サブタブ用グループ (request_type === 'repair' のみ分類)
-  const subUnstarted  = repairs.filter(r => r.request_type === 'repair' && !r.work_started && !r.sent_to_vendor_at)
+  // 外注先は「送付済み」だけでなく、受付時に業者を選んだ時点(vendor_name)で外注タブに反映する
+  const subUnstarted  = repairs.filter(r => r.request_type === 'repair' && !r.work_started && !r.sent_to_vendor_at && !r.vendor_name)
   const subInProgress = repairs.filter(r => r.request_type === 'repair' && r.work_started)
-  const subOutsourced = repairs.filter(r => r.request_type === 'repair' && !!r.sent_to_vendor_at && !r.work_started)
+  const subOutsourced = repairs.filter(r => r.request_type === 'repair' && !r.work_started && (!!r.sent_to_vendor_at || !!r.vendor_name))
   const subOther      = repairs.filter(r => r.request_type !== 'repair')
 
   // Simple mode: merge all active (non-outsourced or returned) into one group
-  const simpleSubUnstarted  = repairs.filter(r => !r.sent_to_vendor_at || r.work_started)
-  const simpleSubOutsourced = repairs.filter(r => !!r.sent_to_vendor_at && !r.work_started)
+  const simpleSubUnstarted  = repairs.filter(r => (!r.sent_to_vendor_at && !r.vendor_name) || r.work_started)
+  const simpleSubOutsourced = repairs.filter(r => !r.work_started && (!!r.sent_to_vendor_at || !!r.vendor_name))
 
   const subTabRepairs = isSimpleMode
     ? (repairSubTab === 'outsourced' ? simpleSubOutsourced : simpleSubUnstarted)
@@ -815,7 +816,7 @@ export default function RepairsPage() {
                   {filteredRepairs.map(r => (
                     <RepairCard key={r.id} item={r} storeId={storeId} storeName={storeName} onRefresh={fetchAll} onToast={showToast}
                       onEdit={item => { setEditItem(item); setEditKind('repair') }}
-                      selected={false} onToggle={() => {}} isSimpleMode={isSimpleMode} />
+                      selected={false} onToggle={() => {}} isSimpleMode={isSimpleMode} isTablet={isTablet} />
                   ))}
                 </div>
               </>
@@ -930,6 +931,7 @@ export default function RepairsPage() {
                       onEdit={item => { setEditItem(item); setEditKind('repair') }}
                       selected={batchSelected.has(r.id)}
                       isSimpleMode={isSimpleMode}
+                      isTablet={isTablet}
                       onToggle={() => setBatchSelected(prev => {
                         const n = new Set(prev); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n
                       })}

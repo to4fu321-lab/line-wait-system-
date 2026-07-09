@@ -9,7 +9,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
-  Loader2, ChevronLeft, ChevronRight, User, Check, X, Search, Camera, AlertTriangle,
+  Loader2, ChevronLeft, ChevronRight, User, Check, X, Search, Camera, AlertTriangle, Plus,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { RepairType } from '@/types/crm'
@@ -140,6 +140,9 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   const [memo, setMemo] = useState('')
   const [photos, setPhotos] = useState<{ file: File; url: string }[]>([])
   const [saving, setSaving] = useState(false)
+
+  // ── 1人が複数点持ち込んだ場合、続けて登録できるようにする ──────────
+  const [savedItems, setSavedItems] = useState<string[]>([])
 
   // 過去実績写真（項目選択時に取得）
   const [refPhotos,  setRefPhotos]  = useState<{ url: string; completed_date: string | null }[]>([])
@@ -286,7 +289,20 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
     return parts.join(' ').trim()
   }
 
-  async function handleSave() {
+  // 服種・項目選択に戻り、次の1点を続けて登録できるようにビルド状態をリセット
+  // （顧客紐付けはそのまま維持。加工業者/納期/メモは項目ごとに異なりうるため初期化）
+  function resetForNextItem() {
+    setGarmentId(garments[0]?.id ?? null)
+    setItem(null)
+    setOptSel({}); setInputs({}); setQty(1)
+    setPricingMode('master'); setOverridePrice(''); setManualReason('')
+    setManualItemName(''); setManualContent(''); setManualConfirmed(false)
+    setDeadline(''); setVendorId(null); setVendorName('')
+    setMemo(''); setPhotos([])
+    setBuildStep(0)
+  }
+
+  async function handleSave(closeAfter: boolean) {
     if (!item) return
     if (!selectedCust) { onToast('err', 'お客様を紐付けてください（上部の「顧客」から登録できます）'); setStep('customer'); return }
     if (hasDanger && !manualConfirmed) { onToast('err', '特殊ケースの確認にチェックしてください'); return }
@@ -348,8 +364,18 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
     }
 
     setSaving(false)
-    onToast('ok', finalPrice == null ? '✂️ 見積もり待ちで受付しました' : '✂️ お直しを受付しました')
-    onSave(); onClose()
+    const label = `${garments.find(g => g.id === item.garment_type_id)?.name ?? ''} ${itemName}`.trim()
+    onSave() // 都度リストを更新（保存済み分をすぐ反映）
+
+    if (closeAfter) {
+      const total = savedItems.length + 1
+      onToast('ok', total > 1 ? `✂️ ${total}点のお直しを受付しました` : (finalPrice == null ? '✂️ 見積もり待ちで受付しました' : '✂️ お直しを受付しました'))
+      onClose()
+    } else {
+      setSavedItems(prev => [...prev, label])
+      onToast('ok', `✂️ ${label} を登録しました。続けて次の項目を選択してください`)
+      resetForNextItem()
+    }
   }
 
   function defaultDeadline(): string | null {
@@ -447,7 +473,10 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
             )}
             <div>
               <h2 className="text-lg font-black text-gray-800">✂️ お直し受付</h2>
-              <p className="text-sm text-gray-400">{stepLabel}　{currentStepNum + 1} / {totalSteps}</p>
+              <p className="text-sm text-gray-400">
+                {stepLabel}　{currentStepNum + 1} / {totalSteps}
+                {savedItems.length > 0 && <span className="ml-1.5 text-indigo-500 font-bold">・登録済み{savedItems.length}点</span>}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -587,6 +616,12 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
           {/* ── お直し内容（build steps） ── */}
           {step === 'build' && (
             <div>
+              {savedItems.length > 0 && (
+                <div className="mb-4 rounded-xl bg-indigo-50 border border-indigo-200 px-3 py-2.5">
+                  <p className="text-xs font-black text-indigo-700">✅ 登録済み {savedItems.length}点</p>
+                  <p className="text-[11px] text-indigo-500 mt-0.5">{savedItems.join('、')}</p>
+                </div>
+              )}
               {/* 服種 */}
               {curBuildKey === 'garment' && (
                 <div>
@@ -792,7 +827,7 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
                   {curBuildKey === 'confirm' && (
                     <div>
                       <p className="text-xl font-black text-gray-800 mb-1">内容を確認してください</p>
-                      <p className="text-sm text-gray-500 mb-5">問題なければ「受付する」を押してください</p>
+                      <p className="text-sm text-gray-500 mb-5">同じ方の持込がまだあれば「続けてもう1点」から追加できます</p>
                       <div className="bg-gray-50 rounded-2xl p-5 space-y-4">
                         {[
                           { label: 'お客様', value: selectedCust ? `${selectedCust.name}${selectedChild ? ` / ${selectedChild.name}` : ''}` : '未紐付け（後で登録できます）' },
@@ -833,11 +868,20 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
               </button>
             )
           ) : isLastBuild ? (
-            <button onClick={handleSave} disabled={saving}
-              style={{ touchAction: 'manipulation' }}
-              className="w-full py-5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-white text-xl font-black disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.98]">
-              {saving ? <Loader2 size={22} className="animate-spin" /> : <Check size={22} />}受付する
-            </button>
+            <div className="space-y-2">
+              <button onClick={() => handleSave(true)} disabled={saving}
+                style={{ touchAction: 'manipulation' }}
+                className="w-full py-5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-white text-xl font-black disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.98]">
+                {saving ? <Loader2 size={22} className="animate-spin" /> : <Check size={22} />}
+                {savedItems.length > 0 ? `受付する（合計${savedItems.length + 1}点）` : '受付する'}
+              </button>
+              <button onClick={() => handleSave(false)} disabled={saving}
+                style={{ touchAction: 'manipulation' }}
+                className="w-full py-3.5 rounded-2xl border-2 border-indigo-300 text-indigo-600 text-sm font-black disabled:opacity-50 flex items-center justify-center gap-1.5 active:scale-[0.98]">
+                {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                この内容を登録して、続けてもう1点受け付ける
+              </button>
+            </div>
           ) : (
             <div className="flex gap-3">
               <button onClick={goBackBuild}

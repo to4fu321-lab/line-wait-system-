@@ -18,20 +18,25 @@ import type { RequestType } from '@/types/crm'
 import { fmtDate, fmtReqNo } from './utils'
 import type { RepairRow } from './types'
 
-export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, onEdit, selected, onToggle, isSimpleMode = false }: {
+export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, onEdit, selected, onToggle, isSimpleMode = false, isTablet = false }: {
   item: RepairRow; storeId: string; storeName?: string; onRefresh: () => void
   onToast: (t: 'ok' | 'err', m: string, undo?: () => Promise<void>) => void
   onEdit?: (item: RepairRow) => void
   selected?: boolean
   onToggle?: () => void
   isSimpleMode?: boolean
+  isTablet?: boolean
 }) {
+  // PCモード(isTablet)では固定の極小フォントだと読みづらいため、一回り大きいサイズに切替える
+  const tx = (mobile: string, tablet: string) => isTablet ? tablet : mobile
   const [open,          setOpen]          = useState(false)
   const [loading,       setLoading]       = useState(false)
   const [confirmPrimary, setConfirmPrimary] = useState(false)
   const [confirmPay,    setConfirmPay]    = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [confirmVendor, setConfirmVendor] = useState(false)
+  const [confirmInspect, setConfirmInspect] = useState(false)
+  const [inspectOk,      setInspectOk]    = useState(false)
   const [vendorName,    setVendorName]    = useState('')
   const [vendorId,      setVendorId]      = useState<string | null>(null)
   const [expectedReturn, setExpectedReturn] = useState('')
@@ -112,10 +117,56 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
     } : undefined)
   }
 
+  // お直し完了時、実際にLINE/SMSで通知する（従来は notified:true を立てるだけで送信されていなかった）
+  const fullNotifyMode: 'line' | 'sms' | 'phone_manual' | 'none' =
+    item.customer?.line_user_id ? 'line' : item.customer?.tel ? (smsEnabled ? 'sms' : 'phone_manual') : 'none'
+
+  async function handleRepairComplete() {
+    setLoading(true)
+    const today = new Date().toISOString().slice(0, 10)
+    const markNotifiedNow = fullNotifyMode !== 'line' && fullNotifyMode !== 'sms'
+    const { error } = await (supabase as any).from('repair_histories')
+      .update({ status: 'completed', completed_date: today, ...(markNotifiedNow ? { notified: true } : {}), updated_at: new Date().toISOString() })
+      .eq('id', item.id)
+    if (error) { setLoading(false); onToast('err', '更新に失敗しました'); return }
+    if (fullNotifyMode === 'line' || fullNotifyMode === 'sms') {
+      try {
+        const res = await fetch('/api/notify-repair', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            repairId: item.id,
+            lineUserId: item.customer?.line_user_id ?? null,
+            tel: item.customer?.tel ?? null,
+            customerName: item.customer?.name ?? '',
+            itemName: item.item_name,
+            storeName,
+            reqNo: fmtReqNo('repair', item.request_no, item.id),
+          }),
+        })
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok || !json.ok) {
+          setLoading(false); onRefresh()
+          onToast('err', `通知送信に失敗しました: ${(json as any).error ?? '不明なエラー'}`)
+          return
+        }
+      } catch (e) {
+        setLoading(false); onRefresh()
+        onToast('err', `通知エラー: ${String(e)}`)
+        return
+      }
+    }
+    setLoading(false); onRefresh()
+    onToast('ok', fullNotifyMode === 'line' ? 'お直し完了・LINEで通知しました' : fullNotifyMode === 'sms' ? 'お直し完了・SMSで通知しました' : 'お直し完了にしました')
+  }
+
   // Primary action config
   let primaryBtn: { label: string; color: string; onClick: () => void } | null = null
   if (reqType === 'repair') {
-    if (!item.work_started) {
+    if (item.sent_to_vendor_at && !item.work_started) {
+      // 外注中は「外注品が戻ってきた（検品へ）」から検品を経て再開する（下の外注ボタン参照）
+      primaryBtn = null
+    } else if (!item.work_started) {
       primaryBtn = {
         label: '✂️ 作業開始',
         color: 'bg-amber-500 hover:bg-amber-400 shadow-amber-200',
@@ -125,11 +176,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       primaryBtn = {
         label: '✅ お直し完了',
         color: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-200',
-        onClick: () => update(
-          { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true },
-          'お直し完了・連絡しました',
-          { status: 'received', completed_date: null, notified: false }
-        ),
+        onClick: handleRepairComplete,
       }
     }
   } else if (reqType === 'walk_in') {
@@ -295,18 +342,18 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
     const handleReturnFromVendor = async () => {
       setLoading(true)
       const { error } = await (supabase as any).from('repair_histories')
-        .update({ work_started: true, updated_at: new Date().toISOString() })
+        .update({ work_started: true, inspected_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq('id', item.id)
       setLoading(false)
       if (error) { onToast('err', '更新に失敗しました'); return }
       onRefresh()
-      onToast('ok', '📥 外注品が戻りました')
+      onToast('ok', '📥 検品OK・作業再開しました')
     }
 
     const handleSimpleRevert = async () => {
       setLoading(true)
       const { error } = await (supabase as any).from('repair_histories')
-        .update({ status: 'received', work_started: false, completed_date: null, notified: false, sent_to_vendor_at: null, vendor_name: null, updated_at: new Date().toISOString() })
+        .update({ status: 'received', work_started: false, completed_date: null, notified: false, sent_to_vendor_at: null, vendor_name: null, inspected_at: null, updated_at: new Date().toISOString() })
         .eq('id', item.id)
       setLoading(false)
       if (error) { onToast('err', '更新に失敗しました'); return }
@@ -327,34 +374,39 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
         <div className="p-3.5 space-y-2">
           {/* バッジ + 受付番号 */}
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className={`text-xs font-black px-2.5 py-1 rounded-lg ${REQUEST_TYPE_COLORS[reqType]}`}>
+            <div className={tx('text-xs', 'text-sm') + ' flex items-center gap-1.5 flex-wrap'}>
+              <span className={`font-black px-2.5 py-1 rounded-lg ${REQUEST_TYPE_COLORS[reqType]}`}>
                 {REQUEST_TYPE_LABELS[reqType]}
               </span>
-              {item.sent_to_vendor_at && (
-                <span className="text-xs font-black text-orange-600">📤 外注中{item.vendor_name ? `（${item.vendor_name}）` : ''}</span>
-              )}
-              {isOverdue && <span className="text-xs font-black text-red-600">⚠️ 期限超過</span>}
-              {isDueSoon && !isOverdue && <span className="text-xs font-black text-amber-600">⚠️ 明日まで</span>}
+              {item.sent_to_vendor_at ? (
+                <span className="font-black text-orange-600">🏭 外注中{item.vendor_name ? `（${item.vendor_name}）` : ''}</span>
+              ) : item.vendor_name ? (
+                <span className="font-black text-slate-500">📤 外注予定（{item.vendor_name}）</span>
+              ) : null}
+              {isOverdue && <span className="font-black text-red-600">⚠️ 期限超過</span>}
+              {isDueSoon && !isOverdue && <span className="font-black text-amber-600">⚠️ 明日まで</span>}
             </div>
-            <span className="text-base font-black text-indigo-500 font-mono shrink-0">{reqNo}</span>
+            <span className={tx('text-lg', 'text-2xl') + ' font-black text-indigo-500 font-mono shrink-0'}>{reqNo}</span>
           </div>
 
-          {/* 顧客名 ｜ お直し内容（1行にまとめる） */}
+          {/* 顧客名 ｜ 大項目 ｜ お直し内容（1行にまとめる） */}
           <div className="flex items-baseline gap-x-2 gap-y-0.5 flex-wrap">
             {item.child?.school_name && (
-              <span className="text-xs font-black text-amber-600">{item.child.school_name}</span>
+              <span className={tx('text-xs', 'text-sm') + ' font-black text-amber-600'}>{item.child.school_name}</span>
             )}
-            <span className="text-lg font-black text-gray-900 leading-tight">{name}</span>
+            {item.garment_name && (
+              <span className={tx('text-xs', 'text-sm') + ' font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded'}>{item.garment_name}</span>
+            )}
+            <span className={tx('text-lg', 'text-xl') + ' font-black text-gray-900 leading-tight'}>{name}</span>
             <span className="text-gray-300 font-black">｜</span>
-            <span className="text-base font-black text-gray-900 leading-tight">
+            <span className={tx('text-base', 'text-lg') + ' font-black text-gray-900 leading-tight'}>
               {item.content || item.item_name || '内容未記入'}
             </span>
             {item.item_name && item.content && item.item_name !== item.content && (
-              <span className="text-xs text-gray-400 font-bold">{item.item_name}</span>
+              <span className={tx('text-xs', 'text-sm') + ' text-gray-400 font-bold'}>{item.item_name}</span>
             )}
             {item.child?.name && item.customer?.name && (
-              <span className="text-[11px] text-gray-400">（保護者: {item.customer.name}）</span>
+              <span className={tx('text-[11px]', 'text-xs') + ' text-gray-400'}>（保護者: {item.customer.name}）</span>
             )}
           </div>
 
@@ -499,13 +551,36 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                 </button>
               </div>
             </div>
+          ) : confirmInspect ? (
+            <div className="rounded-xl border-2 border-teal-300 bg-teal-50 px-3 py-2.5 space-y-2.5">
+              <p className="text-sm font-black text-teal-800 text-center">📥 検品してください</p>
+              <label className="flex items-center gap-2 bg-white rounded-xl border border-teal-200 px-3 py-2.5 cursor-pointer">
+                <input type="checkbox" checked={inspectOk} onChange={e => setInspectOk(e.target.checked)} className="w-4 h-4 accent-teal-600" />
+                <span className="text-xs font-bold text-gray-700">仕上がり・汚れ・破損がないか確認しました</span>
+              </label>
+              <div className="flex gap-2">
+                <button onClick={() => { setConfirmInspect(false); setInspectOk(false) }}
+                  style={{ touchAction: 'manipulation' }}
+                  className="flex-1 py-2 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-black active:scale-95 transition-all">
+                  戻る
+                </button>
+                <button onClick={() => { setConfirmInspect(false); setInspectOk(false); handleReturnFromVendor() }} disabled={loading || !inspectOk}
+                  style={{ touchAction: 'manipulation' }}
+                  className="flex-1 py-2 rounded-xl bg-teal-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md disabled:opacity-50">
+                  {loading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                  検品OK・作業再開
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="flex gap-2">
-              <button onClick={() => setConfirmPrimary(true)} disabled={loading}
-                style={{ touchAction: 'manipulation' }}
-                className="flex-[2] py-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-black text-base rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20 transition-all disabled:opacity-50">
-                {loading ? <Loader2 size={18} className="animate-spin" /> : '✅'} 完了
-              </button>
+              {!(item.sent_to_vendor_at && !item.work_started) && (
+                <button onClick={() => setConfirmPrimary(true)} disabled={loading}
+                  style={{ touchAction: 'manipulation' }}
+                  className="flex-[2] py-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-black text-base rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20 transition-all disabled:opacity-50">
+                  {loading ? <Loader2 size={18} className="animate-spin" /> : '✅'} 完了
+                </button>
+              )}
               {!item.sent_to_vendor_at ? (
                 <button onClick={() => setConfirmVendor(true)} disabled={loading}
                   style={{ touchAction: 'manipulation' }}
@@ -513,10 +588,10 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                   📤 外注
                 </button>
               ) : !item.work_started ? (
-                <button onClick={handleReturnFromVendor} disabled={loading}
+                <button onClick={() => setConfirmInspect(true)} disabled={loading}
                   style={{ touchAction: 'manipulation' }}
-                  className="flex-1 py-3.5 border-2 border-teal-200 bg-teal-50 text-teal-700 font-black text-base rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-50">
-                  {loading ? <Loader2 size={18} className="animate-spin" /> : '📥'} 戻り
+                  className="flex-[2] py-3.5 border-2 border-teal-200 bg-teal-50 text-teal-700 font-black text-base rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-50">
+                  {loading ? <Loader2 size={18} className="animate-spin" /> : '📥'} 戻ってきた（検品）
                 </button>
               ) : null}
             </div>
@@ -635,62 +710,66 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       <button className="w-full text-left px-3 pt-2 pb-2 flex items-start gap-2" onClick={() => setOpen(v => !v)}>
         <div className="flex-1 min-w-0">
           {/* Row 1: badges + deadline */}
-          <div className="flex items-center gap-1 mb-0.5">
-            <span className={`text-[9px] px-1.5 py-0 rounded-full border font-bold leading-5 ${REQUEST_TYPE_COLORS[reqType]}`}>
+          <div className={tx('text-[9px]', 'text-xs') + ' flex items-center gap-1 mb-0.5 flex-wrap'}>
+            <span className={`px-1.5 py-0 rounded-full border font-bold leading-5 ${REQUEST_TYPE_COLORS[reqType]}`}>
               {REQUEST_TYPE_LABELS[reqType]}
             </span>
             {item.repair_type && (
-              <span className={`text-[9px] px-1.5 py-0 rounded-full border font-bold leading-5 ${REPAIR_TYPE_COLORS[item.repair_type]}`}>
+              <span className={`px-1.5 py-0 rounded-full border font-bold leading-5 ${REPAIR_TYPE_COLORS[item.repair_type]}`}>
                 {REPAIR_TYPE_ICONS[item.repair_type]} {REPAIR_TYPE_LABELS[item.repair_type]}
               </span>
             )}
             {item.sent_to_vendor_at ? (
-              <span className="text-[9px] px-1.5 py-0 rounded-full bg-orange-100 text-orange-700 border border-orange-200 font-bold leading-5">🏭外注中</span>
+              <span className="px-1.5 py-0 rounded-full bg-orange-100 text-orange-700 border border-orange-200 font-bold leading-5">🏭外注中</span>
             ) : item.vendor_name ? (
-              <span className="text-[9px] px-1.5 py-0 rounded-full bg-slate-100 text-slate-600 border border-slate-200 font-bold leading-5 max-w-[6rem] truncate">📤{item.vendor_name}</span>
+              <span className="px-1.5 py-0 rounded-full bg-slate-100 text-slate-600 border border-slate-200 font-bold leading-5 max-w-[8rem] truncate">📤外注予定 {item.vendor_name}</span>
             ) : null}
-            {item.is_rework && <span className="text-[9px] px-1.5 py-0 rounded-full bg-red-100 text-red-700 border border-red-200 font-bold leading-5">再加工</span>}
-            {isOverdue && <span className="text-[9px] px-1.5 py-0 rounded-full bg-red-600 text-white font-black leading-5 animate-pulse">🚨{Math.abs(daysLeft!)}日超過</span>}
-            {isDueSoon && !isOverdue && <span className="text-[9px] px-1.5 py-0 rounded-full bg-amber-500 text-white font-black leading-5">⚠️期限間近</span>}
-            {!item.prepaid && <span className="text-[9px] px-1.5 py-0 rounded-full bg-red-600 text-white font-black leading-5 animate-pulse">未払い</span>}
+            {item.is_rework && <span className="px-1.5 py-0 rounded-full bg-red-100 text-red-700 border border-red-200 font-bold leading-5">再加工</span>}
+            {isOverdue && <span className="px-1.5 py-0 rounded-full bg-red-600 text-white font-black leading-5 animate-pulse">🚨{Math.abs(daysLeft!)}日超過</span>}
+            {isDueSoon && !isOverdue && <span className="px-1.5 py-0 rounded-full bg-amber-500 text-white font-black leading-5">⚠️期限間近</span>}
+            {!item.prepaid && <span className="px-1.5 py-0 rounded-full bg-red-600 text-white font-black leading-5 animate-pulse">未払い</span>}
             <span className="flex-1" />
             {item.desired_completion_date && (
-              <span className={`text-[9px] font-bold shrink-0 ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-gray-400'}`}>
+              <span className={`font-bold shrink-0 ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-gray-400'}`}>
                 希望{fmtDate(item.desired_completion_date)}
               </span>
             )}
           </div>
 
-          {/* Row 2: アイテム名 + 内容 + 金額 */}
+          {/* Row 2: 大項目 + アイテム名 + 内容 + 金額 */}
           <div className="flex items-start gap-1.5">
             <div className="flex-1 min-w-0">
-              {item.item_name && item.content && item.item_name !== item.content && (
-                <p className="text-[10px] text-gray-400 truncate leading-none mb-0.5">{item.item_name}</p>
+              {(item.garment_name || (item.item_name && item.content && item.item_name !== item.content)) && (
+                <p className={tx('text-[10px]', 'text-xs') + ' text-gray-400 truncate leading-none mb-0.5'}>
+                  {item.garment_name && <span className="font-bold text-indigo-500">{item.garment_name}</span>}
+                  {item.garment_name && item.item_name && item.content && item.item_name !== item.content && ' ・ '}
+                  {item.item_name && item.content && item.item_name !== item.content && item.item_name}
+                </p>
               )}
-              <p className="text-sm font-black text-gray-900 leading-tight truncate">
+              <p className={tx('text-sm', 'text-lg') + ' font-black text-gray-900 leading-tight truncate'}>
                 {item.content || item.item_name || '内容未記入'}
               </p>
             </div>
             {item.price != null && (
-              <span className={`text-sm font-black shrink-0 ${item.prepaid ? 'text-gray-400' : 'text-red-600'}`}>
+              <span className={tx('text-sm', 'text-lg') + ` font-black shrink-0 ${item.prepaid ? 'text-gray-400' : 'text-red-600'}`}>
                 ¥{item.price.toLocaleString()}
               </span>
             )}
           </div>
 
           {/* Row 3: 学校名 + 子供名 + 保護者名 + 受付日 + 依頼番号 */}
-          <div className="flex items-center gap-1.5 mt-0.5">
+          <div className={tx('text-[10px]', 'text-sm') + ' flex items-center gap-1.5 mt-0.5'}>
             {item.child?.school_name && (
-              <span className="text-[10px] font-black text-amber-600 truncate max-w-[7rem]">{item.child.school_name}</span>
+              <span className="font-black text-amber-600 truncate max-w-[7rem]">{item.child.school_name}</span>
             )}
-            <span className="text-xs font-bold text-gray-700 truncate flex-1">
+            <span className={tx('text-xs', 'text-base') + ' font-bold text-gray-700 truncate flex-1'}>
               {item.child?.name ?? item.customer?.name ?? '（顧客不明）'}
               {item.child?.name && item.customer?.name && (
-                <span className="text-[10px] text-gray-400 font-normal ml-1">({item.customer.name})</span>
+                <span className="text-gray-400 font-normal ml-1">({item.customer.name})</span>
               )}
             </span>
-            <span className="text-[10px] text-gray-400 shrink-0">受付{fmtDate(item.received_date)}</span>
-            <span className="text-[10px] font-black text-indigo-400 shrink-0 font-mono">{fmtReqNo('repair', item.request_no, item.id)}</span>
+            <span className="text-gray-400 shrink-0">受付{fmtDate(item.received_date)}</span>
+            <span className={tx('text-sm', 'text-xl') + ' font-black text-indigo-500 shrink-0 font-mono'}>{fmtReqNo('repair', item.request_no, item.id)}</span>
           </div>
         </div>
         <div className="shrink-0 self-center ml-1">
@@ -825,14 +904,33 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             </button>
           )}
           {item.vendor_name && item.sent_to_vendor_at && !item.work_started && (
-            <button onClick={() => update(
-              { work_started: true, sent_to_vendor_at: item.sent_to_vendor_at },
-              '外注品が戻りました',
-              { work_started: false }
-            )} disabled={loading}
-              className="w-full py-2.5 rounded-xl font-bold text-xs border border-teal-200 bg-teal-50 text-teal-700 flex items-center justify-center gap-2 hover:bg-teal-100 active:scale-95 transition-all">
-              <Check size={12} />📥 外注品が戻ってきた（検品へ）
-            </button>
+            confirmInspect ? (
+              <div className="rounded-2xl border-2 border-teal-300 bg-teal-50 px-4 py-3.5 space-y-2.5">
+                <p className="text-sm text-center text-teal-800 font-black">📥 検品してください</p>
+                <label className="flex items-center gap-2 bg-white rounded-xl border border-teal-200 px-3 py-2.5 cursor-pointer">
+                  <input type="checkbox" checked={inspectOk} onChange={e => setInspectOk(e.target.checked)} className="w-4 h-4 accent-teal-600" />
+                  <span className="text-xs font-bold text-gray-700">仕上がり・汚れ・破損がないか確認しました</span>
+                </label>
+                <div className="flex gap-2">
+                  <button onClick={() => { setConfirmInspect(false); setInspectOk(false) }}
+                    className="flex-1 py-3 rounded-xl bg-white border border-gray-200 text-gray-600 text-sm font-bold active:scale-95 transition-all">
+                    戻る
+                  </button>
+                  <button onClick={() => {
+                    setConfirmInspect(false); setInspectOk(false)
+                    update({ work_started: true, inspected_at: new Date().toISOString() }, '検品OK・作業再開しました', { work_started: false, inspected_at: null })
+                  }} disabled={loading || !inspectOk}
+                    className="flex-1 py-3 rounded-xl bg-teal-600 text-white text-sm font-black flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-95 transition-all">
+                    {loading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}検品OK・作業再開
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmInspect(true)} disabled={loading}
+                className="w-full py-2.5 rounded-xl font-bold text-xs border border-teal-200 bg-teal-50 text-teal-700 flex items-center justify-center gap-2 hover:bg-teal-100 active:scale-95 transition-all">
+                <Check size={12} />📥 外注品が戻ってきた（検品へ）
+              </button>
+            )
           )}
 
           {/* Payment toggle */}
