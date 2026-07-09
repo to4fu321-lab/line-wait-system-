@@ -23,6 +23,7 @@ export interface RepairRow {
   vendor_name: string | null
   sent_to_vendor_at: string | null
   expected_return_date: string | null
+  inspected_at: string | null
   is_rework: boolean
   rework_reason: string | null
   internal_memo: string | null
