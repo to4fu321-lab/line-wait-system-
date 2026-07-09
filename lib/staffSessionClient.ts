@@ -35,3 +35,14 @@ export async function hasStaffSession(storeId: string): Promise<boolean> {
 export async function clearStaffSession(): Promise<void> {
   try { await supabase.auth.signOut() } catch { /* ignore */ }
 }
+
+/**
+ * Supabase の書き込みエラーが RLS(セッション切れ)によるものかを判定する。
+ * 管理画面の各ページは admin トップ('/[storeId]/admin')でPIN認証時に
+ * スタッフセッションを張るが、そのページを経由せず直接サブページへ
+ * 来た場合や、セッション期限切れの場合に customers 等への書き込みで
+ * 「new row violates row-level security policy」が発生しうる。
+ */
+export function isSessionExpiredError(error: { message?: string } | null | undefined): boolean {
+  return !!error?.message?.includes('row-level security')
+}

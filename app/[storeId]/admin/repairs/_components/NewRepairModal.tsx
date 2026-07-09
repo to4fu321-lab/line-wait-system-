@@ -21,6 +21,7 @@ import {
 import { calcLinePrice, needsQuote, toOptionSnapshot, addBusinessDays } from '@/lib/repairPricing'
 import { RepairIcon } from '@/lib/garmentIcons'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
+import { isSessionExpiredError } from '@/lib/staffSessionClient'
 import type { CustResult } from './types'
 import { CustomerLinkSheet } from './CustomerLinkSheet'
 import { RecentCustomers, type RecentCust } from '../../_components/RecentCustomers'
@@ -77,7 +78,15 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
     if (!cust) {
       const { data: c, error } = await (supabase as any).from('customers')
         .insert({ store_id: storeId, name: newName.trim(), tel }).select(sel).single()
-      if (error) { setRegistering(false); onToast('err', error.message ?? '登録に失敗しました'); return }
+      if (error) {
+        setRegistering(false)
+        if (isSessionExpiredError(error)) {
+          onToast('err', 'ログインの有効期限が切れました。3秒後に管理画面トップへ移動します。PINを再入力してください。')
+          setTimeout(() => { window.location.href = `/${storeId}/admin` }, 3000)
+          return
+        }
+        onToast('err', error.message ?? '登録に失敗しました'); return
+      }
       cust = c as CustResult
     }
     setSelectedCust(cust!); setSelectedChild(null)
@@ -354,7 +363,15 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
 
     const { data: inserted, error } = await (supabase as any)
       .from('repair_histories').insert(payload).select('id, request_no').single()
-    if (error || !inserted) { setSaving(false); onToast('err', `保存失敗: ${error?.message ?? ''}`); return }
+    if (error || !inserted) {
+      setSaving(false)
+      if (isSessionExpiredError(error)) {
+        onToast('err', 'ログインの有効期限が切れました。3秒後に管理画面トップへ移動します。PINを再入力してください。')
+        setTimeout(() => { window.location.href = `/${storeId}/admin` }, 3000)
+        return
+      }
+      onToast('err', `保存失敗: ${error?.message ?? ''}`); return
+    }
 
     // 受付写真アップロード
     if (photos.length) {
