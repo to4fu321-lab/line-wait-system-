@@ -176,8 +176,29 @@ async function issueFullSession(
  * パブリックサインアップは無効化されている前提(ユーザー作成は
  * service_role のみ)。失敗時は null(呼び出し元は 500 にせず
  * セッション無しで続行させない=ログイン失敗扱いにすること)。
+ *
+ * 同一店舗の複数スタッフが同時にPINを打つ(出勤時間帯など)と、
+ * 期限間近の同じ refresh_token を並行してリフレッシュしてしまう。
+ * Supabase の refresh_token はローテーション式(使うと即失効)なため、
+ * 後発のリクエストは失効済みトークンでの再利用エラーとなり
+ * フルフロー(generateLink)に落ちる。これが同時多発すると
+ * generateLink のレート制限に達し、店舗全体でPINが通らなくなる。
+ * 店舗IDごとに実行を1本化(single-flight)して同時Auth API呼び出しを防ぐ。
  */
+const inFlight = new Map<string, Promise<StaffSessionTokens | null>>()
+
 export async function createStaffSession(storeId: string): Promise<StaffSessionTokens | null> {
+  const existing = inFlight.get(storeId)
+  if (existing) return existing
+
+  const promise = createStaffSessionUncached(storeId).finally(() => {
+    inFlight.delete(storeId)
+  })
+  inFlight.set(storeId, promise)
+  return promise
+}
+
+async function createStaffSessionUncached(storeId: string): Promise<StaffSessionTokens | null> {
   const admin = createAdminClient({ noStore: true })
 
   const cached = await readCache(admin, storeId)
@@ -191,7 +212,8 @@ export async function createStaffSession(storeId: string): Promise<StaffSessionT
     // ケース2: 期限間近/切れ → 軽量リフレッシュを1回だけ試す
     const refreshed = await tryRefresh(cached.refresh_token)
     if (refreshed) {
-      void writeCache(admin, storeId, refreshed) // レスポンスは待たせない
+      // 次のリクエストが失効済みトークンを読まないよう、書き込みを待ってから返す
+      await writeCache(admin, storeId, refreshed)
       return { access_token: refreshed.access_token, refresh_token: refreshed.refresh_token }
     }
     // リフレッシュ失敗 → フルフローへフォールスルー
