@@ -52,7 +52,7 @@ export default function StartTrialPage() {
               <div>
                 <label className="mb-1.5 block text-sm font-bold text-zinc-700">お店の名前 <span className="text-red-500">*</span></label>
                 <input value={storeName} onChange={e => { setStoreName(e.target.value); setError(null) }}
-                  placeholder="例：ひものや 学生服店"
+                  placeholder="例：〇〇学生服店"
                   className="w-full rounded-2xl border-2 border-zinc-200 px-4 py-3.5 text-base focus:border-zinc-900 focus:outline-none" />
               </div>
               <div>
