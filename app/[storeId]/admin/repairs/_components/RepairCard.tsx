@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import {
   Loader2, ChevronDown, ChevronUp,
   Phone, User, Check, RotateCcw,
-  Banknote, Pencil, Truck, Trash2, Camera, X,
+  Banknote, Pencil, Truck, Trash2, Camera, X, Printer,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { REPAIR_PHOTOS_BUCKET } from '@/types/repair'
@@ -17,6 +17,7 @@ import {
 import type { RequestType } from '@/types/crm'
 import { fmtDate, fmtReqNo } from './utils'
 import type { RepairRow } from './types'
+import { RepairPrintModal, type PrintableRepair } from './RepairPrintSlip'
 
 export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, onEdit, selected, onToggle, isSimpleMode = false, isTablet = false }: {
   item: RepairRow; storeId: string; storeName?: string; onRefresh: () => void
@@ -44,7 +45,29 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
   const [completionPhotos, setCompletionPhotos] = useState<{ file: File; url: string }[]>([])
   const [repairPhotos, setRepairPhotos] = useState<{ phase: string; url: string }[] | null>(null)
   const [photosOpen,   setPhotosOpen]   = useState(false)
+  const [printOpen,    setPrintOpen]    = useState(false)
   const photosLoadedRef = useRef(false)
+
+  // 外注先へそのまま渡せる依頼書（価格は含めない）
+  const printableItem: PrintableRepair = {
+    reqNo: fmtReqNo('repair', item.request_no, item.id),
+    garmentName: item.garment_name ?? '',
+    itemName: item.item_name,
+    content: item.content,
+    schoolName: item.child?.school_name ?? null,
+    childName: item.child?.name ?? null,
+    customerName: item.customer?.name ?? '',
+    receivedDate: item.received_date,
+    desiredDate: item.desired_completion_date,
+    vendorName: item.vendor_name,
+    memo: item.internal_memo,
+    hemLengthMm: item.hem_length_mm,
+    sleeveAdjustMm: item.sleeve_adjust_mm,
+    waistAdjustMm: item.waist_adjust_mm,
+    embroideryText: item.embroidery_text,
+    embroideryColor: item.embroidery_color,
+    embroideryPos: item.embroidery_pos,
+  }
 
   const { hasFeature } = useStoreFeatures(storeId)
   const smsEnabled = hasFeature('sms_notify') // アドオン未契約なら false → 電話連絡ステップ
@@ -664,6 +687,11 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5">
+                  <button onClick={() => setPrintOpen(true)}
+                    style={{ touchAction: 'manipulation' }}
+                    className="flex items-center gap-1 px-2.5 py-1.5 border border-indigo-100 bg-indigo-50 text-indigo-600 font-bold text-xs rounded-lg active:scale-95 transition-all">
+                    <Printer size={11} />印刷
+                  </button>
                   {canRevert && (
                     <button onClick={handleSimpleRevert} disabled={loading}
                       style={{ touchAction: 'manipulation' }}
@@ -682,6 +710,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             </div>
           )}
         </div>
+        {printOpen && <RepairPrintModal items={[printableItem]} storeName={storeName} onClose={() => setPrintOpen(false)} />}
       </div>
     )
   }
@@ -890,6 +919,10 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
               className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 font-medium">
               <User size={11} />顧客詳細
             </a>
+            <button onClick={() => setPrintOpen(true)}
+              className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 font-bold">
+              <Printer size={11} />印刷
+            </button>
           </div>
 
           {/* 外注送付ボタン */}
@@ -1009,6 +1042,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       )}
         </div>
       </div>
+      {printOpen && <RepairPrintModal items={[printableItem]} storeName={storeName} onClose={() => setPrintOpen(false)} />}
     </div>
   )
 }

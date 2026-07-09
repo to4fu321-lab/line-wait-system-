@@ -1297,6 +1297,7 @@ export default function RepairsPage() {
       {showNewRepair && (
         <NewRepairModal
           storeId={storeId}
+          storeName={storeName}
           onClose={() => setShowNewRepair(false)}
           onSave={fetchAll}
           onToast={showToast}
