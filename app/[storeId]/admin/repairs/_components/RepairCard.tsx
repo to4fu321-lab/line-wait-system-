@@ -735,7 +735,8 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             </div>
           </button>
         )}
-        <div className="flex-1 min-w-0 overflow-hidden flex items-stretch">
+        <div className="flex-1 min-w-0 overflow-hidden">
+      <div className="flex items-stretch">
       {/* Clickable summary area */}
       <button className="flex-1 min-w-0 text-left px-3 pt-2 pb-2 flex items-start gap-2" onClick={() => setOpen(v => !v)}>
         <div className="flex-1 min-w-0">
@@ -812,6 +813,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
         className="shrink-0 self-start mt-2.5 mr-2.5 p-1.5 rounded-lg text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 active:scale-90 transition-all">
         <Printer size={16} />
       </button>
+      </div>
 
       {/* Expanded details */}
       {open && (
