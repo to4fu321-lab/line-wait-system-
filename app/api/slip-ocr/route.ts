@@ -1,16 +1,8 @@
 export const dynamic = 'force-dynamic'
 
-import { timingSafeEqual } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { createAdminClient } from '@/lib/supabaseAdmin'
-
-function safeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a)
-  const bufB = Buffer.from(b)
-  if (bufA.length !== bufB.length) { timingSafeEqual(bufA, bufA); return false }
-  return timingSafeEqual(bufA, bufB)
-}
+import { assertStorePin } from '@/lib/auth/storeAuth'
 
 // ── お直し伝票の抽出スキーマ ────────────────────────────────────
 const REPAIR_SCHEMA = `
@@ -132,22 +124,9 @@ export async function POST(req: NextRequest) {
       storePin?: string
     }
 
-    // ── 認証: storeId + storePin の照合 ──────────────────────────
-    if (!storeId || !storePin) {
-      return NextResponse.json({ ok: false, error: '認証情報が必要です (storeId + storePin)' }, { status: 401 })
-    }
-    const supabase = createAdminClient()
-    const { data: store } = await supabase
-      .from('stores')
-      .select('pin')
-      .eq('id', storeId)
-      .single()
-    if (!store) {
-      return NextResponse.json({ ok: false, error: '店舗が見つかりません' }, { status: 401 })
-    }
-    if (!safeEqual(String(storePin), String(store.pin ?? ''))) {
-      return NextResponse.json({ ok: false, error: '認証に失敗しました' }, { status: 401 })
-    }
+    // ── 認証: storeId + storePin の照合（bcrypt hash は verify_store_pin RPC 経由） ──
+    const denied = await assertStorePin(req, { storeId, storePin })
+    if (denied) return denied
     // ─────────────────────────────────────────────────────────────
 
     if (!imageBase64) {

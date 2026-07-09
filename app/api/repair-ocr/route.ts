@@ -1,21 +1,13 @@
 export const dynamic = 'force-dynamic'
 
-import { timingSafeEqual } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { createAdminClient } from '@/lib/supabaseAdmin'
+import { assertStorePin } from '@/lib/auth/storeAuth'
 
 // ============================================================
 // お直し価格表/マニュアルの写真 → 服種・項目・価格を構造化
 //   既存のOCRルート(slip-ocr)と同じ Anthropic vision・store認証を使用。
 // ============================================================
-
-function safeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a)
-  const bufB = Buffer.from(b)
-  if (bufA.length !== bufB.length) { timingSafeEqual(bufA, bufA); return false }
-  return timingSafeEqual(bufA, bufB)
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,17 +15,9 @@ export async function POST(req: NextRequest) {
       imageBase64?: string; mimeType?: string; storeId?: string; storePin?: string
     }
 
-    // ── 認証: storeId + storePin の照合（slip-ocr と同方式） ──
-    if (!storeId || !storePin) {
-      return NextResponse.json({ ok: false, error: '認証情報が必要です (storeId + storePin)' }, { status: 401 })
-    }
-    const { data: store } = await createAdminClient().from('stores').select('pin').eq('id', storeId).single()
-    if (!store) {
-      return NextResponse.json({ ok: false, error: '店舗が見つかりません' }, { status: 401 })
-    }
-    if (!safeEqual(String(storePin), String(store.pin ?? ''))) {
-      return NextResponse.json({ ok: false, error: '認証に失敗しました' }, { status: 401 })
-    }
+    // ── 認証: storeId + storePin の照合（bcrypt hash は verify_store_pin RPC 経由） ──
+    const denied = await assertStorePin(req, { storeId, storePin })
+    if (denied) return denied
 
     if (!imageBase64) return NextResponse.json({ ok: false, error: '画像データが必要です' }, { status: 400 })
 

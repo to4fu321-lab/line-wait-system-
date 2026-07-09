@@ -44,15 +44,15 @@ export const PopPreview = forwardRef<HTMLDivElement, Props>(function PopPreview(
         className="w-full h-full flex flex-col"
       >
         {/* ヘッダー */}
-        <div style={{ backgroundColor: theme.accent, color: '#ffffff' }} className="text-center px-[6%] pt-[5%] pb-[4.5%]">
+        <div style={{ backgroundColor: theme.accent, color: '#ffffff' }} className="shrink-0 text-center px-[6%] pt-[5%] pb-[4.5%]">
           <div style={{ fontSize: '0.8em', letterSpacing: '0.1em' }} className="font-bold opacity-90">＼ 登録かんたん・無料 ／</div>
           <div style={{ fontSize: '2.2em', lineHeight: 1.15 }} className="font-black mt-[1.5%] whitespace-pre-wrap break-words">
             {settings.headline}
           </div>
         </div>
 
-        {/* 本文 */}
-        <div className="flex-1 flex flex-col px-[7%] py-[5%] min-h-0">
+        {/* 本文（フッターに文字が食い込まないよう、はみ出た分はここで隠す） */}
+        <div className="flex-1 flex flex-col px-[7%] py-[5%] min-h-0 overflow-hidden">
           {settings.subCopy && (
             <p style={{ fontSize: '1.02em' }} className="text-center font-bold mb-[5%] whitespace-pre-wrap break-words">
               {settings.subCopy}
@@ -104,7 +104,7 @@ export const PopPreview = forwardRef<HTMLDivElement, Props>(function PopPreview(
 
         {/* フッター */}
         {showFooter && (
-          <div style={{ backgroundColor: theme.accentSoft, color: theme.text }} className="text-center px-[7%] py-[3%]">
+          <div style={{ backgroundColor: theme.accentSoft, color: theme.text }} className="shrink-0 text-center px-[7%] py-[3%]">
             {settings.showStoreName && storeName && (
               <div style={{ fontSize: '0.92em' }} className="font-black break-words">{storeName}</div>
             )}
