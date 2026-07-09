@@ -62,13 +62,34 @@ function Slip({ item, storeName }: { item: PrintableRepair; storeName: string })
           <p className="text-xl font-black text-gray-900 leading-snug">{item.content || item.itemName}</p>
           <DetailLines item={item} />
         </div>
-        {item.vendorName && <p className="text-sm font-bold text-orange-700">外注先: {item.vendorName}</p>}
+        {item.vendorName ? (
+          <p className="text-sm font-bold text-orange-700">外注先: {item.vendorName}</p>
+        ) : (
+          <p className="text-sm text-gray-500">外注先: <span className="inline-block border-b border-gray-400 w-40 align-bottom">&nbsp;</span></p>
+        )}
         {item.memo && (
           <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
             <p className="text-xs font-bold text-gray-400 mb-0.5">メモ</p>
             <p className="text-sm text-gray-700 whitespace-pre-wrap">{item.memo}</p>
           </div>
         )}
+
+        {/* 外注業者記入欄: 受領・作業完了のチェックとサイン */}
+        <div className="border-2 border-gray-400 rounded-lg px-3 py-3 mt-2">
+          <p className="text-xs font-bold text-gray-500 mb-2">外注業者様 記入欄</p>
+          <div className="space-y-2.5 text-sm text-gray-800">
+            <div className="flex items-baseline gap-2">
+              <span>□ 受領しました　　日付：　　　／　　／　　</span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span>□ 作業完了しました　日付：　　　／　　／　　</span>
+            </div>
+            <div className="flex items-baseline gap-2 pt-1">
+              <span className="shrink-0">サイン・印：</span>
+              <span className="flex-1 border-b border-gray-400 h-5" />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
