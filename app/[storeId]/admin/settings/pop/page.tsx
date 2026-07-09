@@ -10,7 +10,7 @@ import {
 import { toPng } from 'html-to-image'
 import { supabase } from '@/lib/supabase'
 import {
-  PAPER, THEME_COLORS, mergePopSettings, generateMerits, formatBusinessHours, registrationQrUrl,
+  PAPER, THEME_COLORS, mergePopSettings, generateMerits, formatBusinessHours,
   type PopSettings, type PopMerit, type PaperSize, type Orientation, type PopTheme,
   type QrSize, type StoreFeatureFlags, type BusinessHours,
 } from '@/lib/pop'
@@ -231,16 +231,9 @@ export default function PopEditorPage() {
           {/* 基本情報 */}
           <Card title="基本情報" emoji="📝">
             <Field label="QRコードのURL（新規顧客登録QRを自動使用）">
-              <div className="flex gap-2">
-                <input type="url" value={settings.friendUrl} onChange={e => up({ friendUrl: e.target.value })}
-                  placeholder="https://liff.line.me/xxxxxxx"
-                  className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:outline-none" />
-                <button type="button" onClick={() => up({ friendUrl: registrationQrUrl(storeId) })}
-                  className="shrink-0 px-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100 text-xs font-bold">
-                  自動に戻す
-                </button>
-              </div>
-              <p className="text-[11px] text-gray-400 mt-1">お客様受付QR（新規顧客登録QR）と同じURLを自動で貼り付けています。通常は変更不要です。</p>
+              <input type="url" value={settings.friendUrl} readOnly disabled
+                className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-500 cursor-not-allowed" />
+              <p className="text-[11px] text-gray-400 mt-1">お客様受付QR（新規顧客登録QR）と同じURLを自動で使用します。不正防止のため手動での変更はできません。</p>
             </Field>
             <Field label="大見出し">
               <input type="text" value={settings.headline} onChange={e => up({ headline: e.target.value })}

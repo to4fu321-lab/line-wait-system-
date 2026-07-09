@@ -90,14 +90,14 @@ export function defaultPopSettings(flags: StoreFeatureFlags, storeId: string): P
 }
 
 // 保存値と現行デフォルトをマージ（新フィールド追加時の後方互換）
-// friendUrlは新規顧客登録QRを自動で使用する（未入力・未保存時は常に最新のQRに追従）
+// friendUrlは不正防止のため保存値を一切信用せず、常に新規顧客登録QRを強制使用する
 export function mergePopSettings(saved: Partial<PopSettings> | null, flags: StoreFeatureFlags, storeId: string): PopSettings {
   const base = defaultPopSettings(flags, storeId)
   if (!saved) return base
   return {
     ...base,
     ...saved,
-    friendUrl: saved.friendUrl?.trim() ? saved.friendUrl : base.friendUrl,
+    friendUrl: base.friendUrl,
     merits: Array.isArray(saved.merits) && saved.merits.length > 0 ? saved.merits : base.merits,
   }
 }
