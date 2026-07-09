@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { BottomNav } from '../_components/BottomNav'
 import { RecentCustomers, type RecentCust } from '../_components/RecentCustomers'
 import {
@@ -264,6 +266,7 @@ function NewReservationForm({ storeId, onSaved, onCancel }: {
 export default function ReservationsPage() {
   const { storeId } = useParams<{ storeId: string }>()
   const router      = useRouter()
+  const { hasFeature, loaded: featLoaded } = useStoreFeatures(storeId)
 
   const [storeName,    setStoreName]    = useState('')
   const [selectedDate, setSelectedDate] = useState(todayJst())
@@ -340,6 +343,17 @@ export default function ReservationsPage() {
   const confirmed = reservations.filter(r => r.status === 'confirmed').length
   const active    = reservations.filter(r => r.status === 'arrived' || r.status === 'called').length
   const completed = reservations.filter(r => r.status === 'completed').length
+
+  // ── 機能ガード ───────────────────────────────────────────
+  if (featLoaded && !hasFeature('reservation')) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-3 px-6 text-center">
+        <CalendarDays size={36} className="text-gray-300" />
+        <p className="text-gray-500 font-bold">予約管理機能は無効です</p>
+        <Link href={`/${storeId}/admin`} className="mt-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-bold">管理画面へ戻る</Link>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
