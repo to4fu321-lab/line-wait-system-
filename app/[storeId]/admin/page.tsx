@@ -133,6 +133,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
   }, [store.id])
 
   const fetchTodayReservations = useCallback(async () => {
+    if (!resolveFeature('reservation', store.features ?? {})) return
     try {
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
       const todayEnd   = new Date(); todayEnd.setHours(23, 59, 59, 999)
@@ -144,7 +145,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
         .in('status', ['confirmed', 'arrived'])
       setTodayReservations(count ?? 0)
     } catch { /* reservations table may not exist */ }
-  }, [store.id])
+  }, [store.id, store.features])
 
   useEffect(() => {
     // オフライン起動・再読込に備え、まずローカルキャッシュを即時表示（その後 fetch で上書き）
@@ -419,8 +420,8 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
           </div>
         )}
 
-        {/* 行3: 状態バッジ 5つ（常時表示）— 完了・不在はタップで履歴展開 */}
-        <div className="grid grid-cols-5 gap-1">
+        {/* 行3: 状態バッジ（常時表示）— 完了・不在はタップで履歴展開 */}
+        <div className={`grid ${resolveFeature('reservation', store.features ?? {}) ? 'grid-cols-5' : 'grid-cols-4'} gap-1`}>
           <button onClick={() => toggleSection('waiting')} style={{ touchAction: 'manipulation' }}
             className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2.5 active:scale-95 transition-all ${
               focusedSection === 'waiting' ? 'bg-blue-100 border border-blue-400' : 'bg-blue-50 border border-blue-200'
@@ -453,11 +454,13 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
             <span className="text-gray-500 text-2xl font-black tabular-nums leading-none">{cancelledCount}</span>
             <span className="text-gray-400 text-[10px] font-bold mt-0.5">不在 ▾</span>
           </button>
-          <a href={`/${store.id}/admin/reservations`}
-            className="flex flex-col items-center gap-0.5 bg-indigo-50 border border-indigo-200 rounded-xl px-1 py-2.5 active:opacity-60">
-            <span className="text-indigo-600 text-2xl font-black tabular-nums leading-none">{todayReservations}</span>
-            <span className="text-indigo-400 text-[10px] font-bold mt-0.5">予約 ▸</span>
-          </a>
+          {resolveFeature('reservation', store.features ?? {}) && (
+            <a href={`/${store.id}/admin/reservations`}
+              className="flex flex-col items-center gap-0.5 bg-indigo-50 border border-indigo-200 rounded-xl px-1 py-2.5 active:opacity-60">
+              <span className="text-indigo-600 text-2xl font-black tabular-nums leading-none">{todayReservations}</span>
+              <span className="text-indigo-400 text-[10px] font-bold mt-0.5">予約 ▸</span>
+            </a>
+          )}
         </div>
 
         {/* 遠隔待ちバッジ（遠隔がいる時のみ） */}
