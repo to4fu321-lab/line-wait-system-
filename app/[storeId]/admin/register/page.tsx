@@ -295,7 +295,7 @@ export default function RegisterPage() {
           </button>
         </div>
 
-        <div id="receipt-print" className="flex-1 max-w-sm mx-auto w-full p-5 text-gray-900" style={{ fontFamily: 'monospace' }}>
+        <div id="receipt-print" className="flex-1 max-w-sm mx-auto w-full p-5 bg-white text-gray-900" style={{ fontFamily: 'monospace' }}>
           <div className="text-center mb-4">
             <p className="font-black text-lg">{storeName || 'お店'}</p>
             <p className="text-sm text-gray-500">{receiptKind === 'invoice' ? '領収書' : 'レシート'}</p>
@@ -324,7 +324,14 @@ export default function RegisterPage() {
         </div>
 
         <BottomNav />
-        <style>{`@media print { body * { visibility: hidden !important } #receipt-print, #receipt-print * { visibility: visible !important } #receipt-print { position: absolute; left: 0; top: 0; width: 80mm } }`}</style>
+        <style>{`@media print {
+          body * { visibility: hidden !important }
+          #receipt-print, #receipt-print * { visibility: visible !important }
+          #receipt-print {
+            position: absolute; left: 0; top: 0; width: 80mm;
+            background: #fff !important; color: #000 !important;
+          }
+        }`}</style>
       </div>
     )
   }

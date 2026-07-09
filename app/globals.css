@@ -6,10 +6,23 @@
   html {
     font-size: 16px;
     -webkit-tap-highlight-color: transparent;
+    /* このサイトはダークモード非対応。宣言しないと端末がダークモードの時に
+       ブラウザが背景色未指定の要素へ強制ダーク配色を当て、印刷プレビュー/
+       印刷結果が黒背景白文字になることがあるため明示的にlightへ固定する */
+    color-scheme: light;
   }
 
   body {
-    @apply antialiased;
+    @apply antialiased bg-white text-gray-900;
+  }
+}
+
+/* 印刷は常に白背景・黒文字に固定する（端末のダークモード設定に関わらず） */
+@media print {
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+    color-scheme: light !important;
   }
 }
 
