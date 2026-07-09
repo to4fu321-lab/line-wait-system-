@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import {
   Search, User, GraduationCap, Ruler, ChevronLeft, ChevronRight,
   Plus, Minus, Check, Loader2, X, AlertCircle, ChevronDown, ChevronUp,
@@ -101,7 +102,7 @@ function FittingPageInner() {
   const params       = useParams<{ storeId: string }>()
   const storeId      = params?.storeId ?? ''
   const searchParams = useSearchParams()
-  const { hasFeature } = useStoreFeatures(storeId)
+  const { hasFeature, loaded: featLoaded } = useStoreFeatures(storeId)
 
   const [step, setStep] = useState<FittingStep>('customer')
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
@@ -613,6 +614,17 @@ function FittingPageInner() {
   const schoolName = child?.school_id
     ? (schools.find(s => s.id === child.school_id)?.short_name ?? schools.find(s => s.id === child.school_id)?.name ?? '')
     : (child?.school_name ?? '')
+
+  // ── 機能ガード ───────────────────────────────────────────
+  if (featLoaded && !hasFeature('school_measurement')) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-3 px-6 text-center">
+        <Ruler size={36} className="text-gray-300" />
+        <p className="text-gray-500 font-bold">採寸受付機能は無効です</p>
+        <Link href={`/${storeId}/admin`} className="mt-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-bold">管理画面へ戻る</Link>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
