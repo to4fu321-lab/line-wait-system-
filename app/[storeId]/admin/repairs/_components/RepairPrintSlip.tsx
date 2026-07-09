@@ -115,7 +115,7 @@ export function RepairPrintModal({ items, storeName, onClose }: {
           </div>
         </div>
         <p className="px-5 pt-3 text-[11px] text-gray-400 print:hidden">価格は印刷されません。商品に添付して外注先へお渡しいただけます。</p>
-        <div id="repair-print" className="flex-1 overflow-y-auto px-5 py-4 text-gray-900">
+        <div id="repair-print" className="flex-1 overflow-y-auto px-5 py-4 bg-white text-gray-900">
           {items.length === 0 && <p className="text-center text-sm text-gray-400 py-8">印刷する内容がありません</p>}
           {items.map((it, i) => <Slip key={i} item={it} storeName={storeName} />)}
         </div>
@@ -123,7 +123,10 @@ export function RepairPrintModal({ items, storeName, onClose }: {
       <style>{`@media print {
         body * { visibility: hidden !important }
         #repair-print, #repair-print * { visibility: visible !important }
-        #repair-print { position: absolute; left: 0; top: 0; width: 100%; padding: 12mm }
+        #repair-print {
+          position: absolute; left: 0; top: 0; width: 100%; padding: 12mm;
+          background: #fff !important; color: #000 !important;
+        }
       }`}</style>
     </div>
   )
