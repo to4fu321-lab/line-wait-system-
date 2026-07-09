@@ -409,7 +409,13 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
               {isOverdue && <span className="font-black text-red-600">⚠️ 期限超過</span>}
               {isDueSoon && !isOverdue && <span className="font-black text-amber-600">⚠️ 明日まで</span>}
             </div>
-            <span className={tx('text-lg', 'text-2xl') + ' font-black text-indigo-500 font-mono shrink-0'}>{reqNo}</span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button onClick={() => setPrintOpen(true)} style={{ touchAction: 'manipulation' }}
+                className="p-1.5 rounded-lg text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 active:scale-90 transition-all">
+                <Printer size={16} />
+              </button>
+              <span className={tx('text-lg', 'text-2xl') + ' font-black text-indigo-500 font-mono'}>{reqNo}</span>
+            </div>
           </div>
 
           {/* 顧客名 ｜ 大項目 ｜ お直し内容（1行にまとめる） */}
@@ -687,11 +693,6 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5">
-                  <button onClick={() => setPrintOpen(true)}
-                    style={{ touchAction: 'manipulation' }}
-                    className="flex items-center gap-1 px-2.5 py-1.5 border border-indigo-100 bg-indigo-50 text-indigo-600 font-bold text-xs rounded-lg active:scale-95 transition-all">
-                    <Printer size={11} />印刷
-                  </button>
                   {canRevert && (
                     <button onClick={handleSimpleRevert} disabled={loading}
                       style={{ touchAction: 'manipulation' }}
@@ -734,9 +735,9 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             </div>
           </button>
         )}
-        <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="flex-1 min-w-0 overflow-hidden flex items-stretch">
       {/* Clickable summary area */}
-      <button className="w-full text-left px-3 pt-2 pb-2 flex items-start gap-2" onClick={() => setOpen(v => !v)}>
+      <button className="flex-1 min-w-0 text-left px-3 pt-2 pb-2 flex items-start gap-2" onClick={() => setOpen(v => !v)}>
         <div className="flex-1 min-w-0">
           {/* Row 1: badges + deadline */}
           <div className={tx('text-[9px]', 'text-xs') + ' flex items-center gap-1 mb-0.5 flex-wrap'}>
@@ -806,6 +807,10 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             ? <ChevronUp size={15} className="text-gray-300" />
             : <ChevronDown size={15} className="text-gray-300" />}
         </div>
+      </button>
+      <button onClick={() => setPrintOpen(true)} style={{ touchAction: 'manipulation' }}
+        className="shrink-0 self-start mt-2.5 mr-2.5 p-1.5 rounded-lg text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 active:scale-90 transition-all">
+        <Printer size={16} />
       </button>
 
       {/* Expanded details */}

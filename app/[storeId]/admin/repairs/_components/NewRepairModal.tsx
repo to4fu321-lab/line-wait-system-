@@ -21,6 +21,7 @@ import {
 import { calcLinePrice, needsQuote, toOptionSnapshot, addBusinessDays } from '@/lib/repairPricing'
 import { RepairIcon } from '@/lib/garmentIcons'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
+import { isSessionExpiredError } from '@/lib/staffSessionClient'
 import type { CustResult } from './types'
 import { CustomerLinkSheet } from './CustomerLinkSheet'
 import { RecentCustomers, type RecentCust } from '../../_components/RecentCustomers'
@@ -77,7 +78,15 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
     if (!cust) {
       const { data: c, error } = await (supabase as any).from('customers')
         .insert({ store_id: storeId, name: newName.trim(), tel }).select(sel).single()
-      if (error) { setRegistering(false); onToast('err', error.message ?? '登録に失敗しました'); return }
+      if (error) {
+        setRegistering(false)
+        if (isSessionExpiredError(error)) {
+          onToast('err', 'ログインの有効期限が切れました。3秒後に管理画面トップへ移動します。PINを再入力してください。')
+          setTimeout(() => { window.location.href = `/${storeId}/admin` }, 3000)
+          return
+        }
+        onToast('err', error.message ?? '登録に失敗しました'); return
+      }
       cust = c as CustResult
     }
     setSelectedCust(cust!); setSelectedChild(null)
@@ -261,10 +270,11 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
   const selectedOptions = useMemo(() => options.filter(o => optSel[o.id]), [options, optSel])
   const snapshots: SelectedOptionSnapshot[] = useMemo(() => selectedOptions.map(toOptionSnapshot), [selectedOptions])
 
+  // qty は「同じ内容の点数」= 作成する行数。価格は常に1点あたりで計算する
   const calculated = useMemo(() => {
     if (!item) return 0
-    return calcLinePrice({ item, options: snapshots, inputs, qty })
-  }, [item, snapshots, inputs, qty])
+    return calcLinePrice({ item, options: snapshots, inputs, qty: 1 })
+  }, [item, snapshots, inputs])
 
   const mustQuote = useMemo(() => item ? needsQuote(item, selectedOptions) : false, [item, selectedOptions])
 
@@ -324,10 +334,13 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
     const itemName = pricingMode === 'manual' && item.code === 'other'
       ? (manualItemName.trim() || '特殊対応')
       : item.name
+    const garmentName = garments.find(g => g.id === item.garment_type_id)?.name ?? ''
+    const content = buildContent()
 
+    // qty は「同じ内容の点数」= 何行(＝何点の物理的な服)作るか。価格は1点あたり(finalPrice)を各行に設定する
     const payload: Record<string, unknown> = {
       store_id: storeId, customer_id: selectedCust.id, child_id: selectedChild?.id ?? null,
-      item_name: itemName, content: buildContent(),
+      item_name: itemName, content,
       request_type: finalPrice == null ? 'repair_consult' : 'repair',
       repair_type: repairTypeCode,
       status: 'received', received_date: new Date().toISOString().slice(0, 10),
@@ -339,7 +352,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
       vendor_name: vendorName || null,
       // ▼ 新マスタ連携
       garment_type_id: item.garment_type_id, item_id: item.id, item_code: item.code,
-      garment_name: garments.find(g => g.id === item.garment_type_id)?.name ?? null,
+      garment_name: garmentName,
       base_price: item.base_price, calculated_price: calculated,
       pricing_mode: pricingMode, quote_status,
       manual_reason: pricingMode === 'master' ? null : (manualReason || null),
@@ -352,35 +365,52 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
     }
     if (inputs.text) payload.embroidery_text = inputs.text
 
-    const { data: inserted, error } = await (supabase as any)
-      .from('repair_histories').insert(payload).select('id, request_no').single()
-    if (error || !inserted) { setSaving(false); onToast('err', `保存失敗: ${error?.message ?? ''}`); return }
+    const insertedRows: { id: string; request_no: number | null }[] = []
+    for (let n = 0; n < qty; n++) {
+      const { data: inserted, error } = await (supabase as any)
+        .from('repair_histories').insert(payload).select('id, request_no').single()
+      if (error || !inserted) {
+        if (n === 0) {
+          setSaving(false)
+          if (isSessionExpiredError(error)) {
+            onToast('err', 'ログインの有効期限が切れました。3秒後に管理画面トップへ移動します。PINを再入力してください。')
+            setTimeout(() => { window.location.href = `/${storeId}/admin` }, 3000)
+            return
+          }
+          onToast('err', `保存失敗: ${error?.message ?? ''}`); return
+        }
+        console.error('[NewRepairModal] 数量分割保存の途中でエラー:', error)
+        break
+      }
+      insertedRows.push(inserted)
+    }
 
-    // 受付写真アップロード
+    // 受付写真アップロード（1回だけstorageへ上げて、作成した全行に同じ写真を紐付ける）
     if (photos.length) {
-      const repairId = inserted.id as string
+      const uploaded: { path: string; url: string }[] = []
       for (let i = 0; i < photos.length; i++) {
         const f = photos[i].file
         const ext = f.name.split('.').pop() || 'jpg'
-        const path = `repairs/${storeId}/${repairId}/intake_${Date.now()}_${i}.${ext}`
+        const path = `repairs/${storeId}/${insertedRows[0].id}/intake_${Date.now()}_${i}.${ext}`
         const up = await supabase.storage.from(REPAIR_PHOTOS_BUCKET).upload(path, f, { upsert: true })
-        if (!up.error) {
-          await (supabase as any).from('repair_photos').insert({
-            store_id: storeId, repair_id: repairId, phase: 'intake', path, url: pubUrl(path),
-          })
-        }
+        if (!up.error) uploaded.push({ path, url: pubUrl(path) })
+      }
+      if (uploaded.length) {
+        const photoRows = insertedRows.flatMap(r => uploaded.map(u => ({
+          store_id: storeId, repair_id: r.id, phase: 'intake', path: u.path, url: u.url,
+        })))
+        await (supabase as any).from('repair_photos').insert(photoRows)
       }
     }
 
     setSaving(false)
-    const garmentName = garments.find(g => g.id === item.garment_type_id)?.name ?? ''
-    const label = `${garmentName} ${itemName}`.trim()
-    const printable: PrintableRepair = {
-      reqNo: fmtReqNo('repair', inserted.request_no ?? null, inserted.id as string),
-      garmentName, itemName, content: buildContent(),
-      schoolName: selectedChild?.school_name ?? selectedCust.school_name ?? null,
+    const label = qty > 1 ? `${garmentName} ${itemName} ×${insertedRows.length}` : `${garmentName} ${itemName}`.trim()
+    const printables: PrintableRepair[] = insertedRows.map(r => ({
+      reqNo: fmtReqNo('repair', r.request_no ?? null, r.id),
+      garmentName, itemName, content,
+      schoolName: selectedChild?.school_name ?? selectedCust!.school_name ?? null,
       childName: selectedChild?.name ?? null,
-      customerName: selectedCust.name,
+      customerName: selectedCust!.name,
       receivedDate: payload.received_date as string,
       desiredDate: (payload.desired_completion_date as string | null) ?? null,
       vendorName: vendorName || null,
@@ -391,12 +421,12 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
       embroideryText: (payload.embroidery_text as string | undefined) ?? null,
       embroideryColor: null,
       embroideryPos: null,
-    }
-    setPrintQueue(prev => [...prev, printable])
+    }))
+    setPrintQueue(prev => [...prev, ...printables])
     onSave() // 都度リストを更新（保存済み分をすぐ反映）
 
     if (closeAfter) {
-      const total = savedItems.length + 1
+      const total = savedItems.length + insertedRows.length
       onToast('ok', total > 1 ? `✂️ ${total}点のお直しを受付しました` : (finalPrice == null ? '✂️ 見積もり待ちで受付しました' : '✂️ お直しを受付しました'))
       setStep('done')
     } else {
@@ -830,6 +860,19 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
                       <p className="text-xl font-black text-gray-800 mb-1">金額の確認</p>
                       <p className="text-sm text-gray-500 mb-5">変更が必要な場合は価格モードを切り替えてください</p>
                       <div className="space-y-4">
+                        <div className="flex items-center justify-between bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-3">
+                          <div>
+                            <p className="text-sm font-black text-indigo-800">数量（同じ内容の点数）</p>
+                            <p className="text-[11px] text-indigo-400">同じ加工が複数点ある場合、まとめて登録・印刷できます</p>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <button type="button" onClick={() => setQty(q => Math.max(1, q - 1))}
+                              className="w-9 h-9 rounded-xl bg-white border-2 border-indigo-300 text-indigo-600 font-black text-lg flex items-center justify-center active:scale-90">－</button>
+                            <span className="text-2xl font-black text-indigo-800 w-8 text-center tabular-nums">{qty}</span>
+                            <button type="button" onClick={() => setQty(q => Math.min(20, q + 1))}
+                              className="w-9 h-9 rounded-xl bg-white border-2 border-indigo-300 text-indigo-600 font-black text-lg flex items-center justify-center active:scale-90">＋</button>
+                          </div>
+                        </div>
                         {pricingMode === 'manual' && item.code === 'other' && (
                           <div className="space-y-2 bg-rose-50 border-2 border-rose-200 rounded-2xl p-4">
                             <p className="text-sm font-black text-rose-600">個別見積もり（マスタにない特殊対応）</p>
@@ -839,11 +882,14 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
                         )}
                         <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
                           <div className="flex items-center justify-between">
-                            <span className="text-sm font-bold text-gray-500">基本 ¥{item.base_price.toLocaleString()}（{PRICE_UNIT_LABELS[item.price_unit]}）</span>
+                            <span className="text-sm font-bold text-gray-500">基本 ¥{item.base_price.toLocaleString()}（{PRICE_UNIT_LABELS[item.price_unit]}）{qty > 1 ? '／1点' : ''}</span>
                             <span className="text-3xl font-black text-amber-600">
                               {pricingMode === 'master' ? `¥${calculated.toLocaleString()}` : (finalPrice != null ? `¥${finalPrice.toLocaleString()}` : '見積もり待ち')}
                             </span>
                           </div>
+                          {qty > 1 && (pricingMode === 'master' ? calculated : finalPrice) != null && (
+                            <p className="text-right text-xs text-gray-400">× {qty}点　＝　合計 ¥{(((pricingMode === 'master' ? calculated : finalPrice) ?? 0) * qty).toLocaleString()}</p>
+                          )}
                           <div className="flex gap-2">
                             {(['master', 'adjusted', 'manual'] as PricingMode[]).map(pm => (
                               <button key={pm} onClick={() => setPricingMode(pm)}
@@ -930,7 +976,12 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
                         {[
                           { label: 'お客様', value: selectedCust ? `${selectedCust.name}${selectedChild ? ` / ${selectedChild.name}` : ''}` : '未紐付け（後で登録できます）' },
                           { label: '服種・項目', value: `${garments.find(g => g.id === garmentId)?.name ?? ''} / ${item.name}` },
-                          { label: '金額', value: pricingMode === 'master' ? `¥${calculated.toLocaleString()}` : (finalPrice != null ? `¥${finalPrice.toLocaleString()}` : '見積もり待ち') },
+                          ...(qty > 1 ? [{ label: '数量', value: `${qty}点（1点ずつ登録・印刷されます）` }] : []),
+                          { label: '金額', value: (() => {
+                            const perUnit = pricingMode === 'master' ? calculated : finalPrice
+                            if (perUnit == null) return '見積もり待ち'
+                            return qty > 1 ? `¥${perUnit.toLocaleString()}／点　合計 ¥${(perUnit * qty).toLocaleString()}` : `¥${perUnit.toLocaleString()}`
+                          })() },
                           ...(deadline ? [{ label: '仕上がり希望', value: deadline }] : []),
                           ...(vendorName ? [{ label: '外注先', value: vendorName }] : []),
                           ...(memo ? [{ label: 'メモ', value: memo }] : []),
@@ -971,7 +1022,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
                 style={{ touchAction: 'manipulation' }}
                 className="w-full py-5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-white text-xl font-black disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.98]">
                 {saving ? <Loader2 size={22} className="animate-spin" /> : <Check size={22} />}
-                {savedItems.length > 0 ? `受付する（合計${savedItems.length + 1}点）` : '受付する'}
+                {savedItems.length > 0 || qty > 1 ? `受付する（合計${savedItems.length + qty}点）` : '受付する'}
               </button>
               <button onClick={() => handleSave(false)} disabled={saving}
                 style={{ touchAction: 'manipulation' }}

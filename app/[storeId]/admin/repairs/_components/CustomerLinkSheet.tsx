@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react'
 import { Loader2, X, Check, Search, User } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { isSessionExpiredError } from '@/lib/staffSessionClient'
 import type { CustResult } from './types'
 import { RecentCustomers, type RecentCust } from '../../_components/RecentCustomers'
 import { getLiffId } from '@/lib/line-config'
@@ -62,7 +63,15 @@ export function CustomerLinkSheet({
     if (!c) {
       const { data: created, error } = await (supabase as any).from('customers')
         .insert({ store_id: storeId, name: nm, tel: t }).select(sel).single()
-      if (error) { setRegistering(false); setErr(error.message ?? '登録に失敗しました'); return }
+      if (error) {
+        setRegistering(false)
+        if (isSessionExpiredError(error)) {
+          setErr('ログインの有効期限が切れました。3秒後に管理画面トップへ移動します。PINを再入力してください。')
+          setTimeout(() => { window.location.href = `/${storeId}/admin` }, 3000)
+          return
+        }
+        setErr(error.message ?? '登録に失敗しました'); return
+      }
       c = created as CustResult
     }
     setRegistering(false)
