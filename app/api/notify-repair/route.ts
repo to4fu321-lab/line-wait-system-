@@ -49,6 +49,9 @@ export async function POST(req: NextRequest) {
   const itemName    = body.itemName     as string | undefined ?? ''
   const storeName   = body.storeName    as string | undefined ?? ''
   const reqNo       = body.reqNo        as string | undefined
+  const desiredDate = body.desiredDate  as string | undefined
+  // kind: 'completed'(既定) = お直し完了通知 / 'received' = 受付完了通知（受付時にすぐ連絡したい場合）
+  const kind = (body.kind as string | undefined) === 'received' ? 'received' : 'completed'
 
   if (!repairId) {
     return NextResponse.json({ ok: false, error: 'repairId required' }, { status: 400 })
@@ -57,24 +60,31 @@ export async function POST(req: NextRequest) {
 
   const storeLabel = storeName ? `【${storeName}】` : ''
   const reqText    = reqNo ? `\n依頼番号：${reqNo}` : ''
+  const dateText   = desiredDate ? `\n仕上がり希望：${desiredDate}` : ''
 
   // ── LINE通知 ────────────────────────────────────────────────
   if (lineUserId) {
-    const bodyLines = [itemName, reqNo ? `依頼番号：${reqNo}` : null].filter(Boolean) as string[]
-    const result = await pushCard(TOKEN, lineUserId, `お直し完了 ${customerName} 様`, {
-      kind: 'ready',
-      title: 'お直しが完了しました',
+    const bodyLines = [itemName, reqNo ? `依頼番号：${reqNo}` : null, kind === 'received' && desiredDate ? `仕上がり希望：${desiredDate}` : null]
+      .filter(Boolean) as string[]
+    const result = await pushCard(TOKEN, lineUserId, kind === 'received' ? `お直し受付 ${customerName} 様` : `お直し完了 ${customerName} 様`, {
+      kind: kind === 'received' ? 'registered' : 'ready',
+      title: kind === 'received' ? 'お直しを受け付けました' : 'お直しが完了しました',
       storeName: storeName || undefined,
       customerName: customerName || undefined,
       bodyLines: bodyLines.length ? bodyLines : undefined,
-      note: 'お控えの依頼番号をお伝えください。\nスタッフがお渡しの準備をしてお待ちしております。',
+      note: kind === 'received'
+        ? '仕上がり次第、あらためてご連絡いたします。\nお控えの依頼番号をお伝えください。'
+        : 'お控えの依頼番号をお伝えください。\nスタッフがお渡しの準備をしてお待ちしております。',
     })
     if (!result.ok) {
       console.error('[notify-repair] LINE error:', result.error)
       return NextResponse.json({ ok: false, error: `LINE ${result.status ?? ''}` }, { status: 500 })
     }
-    await (supabase as any).from('repair_histories').update({ notified: true }).eq('id', repairId)
-    console.log('[notify-repair] LINE sent:', repairId)
+    // notified は「完了通知済み」の意味で使われているため、受付通知では更新しない
+    if (kind !== 'received') {
+      await (supabase as any).from('repair_histories').update({ notified: true }).eq('id', repairId)
+    }
+    console.log('[notify-repair] LINE sent:', repairId, kind)
     return NextResponse.json({ ok: true, channel: 'line' })
   }
 
@@ -84,14 +94,19 @@ export async function POST(req: NextRequest) {
       console.log('[notify-repair] Twilio未設定 skip')
       return NextResponse.json({ ok: true, skipped: true, reason: 'no_twilio_config' })
     }
-    const smsText =
-      `${storeLabel}✂️お直し完了のお知らせ\n\n` +
-      `${customerName} 様\n${itemName}のお直しが完了しました。` +
-      `${reqText}\nお受け取りにお越しください。`
+    const smsText = kind === 'received'
+      ? `${storeLabel}✂️お直し受付のお知らせ\n\n` +
+        `${customerName} 様\n${itemName}のお直しを受け付けました。` +
+        `${reqText}${dateText}\n仕上がり次第あらためてご連絡いたします。`
+      : `${storeLabel}✂️お直し完了のお知らせ\n\n` +
+        `${customerName} 様\n${itemName}のお直しが完了しました。` +
+        `${reqText}\nお受け取りにお越しください。`
     try {
       await sendSms(tel, smsText)
-      await (supabase as any).from('repair_histories').update({ notified: true }).eq('id', repairId)
-      console.log('[notify-repair] SMS sent:', repairId, toE164Japan(tel))
+      if (kind !== 'received') {
+        await (supabase as any).from('repair_histories').update({ notified: true }).eq('id', repairId)
+      }
+      console.log('[notify-repair] SMS sent:', repairId, toE164Japan(tel), kind)
       return NextResponse.json({ ok: true, channel: 'sms' })
     } catch (e) {
       console.error('[notify-repair] SMS error:', e)

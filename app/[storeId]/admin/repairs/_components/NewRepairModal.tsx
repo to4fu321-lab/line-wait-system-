@@ -9,7 +9,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
-  Loader2, ChevronLeft, ChevronRight, User, Check, X, Search, Camera, AlertTriangle, Plus,
+  Loader2, ChevronLeft, ChevronRight, User, Check, X, Search, Camera, AlertTriangle, Plus, Printer, Send,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { RepairType } from '@/types/crm'
@@ -20,10 +20,13 @@ import {
 } from '@/types/repair'
 import { calcLinePrice, needsQuote, toOptionSnapshot, addBusinessDays } from '@/lib/repairPricing'
 import { RepairIcon } from '@/lib/garmentIcons'
+import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import type { CustResult } from './types'
 import { CustomerLinkSheet } from './CustomerLinkSheet'
 import { RecentCustomers, type RecentCust } from '../../_components/RecentCustomers'
 import { OcrCaptureButton, type OcrResult } from '../../_components/OcrCaptureButton'
+import { RepairPrintModal, type PrintableRepair } from './RepairPrintSlip'
+import { fmtReqNo } from './utils'
 import { getLiffId } from '@/lib/line-config'
 
 // item.code → 既存 repair_type 列へのマッピング（互換表示用）
@@ -35,15 +38,17 @@ const LEGACY_MEAS: Record<string, 'hem_length_mm' | 'sleeve_adjust_mm' | 'waist_
 
 const INPUT = 'w-full border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:border-indigo-500 bg-white'
 
-export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
-  storeId: string; onClose: () => void; onSave: () => void
+export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToast }: {
+  storeId: string; storeName?: string; onClose: () => void; onSave: () => void
   onToast: (t: 'ok' | 'err', m: string) => void
   showOcr?: boolean
 }) {
-  type Step = 'customer' | 'build'
+  type Step = 'customer' | 'build' | 'done'
   const [step, setStep] = useState<Step>('customer')
   const [buildStep, setBuildStep] = useState(0) // build内サブステップ index
   const [linkSheetOpen, setLinkSheetOpen] = useState(false) // 顧客インライン紐付け
+  const { hasFeature } = useStoreFeatures(storeId)
+  const smsEnabled = hasFeature('sms_notify')
 
   // ── 顧客 ──────────────────────────────────────────────────
   const [custSearch, setCustSearch] = useState('')
@@ -143,6 +148,10 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
 
   // ── 1人が複数点持ち込んだ場合、続けて登録できるようにする ──────────
   const [savedItems, setSavedItems] = useState<string[]>([])
+  // 受付完了後の印刷・連絡（このセッションで登録した全点分）
+  const [printQueue, setPrintQueue] = useState<PrintableRepair[]>([])
+  const [showPrint,  setShowPrint]  = useState(false)
+  const [notifying,  setNotifying]  = useState(false)
 
   // 過去実績写真（項目選択時に取得）
   const [refPhotos,  setRefPhotos]  = useState<{ url: string; completed_date: string | null }[]>([])
@@ -344,7 +353,7 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
     if (inputs.text) payload.embroidery_text = inputs.text
 
     const { data: inserted, error } = await (supabase as any)
-      .from('repair_histories').insert(payload).select('id').single()
+      .from('repair_histories').insert(payload).select('id, request_no').single()
     if (error || !inserted) { setSaving(false); onToast('err', `保存失敗: ${error?.message ?? ''}`); return }
 
     // 受付写真アップロード
@@ -364,17 +373,73 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
     }
 
     setSaving(false)
-    const label = `${garments.find(g => g.id === item.garment_type_id)?.name ?? ''} ${itemName}`.trim()
+    const garmentName = garments.find(g => g.id === item.garment_type_id)?.name ?? ''
+    const label = `${garmentName} ${itemName}`.trim()
+    const printable: PrintableRepair = {
+      reqNo: fmtReqNo('repair', inserted.request_no ?? null, inserted.id as string),
+      garmentName, itemName, content: buildContent(),
+      schoolName: selectedChild?.school_name ?? selectedCust.school_name ?? null,
+      childName: selectedChild?.name ?? null,
+      customerName: selectedCust.name,
+      receivedDate: payload.received_date as string,
+      desiredDate: (payload.desired_completion_date as string | null) ?? null,
+      vendorName: vendorName || null,
+      memo: memo || null,
+      hemLengthMm: (payload.hem_length_mm as number | undefined) ?? null,
+      sleeveAdjustMm: (payload.sleeve_adjust_mm as number | undefined) ?? null,
+      waistAdjustMm: (payload.waist_adjust_mm as number | undefined) ?? null,
+      embroideryText: (payload.embroidery_text as string | undefined) ?? null,
+      embroideryColor: null,
+      embroideryPos: null,
+    }
+    setPrintQueue(prev => [...prev, printable])
     onSave() // 都度リストを更新（保存済み分をすぐ反映）
 
     if (closeAfter) {
       const total = savedItems.length + 1
       onToast('ok', total > 1 ? `✂️ ${total}点のお直しを受付しました` : (finalPrice == null ? '✂️ 見積もり待ちで受付しました' : '✂️ お直しを受付しました'))
-      onClose()
+      setStep('done')
     } else {
       setSavedItems(prev => [...prev, label])
       onToast('ok', `✂️ ${label} を登録しました。続けて次の項目を選択してください`)
       resetForNextItem()
+    }
+  }
+
+  // 受付内容をLINE/SMSでお客様へ連絡（このセッションで登録した全点をまとめて1通で送る）
+  async function handleNotifyReceived() {
+    if (!selectedCust || printQueue.length === 0) return
+    setNotifying(true)
+    const { data: cust } = await (supabase as any).from('customers')
+      .select('line_user_id, tel').eq('id', selectedCust.id).single()
+    const lineUserId = cust?.line_user_id ?? null
+    const tel        = cust?.tel ?? null
+    if (!lineUserId && !(tel && smsEnabled)) {
+      setNotifying(false)
+      onToast('err', lineUserId === null && tel && !smsEnabled
+        ? 'SMS通知はアドオン未契約のため送信できません（LINE未連携のお客様です）'
+        : '連絡先（LINE連携・電話番号）が見つかりません')
+      return
+    }
+    const itemNames = printQueue.map(p => `${p.garmentName} ${p.itemName}`.trim()).join('、')
+    const reqNos = printQueue.map(p => p.reqNo).join('、')
+    try {
+      const res = await fetch('/api/notify-repair', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repairId: 'multi', kind: 'received',
+          lineUserId, tel, customerName: selectedCust.name,
+          itemName: itemNames, storeName, reqNo: reqNos,
+          desiredDate: printQueue[0]?.desiredDate ?? undefined,
+        }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || !json.ok) { onToast('err', `連絡に失敗しました: ${(json as any).error ?? '不明なエラー'}`); return }
+      onToast('ok', json.channel === 'line' ? '📱 LINEで受付内容を連絡しました' : json.channel === 'sms' ? '📱 SMSで受付内容を連絡しました' : '連絡先が未設定のため送信できませんでした')
+    } catch (e) {
+      onToast('err', `連絡エラー: ${String(e)}`)
+    } finally {
+      setNotifying(false)
     }
   }
 
@@ -454,6 +519,39 @@ export function NewRepairModal({ storeId, onClose, onSave, onToast }: {
   const currentStepNum = step === 'customer' ? 0 : curBuildIdx + 1
   const totalSteps = 1 + buildStepDefs.length
   const stepLabel = step === 'customer' ? '顧客' : (buildStepDefs[curBuildIdx]?.label ?? '')
+
+  // ── 受付完了 → 印刷・連絡 ──────────────────────────────────────
+  if (step === 'done') {
+    return (
+      <div className="fixed inset-0 z-[60] bg-black/50 flex items-end sm:items-center justify-center">
+        <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-6 space-y-4 text-center"
+          style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom))' }}>
+          <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
+            <Check size={32} className="text-emerald-600" />
+          </div>
+          <div>
+            <p className="text-xl font-black text-gray-800">受付が完了しました</p>
+            <p className="text-sm text-gray-500 mt-1">{printQueue.length}点登録：{printQueue.map(p => `${p.garmentName} ${p.itemName}`.trim()).join('、')}</p>
+          </div>
+          <div className="space-y-2 pt-2">
+            <button onClick={() => setShowPrint(true)}
+              className="w-full py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-base font-black flex items-center justify-center gap-2 active:scale-[0.98]">
+              <Printer size={18} />受付内容を印刷する
+            </button>
+            <button onClick={handleNotifyReceived} disabled={notifying}
+              className="w-full py-4 rounded-2xl border-2 border-indigo-300 text-indigo-600 text-base font-black flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50">
+              {notifying ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}LINE・SMSで連絡する
+            </button>
+            <button onClick={onClose}
+              className="w-full py-3.5 rounded-2xl text-gray-500 text-sm font-bold active:scale-[0.98]">
+              閉じる
+            </button>
+          </div>
+        </div>
+        {showPrint && <RepairPrintModal items={printQueue} storeName={storeName} onClose={() => setShowPrint(false)} />}
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-[60] bg-black/50 flex items-end sm:items-center justify-center" onClick={onClose}>
