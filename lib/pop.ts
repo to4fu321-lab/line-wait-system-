@@ -1,6 +1,8 @@
 // 友だち登録POP 自動生成 — 型・定数・機能連動ロジック
 // 画面（設定/エディタ/プレビュー）から共通で参照する。
 
+import { getLiffId } from './line-config'
+
 export type PaperSize = 'a4' | 'a5' | 'postcard' | 'square'
 export type Orientation = 'portrait' | 'landscape'
 export type PopTheme = 'green' | 'indigo' | 'rose' | 'amber' | 'mono'
@@ -64,9 +66,15 @@ export function generateMerits(f: StoreFeatureFlags): PopMerit[] {
   return m
 }
 
-export function defaultPopSettings(flags: StoreFeatureFlags): PopSettings {
+// 新規顧客登録QR（お客様受付QR）のURL。QrRegistrationModal等と同じLIFF URLを使う。
+export function registrationQrUrl(storeId: string): string {
+  const liffId = getLiffId('uniform')
+  return liffId ? `https://liff.line.me/${liffId}/${storeId}` : ''
+}
+
+export function defaultPopSettings(flags: StoreFeatureFlags, storeId: string): PopSettings {
   return {
-    friendUrl: '',
+    friendUrl: registrationQrUrl(storeId),
     headline: 'LINEでもっと便利に！',
     subCopy: '友だち登録するだけ。あとがぐっとラクになります。',
     merits: generateMerits(flags),
@@ -82,12 +90,14 @@ export function defaultPopSettings(flags: StoreFeatureFlags): PopSettings {
 }
 
 // 保存値と現行デフォルトをマージ（新フィールド追加時の後方互換）
-export function mergePopSettings(saved: Partial<PopSettings> | null, flags: StoreFeatureFlags): PopSettings {
-  const base = defaultPopSettings(flags)
+// friendUrlは新規顧客登録QRを自動で使用する（未入力・未保存時は常に最新のQRに追従）
+export function mergePopSettings(saved: Partial<PopSettings> | null, flags: StoreFeatureFlags, storeId: string): PopSettings {
+  const base = defaultPopSettings(flags, storeId)
   if (!saved) return base
   return {
     ...base,
     ...saved,
+    friendUrl: saved.friendUrl?.trim() ? saved.friendUrl : base.friendUrl,
     merits: Array.isArray(saved.merits) && saved.merits.length > 0 ? saved.merits : base.merits,
   }
 }
