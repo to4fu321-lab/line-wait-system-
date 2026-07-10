@@ -111,8 +111,11 @@ export interface SchoolMaster {
   sort_order: number
   active:     boolean
   notes:      string
-  // OCR取込で抽出される学校単位の自由テキスト（任意）
-  wearing_regulations?: string | null  // 着用規定
+  // 学校の基本情報（任意）
+  address?: string | null  // 住所
+  tel?:     string | null  // 電話番号
+  // 学校単位の自由テキスト（OCR取込でも抽出されるが、手動編集も可）
+  wearing_regulations?: string | null  // 着用規定（例: スカート丈は膝下 など）
   special_notes?:       string | null  // 特記事項
   schedule_notes?:      string | null  // 販売スケジュール・締切
   extra_info?:          string | null  // その他情報
