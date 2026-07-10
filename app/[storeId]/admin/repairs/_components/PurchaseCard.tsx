@@ -241,8 +241,13 @@ export function UniformOrderCard({ item, storeId, onRefresh, onToast }: {
 
   async function handleArrived() {
     if (item.priority !== 'new_student') {
-      const found = await checkNewStudentConflicts(item.id, storeId)
-      if (found.length > 0) { setConflicts(found); return }
+      try {
+        const found = await checkNewStudentConflicts(item.id, storeId)
+        if (found.length > 0) { setConflicts(found); return }
+      } catch (e) {
+        onToast('err', e instanceof Error ? e.message : '引当チェックに失敗しました')
+        return
+      }
     }
     await update({ status: 'arrived' }, '入荷完了にしました')
   }

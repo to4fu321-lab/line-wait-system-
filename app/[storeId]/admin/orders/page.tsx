@@ -237,13 +237,14 @@ function EditOrderModal({
 
 // ── OrderCard ─────────────────────────────────────────────────
 function OrderCard({
-  order, storeId, onStatusChange, onEdit, onDelete,
+  order, storeId, onStatusChange, onEdit, onDelete, onToast,
 }: {
   order: UniformOrder
   storeId: string
   onStatusChange: (id: string, status: string, msg: string) => void
   onEdit: () => void
   onDelete: () => void
+  onToast: (type: 'ok' | 'err', msg: string) => void
 }) {
   const [open,          setOpen]          = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -262,9 +263,15 @@ function OrderCard({
   async function handleArrived() {
     if (!isNew) {
       setLoading(true)
-      const found = await checkNewStudentConflicts(order.id, storeId)
-      setLoading(false)
-      if (found.length > 0) { setConflicts(found); return }
+      try {
+        const found = await checkNewStudentConflicts(order.id, storeId)
+        if (found.length > 0) { setConflicts(found); return }
+      } catch (e) {
+        onToast('err', e instanceof Error ? e.message : '引当チェックに失敗しました')
+        return
+      } finally {
+        setLoading(false)
+      }
     }
     await doStatus('arrived', '入荷完了にしました')
   }
@@ -598,6 +605,7 @@ export default function OrdersPage() {
                 onStatusChange={handleStatusChange}
                 onEdit={() => setEditOrder(o)}
                 onDelete={() => handleDelete(o.id)}
+                onToast={showToast}
               />
             ))}
           </>

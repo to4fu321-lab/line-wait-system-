@@ -18,7 +18,11 @@ export function unitFactor(
   qty: number,
 ): number {
   switch (unit) {
-    case 'per_cm':   return Number(inputs.length_cm ?? 0)
+    case 'per_cm': {
+      // "10cm" のような単位付き入力も許容。数値化できなければ 0(NaN を料金に伝播させない)
+      const n = Number(String(inputs.length_cm ?? '').replace(/[^\d.]/g, ''))
+      return Number.isFinite(n) ? n : 0
+    }
     case 'per_name': return charCount(inputs.text)
     case 'per_pair': // 2点1組でも「組数」= qty として扱う
     case 'per_item':

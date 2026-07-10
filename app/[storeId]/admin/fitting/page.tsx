@@ -54,14 +54,49 @@ interface ReservationRow {
 }
 
 // ── サイズ自動推奨 ────────────────────────────────────────────
+// "160A" → { num: 160, body: 'A' }。身長系表記のみ対象(W76 等のウエスト表記は除外)
+function parseSizeLabel(label: string): { num: number; body: string | null } | null {
+  const m = label.trim().match(/^(\d{2,3})\s*(A|B|BB|BE|E|Y)?$/i)
+  if (!m) return null
+  return { num: Number(m[1]), body: m[2]?.toUpperCase() ?? null }
+}
+
 function recommendVariant(heightCm: number, variants: VariantRow[]): VariantRow | null {
-  if (!variants.length || !heightCm) return null
-  const withNum = variants
-    .map(v => ({ v, n: parseInt(v.size_label.replace(/[^0-9]/g, '')) || 0 }))
-    .filter(x => x.n > 0)
-  if (!withNum.length) return null
-  const above = withNum.filter(x => x.n >= heightCm).sort((a, b) => a.n - b.n)
-  return above[0]?.v ?? withNum[withNum.length - 1].v
+  if (!variants.length || !heightCm || heightCm < 90 || heightCm > 210) return null
+  const parsed: { v: VariantRow; num: number }[] = []
+  const bodies = new Map<number, Set<string>>()
+  for (const v of variants) {
+    const p = parseSizeLabel(v.size_label)
+    if (!p) continue
+    parsed.push({ v, num: p.num })
+    if (!bodies.has(p.num)) bodies.set(p.num, new Set())
+    bodies.get(p.num)!.add(p.body ?? '')
+  }
+  if (!parsed.length) return null
+  const above = parsed.filter(x => x.num >= heightCm).sort((a, b) => a.num - b.num)
+  const target = above[0] ?? parsed.reduce((a, b) => (b.num > a.num ? b : a))
+  // 同じ号数に A体/B体 など複数体型がある場合は自動確定しない(スタッフが体型を見て選ぶ)
+  if ((bodies.get(target.num)?.size ?? 0) > 1) return null
+  return target.v
+}
+
+// ── 採寸値の妥当性チェック(小1〜高3の現実的レンジ) ─────────────
+const MEAS_RANGE = {
+  height: { min: 90, max: 210, label: '身長', unit: 'cm' },
+  weight: { min: 10, max: 150, label: '体重', unit: 'kg' },
+  chest:  { min: 40, max: 140, label: '胸囲', unit: 'cm' },
+  waist:  { min: 35, max: 130, label: '胴囲', unit: 'cm' },
+  inseam: { min: 30, max: 100, label: '股下', unit: 'cm' },
+} as const
+
+function validateMeasurement(raw: string, key: keyof typeof MEAS_RANGE): string | null {
+  if (!raw) return null
+  const v = Number(raw)
+  const r = MEAS_RANGE[key]
+  if (!Number.isFinite(v)) return `${r.label}が数値ではありません`
+  if (v < r.min || v > r.max)
+    return `${r.label} ${v}${r.unit} は範囲外です(${r.min}〜${r.max}${r.unit})。入力ミスがないかご確認ください`
+  return null
 }
 
 // ── 小コンポーネント ─────────────────────────────────────────
@@ -494,7 +529,22 @@ function FittingPageInner() {
 
   // 保存
   const handleSave = async (createOrder: boolean) => {
-    if (!child) return
+    if (!child || saving) return
+
+    const measErrs = [
+      validateMeasurement(heightCm, 'height'),
+      validateMeasurement(weightKg, 'weight'),
+      validateMeasurement(chestCm,  'chest'),
+      validateMeasurement(waistCm,  'waist'),
+      validateMeasurement(inseamCm, 'inseam'),
+    ].filter((e): e is string => !!e)
+    if (measErrs.length) { showToast('err', measErrs[0]); return }
+
+    if (createOrder && orderItems.length === 0) {
+      showToast('err', 'サイズが1点も確定されていません。注文なしの場合は「採寸のみ保存」を選んでください')
+      return
+    }
+
     setSaving(true); setWithOrder(createOrder)
 
     const { data: meas, error: measErr } = await (supabase as any).from('measurements').insert({
@@ -561,10 +611,16 @@ function FittingPageInner() {
 
     const { error: itemsErr } = await (supabase as any).from('uniform_order_items').insert(items)
 
+    if (itemsErr) {
+      // 明細が入らなかった注文を残さない(明細ゼロの孤児注文防止)
+      await (supabase as any).from('uniform_orders').delete().eq('id', order.id)
+      setSaving(false)
+      showToast('err', `明細保存に失敗したため注文を取り消しました: ${itemsErr.message}`)
+      return
+    }
+
     // measurement に order_id を紐付け
     await (supabase as any).from('measurements').update({ order_id: order.id }).eq('id', meas.id)
-
-    if (itemsErr) { setSaving(false); showToast('err', `明細保存失敗: ${itemsErr.message}`); return }
 
     if (linkedResId) {
       await (supabase as any).from('reservations').update({ status: 'completed' }).eq('id', linkedResId)

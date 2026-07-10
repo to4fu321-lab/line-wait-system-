@@ -13,15 +13,21 @@ import { verifyLineAccessToken } from '@/lib/auth/lineAuth'
  * 無ければ「未登録」として発行(店頭のPC確認モード等)。
  */
 export async function POST(req: Request) {
+  let body: Record<string, unknown>
+  try { body = await req.json() }
+  catch { return NextResponse.json({ error: 'リクエスト形式が不正です' }, { status: 400 }) }
+
   try {
-    const body = await req.json()
-    const { storeId, accessToken, childId, isRemote, details } = body
+    const { storeId, accessToken, childId, isRemote, details } = body as {
+      storeId?: string; accessToken?: string; childId?: string; isRemote?: boolean; details?: unknown
+    }
     if (!storeId) return NextResponse.json({ error: 'storeId が必要です' }, { status: 400 })
 
     const supabase = createAdminClient({ noStore: true })
 
-    const { data: store } = await supabase
-      .from('stores').select('is_open, allow_remote').eq('id', storeId).single()
+    const { data: store, error: storeErr } = await supabase
+      .from('stores').select('is_open, allow_remote').eq('id', storeId).maybeSingle()
+    if (storeErr) throw storeErr
     if (!store) return NextResponse.json({ error: '店舗が見つかりません' }, { status: 404 })
     if (store.is_open === false) return NextResponse.json({ error: 'ただいま受付を停止しています' }, { status: 409 })
     if (isRemote && !store.allow_remote) return NextResponse.json({ error: '遠隔受付は利用できません' }, { status: 400 })
