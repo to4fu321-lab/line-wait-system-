@@ -7,11 +7,13 @@ interface Props {
   storeId: string
   onClose: () => void
   onSwitchStore?: () => void
+  // true: 読み取り後、未登録客も友だち追加だけで即・順番待ちへ（登録は並びながら行う）
+  queueMode?: boolean
 }
 
-export function QrRegistrationModal({ storeId, onClose, onSwitchStore }: Props) {
+export function QrRegistrationModal({ storeId, onClose, onSwitchStore, queueMode = false }: Props) {
   const liffId = getLiffId('uniform')
-  const url    = `https://liff.line.me/${liffId}/${storeId}`
+  const url    = `https://liff.line.me/${liffId}/${storeId}${queueMode ? '?action=queue' : ''}`
   const qrSrc  = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(url)}`
 
   return (
@@ -23,8 +25,12 @@ export function QrRegistrationModal({ storeId, onClose, onSwitchStore }: Props) 
         >
           <X size={16} />
         </button>
-        <p className="font-black text-gray-900 text-base mb-1">お客様受付 QR</p>
-        <p className="text-gray-500 text-xs mb-4">このQRをお客様のLINEで読み取ってもらってください</p>
+        <p className="font-black text-gray-900 text-base mb-1">{queueMode ? '順番待ち受付 QR' : 'お客様受付 QR'}</p>
+        <p className="text-gray-500 text-xs mb-4">
+          {queueMode
+            ? '未登録のお客様も、読み取り→友だち追加だけで先に並べます（会員登録は並びながらどうぞ）'
+            : 'このQRをお客様のLINEで読み取ってもらってください'}
+        </p>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={qrSrc}

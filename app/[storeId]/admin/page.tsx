@@ -618,6 +618,7 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
           storeId={store.id}
           onClose={() => setShowQrModal(false)}
           onSwitchStore={() => { setShowQrModal(false); onLogout() }}
+          queueMode
         />
       )}
 
