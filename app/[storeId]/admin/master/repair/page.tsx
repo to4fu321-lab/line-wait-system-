@@ -423,7 +423,7 @@ export default function RepairMasterPage() {
                   className="flex items-center gap-1 rounded-full bg-indigo-50 border border-indigo-200 px-2.5 py-1 text-xs font-bold text-indigo-700 active:scale-95 disabled:opacity-50">
                   {ocrLoading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}写真で取込
                 </button>
-                <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden"
+                <input ref={fileRef} type="file" accept="image/*" className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleOcr(f); e.target.value = '' }} />
               </div>
             </div>
