@@ -13,6 +13,7 @@ export interface OcrResult {
   name: string | null
   tel: string | null
   items: string[]
+  price: number | null
   desiredDate: string | null
 }
 
@@ -54,6 +55,7 @@ export function OcrCaptureButton({
         name:        json.name ?? null,
         tel:         json.tel ?? null,
         items:       Array.isArray(json.items) ? json.items : [],
+        price:       typeof json.price === 'number' ? json.price : null,
         desiredDate: json.desiredDate ?? null,
       })
     } catch (err) {
