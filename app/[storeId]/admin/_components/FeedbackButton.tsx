@@ -1,8 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useParams, usePathname } from 'next/navigation'
-import { MessageSquarePlus, X, Loader2, Check } from 'lucide-react'
+import { MessageSquarePlus, X, Loader2, Check, ImagePlus } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+
+const FEEDBACK_IMAGES_BUCKET = 'feedback-images'
+const MAX_IMAGES = 4
 
 type Kind = 'request' | 'bug' | 'question'
 
@@ -28,13 +32,48 @@ export function FeedbackButton() {
   const [saving, setSaving] = useState(false)
   const [done, setDone]     = useState(false)
   const [error, setError]   = useState<string | null>(null)
+  const [images, setImages] = useState<{ file: File; url: string }[]>([])
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
-  const reset = () => { setKind('request'); setBody(''); setError(null); setDone(false) }
+  const reset = () => {
+    setKind('request'); setBody(''); setError(null); setDone(false)
+    images.forEach(i => URL.revokeObjectURL(i.url))
+    setImages([])
+  }
+
+  const addImages = (files: FileList | null) => {
+    if (!files) return
+    const next = Array.from(files).slice(0, MAX_IMAGES - images.length)
+      .map(file => ({ file, url: URL.createObjectURL(file) }))
+    setImages(prev => [...prev, ...next].slice(0, MAX_IMAGES))
+  }
+  const removeImage = (i: number) => {
+    setImages(prev => { URL.revokeObjectURL(prev[i].url); return prev.filter((_, j) => j !== i) })
+  }
 
   const submit = async () => {
     if (!body.trim()) { setError('内容を入力してください'); return }
     setSaving(true); setError(null)
     try {
+      // 画像は先にアップロードし、公開URLだけをフィードバック本体と一緒に送る
+      let imageUrls: string[] = []
+      if (images.length > 0) {
+        setUploading(true)
+        try {
+          const uploaded = await Promise.all(images.map(async ({ file }, i) => {
+            const ext = file.name.split('.').pop() || 'jpg'
+            const path = `feedback/${storeId || 'no-store'}/${Date.now()}_${i}.${ext}`
+            const { error: upErr } = await supabase.storage.from(FEEDBACK_IMAGES_BUCKET).upload(path, file, { upsert: true })
+            if (upErr) return null
+            return supabase.storage.from(FEEDBACK_IMAGES_BUCKET).getPublicUrl(path).data.publicUrl
+          }))
+          imageUrls = uploaded.filter((u): u is string => !!u)
+        } finally {
+          setUploading(false)
+        }
+      }
+
       const res = await fetch('/api/feedback', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -43,6 +82,7 @@ export function FeedbackButton() {
           body:      body.trim(),
           pageUrl:   typeof window !== 'undefined' ? window.location.pathname : null,
           userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+          imageUrls,
         }),
       })
       const json = await res.json().catch(() => ({}))
@@ -112,6 +152,28 @@ export function FeedbackButton() {
                   placeholder="例：受付の画面で○○が分かりにくい／△△の機能が欲しい／□□が表示されない など"
                   className="w-full border-2 border-gray-200 rounded-2xl px-4 py-3 text-base resize-none focus:border-gray-900 focus:outline-none leading-relaxed" />
 
+                {/* 画像添付 */}
+                <div className="flex flex-wrap gap-2">
+                  {images.map((img, i) => (
+                    <div key={img.url} className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={img.url} alt="" className="w-16 h-16 object-cover rounded-xl border-2 border-gray-200" />
+                      <button onClick={() => removeImage(i)}
+                        className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 shadow">
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                  {images.length < MAX_IMAGES && (
+                    <label className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer text-gray-400 gap-0.5 active:bg-gray-50">
+                      <ImagePlus size={18} />
+                      <span className="text-[9px] font-bold">画像</span>
+                      <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
+                        onChange={e => { addImages(e.target.files); e.target.value = '' }} />
+                    </label>
+                  )}
+                </div>
+
                 {error && <p className="text-red-600 text-sm font-bold">{error}</p>}
 
                 <p className="text-[11px] text-gray-400 leading-relaxed">
@@ -122,7 +184,7 @@ export function FeedbackButton() {
                   style={{ touchAction: 'manipulation' }}
                   className="w-full py-3.5 rounded-2xl bg-gray-900 hover:bg-black text-white font-black text-base disabled:opacity-50 flex items-center justify-center gap-2 transition-colors active:scale-[0.99]">
                   {saving ? <Loader2 size={18} className="animate-spin" /> : <MessageSquarePlus size={18} />}
-                  送信する
+                  {uploading ? '画像をアップロード中...' : saving ? '送信中...' : '送信する'}
                 </button>
               </div>
             )}

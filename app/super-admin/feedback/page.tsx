@@ -29,6 +29,7 @@ interface Feedback {
   body: string
   page_url: string | null
   user_agent: string | null
+  image_urls: string[] | null
   status: 'new' | 'triaged' | 'done' | 'wontfix' | string
   issue_number: number | null
   issue_url: string | null
@@ -231,6 +232,16 @@ export default function FeedbackAdminPage() {
                   <span className="text-[11px] text-gray-500 ml-auto">{new Date(f.created_at).toLocaleString('ja-JP')}</span>
                 </div>
                 <p className="text-sm text-white whitespace-pre-wrap leading-relaxed">{f.body}</p>
+                {Array.isArray(f.image_urls) && f.image_urls.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {f.image_urls.map(u => (
+                      <a key={u} href={u} target="_blank" rel="noopener noreferrer">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={u} alt="添付画像" className="w-20 h-20 object-cover rounded-lg border border-white/10 hover:opacity-80 transition-opacity" />
+                      </a>
+                    ))}
+                  </div>
+                )}
                 {f.page_url && (
                   <p className="text-[11px] text-gray-500 flex items-center gap-1">
                     <ExternalLink size={11} /> {f.page_url}
