@@ -8,6 +8,11 @@ const BRAND = 'ミセプラ'
 const START = '/start'   // 無料体験：その場で店舗を発行し即ログイン
 const TRIAL_DAYS = 30
 
+// dev/preview環境でのみ管理画面への直リンクを出す動作確認用ショートカット。
+// 本番(production)では絶対に表示しない（実店舗のURLを公開LPに晒さないため）。
+const IS_PRODUCTION = process.env.VERCEL_ENV === 'production'
+const DEV_ADMIN_STORE_ID = 'befb5519-e488-4c6f-983f-f18b577ed7ad' // ひものや
+
 export const metadata: Metadata = {
   title: `${BRAND}｜仕上がり連絡がワンタップ。学生服店の受付システム`,
   description: 'お客様への「仕上がりました」の連絡がワンタップ。電話の繋がらないストレスゼロ。受付・お直しもスマホ1台で、再来店までつながる。学生服専門店のためのトータルDX。30日間無料・今すぐ使えます。',
@@ -19,6 +24,16 @@ export default function LandingPage({ searchParams }: { searchParams?: { preview
 
   return (
     <main className="relative min-h-screen overflow-x-hidden text-zinc-900 antialiased">
+      {/* ===== [DEV専用] 管理画面ショートカット（本番では非表示） ===== */}
+      {!IS_PRODUCTION && (
+        <a
+          href={`/${DEV_ADMIN_STORE_ID}/admin`}
+          className="fixed bottom-4 right-4 z-[60] rounded-full bg-zinc-900 px-4 py-2.5 text-xs font-bold text-white shadow-xl shadow-black/30 transition-transform hover:scale-105 active:scale-95"
+        >
+          🛠️ [DEV] 管理画面へ
+        </a>
+      )}
+
       {/* ===== Global atmospheric background ===== */}
       <div aria-hidden className="pointer-events-none fixed inset-0 -z-10">
         <div className="absolute inset-0 bg-gradient-to-b from-zinc-50 via-white to-indigo-50/60" />
