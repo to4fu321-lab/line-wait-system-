@@ -30,7 +30,7 @@ function setKey(cat: string, normLabels: string[]): string {
 
 interface ImportBody {
   storeId: string
-  school: { mode: 'existing' | 'new'; id?: string; name?: string; kana?: string; short_name?: string }
+  school: { mode: 'existing' | 'new'; id?: string; name?: string; short_name?: string }
   apply_regulations?: boolean
   regulations?: { wearing_regulations?: string | null; special_notes?: string | null; schedule_notes?: string | null; extra_info?: string | null }
   items: SchoolManualItem[]
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       const { data: created, error: scErr } = await supabase
         .from('schools')
         .insert({
-          store_id: storeId, name, kana: (school.kana ?? '').trim(),
+          store_id: storeId, name,
           short_name: (school.short_name ?? '').trim(), sort_order: count ?? 0, active: true,
         })
         .select('id').single()
