@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
             type: 'text',
             text: [
               'この画像（衣類お直し受付票・メモ・名刺など）から情報を抽出し、必ずJSON形式のみで返してください。',
-              '{"name":"お客様の氏名（不明はnull）","tel":"電話番号ハイフン区切り（不明はnull）","items":["お直し内容の配列（例:裾上げ、ウエスト詰め）"],"desiredDate":"希望納期YYYY-MM-DD（不明はnull）"}',
+              '{"name":"お客様の氏名（不明はnull）","tel":"電話番号ハイフン区切り（不明はnull）","items":["お直し内容の配列（例:裾上げ、ウエスト詰め）"],"price":"金額（数値のみ。¥・円・カンマは除く。不明はnull）","desiredDate":"希望納期YYYY-MM-DD（不明はnull）"}',
               'JSONのみ。余分なテキスト不要。',
             ].join('\n'),
           },

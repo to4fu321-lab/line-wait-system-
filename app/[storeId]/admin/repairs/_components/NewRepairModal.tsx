@@ -7,7 +7,7 @@
 //  マスタにない特殊対応は「個別見積もり(manual)」で金額自由入力・未定受付も可。
 // ============================================================================
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   Loader2, ChevronLeft, ChevronRight, User, Check, X, Search, Camera, AlertTriangle, Plus, Printer, Send,
 } from 'lucide-react'
@@ -115,6 +115,8 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
   const [garmentId, setGarmentId] = useState<string | null>(null)
   const [item, setItem] = useState<RepairItem | null>(null)
   const [vendors, setVendors] = useState<{ id: string; name: string }[]>([])
+  // OCRでマスタの項目に完全一致した直後は、garmentId変更に伴う item リセットを1回だけ抑止する
+  const suppressItemResetRef = useRef(false)
 
   useEffect(() => {
     ;(supabase as any).from('repair_vendors')
@@ -135,7 +137,8 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
     ;(supabase as any).from('repair_items')
       .select('*').eq('garment_type_id', garmentId).eq('active', true).order('sort_order')
       .then(({ data }: { data: RepairItem[] | null }) => setItems(data ?? []))
-    setItem(null)
+    if (suppressItemResetRef.current) suppressItemResetRef.current = false
+    else setItem(null)
   }, [garmentId])
 
   // ── 項目選択 ────────────────────────────────────────────────
@@ -185,14 +188,44 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
       setMemo(prev => [prev, r.items.join(' / ')].filter(Boolean).join(' / '))
       applied.push(`内容:${r.items.join('/')}`)
     }
-    // 顧客：電話番号でDB検索 → ヒットすれば紐付け
+
+    // お直し項目の自動選択：マスタの項目名と完全一致した場合のみ（誤選択による誤課金を避けるため）
+    // 一致しなければ金額はOCR読み取り値を手入力欄にセットするだけに留める
+    let itemMatched = false
+    if (!item) {
+      for (const text of r.items) {
+        const needle = text.trim()
+        if (!needle) continue
+        const { data: matched } = await (supabase as any).from('repair_items')
+          .select('*').eq('store_id', storeId).eq('active', true).eq('name', needle).limit(1)
+        const mi = matched?.[0] as RepairItem | undefined
+        if (mi) {
+          suppressItemResetRef.current = true
+          setGarmentId(mi.garment_type_id)
+          setItem(mi)
+          setPricingMode('master')
+          applied.push(`項目:${mi.name}（マスタ一致）`)
+          itemMatched = true
+          break
+        }
+      }
+    }
+    if (!itemMatched && r.price != null) {
+      setPricingMode('manual')
+      setOverridePrice(String(r.price))
+      applied.push(`金額:¥${r.price.toLocaleString()}`)
+    }
+
+    // 顧客：電話番号でDB検索 → ヒットすれば紐付け（ハイフン有無の表記差を吸収）
     if (r.tel) {
+      const telDigits = r.tel.replace(/[^0-9]/g, '')
       const { data } = await (supabase as any).from('customers')
         .select('id, name, tel, school_name, children:children(id, name, school_name)')
-        .eq('store_id', storeId).is('deleted_at', null).eq('tel', r.tel).limit(1)
+        .eq('store_id', storeId).is('deleted_at', null)
+        .or(`tel.eq.${r.tel},tel.eq.${telDigits}`).limit(1)
       if (data?.[0]) {
         setSelectedCust(data[0]); setSelectedChild(null)
-        onToast('ok', `📷 ${data[0].name}様を読み取りました`)
+        onToast('ok', `📷 ${data[0].name}様を読み取りました（${applied.join('・') || '登録済み情報を確認'}）`)
         return
       }
     }
