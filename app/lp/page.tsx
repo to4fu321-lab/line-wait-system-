@@ -19,8 +19,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-export default function LandingPage({ searchParams }: { searchParams?: { preview?: string } }) {
-  if (!LP_PUBLIC && searchParams?.preview !== '1') notFound()
+export default function LandingPage() {
+  // searchParams(?preview=1)による裏口は使わない。これがあるだけでNext.jsが
+  // このページを動的(毎リクエストSSR)扱いにし、コールドスタートで初回表示が
+  // 数秒遅くなっていたため撤廃。非公開にしたい間は環境変数だけで制御する
+  // (Vercelのプレビュー環境ではNEXT_PUBLIC_LP_PUBLICを未設定のままにすればよい)。
+  if (!LP_PUBLIC) notFound()
 
   return (
     <main className="relative min-h-screen overflow-x-hidden text-zinc-900 antialiased">
