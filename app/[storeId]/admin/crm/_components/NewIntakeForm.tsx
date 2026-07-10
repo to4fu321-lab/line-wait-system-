@@ -169,7 +169,7 @@ export function NewIntakeForm({ customerId, childId, storeId, reservationUrl, on
                   {scanLoading ? <Loader2 size={13} className="animate-spin" /> : <ScanLine size={13} />}
                   {scanLoading ? '…' : 'スキャン'}
                 </button>
-                <input ref={barcodeInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+                <input ref={barcodeInputRef} type="file" accept="image/*" className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleBarcodeScan(f); e.target.value = '' }} />
               </>
             )}

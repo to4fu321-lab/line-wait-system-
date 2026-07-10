@@ -225,7 +225,7 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
       <div className="bg-white rounded-t-3xl w-full flex flex-col" style={{ maxHeight: '95dvh', paddingBottom: 'env(safe-area-inset-bottom)' }}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100 shrink-0">
-          <input ref={orderFileRef} type="file" accept="image/*" capture="environment" className="hidden"
+          <input ref={orderFileRef} type="file" accept="image/*" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleOcrOrder(f); e.target.value = '' }} />
           <div className="flex items-center gap-3">
             <button onClick={step === 'customer' ? onClose : step === 'confirm' ? goBackConfirm : () => setStep('customer')}

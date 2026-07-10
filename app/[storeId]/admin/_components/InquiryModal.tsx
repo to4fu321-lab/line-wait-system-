@@ -462,7 +462,7 @@ export function InquiryModal({
             </div>
             <div className="flex items-center gap-2">
               {/* メモ写真OCR（急ぎ・メモだけのデータ化） */}
-              <input ref={ocrRef} type="file" accept="image/*" capture="environment" className="hidden"
+              <input ref={ocrRef} type="file" accept="image/*" className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleOcr(f); e.target.value = '' }} />
               <button onClick={() => ocrRef.current?.click()} disabled={ocrLoading}
                 className="flex items-center gap-1 px-2.5 py-2 bg-violet-100 hover:bg-violet-200 text-violet-700 text-xs font-bold rounded-xl transition-colors disabled:opacity-50">
@@ -755,7 +755,7 @@ export function InquiryModal({
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-gray-100 shrink-0">
           <h2 className="text-sm font-black text-gray-800">{isEdit ? '問合せ編集' : '問合せ追加'}</h2>
           <div className="flex items-center gap-2">
-            <input ref={ocrRef} type="file" accept="image/*" capture="environment" className="hidden"
+            <input ref={ocrRef} type="file" accept="image/*" className="hidden"
               onChange={e => { const f = e.target.files?.[0]; if (f) handleOcr(f); e.target.value = '' }} />
             <button onClick={() => ocrRef.current?.click()} disabled={ocrLoading}
               className="flex items-center gap-1 px-2.5 py-1.5 bg-violet-100 hover:bg-violet-200 text-violet-700 text-xs font-bold rounded-lg transition-colors disabled:opacity-50">
