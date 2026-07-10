@@ -10,10 +10,16 @@ export type QrSize = 'sm' | 'md' | 'lg'
 
 export type PopMerit = { id: string; text: string; enabled: boolean }
 
+// friend: 友だち登録POP（読み取り→友だち追加）／ queue: 順番待ちQR POP（読み取り→即・順番待ち）
+export type PopKind = 'friend' | 'queue'
+
 export type PopSettings = {
   friendUrl: string
   headline: string
   subCopy: string
+  kicker: string        // ヘッダー上部の小さな煽り文
+  meritsHeading: string // メリット一覧の見出し
+  qrCaption: string      // QR直下の読み取り案内文
   merits: PopMerit[]
   paperSize: PaperSize
   orientation: Orientation
@@ -72,11 +78,50 @@ export function registrationQrUrl(storeId: string): string {
   return liffId ? `https://liff.line.me/${liffId}/${storeId}` : ''
 }
 
-export function defaultPopSettings(flags: StoreFeatureFlags, storeId: string): PopSettings {
+// 順番待ち受付QR（未登録でも読み取り→即・順番待ちへ）のURL。
+// QrRegistrationModal の queueMode と同じ ?action=queue を付与する。
+export function queueQrUrl(storeId: string): string {
+  const base = registrationQrUrl(storeId)
+  return base ? `${base}?action=queue` : ''
+}
+
+// 有効機能から「順番待ちQRでできること」初期候補を生成する（すべて後から編集可）
+export function generateQueueMerits(f: StoreFeatureFlags): PopMerit[] {
+  const m: PopMerit[] = []
+  m.push({ id: 'no_register', text: '会員登録なしでOK。読み取ったらすぐ順番待ちに並べます', enabled: true })
+  m.push({ id: 'register_later', text: '会員登録は並びながら・あとからで大丈夫', enabled: true })
+  m.push({ id: 'call', text: '順番が来たらLINEでお知らせ。立って待たなくてOK', enabled: true })
+  if (f.allowRemote) m.push({ id: 'remote', text: 'お店に来る前に、スマホで順番取り', enabled: true })
+  return m
+}
+
+export function defaultPopSettings(flags: StoreFeatureFlags, storeId: string, kind: PopKind = 'friend'): PopSettings {
+  if (kind === 'queue') {
+    return {
+      friendUrl: queueQrUrl(storeId),
+      headline: '登録なしで、今すぐ並べます',
+      subCopy: 'QRを読み取るだけ。会員登録は並びながらでOKです。',
+      kicker: '登録不要・今すぐ並べる',
+      meritsHeading: 'このQRでできること',
+      qrCaption: 'スマホのカメラで読み取り → そのまま順番待ちへ',
+      merits: generateQueueMerits(flags),
+      paperSize: 'a4',
+      orientation: 'portrait',
+      fontScale: 1,
+      theme: 'indigo',
+      showQr: true,
+      qrSize: 'md',
+      showStoreName: true,
+      showHours: false,
+    }
+  }
   return {
     friendUrl: registrationQrUrl(storeId),
     headline: 'LINEでもっと便利に！',
     subCopy: '友だち登録するだけ。あとがぐっとラクになります。',
+    kicker: '登録かんたん・無料',
+    meritsHeading: '友だち登録でできること',
+    qrCaption: 'スマホのカメラで読み取り → 友だち追加',
     merits: generateMerits(flags),
     paperSize: 'a4',
     orientation: 'portrait',
@@ -90,9 +135,9 @@ export function defaultPopSettings(flags: StoreFeatureFlags, storeId: string): P
 }
 
 // 保存値と現行デフォルトをマージ（新フィールド追加時の後方互換）
-// friendUrlは不正防止のため保存値を一切信用せず、常に新規顧客登録QRを強制使用する
-export function mergePopSettings(saved: Partial<PopSettings> | null, flags: StoreFeatureFlags, storeId: string): PopSettings {
-  const base = defaultPopSettings(flags, storeId)
+// friendUrlは不正防止のため保存値を一切信用せず、常に対応するQR URLを強制使用する
+export function mergePopSettings(saved: Partial<PopSettings> | null, flags: StoreFeatureFlags, storeId: string, kind: PopKind = 'friend'): PopSettings {
+  const base = defaultPopSettings(flags, storeId, kind)
   if (!saved) return base
   return {
     ...base,

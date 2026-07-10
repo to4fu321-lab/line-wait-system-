@@ -45,7 +45,7 @@ export const PopPreview = forwardRef<HTMLDivElement, Props>(function PopPreview(
       >
         {/* ヘッダー */}
         <div style={{ backgroundColor: theme.accent, color: '#ffffff' }} className="shrink-0 text-center px-[6%] pt-[5%] pb-[4.5%]">
-          <div style={{ fontSize: '0.8em', letterSpacing: '0.1em' }} className="font-bold opacity-90">＼ 登録かんたん・無料 ／</div>
+          <div style={{ fontSize: '0.8em', letterSpacing: '0.1em' }} className="font-bold opacity-90">＼ {settings.kicker} ／</div>
           <div style={{ fontSize: '2.2em', lineHeight: 1.15 }} className="font-black mt-[1.5%] whitespace-pre-wrap break-words">
             {settings.headline}
           </div>
@@ -60,7 +60,7 @@ export const PopPreview = forwardRef<HTMLDivElement, Props>(function PopPreview(
           )}
 
           <div style={{ fontSize: '0.78em', color: theme.accent, letterSpacing: '0.04em' }} className="font-black mb-[3.5%]">
-            ＼ 友だち登録でできること ／
+            ＼ {settings.meritsHeading} ／
           </div>
 
           <div className="flex flex-col gap-[3.2%]">
@@ -85,18 +85,18 @@ export const PopPreview = forwardRef<HTMLDivElement, Props>(function PopPreview(
               {qrDataUrl ? (
                 <div style={{ backgroundColor: '#ffffff', borderColor: theme.accent }} className="rounded-[4%] border-[0.4cqw] p-[2.5%] flex items-center justify-center">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={qrDataUrl} alt="友だち追加QR" style={{ width: `${QR_CQW[settings.qrSize]}cqw`, height: `${QR_CQW[settings.qrSize]}cqw` }} />
+                  <img src={qrDataUrl} alt="QRコード" style={{ width: `${QR_CQW[settings.qrSize]}cqw`, height: `${QR_CQW[settings.qrSize]}cqw` }} />
                 </div>
               ) : (
                 <div
                   style={{ width: `${QR_CQW[settings.qrSize]}cqw`, height: `${QR_CQW[settings.qrSize]}cqw`, borderColor: theme.accent }}
                   className="rounded-[4%] border-[0.4cqw] border-dashed flex items-center justify-center text-center p-[3%]"
                 >
-                  <span style={{ fontSize: '0.6em' }} className="opacity-60 leading-tight">友だち追加URLを<br />入力するとQRが<br />表示されます</span>
+                  <span style={{ fontSize: '0.6em' }} className="opacity-60 leading-tight">URLを読み込むと<br />QRが表示されます</span>
                 </div>
               )}
               <div style={{ fontSize: '0.82em' }} className="font-bold mt-[2.5%] text-center">
-                スマホのカメラで読み取り → 友だち追加
+                {settings.qrCaption}
               </div>
             </div>
           )}
