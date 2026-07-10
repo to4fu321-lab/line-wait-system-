@@ -689,7 +689,7 @@ function MasterPageInner() {
                 className="p-1.5 text-white/70 hover:text-white bg-white/10 rounded-xl transition-all active:scale-90 disabled:opacity-50">
                 {globalScanLoading ? <Loader2 size={14} className="animate-spin" /> : <ScanLine size={14} />}
               </button>
-              <input ref={globalScanRef} type="file" accept="image/*" capture="environment" className="hidden"
+              <input ref={globalScanRef} type="file" accept="image/*" className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleGlobalScan(f); e.target.value = '' }} />
               <div className="flex items-center gap-0.5 text-[10px]">
                 <span className={schoolView === 'schools'  ? 'text-white font-black' : 'text-white/40'}>学校</span>
@@ -1495,7 +1495,7 @@ function MasterPageInner() {
                     {pScanLoading ? <Loader2 size={13} className="animate-spin" /> : <ScanLine size={13} />}
                     {pScanLoading ? '読取中...' : 'タグ撮影'}
                   </button>
-                  <input ref={pScanRef} type="file" accept="image/*" capture="environment" className="hidden"
+                  <input ref={pScanRef} type="file" accept="image/*" className="hidden"
                     onChange={e => { const f = e.target.files?.[0]; if (f) handleTagScan(f); e.target.value = '' }} />
                 </div>
                 <p className="text-[10px] text-gray-400 mt-0.5">タグを撮影するとAIが品名・品番・バーコードを自動入力します</p>

@@ -176,7 +176,7 @@ export function InquiryTabCard({ item, storeId, onEdit, onStatusChange, isSimple
     if (simpleStep === 'compose') {
       return (
         <div className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${INQ_TYPE_BORDER[item.type]} shadow-sm`}>
-          <input ref={ocrInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+          <input ref={ocrInputRef} type="file" accept="image/*" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleOcr(f); e.target.value = '' }} />
           <div className="p-4">
             <div className="flex items-center gap-2 mb-3">

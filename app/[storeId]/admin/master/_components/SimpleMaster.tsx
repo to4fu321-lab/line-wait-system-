@@ -188,7 +188,7 @@ export default function SimpleMaster({
         {form && (
           <div className="bg-white rounded-2xl border-2 border-indigo-200 shadow-sm p-4 space-y-3">
             {ocrMapping && (
-              <input ref={ocrRef} type="file" accept="image/*" capture="environment" className="hidden"
+              <input ref={ocrRef} type="file" accept="image/*" className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleOcr(f); e.target.value = '' }} />
             )}
             <div className="flex items-center justify-between">
