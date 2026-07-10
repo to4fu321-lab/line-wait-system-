@@ -96,7 +96,8 @@ export default function CustomerPage() {
       const { isOpen, waitingCount: count } = await fetchQueueState(storeId)
       setStoreOpen(isOpen)
       setWaitingCount(count)
-    } catch { /* 取得失敗は無視 */ }
+      return { isOpen }
+    } catch { return { isOpen: null } /* 取得失敗は無視 */ }
   }, [storeId])
 
   // LINE 本人の顧客・お子様を state に反映
@@ -307,7 +308,14 @@ export default function CustomerPage() {
 
       // 顧客情報を取得（任意）
       await loadCustomerIntoState()
-      await refreshOpenAndCount()
+      const { isOpen } = await refreshOpenAndCount()
+
+      // ?action=queue で来た未登録客も、友達追加直後に登録画面へ止めず
+      // 先に並ばせる（未登録のまま整理券発行 → queue_waiting で並びながら登録）
+      if (urlAction === 'queue' && !isSimpleMode && isOpen !== false) { setView('confirm_queue'); return }
+      if (urlAction === 'repair'   && repairEnabled)   { setView('repair_speak'); return }
+      if (urlAction === 'purchase' && purchaseEnabled) { setView('purchase_ec');  return }
+
       if (!customer) { setView('register'); return }
       setView('purpose')
     } catch (e) {
