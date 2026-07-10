@@ -237,6 +237,12 @@ function SchoolModal({ storeId, initial, nextOrder, onClose, onSaved, onError }:
   const [kana, setKana] = useState(initial?.kana ?? '')
   const [shortName, setShortName] = useState(initial?.short_name ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
+  const [address, setAddress] = useState(initial?.address ?? '')
+  const [tel, setTel] = useState(initial?.tel ?? '')
+  const [wearingRegulations, setWearingRegulations] = useState(initial?.wearing_regulations ?? '')
+  const [specialNotes, setSpecialNotes]              = useState(initial?.special_notes ?? '')
+  const [scheduleNotes, setScheduleNotes]             = useState(initial?.schedule_notes ?? '')
+  const [extraInfo, setExtraInfo]                     = useState(initial?.extra_info ?? '')
   const [orderDeadline, setOrderDeadline]         = useState(initial?.order_deadline ?? '')
   const [pickupDeadline, setPickupDeadline]       = useState(initial?.pickup_deadline ?? '')
   const [measurementStart, setMeasurementStart]   = useState(initial?.measurement_start ?? '')
@@ -251,6 +257,12 @@ function SchoolModal({ storeId, initial, nextOrder, onClose, onSaved, onError }:
         id: initial?.id, store_id: storeId, name: name.trim(), kana: kana.trim(),
         short_name: shortName.trim(), notes: notes.trim(),
         sort_order: initial?.sort_order ?? nextOrder, active: initial?.active ?? true,
+        address: address.trim() || null,
+        tel:     tel.trim()     || null,
+        wearing_regulations: wearingRegulations.trim() || null,
+        special_notes:       specialNotes.trim()       || null,
+        schedule_notes:      scheduleNotes.trim()       || null,
+        extra_info:          extraInfo.trim()           || null,
         order_deadline:    orderDeadline   || null,
         pickup_deadline:   pickupDeadline  || null,
         measurement_start: measurementStart || null,
@@ -261,11 +273,32 @@ function SchoolModal({ storeId, initial, nextOrder, onClose, onSaved, onError }:
   }
 
   return (
-    <Modal title={initial ? '学校を編集' : '学校を追加'} onClose={onClose}>
+    <Modal title={initial ? '学校を編集' : '学校を追加'} onClose={onClose} wide>
       <Field label="学校名" required><input className={INPUT} value={name} onChange={(e) => setName(e.target.value)} placeholder="桜ヶ丘中学校" /></Field>
       <Field label="ふりがな"><input className={INPUT} value={kana} onChange={(e) => setKana(e.target.value)} placeholder="さくらがおかちゅうがっこう" /></Field>
       <Field label="略称"><input className={INPUT} value={shortName} onChange={(e) => setShortName(e.target.value)} placeholder="桜中" /></Field>
       <Field label="メモ"><textarea className={INPUT} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
+
+      {/* 学校情報 */}
+      <div className="pt-2 border-t border-gray-100">
+        <p className="text-[11px] font-bold text-gray-400 mb-2">学校情報</p>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="住所"><input className={INPUT} value={address} onChange={e => setAddress(e.target.value)} placeholder="○○市○○1-2-3" /></Field>
+          <Field label="電話番号"><input className={INPUT} value={tel} onChange={e => setTel(e.target.value)} placeholder="03-1234-5678" /></Field>
+        </div>
+      </div>
+
+      {/* 着用規定・特記事項 */}
+      <div className="pt-2 border-t border-gray-100">
+        <p className="text-[11px] font-bold text-gray-400 mb-2">着用規定・特記事項（OCR取込でも入力可。ここで直接編集もできます）</p>
+        <div className="space-y-2">
+          <Field label="着用規定"><textarea className={INPUT} rows={2} value={wearingRegulations} onChange={e => setWearingRegulations(e.target.value)} placeholder="例: スカート丈は膝下、名札は左胸に付ける" /></Field>
+          <Field label="特記事項"><textarea className={INPUT} rows={2} value={specialNotes} onChange={e => setSpecialNotes(e.target.value)} /></Field>
+          <Field label="販売スケジュール"><textarea className={INPUT} rows={2} value={scheduleNotes} onChange={e => setScheduleNotes(e.target.value)} /></Field>
+          <Field label="その他"><textarea className={INPUT} rows={2} value={extraInfo} onChange={e => setExtraInfo(e.target.value)} /></Field>
+        </div>
+      </div>
+
       {/* 締切日管理 */}
       <div className="pt-2 border-t border-gray-100">
         <p className="text-[11px] font-bold text-gray-400 mb-2">締切日管理（SchoolDeadlineAlert に表示）</p>
