@@ -50,11 +50,13 @@ export async function POST(req: NextRequest) {
     })
 
     const text = (msg.content[0] as { type: string; text?: string }).text ?? ''
+    // Claudeが指示に反してコードブロックで包む場合があるため除去してからパースする
+    const jsonText = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
     try {
-      const parsed = JSON.parse(text.trim())
+      const parsed = JSON.parse(jsonText)
       return NextResponse.json({ ok: true, ...parsed })
     } catch {
-      return NextResponse.json({ ok: true, raw: text })
+      return NextResponse.json({ ok: false, error: 'JSON解析に失敗しました', raw: text })
     }
   } catch (e) {
     console.error('[ocr-receipt]', e)
