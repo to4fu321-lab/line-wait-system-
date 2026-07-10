@@ -175,10 +175,16 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
   }
 
   // OCR読み取り結果を受付フォームへ反映
+  // 「納期・メモ」欄は服種・項目を選んだ後のステップにしか表示されないため、
+  // ここで反映した内容をトーストに明記して「反映されていない」誤解を防ぐ。
+  // 何も読み取れなかった場合も、誤って成功扱いにしない。
   const handleOcr = async (r: OcrResult) => {
-    // 希望納期・お直し内容（メモへ）を自動入力
-    if (r.desiredDate) setDeadline(r.desiredDate)
-    if (r.items.length > 0) setMemo(prev => [prev, r.items.join(' / ')].filter(Boolean).join(' / '))
+    const applied: string[] = []
+    if (r.desiredDate) { setDeadline(r.desiredDate); applied.push(`納期:${r.desiredDate}`) }
+    if (r.items.length > 0) {
+      setMemo(prev => [prev, r.items.join(' / ')].filter(Boolean).join(' / '))
+      applied.push(`内容:${r.items.join('/')}`)
+    }
     // 顧客：電話番号でDB検索 → ヒットすれば紐付け
     if (r.tel) {
       const { data } = await (supabase as any).from('customers')
@@ -191,10 +197,15 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
       }
     }
     // 未登録 → 名前・電話を入力欄に流し込み、電話番号登録を開く
-    if (r.name && !/\d/.test(r.name)) setNewName(r.name)
-    if (r.tel) setNewTel(r.tel)
+    if (r.name && !/\d/.test(r.name)) { setNewName(r.name); applied.push(`氏名:${r.name}`) }
+    if (r.tel) { setNewTel(r.tel); applied.push(`電話:${r.tel}`) }
     if (r.name || r.tel) { setShowReg(true); setPhoneMode(true); setStep('customer') }
-    onToast('ok', '📷 読み取りました。内容をご確認ください')
+
+    if (applied.length === 0) {
+      onToast('err', '📷 内容を読み取れませんでした。手入力してください')
+      return
+    }
+    onToast('ok', `📷 読み取りました（${applied.join('・')}）。「納期・メモ」ステップ等でご確認ください`)
   }
 
   async function fetchRefPhotos(it: RepairItem) {
