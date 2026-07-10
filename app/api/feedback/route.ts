@@ -14,12 +14,15 @@ const PRIORITY_LABEL: Record<FeedbackPriority, string> = { urgent: '緊急', hig
 export async function POST(req: Request) {
   try {
     const body = await req.json() as {
-      storeId?: string; kind?: string; body?: string; pageUrl?: string; userAgent?: string
+      storeId?: string; kind?: string; body?: string; pageUrl?: string; userAgent?: string; imageUrls?: string[]
     }
     const kind = ['request', 'bug', 'question'].includes(body.kind ?? '') ? body.kind! : 'request'
     const text = (body.body ?? '').trim()
     if (!text) return NextResponse.json({ ok: false, error: '内容が空です' }, { status: 400 })
     if (text.length > 4000) return NextResponse.json({ ok: false, error: '内容が長すぎます' }, { status: 400 })
+    const imageUrls = Array.isArray(body.imageUrls)
+      ? body.imageUrls.filter(u => typeof u === 'string' && u.startsWith('https://')).slice(0, 4)
+      : []
 
     const supabase = createAdminClient({ noStore: true })
 
@@ -41,6 +44,7 @@ export async function POST(req: Request) {
       body:       text,
       page_url:   body.pageUrl ?? null,
       user_agent: body.userAgent ?? null,
+      image_urls: imageUrls,
       priority:            ai?.priority ?? null,
       ai_category:         ai?.category ?? null,
       ai_recommendation:   ai?.recommendation ?? null,
@@ -68,6 +72,7 @@ export async function POST(req: Request) {
           '---',
           '',
           text,
+          imageUrls.length > 0 ? '\n' + imageUrls.map(u => `![添付画像](${u})`).join('\n') : null,
           ai ? '\n---\n\n**🤖 AIによる分析（参考）**\n\n' + ai.recommendation : null,
           ai ? `\n_自動実装候補: ${ai.implementable ? 'あり（スーパー管理画面で承認すると自動実装されます）' : 'なし（要判断）'}_` : null,
           '',
