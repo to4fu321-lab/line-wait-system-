@@ -88,28 +88,5 @@ export interface SchoolDetail extends School {
   grades: SchoolGrade[]
 }
 
-// OCR API レスポンス
-export interface OcrResultItem {
-  name: string
-  required: boolean
-  price_tax_in: number | null
-  price_tax_out: number | null
-  eo_price_tax_in: number | null
-  eo_price_tax_out: number | null
-  cost_price: number | null
-  size_spec: string
-  product_code: string
-  growth_adjust: boolean
-  washable: string
-  avg_qty: number | null
-  uses_grade_color: boolean
-  grade_color_note: string
-  item_notes: string
-  confidence: 'high' | 'low'  // lowのとき⚠表示
-}
-
-export interface OcrResult {
-  items: OcrResultItem[]
-  notes: string        // 学校全体の注意事項
-  raw_text: string     // デバッグ用
-}
+// 旧OCR API(/api/schools/ocr)のレスポンス型は、新しい取込ウィザード
+// (/api/ocr/process + lib/ocr/schemas/school-manual.ts)への移行完了に伴い削除した。
