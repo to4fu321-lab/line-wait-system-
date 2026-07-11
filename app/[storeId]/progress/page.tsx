@@ -97,12 +97,14 @@ function ProgressContent() {
     }
   }, [storeId, orderId, queueId])
 
-  // ポーリング更新(Realtime は anon から購読不可)
+  // ポーリング更新(Realtime は anon から購読不可)。非表示タブでは通信を止める
   useEffect(() => {
     load(true)
     if (!(orderId || queueId)) return
-    const pollId = setInterval(() => load(false), 10000)
-    return () => clearInterval(pollId)
+    const pollId = setInterval(() => { if (!document.hidden) load(false) }, 10000)
+    const onVisible = () => { if (!document.hidden) load(false) }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { clearInterval(pollId); document.removeEventListener('visibilitychange', onVisible) }
   }, [load, orderId, queueId])
 
   const currentIdx = steps.findIndex(s => s.key === status)

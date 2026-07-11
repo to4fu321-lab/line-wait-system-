@@ -273,6 +273,8 @@ export default function CustomerPage() {
     if (!ticket || !['queue_waiting', 'queue_calling'].includes(view)) return
 
     const checkStatus = async () => {
+      // 非表示タブでは通信を止める(復帰時のvisibilitychangeで即時再取得)
+      if (typeof document !== 'undefined' && document.hidden) return
       const t = ticketRef.current
       if (!t) return
       try {
@@ -288,7 +290,9 @@ export default function CustomerPage() {
     }
     checkStatus()
     const pollId = setInterval(checkStatus, 8000)
-    return () => { clearInterval(pollId) }
+    const onVisible = () => { if (!document.hidden) checkStatus() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { clearInterval(pollId); document.removeEventListener('visibilitychange', onVisible) }
   }, [ticket?.id, view, storeId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 友達追加後・再チェックして目的選択へ ────────────

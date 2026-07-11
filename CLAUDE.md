@@ -108,6 +108,20 @@ npx tsc --noEmit
 - スタイルは **Tailwind CSS のみ**（カスタム CSS ファイルへの追記は原則禁止）
 - `use client` は最小限に。デフォルトは Server Component で実装する
 - API ルートは `app/api/` 配下に配置
+- **型エラー・lintエラーはビルド失敗になる**（next.config の ignoreBuildErrors は撤廃済み。push前に `npx tsc --noEmit` を通すこと）
+- `catch {}` で握りつぶす場合は「無視してよい理由」をコメントで必ず書く（例: `/* ポーリング再試行で回復 */`）
+- 1500行超の巨大ページに機能追加する際は、まず触る部分をコンポーネント分割してから実装する（分割は一気にやらず「次に触るとき」ルール）
+- 画像OCRを追加する際は `lib/ocr/callVision.ts` を必ず使う（Anthropic呼び出しを直接書かない）
+
+## DBスキーマ変更の規約（重要・事故防止）
+
+- スキーマ変更は必ず `supabase/migrations/` にファイルを置く（`sql/` は歴史的資料で追加禁止）
+- **`stores` テーブルに列を追加したら、必ずカラムGRANTも同じマイグレーションに書く**
+  （storesはカラム単位GRANT方式のため、GRANT漏れ＝クライアントからのSELECTがクエリごと失敗する。
+  例: `GRANT SELECT (新列) ON public.stores TO anon, authenticated;`）
+- **Storageバケットを追加したら、`storage.objects` のRLSポリシーも同じマイグレーションに書く**
+  （バケットの public フラグだけではアップロードできない。repair-photosで実際に全滅していた前例あり）
+- スキーマ変更後は `types/supabase.ts` を再生成する（`npm run gen:types`）
 
 ---
 

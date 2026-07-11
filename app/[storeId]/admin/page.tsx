@@ -161,8 +161,11 @@ function AdminDashboard({ store, groupCode, onLogout }: { store: StoreInfo; grou
       .on('postgres_changes', { event: '*', schema: 'public', table: 'queues', filter: `store_id=eq.${store.id}` },
         () => fetchQueues())
       .subscribe()
-    const pollId = setInterval(() => { fetchQueues() }, 10000)
-    return () => { supabase.removeChannel(channel); clearInterval(pollId) }
+    // 非表示タブではポーリングを止める(Realtimeが主、これはフォールバック)
+    const pollId = setInterval(() => { if (!document.hidden) fetchQueues() }, 10000)
+    const onVisible = () => { if (!document.hidden) fetchQueues() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { supabase.removeChannel(channel); clearInterval(pollId); document.removeEventListener('visibilitychange', onVisible) }
   }, [store.id, fetchQueues, fetchStoreStatus, fetchTodayReservations])
 
   // 接続復帰時（オフライン→オンライン）に最新データを即時再取得
