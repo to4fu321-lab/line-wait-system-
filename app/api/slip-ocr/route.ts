@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
 import { assertStorePin } from '@/lib/auth/storeAuth'
+import { callVisionJson, VisionNotConfiguredError } from '@/lib/ocr/callVision'
 
 // ── お直し伝票の抽出スキーマ ────────────────────────────────────
 const REPAIR_SCHEMA = `
@@ -133,45 +133,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: '画像データが必要です' }, { status: 400 })
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) {
-      return NextResponse.json({ ok: false, error: 'ANTHROPIC_API_KEY が未設定です' }, { status: 500 })
-    }
-
-    const client = new Anthropic({ apiKey })
-
-    const validMimeType = (['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(mimeType ?? ''))
-      ? (mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp')
-      : 'image/jpeg'
-
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: slipType === 'auto' ? 1024 : 512,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: validMimeType, data: imageBase64 },
-          },
-          {
-            type: 'text',
-            text: buildPrompt(slipType),
-          },
-        ],
-      }],
+    const { data, raw } = await callVisionJson({
+      imageBase64, mimeType, prompt: buildPrompt(slipType),
+      maxTokens: slipType === 'auto' ? 1024 : 512,
     })
-
-    const rawText = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
-
-    // コードブロックが含まれる場合も対応
-    const jsonText = rawText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
-
-    let data: unknown
-    try {
-      data = JSON.parse(jsonText)
-    } catch {
-      return NextResponse.json({ ok: false, error: 'JSONパースに失敗しました', raw: rawText }, { status: 500 })
+    if (!data) {
+      return NextResponse.json({ ok: false, error: 'JSONパースに失敗しました', raw }, { status: 500 })
     }
 
     // auto の場合は {slip_type, data} 形式を展開して判定種別を返す
@@ -185,6 +152,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, data, slipType })
   } catch (e) {
+    if (e instanceof VisionNotConfiguredError) {
+      return NextResponse.json({ ok: false, error: e.message }, { status: 500 })
+    }
     const msg = e instanceof Error ? e.message : String(e)
     return NextResponse.json({ ok: false, error: msg }, { status: 500 })
   }

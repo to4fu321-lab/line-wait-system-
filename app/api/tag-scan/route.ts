@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import { callVisionJson, VisionNotConfiguredError } from '@/lib/ocr/callVision'
 
 const TAG_SCHEMA = `
 {
@@ -47,41 +47,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: '画像データが必要です' }, { status: 400 })
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) {
-      return NextResponse.json({ ok: false, error: 'ANTHROPIC_API_KEY が未設定です' }, { status: 500 })
-    }
-
-    const client = new Anthropic({ apiKey })
-
-    const validMime = (['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(mimeType ?? ''))
-      ? (mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp')
-      : 'image/jpeg'
-
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: validMime, data: imageBase64 } },
-          { type: 'text', text: buildPrompt() },
-        ],
-      }],
+    // バーコード読み取り精度が必要なためsonnetを使用（他のOCRルートはhaiku）
+    const { data, raw } = await callVisionJson({
+      imageBase64, mimeType, prompt: buildPrompt(), model: 'claude-sonnet-4-6', maxTokens: 1024,
     })
-
-    const rawText = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
-    const jsonText = rawText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
-
-    let data: unknown
-    try {
-      data = JSON.parse(jsonText)
-    } catch {
-      return NextResponse.json({ ok: false, error: 'JSONパースに失敗', raw: rawText }, { status: 500 })
+    if (!data) {
+      return NextResponse.json({ ok: false, error: 'JSONパースに失敗', raw }, { status: 500 })
     }
 
     return NextResponse.json({ ok: true, data })
   } catch (e) {
+    if (e instanceof VisionNotConfiguredError) {
+      return NextResponse.json({ ok: false, error: e.message }, { status: 500 })
+    }
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 500 })
   }
 }
