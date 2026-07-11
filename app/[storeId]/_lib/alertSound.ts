@@ -1,7 +1,6 @@
 // 呼び出し通知音（Web Audio API）。未対応ブラウザでは何もしない。
 export function playAlertSound() {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const AC = (window as any).AudioContext || (window as any).webkitAudioContext
     if (!AC) return
     const ctx = new AC()

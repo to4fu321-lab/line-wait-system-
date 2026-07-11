@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import type { Database } from '@/types/database'
+import type { Database } from '@/types/supabase'
 
 function toValidUrl(raw: string | undefined): string {
   const s = (raw ?? '').trim()

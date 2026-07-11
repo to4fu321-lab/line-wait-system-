@@ -300,8 +300,9 @@ export function ChildCard({
         .eq('child_id', child.id)
         .order('measured_date', { ascending: false }),
     ])
-    setRepairs(r ?? [])
-    setPurchases(p ?? [])
+    // DB上のstatusはtext型のため、アプリのユニオン型(RepairStatus等)へは表明で絞る
+    setRepairs((r ?? []) as RepairHistory[])
+    setPurchases((p ?? []) as PurchaseOrder[])
     setUniformOrders(u ?? [])
     setMeasurements(m ?? [])
 
