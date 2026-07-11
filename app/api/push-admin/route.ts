@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { webpush, setupWebPush } from '@/lib/webPushSetup'
 import { createAdminClient } from '@/lib/supabaseAdmin'
+import { rateLimit, RATE_LIMITED_BODY } from '@/lib/rateLimit'
 
 // 秘密鍵はコードに埋め込まない（必ず env で設定する。漏洩時はローテーション）
 const vapidReady = setupWebPush(
@@ -19,6 +20,10 @@ export async function POST(req: NextRequest) {
     storeId: string; type: PushType; title: string; body: string; url: string
   }
   if (!storeId) return NextResponse.json({ ok: false, error: 'no storeId' }, { status: 400 })
+  // storeIdだけで叩ける公開APIのため店舗単位で連打を制限（1分60件）
+  if (!rateLimit(`push-admin:${storeId}`, 60, 60_000)) {
+    return NextResponse.json(RATE_LIMITED_BODY, { status: 429 })
+  }
   if (!vapidReady) return NextResponse.json({ ok: true, sent: 0, skipped: true, reason: 'vapid_not_configured' })
 
   // 店舗の push_settings を確認してタイプが無効なら送信しない

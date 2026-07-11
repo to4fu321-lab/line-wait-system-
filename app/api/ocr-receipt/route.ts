@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { callVisionJson, parseImageInput, VisionNotConfiguredError } from '@/lib/ocr/callVision'
+import { rateLimit, RATE_LIMITED_BODY } from '@/lib/rateLimit'
 
 // 受付票・メモ・名刺などの簡易OCR。OcrCaptureButton から呼ばれる。
 const PROMPT = [
@@ -18,6 +19,12 @@ export async function POST(req: NextRequest) {
 
   const { image } = body
   if (!image) return NextResponse.json({ ok: false, error: 'image required' }, { status: 400 })
+
+  // 認証の無い公開API + AI課金があるためIP単位で制限（1分10回）
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+  if (!rateLimit(`ocr-receipt:${ip}`, 10, 60_000)) {
+    return NextResponse.json(RATE_LIMITED_BODY, { status: 429 })
+  }
 
   try {
     const { base64, mime } = parseImageInput(image)

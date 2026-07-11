@@ -5,6 +5,7 @@ import { getTodayStart } from '@/lib/supabase'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { getLiffBaseUrl, getLineToken, storeBizType } from '@/lib/line-config'
 import { pushCard, ogTicketUrl, resolveOrigin, type CardOptions } from '@/lib/line-flex'
+import { rateLimit, RATE_LIMITED_BODY } from '@/lib/rateLimit'
 
 export async function POST(req: NextRequest) {
   const { lineUserId, ticketNumber, customerName, storeName: rawStoreName, storeId, type, queueId: rawQueueId } = await req.json()
@@ -19,6 +20,10 @@ export async function POST(req: NextRequest) {
   // 実際に紐づいている場合のみ送信を許可する
   if (!storeId) {
     return NextResponse.json({ ok: false, error: 'storeId is required' }, { status: 400 })
+  }
+  // LINE通知の月間通数を守るため店舗単位で連打を制限（1分60通）
+  if (!rateLimit(`notify:${storeId}`, 60, 60_000)) {
+    return NextResponse.json(RATE_LIMITED_BODY, { status: 429 })
   }
   const supabase = createAdminClient()
   const [{ data: ownedQueue }, { data: ownedCustomer }] = await Promise.all([

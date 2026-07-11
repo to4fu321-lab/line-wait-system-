@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { verifyLineAccessToken } from '@/lib/auth/lineAuth'
+import { rateLimit, RATE_LIMITED_BODY } from '@/lib/rateLimit'
 
 /**
  * POST /api/queue/issue
@@ -22,6 +23,11 @@ export async function POST(req: Request) {
       storeId?: string; accessToken?: string; childId?: string; isRemote?: boolean; details?: unknown
     }
     if (!storeId) return NextResponse.json({ error: 'storeId が必要です' }, { status: 400 })
+
+    // storeId だけで発行できる公開APIのため、店舗単位で連打を制限（1分30件）
+    if (!rateLimit(`queue-issue:${storeId}`, 30, 60_000)) {
+      return NextResponse.json(RATE_LIMITED_BODY, { status: 429 })
+    }
 
     const supabase = createAdminClient({ noStore: true })
 

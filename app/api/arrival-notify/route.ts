@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { getLineToken } from '@/lib/line-config'
 import { pushCard } from '@/lib/line-flex'
+import { rateLimit, RATE_LIMITED_BODY } from '@/lib/rateLimit'
 
 // POST /api/arrival-notify
 // 入荷時LINE通知: purchase_orders または repair_histories の入荷/完成を親へ通知し notified=true にする
@@ -17,6 +18,10 @@ export async function POST(req: NextRequest) {
 
   if (!storeId || !kind || !id) {
     return NextResponse.json({ ok: false, error: 'storeId / kind / id は必須です' }, { status: 400 })
+  }
+  // 公開APIのため店舗単位で連打を制限（1分30通）
+  if (!rateLimit(`arrival-notify:${storeId}`, 30, 60_000)) {
+    return NextResponse.json(RATE_LIMITED_BODY, { status: 429 })
   }
   const supabase = createAdminClient()
 

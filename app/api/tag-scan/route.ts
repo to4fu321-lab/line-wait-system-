@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { callVisionJson, VisionNotConfiguredError } from '@/lib/ocr/callVision'
+import { rateLimit, RATE_LIMITED_BODY } from '@/lib/rateLimit'
 
 const TAG_SCHEMA = `
 {
@@ -45,6 +46,12 @@ export async function POST(req: NextRequest) {
 
     if (!imageBase64) {
       return NextResponse.json({ ok: false, error: '画像データが必要です' }, { status: 400 })
+    }
+
+    // 認証の無い公開API + AI課金があるためIP単位で制限（1分10回）
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    if (!rateLimit(`tag-scan:${ip}`, 10, 60_000)) {
+      return NextResponse.json(RATE_LIMITED_BODY, { status: 429 })
     }
 
     // バーコード読み取り精度が必要なためsonnetを使用（他のOCRルートはhaiku）

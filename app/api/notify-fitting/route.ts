@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { getLineToken, storeBizType } from '@/lib/line-config'
 import { pushCard } from '@/lib/line-flex'
+import { rateLimit, RATE_LIMITED_BODY } from '@/lib/rateLimit'
 
 interface FittingItem {
   item_name: string
@@ -28,6 +29,11 @@ export async function POST(req: NextRequest) {
     items:       FittingItem[]
     totalAmount: number
   } = await req.json()
+
+  // storeIdだけで叩ける公開APIのため店舗単位で連打を制限（1分60通）
+  if (!rateLimit(`notify-fitting:${storeId ?? 'unknown'}`, 60, 60_000)) {
+    return NextResponse.json(RATE_LIMITED_BODY, { status: 429 })
+  }
 
   if (!lineUserId) {
     return NextResponse.json({ ok: true, skipped: true, reason: 'no_line_user_id' })

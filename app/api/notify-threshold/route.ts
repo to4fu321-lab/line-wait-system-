@@ -5,6 +5,7 @@ import { getTodayStart } from '@/lib/supabase'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { pushCard, ogTicketUrl, resolveOrigin } from '@/lib/line-flex'
 import { getLiffBaseUrl, getLineToken } from '@/lib/line-config'
+import { rateLimit, RATE_LIMITED_BODY } from '@/lib/rateLimit'
 
 const LIFF_URL = getLiffBaseUrl('uniform')
 
@@ -25,6 +26,10 @@ export async function POST(req: NextRequest) {
 
   if (!storeId) {
     return NextResponse.json({ ok: false, error: 'storeId is required' }, { status: 400 })
+  }
+  // 公開APIのため店舗単位で連打を制限（1分30通）
+  if (!rateLimit(`notify-threshold:${storeId}`, 30, 60_000)) {
+    return NextResponse.json(RATE_LIMITED_BODY, { status: 429 })
   }
   const supabase = createAdminClient()
 

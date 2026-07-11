@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { getLineToken, getLiffBaseUrl } from '@/lib/line-config'
 import { pushCard, ogTicketUrl, resolveOrigin, type CardOptions, type CardKind } from '@/lib/line-flex'
+import { rateLimit, RATE_LIMITED_BODY } from '@/lib/rateLimit'
 
 // テイクアウト通知は takeout アカウントのトークンを使用
 const LINE_TOKEN = getLineToken('takeout')
@@ -19,6 +20,10 @@ export async function POST(req: NextRequest) {
     const { orderId, status } = await req.json()
     if (!orderId || !status) {
       return NextResponse.json({ ok: false, reason: 'invalid_params' }, { status: 400 })
+    }
+    // 公開APIのため注文単位で連打を制限（1分10通）
+    if (!rateLimit(`notify-takeout:${orderId}`, 10, 60_000)) {
+      return NextResponse.json(RATE_LIMITED_BODY, { status: 429 })
     }
     const supabase = createAdminClient()
 
