@@ -2726,6 +2726,7 @@ export interface Database {
           staff_session_expires_at: string | null
           pop_settings: Json | null
           queue_pop_settings: Json | null
+          ui_settings: Json | null
         }
         Insert: {
           id?: string
@@ -2764,6 +2765,7 @@ export interface Database {
           staff_session_expires_at?: string | null
           pop_settings?: Json | null
           queue_pop_settings?: Json | null
+          ui_settings?: Json | null
         }
         Update: {
           id?: string
@@ -2802,6 +2804,7 @@ export interface Database {
           staff_session_expires_at?: string | null
           pop_settings?: Json | null
           queue_pop_settings?: Json | null
+          ui_settings?: Json | null
         }
         Relationships: []
       }

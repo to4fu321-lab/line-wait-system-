@@ -359,7 +359,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       setVendorName(''); setVendorId(null); setExpectedReturn('')
       if (error) { onToast('err', '外注登録に失敗しました'); return }
       onRefresh()
-      onToast('ok', '📤 外注に出しました')
+      onToast('ok', '📤 業者さんに出しました')
     }
 
     const handleReturnFromVendor = async () => {
@@ -370,7 +370,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       setLoading(false)
       if (error) { onToast('err', '更新に失敗しました'); return }
       onRefresh()
-      onToast('ok', '📥 検品OK・作業再開しました')
+      onToast('ok', '📥 確認OK・作業を続けます')
     }
 
     const handleSimpleRevert = async () => {
@@ -402,9 +402,9 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                 {REQUEST_TYPE_LABELS[reqType]}
               </span>
               {item.sent_to_vendor_at ? (
-                <span className="font-black text-orange-600">🏭 外注中{item.vendor_name ? `（${item.vendor_name}）` : ''}</span>
+                <span className="font-black text-orange-600">🏭 業者さんに依頼中{item.vendor_name ? `（${item.vendor_name}）` : ''}</span>
               ) : item.vendor_name ? (
-                <span className="font-black text-slate-500">📤 外注予定（{item.vendor_name}）</span>
+                <span className="font-black text-slate-500">📤 業者さんに出す予定（{item.vendor_name}）</span>
               ) : null}
               {isOverdue && <span className="font-black text-red-600">⚠️ 期限超過</span>}
               {isDueSoon && !isOverdue && <span className="font-black text-amber-600">⚠️ 明日まで</span>}
@@ -535,7 +535,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             )
           ) : confirmVendor ? (
             <div className="rounded-xl border-2 border-orange-300 bg-orange-50 px-3 py-2.5 space-y-2.5">
-              <p className="text-sm font-black text-orange-800 text-center">📤 外注に出す</p>
+              <p className="text-sm font-black text-orange-800 text-center">📤 業者さんに出す</p>
               {/* 業者マスタ選択 */}
               {vendors.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
@@ -576,13 +576,13 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                   style={{ touchAction: 'manipulation' }}
                   className="flex-1 py-2 rounded-xl bg-orange-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50">
                   {loading ? <Loader2 size={16} className="animate-spin" /> : '📤'}
-                  外注に出す
+                  業者さんに出す
                 </button>
               </div>
             </div>
           ) : confirmInspect ? (
             <div className="rounded-xl border-2 border-teal-300 bg-teal-50 px-3 py-2.5 space-y-2.5">
-              <p className="text-sm font-black text-teal-800 text-center">📥 検品してください</p>
+              <p className="text-sm font-black text-teal-800 text-center">📥 品物が戻りました。中身を確認してください</p>
               <label className="flex items-center gap-2 bg-white rounded-xl border border-teal-200 px-3 py-2.5 cursor-pointer">
                 <input type="checkbox" checked={inspectOk} onChange={e => setInspectOk(e.target.checked)} className="w-4 h-4 accent-teal-600" />
                 <span className="text-xs font-bold text-gray-700">仕上がり・汚れ・破損がないか確認しました</span>
@@ -597,7 +597,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                   style={{ touchAction: 'manipulation' }}
                   className="flex-1 py-2 rounded-xl bg-teal-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md disabled:opacity-50">
                   {loading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                  検品OK・作業再開
+                  確認OK・作業を続ける
                 </button>
               </div>
             </div>
@@ -614,13 +614,13 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                 <button onClick={() => setConfirmVendor(true)} disabled={loading}
                   style={{ touchAction: 'manipulation' }}
                   className="flex-1 py-3.5 border-2 border-orange-200 bg-orange-50 text-orange-700 font-black text-base rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-50">
-                  📤 外注
+                  📤 業者さんへ
                 </button>
               ) : !item.work_started ? (
                 <button onClick={() => setConfirmInspect(true)} disabled={loading}
                   style={{ touchAction: 'manipulation' }}
                   className="flex-[2] py-3.5 border-2 border-teal-200 bg-teal-50 text-teal-700 font-black text-base rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-50">
-                  {loading ? <Loader2 size={18} className="animate-spin" /> : '📥'} 戻ってきた（検品）
+                  {loading ? <Loader2 size={18} className="animate-spin" /> : '📥'} 戻ってきた（確認する）
                 </button>
               ) : null}
             </div>

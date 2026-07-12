@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../../_components/BottomNav'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { useDeviceMode } from '@/lib/useDeviceMode'
+import { useUiSettings, type UiSettings } from '@/lib/useSimpleMode'
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BAmZx5b8ScrgrqWa822FdQhtfHV2CSyqvxNeQX-Ds1KsqztPPRtZRyBP_LaQZmCLejg8Ivd7Gu4cBxKtNwodb3o'
 
@@ -47,15 +48,16 @@ const DEFAULT_HOURS: BusinessHours = {
 
 function BigToggle({ on, onToggle, label, sub, emoji, color }: {
   on: boolean; onToggle: () => void; label: string; sub: string; emoji: string
-  color: 'indigo' | 'amber'
+  color: 'indigo' | 'amber' | 'teal'
 }) {
   const active = {
     indigo: 'border-indigo-500 bg-indigo-500/10',
     amber:  'border-amber-500 bg-amber-500/10',
+    teal:   'border-teal-500 bg-teal-500/10',
   }[color]
-  const textActive = { indigo: 'text-indigo-700', amber: 'text-amber-600' }[color]
-  const trackActive = { indigo: 'bg-indigo-500', amber: 'bg-amber-500' }[color]
-  const iconBg = { indigo: 'bg-indigo-500/20', amber: 'bg-amber-500/20' }[color]
+  const textActive = { indigo: 'text-indigo-700', amber: 'text-amber-600', teal: 'text-teal-700' }[color]
+  const trackActive = { indigo: 'bg-indigo-500', amber: 'bg-amber-500', teal: 'bg-teal-500' }[color]
+  const iconBg = { indigo: 'bg-indigo-500/20', amber: 'bg-amber-500/20', teal: 'bg-teal-500/20' }[color]
   return (
     <button type="button" onClick={onToggle} style={{ touchAction: 'manipulation' }}
       className={`w-full flex items-center gap-4 px-5 py-5 rounded-2xl border-2 transition-all active:scale-[0.98] ${
@@ -104,6 +106,7 @@ export default function StaffSettingsPage() {
   const { hasFeature } = useStoreFeatures(storeId)
   const isSimpleMode = !hasFeature('repairs_tab_purchase') && !hasFeature('repairs_tab_arrival')
   const { setMode } = useDeviceMode()
+  const { settings: uiSettings, save: saveUiSettings } = useUiSettings(storeId)
 
   const [storeName,     setStoreName]     = useState('')
   const [loading,       setLoading]       = useState(true)
@@ -175,6 +178,13 @@ export default function StaffSettingsPage() {
     }
   }
 
+  // 画面設定（かんたん画面・大きい文字）— stores.ui_settings に保存（全端末共通）
+  const handleUiToggle = async (patch: UiSettings) => {
+    setSaveError(null)
+    const ok = await saveUiSettings(patch)
+    if (!ok) setSaveError('画面設定の保存に失敗しました。通信環境を確認してもう一度お試しください。')
+  }
+
   const handleTestModeToggle = async () => {
     const next = !isTestMode
     setIsTestMode(next)
@@ -217,6 +227,30 @@ export default function StaffSettingsPage() {
         </div>
 
         <div className="max-w-lg mx-auto px-4 py-5 space-y-4 pb-32">
+
+          {saveError && (
+            <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-4 py-3">{saveError}</p>
+          )}
+
+          {/* 🍀 かんたん画面 */}
+          <BigToggle
+            on={uiSettings.simple_mode === true}
+            onToggle={() => handleUiToggle({ simple_mode: !(uiSettings.simple_mode === true) })}
+            label="かんたん画面"
+            sub={uiSettings.simple_mode ? 'タブを減らして大きなボタンで表示中（全端末共通）' : 'オフ — 通常の表示です'}
+            emoji="🍀"
+            color="teal"
+          />
+
+          {/* 🔍 大きい文字 */}
+          <BigToggle
+            on={uiSettings.large_text === true}
+            onToggle={() => handleUiToggle({ large_text: !(uiSettings.large_text === true) })}
+            label="大きい文字"
+            sub={uiSettings.large_text ? '管理画面の文字を大きく表示中（全端末共通）' : 'オフ — 標準の文字サイズです'}
+            emoji="🔍"
+            color="indigo"
+          />
 
           {/* ✂️ お直し項目・料金 */}
           <Link href={`/${storeId}/admin/master/repair`}
@@ -535,6 +569,26 @@ export default function StaffSettingsPage() {
             label="遠隔チェックイン"
             sub={allowRemote ? '来店前の順番取りを許可しています' : '現地受付のみです'}
             emoji="🏠"
+            color="indigo"
+          />
+        </Section>
+
+        {/* 🖥️ 画面表示 */}
+        <Section emoji="🖥️" title="画面表示" open={openSections.has('display')} onToggle={() => toggleSection('display')}>
+          <BigToggle
+            on={uiSettings.simple_mode === true}
+            onToggle={() => handleUiToggle({ simple_mode: !(uiSettings.simple_mode === true) })}
+            label="かんたん画面"
+            sub={uiSettings.simple_mode ? 'タブを減らして大きなボタンで表示中（全端末共通）' : 'オフ — 通常の表示です'}
+            emoji="🍀"
+            color="teal"
+          />
+          <BigToggle
+            on={uiSettings.large_text === true}
+            onToggle={() => handleUiToggle({ large_text: !(uiSettings.large_text === true) })}
+            label="大きい文字"
+            sub={uiSettings.large_text ? '管理画面の文字を大きく表示中（全端末共通）' : 'オフ — 標準の文字サイズです'}
+            emoji="🔍"
             color="indigo"
           />
         </Section>
