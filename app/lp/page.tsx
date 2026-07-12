@@ -100,30 +100,31 @@ export default function LandingPage() {
       {/* ===== Hero ===== */}
       <section className="relative">
         <div className="mx-auto grid max-w-5xl items-center gap-12 px-5 pb-16 pt-12 lg:grid-cols-[1.1fr_0.9fr] lg:pb-24 lg:pt-20">
-          <div className="animate-rise-in text-center lg:text-left">
-            <span className="inline-flex items-center gap-2 rounded-full border border-indigo-200/70 bg-white/70 px-3.5 py-1.5 text-xs font-bold tracking-wide text-indigo-700 shadow-sm backdrop-blur-md">
+          {/* バッジ→見出し→本文→ボタン→スマホの順に段階的に浮き上がる */}
+          <div className="text-center lg:text-left">
+            <span className="animate-rise-in inline-flex items-center gap-2 rounded-full border border-indigo-200/70 bg-white/70 px-3.5 py-1.5 text-xs font-bold tracking-wide text-indigo-700 shadow-sm backdrop-blur-md">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-500 opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-indigo-600" />
               </span>
               学生服専門店のための トータルDX
             </span>
-            <h1 className="mt-5 text-[2.4rem] font-black leading-[1.1] tracking-tight text-zinc-900 sm:text-[3.25rem]">
+            <h1 className="animate-rise-in [transition-delay:200ms] mt-5 text-[2.4rem] font-black leading-[1.1] tracking-tight text-zinc-900 sm:text-[3.25rem]">
               「仕上がりました」の連絡が、<br />
               <span className="bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 bg-clip-text text-transparent animate-gradient-pan">
                 ワンタップ。
               </span>
             </h1>
-            <p className="mx-auto mt-6 max-w-lg text-[17px] leading-relaxed text-zinc-600 lg:mx-0">
+            <p className="animate-rise-in [transition-delay:400ms] mx-auto mt-6 max-w-lg text-[17px] leading-relaxed text-zinc-600 lg:mx-0">
               電話が繋がらない、何度もかけ直す——そんな手間はもう要りません。
               LINEでサッとお知らせ。受付もお直しもスマホ1台でラクになり、
               <strong className="font-bold text-zinc-900">お客様の再来店まで自然につながります。</strong>
             </p>
-            <p className="mx-auto mt-3 max-w-lg text-sm text-zinc-400 lg:mx-0">
+            <p className="animate-rise-in [transition-delay:400ms] mx-auto mt-3 max-w-lg text-sm text-zinc-400 lg:mx-0">
               <span className="font-bold text-zinc-500">ミセプラ</span>＝お店のぜんぶが集まる場所。
               <span className="whitespace-nowrap">Plaza・Platform・Plan・Plus</span> をひとつに。
             </p>
-            <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row lg:items-start">
+            <div className="animate-rise-in [transition-delay:600ms] mt-8 flex flex-col items-center gap-3 sm:flex-row lg:items-start">
               <a
                 href={START}
                 className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 px-8 py-4 font-bold text-white shadow-xl shadow-indigo-500/30 transition-all hover:shadow-2xl hover:shadow-indigo-500/45 active:scale-[0.98] sm:w-auto"
@@ -134,7 +135,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="animate-rise-in relative mx-auto w-full max-w-[16rem] [transition-delay:150ms]">
+          <div className="animate-rise-in relative mx-auto w-full max-w-[16rem] [transition-delay:800ms]">
             <div aria-hidden className="absolute inset-0 -z-10 translate-y-8 scale-90 rounded-[3rem] bg-gradient-to-br from-indigo-400/50 to-violet-400/50 blur-3xl" />
             <div className="animate-phone-float">
               <PhoneFrame><MockContactScreen /></PhoneFrame>

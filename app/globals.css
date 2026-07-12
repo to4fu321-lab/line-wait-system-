@@ -122,10 +122,12 @@
    .lp-ready はLP内のIntersectionObserverが「要素が実際に見えた」時に付与する。 */
 .animate-rise-in {
   opacity: 0;
-  transform: translateY(28px);
-  transition:
-    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateY(36px);
+  /* transitionショートハンドはtransition-delayを0にリセットしてしまい、
+     要素ごとの [transition-delay:XXXms] が無効になるためロングハンドで指定 */
+  transition-property: opacity, transform;
+  transition-duration: 1s;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
 html.lp-ready .animate-rise-in {
   opacity: 1;
