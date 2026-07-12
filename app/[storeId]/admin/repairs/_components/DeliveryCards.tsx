@@ -89,7 +89,7 @@ export function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRev
           {/* バッジ + 受付番号 */}
           <div className="flex items-center justify-between gap-2">
             <span className={`text-xs font-black px-2.5 py-1.5 rounded-lg ${kindBadge}`}>{kindLabel}</span>
-            <span className="text-[10px] font-black text-indigo-400 font-mono shrink-0">{reqNo}</span>
+            <span className="text-2xl font-black text-indigo-600 font-mono tabular-nums shrink-0">{reqNo}</span>
           </div>
 
           {/* 学校名 + お客様名 */}

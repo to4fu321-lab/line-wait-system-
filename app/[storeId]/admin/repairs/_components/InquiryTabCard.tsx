@@ -155,7 +155,7 @@ export function InquiryTabCard({ item, storeId, onEdit, onStatusChange, isSimple
               </span>
             </div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] font-black text-indigo-400 font-mono shrink-0">{reqNo}</span>
+              <span className="text-base font-black text-indigo-500 font-mono shrink-0">{reqNo}</span>
               {item.customer_name && <p className="text-xl font-black text-gray-800">{item.customer_name}</p>}
             </div>
             <p className="text-base text-gray-600 leading-relaxed mb-3 line-clamp-2">{item.content}</p>
