@@ -114,10 +114,16 @@
   background-size: 200% 200%;
   animation: gradient-pan 8s ease infinite;
 }
+/* 登場アニメーション。CSSアニメーションはスタイル適用時点から時間が進むため、
+   初回描画が遅い端末では「画面が見える前に終わって」しまい効果が見えない。
+   そのため paused で開始し、実際に描画フレームが始まってから(LP内のrAFスクリプトが
+   html に .lp-ready を付けてから)再生する。JS無効環境は noscript で即時再生。 */
 .animate-rise-in {
   opacity: 0;
   animation: rise-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-play-state: paused;
 }
+html.lp-ready .animate-rise-in { animation-play-state: running; }
 
 @media (prefers-reduced-motion: reduce) {
   .animate-float-slow,

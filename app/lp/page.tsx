@@ -30,6 +30,14 @@ export default function LandingPage() {
     // bg-zinc-50: 全体レイアウトのbodyが黒(zinc-950・管理画面用)のため、
     // LP自身に明るい下地を持たせないと描画完了までの間 真っ黒な画面が見える
     <main className="relative min-h-screen overflow-x-hidden bg-zinc-50 text-zinc-900 antialiased">
+      {/* 登場アニメーションを「実際に描画が始まったフレーム」から再生する。
+          rAFは実際に画面フレームが生成されるまで発火しないため、初回描画が
+          遅い端末でもアニメーションが見える前に終わってしまうことがない */}
+      <script dangerouslySetInnerHTML={{ __html:
+        'requestAnimationFrame(function(){requestAnimationFrame(function(){document.documentElement.classList.add("lp-ready")})})',
+      }} />
+      <noscript><style>{'.animate-rise-in{animation-play-state:running!important}'}</style></noscript>
+
       {/* ===== [DEV専用] 管理画面ショートカット（本番では非表示） ===== */}
       {!IS_PRODUCTION && (
         <a
