@@ -30,13 +30,28 @@ export default function LandingPage() {
     // bg-zinc-50: 全体レイアウトのbodyが黒(zinc-950・管理画面用)のため、
     // LP自身に明るい下地を持たせないと描画完了までの間 真っ黒な画面が見える
     <main className="relative min-h-screen overflow-x-hidden bg-zinc-50 text-zinc-900 antialiased">
-      {/* 登場アニメーションを「実際に描画が始まったフレーム」から再生する。
-          rAFは実際に画面フレームが生成されるまで発火しないため、初回描画が
-          遅い端末でもアニメーションが見える前に終わってしまうことがない */}
-      <script dangerouslySetInnerHTML={{ __html:
-        'requestAnimationFrame(function(){requestAnimationFrame(function(){document.documentElement.classList.add("lp-ready")})})',
-      }} />
-      <noscript><style>{'.animate-rise-in{animation-play-state:running!important}'}</style></noscript>
+      {/* 登場アニメーション(rise-in)の発火制御。
+          「要素が実際に画面内に見えた瞬間」にIntersectionObserverで .lp-ready を
+          付与し、transitionを開始する。時間起点のCSSアニメーションだと初回描画が
+          遅い端末やSafariのpaint holdingで見える前に再生が終わってしまうため。 */}
+      <script dangerouslySetInnerHTML={{ __html: `(function(){
+        function go(){ document.documentElement.classList.add('lp-ready') }
+        function init(){
+          var el = document.querySelector('.animate-rise-in')
+          if (!el || !('IntersectionObserver' in window)) return go()
+          var io = new IntersectionObserver(function(entries){
+            if (entries.some(function(e){ return e.isIntersecting })) {
+              io.disconnect()
+              requestAnimationFrame(function(){ requestAnimationFrame(go) })
+            }
+          })
+          io.observe(el)
+          setTimeout(function(){ io.disconnect(); go() }, 3000) /* 保険: 3秒で必ず表示 */
+        }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init)
+        else init()
+      })()` }} />
+      <noscript><style>{'.animate-rise-in{opacity:1!important;transform:none!important}'}</style></noscript>
 
       {/* ===== [DEV専用] 管理画面ショートカット（本番では非表示） ===== */}
       {!IS_PRODUCTION && (
@@ -119,7 +134,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="animate-rise-in relative mx-auto w-full max-w-[16rem] [animation-delay:150ms]">
+          <div className="animate-rise-in relative mx-auto w-full max-w-[16rem] [transition-delay:150ms]">
             <div aria-hidden className="absolute inset-0 -z-10 translate-y-8 scale-90 rounded-[3rem] bg-gradient-to-br from-indigo-400/50 to-violet-400/50 blur-3xl" />
             <div className="animate-phone-float">
               <PhoneFrame><MockContactScreen /></PhoneFrame>

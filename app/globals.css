@@ -114,24 +114,34 @@
   background-size: 200% 200%;
   animation: gradient-pan 8s ease infinite;
 }
-/* 登場アニメーション。CSSアニメーションはスタイル適用時点から時間が進むため、
-   初回描画が遅い端末では「画面が見える前に終わって」しまい効果が見えない。
-   そのため paused で開始し、実際に描画フレームが始まってから(LP内のrAFスクリプトが
-   html に .lp-ready を付けてから)再生する。JS無効環境は noscript で即時再生。 */
+/* 登場アニメーション(transition方式)。
+   CSSアニメーション(時間起点=スタイル適用時)だと、初回描画が遅い端末や
+   Safariのpaint holding(準備完了まで前画面を保持し一気に描画する挙動)で
+   「画面に見える前に再生が終わって」しまう。transitionは .lp-ready が
+   付与された瞬間の状態変化で動くため、発火タイミングを完全に制御できる。
+   .lp-ready はLP内のIntersectionObserverが「要素が実際に見えた」時に付与する。 */
 .animate-rise-in {
   opacity: 0;
-  animation: rise-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  animation-play-state: paused;
+  transform: translateY(28px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
 }
-html.lp-ready .animate-rise-in { animation-play-state: running; }
+html.lp-ready .animate-rise-in {
+  opacity: 1;
+  transform: translateY(0);
+}
 
 @media (prefers-reduced-motion: reduce) {
   .animate-float-slow,
   .animate-float-slower,
   .animate-phone-float,
-  .animate-gradient-pan,
-  .animate-rise-in {
+  .animate-gradient-pan {
     animation: none;
   }
-  .animate-rise-in { opacity: 1; }
+  .animate-rise-in {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }
