@@ -27,7 +27,9 @@ export default function LandingPage() {
   if (!LP_PUBLIC) notFound()
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden text-zinc-900 antialiased">
+    // bg-zinc-50: 全体レイアウトのbodyが黒(zinc-950・管理画面用)のため、
+    // LP自身に明るい下地を持たせないと描画完了までの間 真っ黒な画面が見える
+    <main className="relative min-h-screen overflow-x-hidden bg-zinc-50 text-zinc-900 antialiased">
       {/* ===== [DEV専用] 管理画面ショートカット（本番では非表示） ===== */}
       {!IS_PRODUCTION && (
         <a
