@@ -865,8 +865,8 @@ export default function RepairsPage() {
             {!pendingFilter && (
             <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 no-scrollbar">
               {(isSimpleMode ? [
-                { id: 'unstarted'  as const, label: '加工未',  count: simpleSubUnstarted.length  },
-                { id: 'outsourced' as const, label: '外注待ち', count: simpleSubOutsourced.length },
+                { id: 'unstarted'  as const, label: 'これから直す',    count: simpleSubUnstarted.length  },
+                { id: 'outsourced' as const, label: '業者さんに依頼中', count: simpleSubOutsourced.length },
               ] : [
                 { id: 'unstarted'  as const, label: '加工未',   count: subUnstarted.length  },
                 { id: 'inprogress' as const, label: '加工中',   count: subInProgress.length },
