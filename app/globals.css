@@ -114,12 +114,11 @@
   background-size: 200% 200%;
   animation: gradient-pan 8s ease infinite;
 }
-/* 登場アニメーション(transition方式)。
+/* 登場アニメーション(スクロールリビール・transition方式)。
    CSSアニメーション(時間起点=スタイル適用時)だと、初回描画が遅い端末や
-   Safariのpaint holding(準備完了まで前画面を保持し一気に描画する挙動)で
-   「画面に見える前に再生が終わって」しまう。transitionは .lp-ready が
-   付与された瞬間の状態変化で動くため、発火タイミングを完全に制御できる。
-   .lp-ready はLP内のIntersectionObserverが「要素が実際に見えた」時に付与する。 */
+   Safariのpaint holdingで「画面に見える前に再生が終わって」しまうため、
+   IntersectionObserver(LpReady.tsx)が「要素が実際に画面内に入った瞬間」に
+   .in-view を付け、その状態変化でtransitionを発火する。 */
 .animate-rise-in {
   opacity: 0;
   transform: translateY(36px);
@@ -129,7 +128,7 @@
   transition-duration: 1s;
   transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
-html.lp-ready .animate-rise-in {
+.animate-rise-in.in-view {
   opacity: 1;
   transform: translateY(0);
 }

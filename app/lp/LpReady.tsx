@@ -3,28 +3,39 @@
 import { useEffect } from 'react'
 
 // ============================================================
-// LP登場アニメーションの発火トリガー。
+// LP登場アニメーション(スクロールリビール)の発火トリガー。
 //
-// インラインスクリプト(HTML解析中に即実行)だと、iOS Safariでは
-// 「最初の描画」より前に .lp-ready が付いてしまい、Safariは
-// 初期状態(透明)を一度も描画しないまま最終状態だけを描く
-// =transitionがスキップされて「パッと表示」になる。
+// .animate-rise-in の各要素を IntersectionObserver で監視し、
+// 「実際に画面内に入った瞬間」に .in-view を付けて transition を発火する。
+// 初期表示範囲(ヒーロー)はhydration直後にIOが即発火し、
+// [transition-delay:...] の時間差でカスケード表示される。
+// 下部のセクションはスクロールで見えたタイミングで浮き上がる。
 //
-// useEffect は hydration 完了後=必ず初回描画の後に走るため、
-// 「初期状態が描画済み → クラス付与 → transition発火」の順序が保証される。
-// さらに rAF×2 で描画フレームを跨いでから付与して確実性を上げる。
+// useEffect(hydration後=必ず初回描画の後)で監視を始めるため、
+// iOS Safariでも「初期状態(透明)が描画されないままtransitionが
+// スキップされる」問題が起こらない。
 // ============================================================
 export default function LpReady() {
   useEffect(() => {
-    let raf1 = 0, raf2 = 0
-    raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        document.documentElement.classList.add('lp-ready')
-      })
-    })
-    // 保険: 何かの理由でrAFが走らなくても3秒後には必ず表示する
-    const failsafe = setTimeout(() => document.documentElement.classList.add('lp-ready'), 3000)
-    return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2); clearTimeout(failsafe) }
+    const els = Array.from(document.querySelectorAll<HTMLElement>('.animate-rise-in'))
+    if (els.length === 0) return
+
+    if (!('IntersectionObserver' in window)) {
+      els.forEach(el => el.classList.add('in-view'))
+      return
+    }
+
+    const io = new IntersectionObserver(entries => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          e.target.classList.add('in-view')
+          io.unobserve(e.target)
+        }
+      }
+    }, { rootMargin: '0px 0px -10% 0px' })
+
+    els.forEach(el => io.observe(el))
+    return () => io.disconnect()
   }, [])
   return null
 }

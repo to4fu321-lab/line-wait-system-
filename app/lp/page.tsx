@@ -128,11 +128,11 @@ export default function LandingPage() {
 
       {/* ===== 連絡の Before / After（主役）===== */}
       <section className="mx-auto max-w-5xl px-5 py-16">
-        <h2 className="text-balance text-center text-2xl font-black tracking-tight text-zinc-900 sm:text-[2rem]">
+        <h2 className="animate-rise-in text-balance text-center text-2xl font-black tracking-tight text-zinc-900 sm:text-[2rem]">
           お客様への連絡、これだけ変わります。
         </h2>
         <div className="mt-10 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-3xl border border-white/70 bg-white/50 p-7 shadow-lg shadow-zinc-900/5 backdrop-blur-xl">
+          <div className="animate-rise-in [transition-delay:150ms] rounded-3xl border border-white/70 bg-white/50 p-7 shadow-lg shadow-zinc-900/5 backdrop-blur-xl">
             <p className="text-xs font-black tracking-widest text-zinc-400">これまで（お電話）</p>
             <ul className="mt-5 space-y-4">
               {[
@@ -147,7 +147,7 @@ export default function LandingPage() {
               ))}
             </ul>
           </div>
-          <div className="relative overflow-hidden rounded-3xl border border-indigo-200/80 bg-gradient-to-br from-white/90 to-indigo-50/80 p-7 shadow-2xl shadow-indigo-200/50 backdrop-blur-xl">
+          <div className="animate-rise-in [transition-delay:300ms] relative overflow-hidden rounded-3xl border border-indigo-200/80 bg-gradient-to-br from-white/90 to-indigo-50/80 p-7 shadow-2xl shadow-indigo-200/50 backdrop-blur-xl">
             <div aria-hidden className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-indigo-400/30 blur-2xl" />
             <p className="relative text-xs font-black tracking-widest text-indigo-600">これから（ワンタップ）</p>
             <ul className="relative mt-5 space-y-4">
@@ -174,15 +174,15 @@ export default function LandingPage() {
             ['確実につながる', '電話の「繋がらない」ストレスがゼロ。お客様も、好きな時間に受け取れて助かる。'],
             ['再来店につながる', 'LINEでお客様とつながり、次の制服シーズンや買い替えのときも、忘れられないお店に。'],
           ].map(([t, d], i) => (
-            <div
-              key={t}
-              className="group rounded-3xl border border-white/70 bg-white/55 p-6 shadow-lg shadow-zinc-900/5 backdrop-blur-xl transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-200/50"
-            >
-              <span className="bg-gradient-to-br from-indigo-500 to-violet-500 bg-clip-text text-3xl font-black text-transparent">
-                0{i + 1}
-              </span>
-              <p className="mt-2 text-lg font-black text-zinc-900">{t}</p>
-              <p className="mt-1.5 text-sm leading-relaxed text-zinc-500">{d}</p>
+            // リビール(外側)とホバー演出(内側)でtransition対象を分離する
+            <div key={t} className={`animate-rise-in ${['', '[transition-delay:150ms]', '[transition-delay:300ms]'][i]}`}>
+              <div className="group h-full rounded-3xl border border-white/70 bg-white/55 p-6 shadow-lg shadow-zinc-900/5 backdrop-blur-xl transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-200/50">
+                <span className="bg-gradient-to-br from-indigo-500 to-violet-500 bg-clip-text text-3xl font-black text-transparent">
+                  0{i + 1}
+                </span>
+                <p className="mt-2 text-lg font-black text-zinc-900">{t}</p>
+                <p className="mt-1.5 text-sm leading-relaxed text-zinc-500">{d}</p>
+              </div>
             </div>
           ))}
         </div>
@@ -190,7 +190,7 @@ export default function LandingPage() {
 
       {/* ===== CTA（無料体験）===== */}
       <section className="px-5 py-16">
-        <div className="relative mx-auto max-w-4xl overflow-hidden rounded-[2.5rem] border border-white/10 bg-zinc-950 px-6 py-14 text-center shadow-2xl shadow-indigo-900/30">
+        <div className="animate-rise-in relative mx-auto max-w-4xl overflow-hidden rounded-[2.5rem] border border-white/10 bg-zinc-950 px-6 py-14 text-center shadow-2xl shadow-indigo-900/30">
           <div aria-hidden className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 animate-float-slow rounded-full bg-indigo-500/40 blur-3xl" />
           <div aria-hidden className="pointer-events-none absolute -bottom-24 -right-16 h-64 w-64 animate-float-slower rounded-full bg-violet-500/40 blur-3xl" />
           <div
