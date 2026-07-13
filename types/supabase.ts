@@ -2056,6 +2056,13 @@ export interface Database {
           extra_info: string | null
           address: string | null
           tel: string | null
+          kana: string
+          notes: string
+          updated_by: string
+          order_deadline: string | null
+          pickup_deadline: string | null
+          measurement_start: string | null
+          measurement_end: string | null
         }
         Insert: {
           id?: string
@@ -2072,6 +2079,13 @@ export interface Database {
           extra_info?: string | null
           address?: string | null
           tel?: string | null
+          kana?: string
+          notes?: string
+          updated_by?: string
+          order_deadline?: string | null
+          pickup_deadline?: string | null
+          measurement_start?: string | null
+          measurement_end?: string | null
         }
         Update: {
           id?: string
@@ -2088,6 +2102,13 @@ export interface Database {
           extra_info?: string | null
           address?: string | null
           tel?: string | null
+          kana?: string
+          notes?: string
+          updated_by?: string
+          order_deadline?: string | null
+          pickup_deadline?: string | null
+          measurement_start?: string | null
+          measurement_end?: string | null
         }
         Relationships: []
       }
