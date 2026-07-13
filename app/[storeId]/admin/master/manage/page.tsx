@@ -11,8 +11,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   ChevronLeft, Plus, Pencil, Trash2, GraduationCap, Package, Ruler,
-  Loader2, X, Check, Tag, Coins, School as SchoolIcon, Link2, Sparkles,
+  Loader2, X, Check, Tag, Coins, School as SchoolIcon, Link2, Sparkles, ScanLine,
 } from 'lucide-react'
+import { BarcodeScannerSheet } from '../../_components/BarcodeScannerSheet'
 import {
   listSchools, upsertSchool, deleteSchool,
   listSizeSets, upsertSizeSet, deleteSizeSet, replaceSizeSetItems,
@@ -555,7 +556,7 @@ function ProductsPanel({ storeId, school, products, sizeSets, onChange, show }: 
       <div className="min-w-0 flex-1">
         <p className="font-bold text-gray-900 truncate">{p.name}</p>
         <p className="text-[11px] text-gray-400">
-          {[p.category, p.gender, p.maker, p.maker_code, p.size_set?.name].filter(Boolean).join(' ・ ')}
+          {[p.category, p.gender, p.maker, p.maker_code, p.size_set?.name, p.barcode ? `🏷 ${p.barcode}` : null].filter(Boolean).join(' ・ ')}
         </p>
         {p.body_types?.length > 0 && (
           <div className="flex gap-1 mt-1">
@@ -613,6 +614,8 @@ function ProductModal({ storeId, school, sizeSets, initial, nextOrder, onClose, 
   const [gender, setGender] = useState(initial?.gender ?? '男女共通')
   const [maker, setMaker] = useState(initial?.maker ?? '')
   const [makerCode, setMakerCode] = useState(initial?.maker_code ?? '')
+  const [barcode, setBarcode] = useState(initial?.barcode ?? '')
+  const [scanOpen, setScanOpen] = useState(false)
   const [washable, setWashable] = useState(initial?.washable ?? '')
   const [bodyTypes, setBodyTypes] = useState<string[]>(initial?.body_types ?? [])
   const [sizeSetId, setSizeSetId] = useState(initial?.size_set_id ?? '')
@@ -630,6 +633,7 @@ function ProductModal({ storeId, school, sizeSets, initial, nextOrder, onClose, 
         school_id: isFree ? null : (initial?.school_id ?? school.id),
         name: name.trim(), category: category || null, gender: gender || null,
         maker: maker.trim() || null, maker_code: makerCode.trim() || null,
+        barcode: barcode.trim() || null,
         washable: washable || null, size_set_id: sizeSetId || null,
         body_types: bodyTypes,
         base_price_tax_in: basePrice ? Number(basePrice) : null,
@@ -695,9 +699,27 @@ function ProductModal({ storeId, school, sizeSets, initial, nextOrder, onClose, 
         <p className="text-[10px] text-gray-400 mt-1">未選択＝体型区分なし（号数のみで管理）</p>
       </Field>
       <Field label="標準価格(税込)"><input type="number" className={INPUT} value={basePrice} onChange={(e) => setBasePrice(e.target.value)} placeholder="14500" /></Field>
+      <Field label="バーコード / QRコード（レジのスキャン読み取り用）">
+        <div className="flex gap-2">
+          <input className={INPUT} value={barcode} onChange={(e) => setBarcode(e.target.value)}
+            placeholder="4901234567894" inputMode="numeric" />
+          <button type="button" onClick={() => setScanOpen(true)} className={`${BTN_GHOST} shrink-0`}>
+            <ScanLine size={16} /> スキャン
+          </button>
+        </div>
+        <p className="text-[10px] text-gray-400 mt-1">商品タグのJANコードやQRを登録すると、レジでスキャンするだけでカートに入ります。</p>
+      </Field>
       <button onClick={save} disabled={saving} className={`${BTN_PRIMARY} w-full`}>
         {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />} 保存
       </button>
+      {scanOpen && (
+        <BarcodeScannerSheet
+          title="バーコードを読み取り"
+          hint="商品タグのバーコード・QRを枠に合わせてください"
+          onDetect={(code) => setBarcode(code)}
+          onClose={() => setScanOpen(false)}
+        />
+      )}
     </Modal>
   )
 }

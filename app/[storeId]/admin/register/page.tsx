@@ -11,8 +11,9 @@ import Link from 'next/link'
 import {
   ChevronLeft, Search, Plus, Minus, Trash2, Loader2, X, Printer,
   ShoppingCart, User, Scissors, Package, Tag, Check, UserPlus,
-  ChevronRight, RotateCcw, Coins, AlertTriangle,
+  ChevronRight, RotateCcw, Coins, AlertTriangle, ScanLine, Link2,
 } from 'lucide-react'
+import { BarcodeScannerSheet } from '../_components/BarcodeScannerSheet'
 import { supabase } from '@/lib/supabase'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { fetchOpenSession } from '@/lib/registerSession'
@@ -26,7 +27,7 @@ import {
 
 const yen = (n: number) => `¥${Math.round(n).toLocaleString()}`
 
-type ProductRow  = { id: string; name: string; price: number; category: string | null }
+type ProductRow  = { id: string; name: string; price: number; category: string | null; barcode: string | null }
 type CustomerRow = { id: string; name: string; tel: string | null; school_name: string | null }
 type UnpaidRepair = { id: string; label: string; price: number }
 type UnpaidOrder  = { id: string; label: string; price: number }
@@ -106,7 +107,7 @@ export default function RegisterPage() {
       const [{ data: store }, { data: prods }, { data: custs }] = await Promise.all([
         db.from('stores').select('name, tax_rate, tax_inclusive').eq('id', storeId).single(),
         db.from('products')
-          .select('id, name, base_price_tax_in, base_price_tax_out, category, active')
+          .select('id, name, base_price_tax_in, base_price_tax_out, category, barcode, active')
           .eq('store_id', storeId).eq('active', true).order('category').order('name'),
         db.from('customers').select('id, name, tel, school_name').eq('store_id', storeId).order('name'),
       ])
@@ -116,7 +117,7 @@ export default function RegisterPage() {
         if (store.tax_inclusive != null) setTaxInclusive(!!store.tax_inclusive)
       }
       setProducts(((prods ?? []) as any[]).map(p => ({
-        id: p.id, name: p.name, category: p.category,
+        id: p.id, name: p.name, category: p.category, barcode: p.barcode ?? null,
         price: Number(p.base_price_tax_in ?? p.base_price_tax_out ?? 0),
       })))
       setCustomers((custs ?? []) as CustomerRow[])
@@ -160,15 +161,72 @@ export default function RegisterPage() {
   }
 
   // ── カート操作 ──────────────────────────────────────────────
+  // 商品はタップ/スキャンのたびに数量+1。お直し・注文は1件1行（重複追加しない）
   const addLine = (l: Omit<CartLine, 'key'>) => {
     setCart(prev => {
-      if (l.source_id && prev.some(x => x.source_type === l.source_type && x.source_id === l.source_id)) return prev
+      if (l.source_id) {
+        const idx = prev.findIndex(x => x.source_type === l.source_type && x.source_id === l.source_id)
+        if (idx >= 0) {
+          if (l.source_type !== 'product') return prev
+          return prev.map((x, i) => i === idx ? { ...x, qty: x.qty + 1 } : x)
+        }
+      }
       return [...prev, { ...l, key: `${Date.now()}_${Math.random().toString(36).slice(2, 6)}` }]
     })
   }
   const setQty   = (key: string, qty: number) => setCart(prev => prev.map(l => l.key === key ? { ...l, qty: Math.max(1, qty) } : l))
   const removeLine = (key: string) => setCart(prev => prev.filter(l => l.key !== key))
   const clearAll   = () => { setCart([]); setCashReceived(''); setNote(''); setPayment('cash'); clearCustomer(); setScreen('pos') }
+  // 商品タイル/カート内の数量減算（1→0で行削除）
+  const decProduct = (productId: string) => {
+    setCart(prev => prev.flatMap(l => {
+      if (l.source_type !== 'product' || l.source_id !== productId) return [l]
+      return l.qty > 1 ? [{ ...l, qty: l.qty - 1 }] : []
+    }))
+  }
+  const productQty = (productId: string) =>
+    cart.find(l => l.source_type === 'product' && l.source_id === productId)?.qty ?? 0
+
+  // ── バーコード/QRスキャン ──────────────────────────────────
+  const [scannerOpen, setScannerOpen] = useState(false)
+  // 未登録コードの紐付けシート（コード保持 + 商品検索）
+  const [linkCode, setLinkCode]   = useState<string | null>(null)
+  const [linkQuery, setLinkQuery] = useState('')
+  const [linkSaving, setLinkSaving] = useState(false)
+
+  const productsRef = useRef<ProductRow[]>([])
+  useEffect(() => { productsRef.current = products }, [products])
+
+  const handleScan = useCallback((code: string) => {
+    const hit = productsRef.current.find(p => p.barcode && p.barcode === code)
+    if (hit) {
+      addLine({ source_type: 'product', source_id: hit.id, name: hit.name, unit_price: hit.price, qty: 1 })
+      showToast(true, `追加: ${hit.name}`)
+    } else {
+      // 未登録コード → スキャナーを閉じて紐付けシートへ
+      setScannerOpen(false)
+      setLinkCode(code)
+      setLinkQuery('')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // コードを商品に紐付けて保存 → カートに追加
+  const linkCodeToProduct = async (p: ProductRow) => {
+    if (!linkCode) return
+    setLinkSaving(true)
+    const { data, error } = await (supabase as any)
+      .from('products').update({ barcode: linkCode }).eq('id', p.id).select('id')
+    setLinkSaving(false)
+    if (error || !data || data.length === 0) {
+      showToast(false, error?.message ?? '紐付けに失敗しました（スタッフ認証をご確認ください）')
+      return
+    }
+    setProducts(prev => prev.map(x => x.id === p.id ? { ...x, barcode: linkCode } : x))
+    addLine({ source_type: 'product', source_id: p.id, name: p.name, unit_price: p.price, qty: 1 })
+    showToast(true, `「${p.name}」にコードを登録し、カートに追加しました`)
+    setLinkCode(null)
+  }
 
   // ── 集計 ────────────────────────────────────────────────────
   const grossSum = useMemo(() => cart.reduce((s, l) => s + lineTotal(l), 0), [cart])
@@ -186,7 +244,7 @@ export default function RegisterPage() {
     let list = products
     if (activeCategory) list = list.filter(p => p.category === activeCategory)
     const q = prodQuery.trim()
-    if (q) list = list.filter(p => p.name.includes(q) || (p.category ?? '').includes(q))
+    if (q) list = list.filter(p => p.name.includes(q) || (p.category ?? '').includes(q) || (p.barcode ?? '').includes(q))
     return list.slice(0, 60)
   }, [products, activeCategory, prodQuery])
 
@@ -538,6 +596,13 @@ export default function RegisterPage() {
             </Link>
           )}
 
+          {/* ── スキャンボタン ────────────────────────────────── */}
+          <button onClick={() => setScannerOpen(true)}
+            className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl bg-emerald-600 text-white font-black text-base shadow-lg shadow-emerald-600/25 active:scale-[0.98] transition-all">
+            <ScanLine size={22} />
+            バーコード / QR をスキャンして追加
+          </button>
+
           {/* ── 顧客セクション ────────────────────────────────── */}
           <div className="bg-white rounded-2xl p-3 shadow-sm">
             {/* モード切替 */}
@@ -679,10 +744,10 @@ export default function RegisterPage() {
             <div className="relative mb-2">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
-                placeholder="商品名で検索" value={prodQuery} onChange={e => setProdQuery(e.target.value)} />
+                placeholder="商品名・バーコードで検索" value={prodQuery} onChange={e => setProdQuery(e.target.value)} />
             </div>
 
-            {/* 商品グリッド */}
+            {/* 商品グリッド（タップで数量+1。数量バッジと−ボタン付き） */}
             {filteredProducts.length === 0 ? (
               <p className="text-center text-gray-400 text-xs py-6">
                 {products.length === 0 ? '商品マスタが未登録です' : '該当なし'}
@@ -690,15 +755,33 @@ export default function RegisterPage() {
             ) : (
               <div className="grid grid-cols-2 gap-1.5">
                 {filteredProducts.map(p => {
-                  const inCart = cart.some(l => l.source_type === 'product' && l.source_id === p.id)
+                  const qty = productQty(p.id)
                   return (
-                    <button key={p.id}
-                      onClick={() => addLine({ source_type: 'product', source_id: p.id, name: p.name, unit_price: p.price, qty: 1 })}
-                      className={`text-left rounded-xl px-3 py-2.5 border active:scale-[0.97] transition-all ${inCart ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white hover:border-indigo-200 hover:bg-gray-50'}`}>
-                      <p className="text-xs font-bold text-gray-800 truncate leading-snug">{p.name}</p>
-                      {p.category && <p className="text-[10px] text-gray-400 truncate">{p.category}</p>}
-                      <p className="text-indigo-600 font-black text-sm mt-1">{yen(p.price)}</p>
-                    </button>
+                    <div key={p.id} className="relative">
+                      <button
+                        onClick={() => addLine({ source_type: 'product', source_id: p.id, name: p.name, unit_price: p.price, qty: 1 })}
+                        className={`w-full text-left rounded-xl px-3 py-2.5 border active:scale-[0.97] transition-all ${qty > 0 ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-white hover:border-indigo-200 hover:bg-gray-50'}`}>
+                        <p className="text-xs font-bold text-gray-800 leading-snug pr-6" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.name}</p>
+                        <p className="text-[10px] text-gray-400 truncate">
+                          {p.category ?? ''}{p.barcode ? ' ・ 🏷' : ''}
+                        </p>
+                        <div className="flex items-end justify-between mt-1">
+                          <p className="text-indigo-600 font-black text-sm">{yen(p.price)}</p>
+                          {qty > 0 && (
+                            <span className="min-w-6 h-6 px-1.5 rounded-full bg-indigo-600 text-white text-xs font-black flex items-center justify-center">
+                              {qty}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                      {qty > 0 && (
+                        <button onClick={() => decProduct(p.id)}
+                          aria-label={`${p.name} を1つ減らす`}
+                          className="absolute -top-1.5 -right-1.5 w-7 h-7 rounded-full bg-white border border-gray-300 shadow flex items-center justify-center text-gray-600 active:scale-90">
+                          <Minus size={14} />
+                        </button>
+                      )}
+                    </div>
                   )
                 })}
               </div>
@@ -730,6 +813,70 @@ export default function RegisterPage() {
           )}
         </button>
       </div>
+
+      {/* ── スキャナー ──────────────────────────────────────── */}
+      {scannerOpen && (
+        <BarcodeScannerSheet
+          title="商品スキャン"
+          hint="商品のバーコード・QRを枠に合わせると自動でカートに入ります（連続スキャンOK）"
+          continuous
+          onDetect={handleScan}
+          onClose={() => setScannerOpen(false)}
+        />
+      )}
+
+      {/* ── 未登録コードの紐付けシート ─────────────────────── */}
+      {linkCode && (
+        <div className="fixed inset-0 z-[85] bg-black/50 flex items-end sm:items-center justify-center" onClick={() => setLinkCode(null)}>
+          <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b flex items-center gap-2">
+              <Link2 size={18} className="text-indigo-500" />
+              <div className="flex-1 min-w-0">
+                <p className="font-black text-gray-900">未登録のコードです</p>
+                <p className="text-xs text-gray-400 truncate">コード: {linkCode}</p>
+              </div>
+              <button onClick={() => setLinkCode(null)} className="p-1 text-gray-400"><X size={22} /></button>
+            </div>
+            <div className="p-4 space-y-3 overflow-y-auto">
+              <p className="text-xs text-gray-500 leading-relaxed">
+                このコードを商品に紐付けると、次回からスキャンだけでカートに入ります。紐付ける商品を選んでください。
+              </p>
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input autoFocus className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500"
+                  placeholder="商品名で検索" value={linkQuery} onChange={e => setLinkQuery(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                {products
+                  .filter(p => !linkQuery.trim() || p.name.includes(linkQuery.trim()) || (p.category ?? '').includes(linkQuery.trim()))
+                  .slice(0, 30)
+                  .map(p => (
+                    <button key={p.id} disabled={linkSaving} onClick={() => linkCodeToProduct(p)}
+                      className="w-full flex items-center gap-2.5 px-3 py-3 rounded-xl border border-gray-200 hover:border-indigo-300 active:bg-indigo-50 text-left disabled:opacity-50">
+                      <Package size={15} className="text-gray-400 shrink-0" />
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-sm font-bold text-gray-800 truncate">{p.name}</span>
+                        <span className="block text-[10px] text-gray-400 truncate">
+                          {p.category ?? ''}{p.barcode ? ` ・ 登録済コードを上書き: ${p.barcode}` : ''}
+                        </span>
+                      </span>
+                      <span className="text-sm font-black text-indigo-600 shrink-0">{yen(p.price)}</span>
+                    </button>
+                  ))}
+                {products.length === 0 && (
+                  <p className="text-center text-xs text-gray-400 py-6">商品マスタが未登録です。マスタ管理から商品を追加してください。</p>
+                )}
+              </div>
+            </div>
+            <div className="p-4 border-t" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
+              <button onClick={() => { setScannerOpen(true); setLinkCode(null) }}
+                className="w-full py-3 rounded-xl bg-gray-100 text-gray-600 text-sm font-bold">
+                紐付けずにスキャンへ戻る
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BottomNav />
     </div>
