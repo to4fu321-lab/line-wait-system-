@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef } from 'react'
+import { forwardRef, useLayoutEffect, useRef, useState } from 'react'
 import { PAPER, THEME_COLORS, QR_CQW, type PopSettings } from '@/lib/pop'
 
 type Props = {
@@ -25,6 +25,28 @@ export const PopPreview = forwardRef<HTMLDivElement, Props>(function PopPreview(
   const theme = THEME_COLORS[settings.theme]
   const merits = settings.merits.filter(m => m.enabled && m.text.trim())
   const showFooter = (settings.showStoreName && storeName) || (settings.showHours && hoursText)
+
+  // ---- 本文の自動縮小 ----
+  // 文言が枠に収まらない時、本文（サブコピー＋メリット）の文字を縮めて全文を表示する。
+  // 内容が変わったら等倍に戻し、まだ溢れていれば収まるまで段階的に縮める（下限0.5倍）。
+  const textRef = useRef<HTMLDivElement>(null)
+  const [fitScale, setFitScale] = useState(1)
+  const contentKey = JSON.stringify([
+    settings.subCopy, settings.meritsHeading, merits.map(m => m.text),
+    settings.headline, settings.kicker, settings.qrCaption,
+    settings.fontScale, settings.paperSize, settings.orientation,
+    settings.showQr, settings.qrSize, settings.showStoreName, settings.showHours,
+    storeName, hoursText, !!qrDataUrl,
+  ])
+  useLayoutEffect(() => { setFitScale(1) }, [contentKey])
+  useLayoutEffect(() => {
+    const el = textRef.current
+    if (!el || fitScale <= 0.5) return
+    if (el.scrollHeight > el.clientHeight + 1) {
+      const ratio = Math.max(0.6, el.clientHeight / el.scrollHeight)
+      setFitScale(s => Math.max(0.5, s * ratio * 0.98))
+    }
+  }, [fitScale, contentKey])
 
   return (
     <div
@@ -51,9 +73,9 @@ export const PopPreview = forwardRef<HTMLDivElement, Props>(function PopPreview(
           </div>
         </div>
 
-        {/* 本文。QR・フッターは常時表示し、文言が長い時はテキスト部分だけを隠す */}
+        {/* 本文。QR・フッターは常時表示し、文言が長い時は本文の文字を自動で縮めて全文収める */}
         <div className="flex-1 flex flex-col px-[7%] py-[5%] min-h-0">
-          <div className="flex-1 min-h-0 overflow-hidden">
+          <div ref={textRef} style={{ fontSize: `${fitScale}em` }} className="flex-1 min-h-0 overflow-hidden">
             {settings.subCopy && (
               <p style={{ fontSize: '1.02em' }} className="text-center font-bold mb-[5%] whitespace-pre-wrap break-words">
                 {settings.subCopy}
