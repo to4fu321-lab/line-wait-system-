@@ -51,37 +51,39 @@ export const PopPreview = forwardRef<HTMLDivElement, Props>(function PopPreview(
           </div>
         </div>
 
-        {/* 本文（フッターに文字が食い込まないよう、はみ出た分はここで隠す） */}
-        <div className="flex-1 flex flex-col px-[7%] py-[5%] min-h-0 overflow-hidden">
-          {settings.subCopy && (
-            <p style={{ fontSize: '1.02em' }} className="text-center font-bold mb-[5%] whitespace-pre-wrap break-words">
-              {settings.subCopy}
-            </p>
-          )}
+        {/* 本文。QR・フッターは常時表示し、文言が長い時はテキスト部分だけを隠す */}
+        <div className="flex-1 flex flex-col px-[7%] py-[5%] min-h-0">
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {settings.subCopy && (
+              <p style={{ fontSize: '1.02em' }} className="text-center font-bold mb-[5%] whitespace-pre-wrap break-words">
+                {settings.subCopy}
+              </p>
+            )}
 
-          <div style={{ fontSize: '0.78em', color: theme.accent, letterSpacing: '0.04em' }} className="font-black mb-[3.5%]">
-            ＼ {settings.meritsHeading} ／
-          </div>
+            <div style={{ fontSize: '0.78em', color: theme.accent, letterSpacing: '0.04em' }} className="font-black mb-[3.5%]">
+              ＼ {settings.meritsHeading} ／
+            </div>
 
-          <div className="flex flex-col gap-[3.2%]">
-            {merits.map(m => (
-              <div key={m.id} className="flex items-start gap-[3%]">
-                <span
-                  style={{ backgroundColor: theme.accent, color: '#ffffff', width: '1.5em', height: '1.5em', fontSize: '0.85em' }}
-                  className="rounded-full flex items-center justify-center shrink-0 font-black leading-none"
-                >
-                  ✓
-                </span>
-                <span style={{ fontSize: '1.12em', lineHeight: 1.3 }} className="font-bold break-words">
-                  {m.text}
-                </span>
-              </div>
-            ))}
+            <div className="flex flex-col gap-[3.2%]">
+              {merits.map(m => (
+                <div key={m.id} className="flex items-start gap-[3%]">
+                  <span
+                    style={{ backgroundColor: theme.accent, color: '#ffffff', width: '1.5em', height: '1.5em', fontSize: '0.85em' }}
+                    className="rounded-full flex items-center justify-center shrink-0 font-black leading-none"
+                  >
+                    ✓
+                  </span>
+                  <span style={{ fontSize: '1.12em', lineHeight: 1.3 }} className="font-bold break-words">
+                    {m.text}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* QR */}
           {settings.showQr && (
-            <div className="mt-auto pt-[6%] flex flex-col items-center">
+            <div className="shrink-0 pt-[6%] flex flex-col items-center">
               {qrDataUrl ? (
                 <div style={{ backgroundColor: '#ffffff', borderColor: theme.accent }} className="rounded-[4%] border-[0.4cqw] p-[2.5%] flex items-center justify-center">
                   {/* eslint-disable-next-line @next/next/no-img-element */}

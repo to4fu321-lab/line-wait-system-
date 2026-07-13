@@ -29,6 +29,8 @@ export type PopSettings = {
   qrSize: QrSize
   showStoreName: boolean
   showHours: boolean
+  storeNameOverride: string // 空文字=店舗設定の名称を使用
+  hoursOverride: string     // 空文字=店舗設定の営業時間を使用
 }
 
 // 用紙サイズ（portrait基準の実寸mm）
@@ -113,6 +115,8 @@ export function defaultPopSettings(flags: StoreFeatureFlags, storeId: string, ki
       qrSize: 'md',
       showStoreName: true,
       showHours: false,
+      storeNameOverride: '',
+      hoursOverride: '',
     }
   }
   return {
@@ -131,6 +135,8 @@ export function defaultPopSettings(flags: StoreFeatureFlags, storeId: string, ki
     qrSize: 'md',
     showStoreName: true,
     showHours: false,
+    storeNameOverride: '',
+    hoursOverride: '',
   }
 }
 

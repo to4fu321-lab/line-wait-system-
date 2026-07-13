@@ -150,10 +150,17 @@ export function PopEditor({ kind }: { kind: PopKind }) {
   const handleSave = async () => {
     if (!settings) return
     setSaving(true); setSaveError(null)
-    const { error } = await (supabase as any).from('stores').update({ [cfg.column]: settings }).eq('id', storeId)
+    // .select() で実際に更新できた行を検証する。スタッフ認証(PIN)が切れていると
+    // RLS により 0 行更新となり、エラー無しで何も保存されないため。
+    const { data, error } = await (supabase as any)
+      .from('stores').update({ [cfg.column]: settings }).eq('id', storeId).select('id')
     setSaving(false)
-    if (error) setSaveError(error.message)
-    else { setSaved(true); setTimeout(() => setSaved(false), 2000) }
+    if (error) { setSaveError(error.message); return }
+    if (!data || data.length === 0) {
+      setSaveError('保存できませんでした。スタッフ認証の有効期限が切れている可能性があります。管理画面トップに戻ってPINを入力し直してから、もう一度お試しください。')
+      return
+    }
+    setSaved(true); setTimeout(() => setSaved(false), 2000)
   }
 
   // ---- 印刷 ----
@@ -168,7 +175,11 @@ export function PopEditor({ kind }: { kind: PopKind }) {
     style.textContent = `
       @media print {
         body * { visibility: hidden !important; }
-        #pop-print-root, #pop-print-root * { visibility: visible !important; }
+        #pop-print-root, #pop-print-root * {
+          visibility: visible !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
         #pop-print-root { position: fixed !important; top: 0; left: 0; width: ${w}mm !important; height: ${h}mm !important; box-shadow: none !important; }
         @page { size: ${w}mm ${h}mm; margin: 0; }
       }`
@@ -193,7 +204,7 @@ export function PopEditor({ kind }: { kind: PopKind }) {
       ])
       const a = document.createElement('a')
       a.href = dataUrl
-      a.download = `${storeName || '店舗'}_${cfg.fileSuffix}.png`
+      a.download = `${settings.storeNameOverride?.trim() || storeName || '店舗'}_${cfg.fileSuffix}.png`
       a.click()
     } catch (e) {
       console.error('POP PNG error:', e)
@@ -202,6 +213,10 @@ export function PopEditor({ kind }: { kind: PopKind }) {
       setBusyPng(false)
     }
   }
+
+  // POPに表示する店名・営業時間（上書きがあれば優先。空欄=店舗設定を使用）
+  const displayStoreName = settings?.storeNameOverride?.trim() || storeName
+  const displayHours     = settings?.hoursOverride?.trim()     || hoursText
 
   if (loading || !settings) {
     return (
@@ -237,7 +252,7 @@ export function PopEditor({ kind }: { kind: PopKind }) {
           <div className="md:sticky md:top-24 space-y-3">
             <div className="bg-gray-100 rounded-2xl border border-gray-200 p-4 flex justify-center">
               <div style={{ maxWidth: settings.orientation === 'landscape' ? 460 : 340 }} className="w-full">
-                <PopPreview ref={previewRef} settings={settings} qrDataUrl={qrDataUrl} storeName={storeName} hoursText={hoursText} />
+                <PopPreview ref={previewRef} settings={settings} qrDataUrl={qrDataUrl} storeName={displayStoreName} hoursText={displayHours} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -366,16 +381,33 @@ export function PopEditor({ kind }: { kind: PopKind }) {
                 </div>
               </Field>
             )}
-            <div className="flex items-center justify-between border-t border-gray-100 pt-3">
-              <p className="text-xs font-bold text-gray-600">店名を表示</p>
-              <Toggle on={settings.showStoreName} onToggle={() => up({ showStoreName: !settings.showStoreName })} />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-gray-600">営業時間を表示</p>
-                {hoursText && <p className="text-[10px] text-gray-400 mt-0.5">{hoursText}</p>}
+            <div className="border-t border-gray-100 pt-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-gray-600">店名を表示</p>
+                <Toggle on={settings.showStoreName} onToggle={() => up({ showStoreName: !settings.showStoreName })} />
               </div>
-              <Toggle on={settings.showHours} onToggle={() => up({ showHours: !settings.showHours })} />
+              {settings.showStoreName && (
+                <div>
+                  <input type="text" value={settings.storeNameOverride} onChange={e => up({ storeNameOverride: e.target.value })}
+                    placeholder={storeName || '店舗名'}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none" />
+                  <p className="text-[11px] text-gray-400 mt-1">POPに表示する店名。空欄のままなら店舗設定の名称（{storeName || '未設定'}）を使います。</p>
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-gray-600">営業時間を表示</p>
+                <Toggle on={settings.showHours} onToggle={() => up({ showHours: !settings.showHours })} />
+              </div>
+              {settings.showHours && (
+                <div>
+                  <textarea value={settings.hoursOverride} onChange={e => up({ hoursOverride: e.target.value })} rows={2}
+                    placeholder={hoursText || '例: 月〜金 10:00–19:00 ／ 土 10:00–18:00 ／ 日 定休'}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none resize-none" />
+                  <p className="text-[11px] text-gray-400 mt-1">POPに表示する営業時間。空欄のままなら店舗設定の営業時間{hoursText ? `（${hoursText}）` : ''}を使います。</p>
+                </div>
+              )}
             </div>
           </Card>
         </div>
