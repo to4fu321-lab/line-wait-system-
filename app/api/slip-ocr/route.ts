@@ -2,7 +2,9 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { assertStorePin } from '@/lib/auth/storeAuth'
-import { callVisionJson, VisionNotConfiguredError } from '@/lib/ocr/callVision'
+import { callVisionJson, callVisionTool, VisionNotConfiguredError } from '@/lib/ocr/callVision'
+import { createAdminClient } from '@/lib/supabaseAdmin'
+import { buildProperties, buildRequired, type ExtractionField } from '@/lib/extraction-schema'
 
 // ── お直し伝票の抽出スキーマ ────────────────────────────────────
 const REPAIR_SCHEMA = `
@@ -111,6 +113,97 @@ ${schema}
 重要: JSON のみを返してください。コードブロック（\`\`\`）は不要です。`
 }
 
+// ── 動的抽出プロンプト（マルチテナント） ────────────────────────
+//   extraction_schemas の項目定義から、店舗ごとの読み取り指示文を組み立てる。
+function buildDynamicPrompt(fields: ExtractionField[]): string {
+  const lines = fields.map((f) => {
+    const typeHint =
+      f.field_type === 'number' ? '数値のみ' :
+      f.field_type === 'date'   ? 'YYYY-MM-DD形式' : 'テキスト'
+    const hint = f.description && f.description.trim() ? `（${f.description.trim()}）` : ''
+    const req  = f.is_required ? ' [必須]' : ''
+    return `- ${f.field_key}: ${f.field_label}${hint} / ${typeHint}${req}`
+  }).join('\n')
+
+  return `この画像は伝票です。手書き・印刷どちらにも対応し、記載された明細を読み取ってください。
+伝票には複数の明細が含まれることがあります。1明細ごとに1オブジェクトとして items 配列に格納してください。
+
+【抽出する項目】
+${lines}
+
+【抽出ルール】
+- 読み取れない・書かれていない項目は null にする
+- 日付は必ず YYYY-MM-DD 形式に変換する（例: R7.6.15 → 2025-06-15）
+- 金額・数量などの数値は数値のみ（¥マーク・円・カンマ・単位は除く）
+- 手書きで判読が難しい場合は最善を尽くす
+
+必ず register_slip ツールを呼び出して結果を返してください。`
+}
+
+// ── 動的抽出（店舗別スキーマ）──────────────────────────────────
+async function handleDynamic(
+  storeId: string,
+  imageBase64: string,
+  mimeType: string | undefined,
+) {
+  const supabase = createAdminClient({ noStore: true })
+  const { data: fields, error } = await supabase
+    .from('extraction_schemas')
+    .select('field_key, field_label, field_type, description, sort_order, is_required')
+    .eq('store_id', storeId)
+    .order('sort_order', { ascending: true })
+
+  if (error) {
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
+  }
+  const defs = (fields ?? []) as ExtractionField[]
+  if (defs.length === 0) {
+    return NextResponse.json(
+      { ok: false, error: 'この店舗の抽出項目（extraction_schemas）が未設定です' },
+      { status: 400 },
+    )
+  }
+
+  const inputSchema = {
+    type: 'object',
+    properties: {
+      items: {
+        type: 'array',
+        description: '伝票に記載された明細の配列。各明細が1オブジェクト。',
+        items: {
+          type: 'object',
+          properties: buildProperties(defs),
+          required: buildRequired(defs),
+        },
+      },
+    },
+    required: ['items'],
+  }
+
+  const { data, raw } = await callVisionTool<{ items?: unknown[] }>({
+    imageBase64,
+    mimeType,
+    prompt: buildDynamicPrompt(defs),
+    toolName: 'register_slip',
+    toolDescription: '伝票から読み取った明細を登録する',
+    inputSchema,
+    maxTokens: 2048,
+  })
+
+  if (!data) {
+    return NextResponse.json({ ok: false, error: 'OCR結果の取得に失敗しました', raw }, { status: 500 })
+  }
+
+  const items = Array.isArray(data.items) ? data.items : []
+  return NextResponse.json({
+    ok: true,
+    slipType: 'dynamic',
+    data: { items },
+    items,
+    fields: defs, // 確認画面がラベル表示に使えるよう項目定義も返す
+  })
+}
+
 export async function POST(req: NextRequest) {
   // TODO: レート制限を追加（例: 同一storeIdで1分あたり10回以内）
   // 推奨: Upstash Redis + @upstash/ratelimit を使用
@@ -119,7 +212,7 @@ export async function POST(req: NextRequest) {
     const { imageBase64, mimeType, slipType = 'repair', storeId, storePin } = body as {
       imageBase64: string
       mimeType?: string
-      slipType?: 'repair' | 'order' | 'inquiry' | 'auto'
+      slipType?: 'repair' | 'order' | 'inquiry' | 'auto' | 'dynamic'
       storeId?: string
       storePin?: string
     }
@@ -131,6 +224,14 @@ export async function POST(req: NextRequest) {
 
     if (!imageBase64) {
       return NextResponse.json({ ok: false, error: '画像データが必要です' }, { status: 400 })
+    }
+
+    // ── 店舗別スキーマによる動的抽出 ──
+    if (slipType === 'dynamic') {
+      if (!storeId) {
+        return NextResponse.json({ ok: false, error: 'storeIdが必要です' }, { status: 400 })
+      }
+      return await handleDynamic(storeId, imageBase64, mimeType)
     }
 
     const { data, raw } = await callVisionJson({

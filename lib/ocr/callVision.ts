@@ -74,3 +74,56 @@ export async function callVisionJson<T = unknown>(opts: {
     return { data: null, raw }
   }
 }
+
+/**
+ * 画像 + 動的スキーマ → Tool Use で構造化データを強制取得する。
+ *
+ * JSONを文字列で返させる callVisionJson と違い、Anthropic の Tool Use
+ * （tool_choice で特定ツールを強制）を使うため、スキーマに沿った型付き
+ * オブジェクトが確実に返る。マルチテナントの動的抽出スキーマ向け。
+ *
+ * input_schema は呼び出し元が buildProperties / buildRequired で組み立てる。
+ * 返り値 data はツール呼び出しの input（tool_use ブロックが無ければ null）。
+ * ANTHROPIC_API_KEY 未設定は VisionNotConfiguredError を投げる。
+ */
+export async function callVisionTool<T = unknown>(opts: {
+  imageBase64: string
+  mimeType?: string | null
+  prompt: string
+  toolName: string
+  toolDescription?: string
+  inputSchema: Record<string, unknown>
+  maxTokens?: number
+  model?: string
+}): Promise<{ data: T | null; raw: string }> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) throw new VisionNotConfiguredError()
+
+  const client = new Anthropic({ apiKey })
+  const res = await client.messages.create({
+    model: opts.model ?? 'claude-haiku-4-5-20251001',
+    max_tokens: opts.maxTokens ?? 2048,
+    tools: [
+      {
+        name: opts.toolName,
+        description: opts.toolDescription ?? '画像から読み取った内容を登録する',
+        input_schema: opts.inputSchema as Anthropic.Tool.InputSchema,
+      },
+    ],
+    tool_choice: { type: 'tool', name: opts.toolName },
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: normalizeMime(opts.mimeType), data: opts.imageBase64 } },
+        { type: 'text', text: opts.prompt },
+      ],
+    }],
+  })
+
+  const toolUse = res.content.find((b) => b.type === 'tool_use')
+  const raw = JSON.stringify(res.content)
+  if (toolUse && toolUse.type === 'tool_use') {
+    return { data: toolUse.input as T, raw }
+  }
+  return { data: null, raw }
+}

@@ -276,6 +276,50 @@ export interface Database {
         }
         Relationships: []
       }
+      extraction_schemas: {
+        Row: {
+          id: string
+          store_id: string
+          field_key: string
+          field_label: string
+          field_type: string
+          description: string | null
+          sort_order: number
+          is_required: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          store_id: string
+          field_key: string
+          field_label: string
+          field_type?: string
+          description?: string | null
+          sort_order?: number
+          is_required?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          store_id?: string
+          field_key?: string
+          field_label?: string
+          field_type?: string
+          description?: string | null
+          sort_order?: number
+          is_required?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "extraction_schemas_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       groups: {
         Row: {
           id: string
