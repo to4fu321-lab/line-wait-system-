@@ -26,6 +26,7 @@ import {
   WASHABLE_OPTIONS, SIZE_SET_CATEGORY_OPTIONS, BODY_TYPE_OPTIONS,
 } from '@/types/master'
 import ManualImportWizard from './_components/ManualImportWizard'
+import { LabelPrintModal } from './_components/LabelPrintModal'
 import { Toast } from '@/app/_components/Toast'
 import { Field } from '@/app/_components/Field'
 import type {
@@ -548,6 +549,7 @@ function ProductsPanel({ storeId, school, products, sizeSets, onChange, show }: 
   onChange: () => void; show: (t: 'ok' | 'err', m: string) => void
 }) {
   const [modal, setModal] = useState<ProductMaster | 'new' | null>(null)
+  const [labelOpen, setLabelOpen] = useState(false)
   const free = products.filter((p) => !p.school_id)
   const owned = products.filter((p) => p.school_id === school.id)
 
@@ -576,6 +578,11 @@ function ProductsPanel({ storeId, school, products, sizeSets, onChange, show }: 
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <button onClick={() => setLabelOpen(true)} className={BTN_GHOST}>
+          <Tag size={15} /> 値札（バーコード）印刷
+        </button>
+      </div>
       <section className="space-y-2">
         <h2 className="text-sm font-bold text-gray-700 flex items-center gap-1"><Package size={16} /> 学校別注品（{school.name}専用）</h2>
         {owned.length === 0 && <p className="text-xs text-gray-400">まだありません</p>}
@@ -600,6 +607,10 @@ function ProductsPanel({ storeId, school, products, sizeSets, onChange, show }: 
           onError={(m) => show('err', m)}
         />
       )}
+
+      {labelOpen && (
+        <LabelPrintModal products={products} onClose={() => setLabelOpen(false)} />
+      )}
     </div>
   )
 }
@@ -615,6 +626,7 @@ function ProductModal({ storeId, school, sizeSets, initial, nextOrder, onClose, 
   const [maker, setMaker] = useState(initial?.maker ?? '')
   const [makerCode, setMakerCode] = useState(initial?.maker_code ?? '')
   const [barcode, setBarcode] = useState(initial?.barcode ?? '')
+  const [stockStr, setStockStr] = useState(initial?.stock != null ? String(initial.stock) : '')
   const [scanOpen, setScanOpen] = useState(false)
   const [washable, setWashable] = useState(initial?.washable ?? '')
   const [bodyTypes, setBodyTypes] = useState<string[]>(initial?.body_types ?? [])
@@ -634,6 +646,7 @@ function ProductModal({ storeId, school, sizeSets, initial, nextOrder, onClose, 
         name: name.trim(), category: category || null, gender: gender || null,
         maker: maker.trim() || null, maker_code: makerCode.trim() || null,
         barcode: barcode.trim() || null,
+        stock: stockStr.trim() === '' ? null : Math.round(Number(stockStr) || 0),
         washable: washable || null, size_set_id: sizeSetId || null,
         body_types: bodyTypes,
         base_price_tax_in: basePrice ? Number(basePrice) : null,
@@ -708,6 +721,10 @@ function ProductModal({ storeId, school, sizeSets, initial, nextOrder, onClose, 
           </button>
         </div>
         <p className="text-[10px] text-gray-400 mt-1">商品タグのJANコードやQRを登録すると、レジでスキャンするだけでカートに入ります。</p>
+      </Field>
+      <Field label="在庫数（空欄=在庫管理しない）">
+        <input type="number" className={INPUT} value={stockStr} onChange={(e) => setStockStr(e.target.value)} placeholder="—" inputMode="numeric" />
+        <p className="text-[10px] text-gray-400 mt-1">入力するとレジ会計で自動減算されます（取消で戻ります）。</p>
       </Field>
       <button onClick={save} disabled={saving} className={`${BTN_PRIMARY} w-full`}>
         {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />} 保存

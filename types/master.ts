@@ -163,6 +163,7 @@ export interface ProductMaster {
   maker_code:         string | null
   color_code:         string | null
   barcode:            string | null
+  stock:              number | null    // 在庫数。null=在庫管理しない（レジ会計で自動減算）
   washable:           string | null
   size_set_id:        string | null
   body_types:         string[]         // 対応体型(Y/A/B)。空=体型区分なし

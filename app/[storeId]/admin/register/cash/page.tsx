@@ -362,10 +362,63 @@ export default function CashManagementPage() {
             </>
           )}
 
+          {/* ══════════ インボイス設定 ══════════ */}
+          <InvoiceNumberCard storeId={storeId} showToast={showToast} />
+
         </div>
       </div>
 
       <BottomNav />
+    </div>
+  )
+}
+
+// ── インボイス登録番号（適格請求書発行事業者番号）の設定 ──────
+// レシート・領収書に自動印字される。stores.invoice_number に保存。
+function InvoiceNumberCard({ storeId, showToast }: {
+  storeId: string; showToast: (ok: boolean, text: string) => void
+}) {
+  const [value, setValue] = useState('')
+  const [loaded, setLoaded] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!storeId) return
+    ;(async () => {
+      const { data } = await (supabase as any).from('stores')
+        .select('invoice_number').eq('id', storeId).single()
+      setValue(data?.invoice_number ?? '')
+      setLoaded(true)
+    })()
+  }, [storeId])
+
+  const save = async () => {
+    setSaving(true)
+    const { data, error } = await (supabase as any).from('stores')
+      .update({ invoice_number: value.trim() || null }).eq('id', storeId).select('id')
+    setSaving(false)
+    if (error || !data || data.length === 0) {
+      showToast(false, error?.message ?? '保存できませんでした（スタッフ認証をご確認ください）')
+      return
+    }
+    showToast(true, 'インボイス登録番号を保存しました')
+  }
+
+  if (!loaded) return null
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow-sm">
+      <p className="text-xs font-black text-gray-400 uppercase tracking-wider mb-1">インボイス登録番号</p>
+      <p className="text-[11px] text-gray-400 mb-2">設定するとレシート・領収書に自動で印字されます（適格請求書対応）</p>
+      <div className="flex gap-2">
+        <input
+          className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500"
+          placeholder="T1234567890123" value={value} onChange={e => setValue(e.target.value)}
+        />
+        <button onClick={save} disabled={saving}
+          className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold disabled:opacity-50 shrink-0">
+          {saving ? '保存中…' : '保存'}
+        </button>
+      </div>
     </div>
   )
 }

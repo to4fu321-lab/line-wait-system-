@@ -895,6 +895,7 @@ export interface Database {
           maker_code: string | null
           color_code: string | null
           barcode: string | null
+          stock: number | null
           washable: string | null
           size_set_id: string | null
           base_price_tax_in: number | null
@@ -918,6 +919,7 @@ export interface Database {
           maker_code?: string | null
           color_code?: string | null
           barcode?: string | null
+          stock?: number | null
           washable?: string | null
           size_set_id?: string | null
           base_price_tax_in?: number | null
@@ -941,6 +943,7 @@ export interface Database {
           maker_code?: string | null
           color_code?: string | null
           barcode?: string | null
+          stock?: number | null
           washable?: string | null
           size_set_id?: string | null
           base_price_tax_in?: number | null
@@ -1788,6 +1791,39 @@ export interface Database {
           }
         ]
       }
+      order_payments: {
+        Row: {
+          id: string
+          store_id: string
+          order_id: string
+          sale_id: string | null
+          amount: number
+          method: string | null
+          kind: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          store_id: string
+          order_id: string
+          sale_id?: string | null
+          amount: number
+          method?: string | null
+          kind?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          store_id?: string
+          order_id?: string
+          sale_id?: string | null
+          amount?: number
+          method?: string | null
+          kind?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       sales: {
         Row: {
           id: string
@@ -1806,6 +1842,11 @@ export interface Database {
           change: number | null
           status: string
           note: string | null
+          discount: number
+          receipt_name: string | null
+          receipt_note: string | null
+          voided_at: string | null
+          void_reason: string | null
           created_at: string
           register_session_id: string | null
         }
@@ -1826,6 +1867,11 @@ export interface Database {
           change?: number | null
           status?: string
           note?: string | null
+          discount?: number
+          receipt_name?: string | null
+          receipt_note?: string | null
+          voided_at?: string | null
+          void_reason?: string | null
           created_at?: string
           register_session_id?: string | null
         }
@@ -1846,6 +1892,11 @@ export interface Database {
           change?: number | null
           status?: string
           note?: string | null
+          discount?: number
+          receipt_name?: string | null
+          receipt_note?: string | null
+          voided_at?: string | null
+          void_reason?: string | null
           created_at?: string
           register_session_id?: string | null
         }
@@ -2740,6 +2791,7 @@ export interface Database {
           staff_link_code: string | null
           timecard_settings: Json | null
           tax_rate: number
+          invoice_number: string | null
           tax_inclusive: boolean
           owner_pin_hash: string | null
           staff_session_access_token: string | null
@@ -2779,6 +2831,7 @@ export interface Database {
           staff_link_code?: string | null
           timecard_settings?: Json | null
           tax_rate?: number
+          invoice_number?: string | null
           tax_inclusive?: boolean
           owner_pin_hash?: string | null
           staff_session_access_token?: string | null
@@ -2818,6 +2871,7 @@ export interface Database {
           staff_link_code?: string | null
           timecard_settings?: Json | null
           tax_rate?: number
+          invoice_number?: string | null
           tax_inclusive?: boolean
           owner_pin_hash?: string | null
           staff_session_access_token?: string | null
