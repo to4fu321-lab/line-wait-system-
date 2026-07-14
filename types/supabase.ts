@@ -280,6 +280,7 @@ export interface Database {
         Row: {
           id: string
           store_id: string
+          template_id: string
           field_key: string
           field_label: string
           field_type: string
@@ -291,6 +292,7 @@ export interface Database {
         Insert: {
           id?: string
           store_id: string
+          template_id: string
           field_key: string
           field_label: string
           field_type?: string
@@ -302,6 +304,7 @@ export interface Database {
         Update: {
           id?: string
           store_id?: string
+          template_id?: string
           field_key?: string
           field_label?: string
           field_type?: string
@@ -313,6 +316,51 @@ export interface Database {
         Relationships: [
           {
             foreignKeyName: "extraction_schemas_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "extraction_schemas_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "extraction_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      extraction_templates: {
+        Row: {
+          id: string
+          store_id: string
+          key: string
+          label: string
+          description: string | null
+          sort_order: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          store_id: string
+          key: string
+          label: string
+          description?: string | null
+          sort_order?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          store_id?: string
+          key?: string
+          label?: string
+          description?: string | null
+          sort_order?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "extraction_templates_store_id_fkey"
             columns: ["store_id"]
             isOneToOne: false
             referencedRelation: "stores"

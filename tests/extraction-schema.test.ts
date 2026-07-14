@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { buildProperties, buildRequired, type ExtractionField } from '@/lib/extraction-schema'
+import {
+  buildProperties,
+  buildRequired,
+  slugifyFieldKey,
+  sanitizeSuggestedFields,
+  type ExtractionField,
+} from '@/lib/extraction-schema'
 
 function field(over: Partial<ExtractionField>): ExtractionField {
   return {
@@ -73,5 +79,60 @@ describe('buildRequired', () => {
 
   it('必須項目が無ければ空配列', () => {
     expect(buildRequired([field({ is_required: false })])).toEqual([])
+  })
+})
+
+describe('slugifyFieldKey', () => {
+  it('英字はそのまま小文字化', () => {
+    expect(slugifyFieldKey('Tension')).toBe('tension')
+  })
+  it('記号・空白は _ に、連続・前後は畳む', () => {
+    expect(slugifyFieldKey('  unit price ($)  ')).toBe('unit_price')
+  })
+  it('数字始まりは f_ を付ける', () => {
+    expect(slugifyFieldKey('1st_item')).toBe('f_1st_item')
+  })
+  it('日本語のみは空文字（呼び出し側でフォールバック）', () => {
+    expect(slugifyFieldKey('ガットテンション')).toBe('')
+  })
+})
+
+describe('sanitizeSuggestedFields', () => {
+  it('field_type を text/number/date に丸める（不明は text）', () => {
+    const out = sanitizeSuggestedFields([
+      { field_key: 'a', field_type: 'number' },
+      { field_key: 'b', field_type: 'date' },
+      { field_key: 'c', field_type: 'currency' }, // 不明 → text
+    ])
+    expect(out.map((f) => f.field_type)).toEqual(['number', 'date', 'text'])
+  })
+
+  it('空・重複・日本語の field_key を必ず一意に補完する', () => {
+    const out = sanitizeSuggestedFields([
+      { field_key: 'size' },
+      { field_key: 'size' },        // 重複 → size_2
+      { field_key: 'ガット', field_label: 'ガット' }, // slug空 → field_3
+    ])
+    expect(out.map((f) => f.field_key)).toEqual(['size', 'size_2', 'field_3'])
+    expect(new Set(out.map((f) => f.field_key)).size).toBe(3)
+  })
+
+  it('field_label が空なら field_key で補完し、sort_order を採番', () => {
+    const out = sanitizeSuggestedFields([{ field_key: 'price', field_label: '' }])
+    expect(out[0].field_label).toBe('price')
+    expect(out[0].sort_order).toBe(1)
+  })
+
+  it('is_required は真偽値 true のみ true', () => {
+    const out = sanitizeSuggestedFields([
+      { field_key: 'a', is_required: true },
+      { field_key: 'b', is_required: 'yes' }, // 文字列は false 扱い
+    ])
+    expect(out.map((f) => f.is_required)).toEqual([true, false])
+  })
+
+  it('配列以外・空は空配列', () => {
+    expect(sanitizeSuggestedFields(null)).toEqual([])
+    expect(sanitizeSuggestedFields({})).toEqual([])
   })
 })

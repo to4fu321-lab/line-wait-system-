@@ -140,17 +140,43 @@ ${lines}
 必ず register_slip ツールを呼び出して結果を返してください。`
 }
 
-// ── 動的抽出（店舗別スキーマ）──────────────────────────────────
+// ── 動的抽出（店舗×伝票種別テンプレート）────────────────────────
+//   templateId / templateKey で伝票種別を指定。未指定なら店舗の先頭テンプレを使う。
 async function handleDynamic(
   storeId: string,
   imageBase64: string,
   mimeType: string | undefined,
+  templateId: string | undefined,
+  templateKey: string | undefined,
 ) {
   const supabase = createAdminClient({ noStore: true })
+
+  // 対象テンプレートを特定
+  let tmplQuery = supabase
+    .from('extraction_templates')
+    .select('id, label')
+    .eq('store_id', storeId)
+  if (templateId) tmplQuery = tmplQuery.eq('id', templateId)
+  else if (templateKey) tmplQuery = tmplQuery.eq('key', templateKey)
+  const { data: template, error: tErr } = await tmplQuery
+    .order('sort_order', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  if (tErr) {
+    return NextResponse.json({ ok: false, error: tErr.message }, { status: 500 })
+  }
+  if (!template) {
+    return NextResponse.json(
+      { ok: false, error: 'この店舗の伝票テンプレートが未設定です' },
+      { status: 400 },
+    )
+  }
+
   const { data: fields, error } = await supabase
     .from('extraction_schemas')
     .select('field_key, field_label, field_type, description, sort_order, is_required')
-    .eq('store_id', storeId)
+    .eq('template_id', template.id)
     .order('sort_order', { ascending: true })
 
   if (error) {
@@ -159,7 +185,7 @@ async function handleDynamic(
   const defs = (fields ?? []) as ExtractionField[]
   if (defs.length === 0) {
     return NextResponse.json(
-      { ok: false, error: 'この店舗の抽出項目（extraction_schemas）が未設定です' },
+      { ok: false, error: `テンプレート「${template.label}」に抽出項目がありません` },
       { status: 400 },
     )
   }
@@ -198,6 +224,8 @@ async function handleDynamic(
   return NextResponse.json({
     ok: true,
     slipType: 'dynamic',
+    templateId: template.id,
+    templateLabel: template.label,
     data: { items },
     items,
     fields: defs, // 確認画面がラベル表示に使えるよう項目定義も返す
@@ -209,12 +237,14 @@ export async function POST(req: NextRequest) {
   // 推奨: Upstash Redis + @upstash/ratelimit を使用
   try {
     const body = await req.json()
-    const { imageBase64, mimeType, slipType = 'repair', storeId, storePin } = body as {
+    const { imageBase64, mimeType, slipType = 'repair', storeId, storePin, templateId, templateKey } = body as {
       imageBase64: string
       mimeType?: string
       slipType?: 'repair' | 'order' | 'inquiry' | 'auto' | 'dynamic'
       storeId?: string
       storePin?: string
+      templateId?: string
+      templateKey?: string
     }
 
     // ── 認証: storeId + storePin の照合（bcrypt hash は verify_store_pin RPC 経由） ──
@@ -231,7 +261,7 @@ export async function POST(req: NextRequest) {
       if (!storeId) {
         return NextResponse.json({ ok: false, error: 'storeIdが必要です' }, { status: 400 })
       }
-      return await handleDynamic(storeId, imageBase64, mimeType)
+      return await handleDynamic(storeId, imageBase64, mimeType, templateId, templateKey)
     }
 
     const { data, raw } = await callVisionJson({
