@@ -28,7 +28,7 @@ export function SideNav() {
   const [repairBadge, setRepairBadge] = useState(0)
   const [shiftBadge,  setShiftBadge]  = useState(0)
   const [storeName,   setStoreName]   = useState<string>('')
-  const { hasFeature } = useStoreFeatures(storeId)
+  const { hasFeature, loaded: featLoaded } = useStoreFeatures(storeId)
   const { setMode } = useDeviceMode()
 
   useEffect(() => {
@@ -84,6 +84,10 @@ export function SideNav() {
     if (tab.id === 'shifts')  return shiftBadge
     return 0
   }
+
+  // フィーチャー未ロード中は hasFeature が true を返すため、無効タブが一瞬出る。
+  // ロード完了までナビを描画しない（BottomNav と同じ方針）。
+  if (!featLoaded) return null
 
   return (
     <aside className="w-56 shrink-0 bg-white border-r border-gray-200 flex flex-col h-full sticky top-0 overflow-y-auto">

@@ -14,7 +14,7 @@ import { PLAN_DEFS, ADDON_DEFAULT_OFF, AREA_DEFS, type Plan, type FeatureKey, ty
 
 // ── 細粒度フラグ（プランに加えて個別 on/off できる項目） ────────
 const GRANULAR_FEATURES: { key: FeatureKey; label: string; icon: string }[] = [
-  { key: 'tab_queue',            label: '受付タブ',         icon: '🔢' },
+  { key: 'tab_queue',            label: '受付・順番待ちタブ', icon: '🔢' },
   { key: 'tab_repairs',          label: 'お仕事タブ',       icon: '✂️' },
   { key: 'tab_inquiries',        label: '問合せタブ',       icon: '💬' },
   { key: 'tab_crm',              label: '顧客タブ',         icon: '👥' },
@@ -81,17 +81,6 @@ const GRANULAR_FEATURE_GROUPS: { label: string; keys: FeatureKey[] }[] = [
     keys: ['shift_management', 'shift_inter_store', 'shift_attendance', 'shift_leave',
            'shift_swap', 'staff_push', 'shift_demand', 'shift_dashboard', 'shift_ai'],
   },
-]
-
-const FEATURES: { key: string; label: string; icon: string }[] = [
-  { key: 'queue',           label: '順番待ち',    icon: '🔢' },
-  { key: 'crm',             label: '顧客管理',    icon: '👥' },
-  { key: 'reservation',     label: '採寸予約',    icon: '📅' },
-  { key: 'orders',          label: '注文管理',    icon: '🛒' },
-  { key: 'products',        label: '商品マスタ',   icon: '📦' },
-  { key: 'repairs',         label: '修理管理',    icon: '✂️'  },
-  { key: 'purchase_orders', label: '発注管理',    icon: '📋' },
-  { key: 'takeout',         label: 'テイクアウト', icon: '🥡' },
 ]
 
 interface StoreStats {

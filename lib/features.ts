@@ -43,7 +43,6 @@ export type FeatureKey =
   | 'customer_self_intake'
   | 'customer_self_order'
   // ── 既存フラグ（後方互換）──────────────
-  | 'queue'
   | 'crm'
   | 'repairs'
   | 'reservation'
@@ -79,7 +78,7 @@ const ALL_OFF: Partial<Record<FeatureKey, boolean>> = {
   school_measurement: false, school_waiting: false,
   line_parent_info: false, line_coupon: false, line_parent_rsv: false,
   customer_self_intake: false, customer_self_order: false,
-  queue: false, crm: false, repairs: false, reservation: false,
+  crm: false, repairs: false, reservation: false,
   orders: false, products: false, purchase_orders: false,
   takeout: false, sms_notify: false, followup_notify: false,
   today_tasks_ui: false, pos: false,
@@ -126,7 +125,7 @@ export const PLAN_DEFS: Record<Plan, {
       school_measurement: true, school_waiting: true,
       line_parent_info: true, line_coupon: true, line_parent_rsv: true,
       customer_self_intake: true, customer_self_order: true,
-      queue: true, crm: true, repairs: true, reservation: true,
+      crm: true, repairs: true, reservation: true,
       orders: true, products: true, purchase_orders: true,
       takeout: false,        // 制服店なのでテイクアウトはOFF
       sms_notify: false, followup_notify: true,
@@ -151,7 +150,7 @@ export const PLAN_DEFS: Record<Plan, {
       repairs_master: true,     // 料金マスタ
       tab_crm: true,            // 顧客管理
       pos: true,                // レジ
-      repairs: true, crm: true, queue: true,
+      repairs: true, crm: true,
     },
   },
 
@@ -167,7 +166,7 @@ export const PLAN_DEFS: Record<Plan, {
       tab_repairs: true,         // お仕事（シンプルモード）
       repairs_tab_delivery: true,// お渡し
       pos: true,                 // レジ
-      repairs: true, queue: true,
+      repairs: true,
     },
   },
 
@@ -189,7 +188,7 @@ export const PLAN_DEFS: Record<Plan, {
       repairs_master: true,
       school_master: true,
       pos: true,
-      queue: true, crm: true, repairs: true, orders: true,
+      crm: true, repairs: true, orders: true,
       products: true, purchase_orders: true,
     },
   },
@@ -209,7 +208,7 @@ export const PLAN_DEFS: Record<Plan, {
       school_measurement: true, school_waiting: false,
       line_parent_info: true, line_coupon: true, line_parent_rsv: true,
       customer_self_intake: true, customer_self_order: true,
-      queue: true, crm: true, repairs: true, reservation: true,
+      crm: true, repairs: true, reservation: true,
       orders: true, products: true, purchase_orders: true,
       takeout: false,   // 制服店。テイクアウトは業種設定で別途ON
       sms_notify: false, followup_notify: true,
@@ -224,7 +223,7 @@ export const PLAN_DEFS: Record<Plan, {
   intro:  { label: '導入サンプル（旧）', desc: '', emoji: '🌱', tailwind: 'bg-gray-700 border-gray-600 text-gray-400', hidden: true,
     features: { ...ALL_OFF, tab_queue: true } },
   kantan: { label: 'かんたんLINE（旧）', desc: '', emoji: '🍀', tailwind: 'bg-gray-700 border-gray-600 text-gray-400', hidden: true,
-    features: { ...ALL_OFF, tab_queue: true, tab_repairs: true, repairs_tab_delivery: true, pos: true, repairs: true, queue: true } },
+    features: { ...ALL_OFF, tab_queue: true, tab_repairs: true, repairs_tab_delivery: true, pos: true, repairs: true } },
 }
 
 /**
