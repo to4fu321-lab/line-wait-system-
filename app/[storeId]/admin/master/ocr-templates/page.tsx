@@ -80,7 +80,13 @@ export default function OcrTemplatesPage() {
   const [suggesting, setSuggesting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<TemplateWithFields | null>(null)
 
+  // 試し読み（テンプレ別OCRの実写トライアル）状態
+  const [scanTarget, setScanTarget] = useState<TemplateWithFields | null>(null)
+  const [scanning, setScanning] = useState(false)
+  const [scanItems, setScanItems] = useState<Record<string, unknown>[] | null>(null)
+
   const fileRef = useRef<HTMLInputElement>(null)
+  const scanFileRef = useRef<HTMLInputElement>(null)
 
   const storePin = () =>
     typeof window !== 'undefined' ? (sessionStorage.getItem(`admin_pin_${storeId}`) ?? '') : ''
@@ -215,6 +221,44 @@ export default function OcrTemplatesPage() {
     }
   }
 
+  // ── 試し読み（テンプレを指定して実物の伝票を撮影→抽出）──
+  const openScan = (t: TemplateWithFields) => {
+    setScanTarget(t)
+    setScanItems(null)
+    setTimeout(() => scanFileRef.current?.click(), 0)
+  }
+  const onPickScan = async (file: File) => {
+    if (!scanTarget) return
+    setScanning(true)
+    setScanItems(null)
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      const res = await fetch('/api/slip-ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slipType: 'dynamic', storeId, storePin: storePin(),
+          templateId: scanTarget.id, imageBase64: base64, mimeType: file.type,
+        }),
+      })
+      const json = await res.json()
+      if (!json.ok) throw new Error(json.error ?? '読み取りに失敗しました')
+      const items = (json.items ?? []) as Record<string, unknown>[]
+      setScanItems(items)
+      showToast('ok', `${items.length}件の明細を読み取りました`)
+    } catch (e) {
+      showToast('err', e instanceof Error ? e.message : String(e))
+      setScanTarget(null)
+    } finally {
+      setScanning(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
@@ -232,6 +276,8 @@ export default function OcrTemplatesPage() {
 
       <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) onPickSample(f); e.target.value = '' }} />
+      <input ref={scanFileRef} type="file" accept="image/*" capture="environment" className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) onPickScan(f); e.target.value = '' }} />
 
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-3 pb-28">
         <p className="text-xs text-gray-500 leading-relaxed">
@@ -269,6 +315,8 @@ export default function OcrTemplatesPage() {
                     {t.description ? ` ・ ${t.description}` : ''}
                   </p>
                 </div>
+                <button onClick={() => openScan(t)} title="試し読み"
+                  className="p-2 rounded-lg text-emerald-600 hover:bg-emerald-50"><Camera size={16} /></button>
                 <button onClick={() => openEdit(t)}
                   className="p-2 rounded-lg text-indigo-600 hover:bg-indigo-50"><Pencil size={16} /></button>
                 <button onClick={() => setDeleteTarget(t)}
@@ -366,6 +414,65 @@ export default function OcrTemplatesPage() {
                 className="flex-1 flex items-center justify-center gap-1.5 px-4 py-3 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold text-sm disabled:opacity-60">
                 {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
                 保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 試し読み結果 */}
+      {scanTarget && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-2xl sm:rounded-3xl rounded-t-3xl max-h-[92vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3">
+              <h2 className="flex-1 font-black text-gray-900 truncate">試し読み: {scanTarget.label}</h2>
+              <button onClick={() => setScanTarget(null)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100"><X size={18} /></button>
+            </div>
+            <div className="p-4 space-y-3">
+              {scanning ? (
+                <div className="flex flex-col items-center gap-3 py-12 text-gray-500">
+                  <Loader2 className="animate-spin" />
+                  <p className="text-sm">読み取り中…</p>
+                </div>
+              ) : scanItems === null ? (
+                <div className="text-center text-gray-400 text-sm py-8">伝票を撮影してください</div>
+              ) : scanItems.length === 0 ? (
+                <div className="text-center text-gray-400 text-sm py-8">明細を検出できませんでした</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="text-left text-gray-500 border-b border-gray-200">
+                        <th className="py-2 pr-2 font-bold">#</th>
+                        {scanTarget.fields.map((f) => (
+                          <th key={f.field_key} className="py-2 px-2 font-bold whitespace-nowrap">{f.field_label}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scanItems.map((it, idx) => (
+                        <tr key={idx} className="border-b border-gray-100">
+                          <td className="py-2 pr-2 text-gray-400">{idx + 1}</td>
+                          {scanTarget.fields.map((f) => {
+                            const v = it[f.field_key]
+                            return (
+                              <td key={f.field_key} className="py-2 px-2 text-gray-900 whitespace-nowrap">
+                                {v === null || v === undefined || v === '' ? <span className="text-gray-300">—</span> : String(v)}
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="sticky bottom-0 bg-white border-t border-gray-100 px-4 py-3 flex gap-2" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
+              <button onClick={() => scanFileRef.current?.click()} disabled={scanning}
+                className="flex-1 flex items-center justify-center gap-1.5 px-4 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm disabled:opacity-60">
+                {scanning ? <Loader2 size={15} className="animate-spin" /> : <Camera size={15} />}
+                {scanItems === null ? '撮影して読み取り' : 'もう一度撮影'}
               </button>
             </div>
           </div>
