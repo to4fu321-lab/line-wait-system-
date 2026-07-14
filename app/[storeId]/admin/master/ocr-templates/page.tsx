@@ -60,6 +60,33 @@ function emptyRow(): FieldRow {
   return { field_key: '', field_label: '', field_type: 'text', description: '', is_required: false }
 }
 
+// スマホ写真（数MB・HEIC）をそのまま送るとサイズ超過や形式不一致で失敗するため、
+// canvas で最大1280pxのJPEGに再エンコードしてから base64 化する（tray-scan と同方式）。
+function fileToJpegBase64(file: File, maxW = 1280, quality = 0.85): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const w = img.naturalWidth || maxW
+      const h = img.naturalHeight || maxW
+      const scale = Math.min(1, maxW / w)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(w * scale))
+      canvas.height = Math.max(1, Math.round(h * scale))
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { reject(new Error('画像の変換に失敗しました')); return }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      const dataUrl = canvas.toDataURL('image/jpeg', quality)
+      const base64 = dataUrl.split(',')[1] ?? ''
+      if (!base64) { reject(new Error('画像の変換に失敗しました')); return }
+      resolve(base64)
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('画像を読み込めませんでした')) }
+    img.src = url
+  })
+}
+
 export default function OcrTemplatesPage() {
   const params = useParams<{ storeId: string }>()
   const storeId = params?.storeId ?? ''
@@ -150,16 +177,11 @@ export default function OcrTemplatesPage() {
   const onPickSample = async (file: File) => {
     setSuggesting(true)
     try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
+      const base64 = await fileToJpegBase64(file)
       const res = await fetch('/api/extraction-templates/suggest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storeId, storePin: storePin(), imageBase64: base64, mimeType: file.type }),
+        body: JSON.stringify({ storeId, storePin: storePin(), imageBase64: base64, mimeType: 'image/jpeg' }),
       })
       const json = await res.json()
       if (!json.ok) throw new Error(json.error ?? '自動提案に失敗しました')
@@ -232,18 +254,13 @@ export default function OcrTemplatesPage() {
     setScanning(true)
     setScanItems(null)
     try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
+      const base64 = await fileToJpegBase64(file)
       const res = await fetch('/api/slip-ocr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           slipType: 'dynamic', storeId, storePin: storePin(),
-          templateId: scanTarget.id, imageBase64: base64, mimeType: file.type,
+          templateId: scanTarget.id, imageBase64: base64, mimeType: 'image/jpeg',
         }),
       })
       const json = await res.json()
