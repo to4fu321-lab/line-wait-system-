@@ -531,6 +531,19 @@ export default function StaffSettingsPage() {
                 <p className="text-xs text-pink-500 mt-0.5 leading-relaxed">外注先の登録（受付で選択）</p>
               </div>
             </Link>
+            <Link href={`/${storeId}/admin/master/ocr-templates`}
+              className="flex flex-col gap-3 px-4 py-4 rounded-2xl bg-violet-50 border border-violet-200 hover:bg-violet-100 active:scale-[0.98] transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-violet-100 border border-violet-200 flex items-center justify-center text-xl">
+                  🧾
+                </div>
+                <ChevronRight size={14} className="text-violet-400" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-violet-700">伝票OCRテンプレート</p>
+                <p className="text-xs text-violet-500 mt-0.5 leading-relaxed">伝票種別ごとの読み取り項目・サンプル撮影でAI提案</p>
+              </div>
+            </Link>
           </div>
         </Section>
 
