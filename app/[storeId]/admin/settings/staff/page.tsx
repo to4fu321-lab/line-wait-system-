@@ -544,6 +544,19 @@ export default function StaffSettingsPage() {
                 <p className="text-xs text-violet-500 mt-0.5 leading-relaxed">伝票種別ごとの読み取り項目・サンプル撮影でAI提案</p>
               </div>
             </Link>
+            <Link href={`/${storeId}/admin/reception-slip`}
+              className="flex flex-col gap-3 px-4 py-4 rounded-2xl bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 active:scale-[0.98] transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-xl">
+                  🧾
+                </div>
+                <ChevronRight size={14} className="text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-emerald-700">伝票受付（撮影→保存）</p>
+                <p className="text-xs text-emerald-500 mt-0.5 leading-relaxed">テンプレを選んで伝票を撮影し受付を登録</p>
+              </div>
+            </Link>
           </div>
         </Section>
 

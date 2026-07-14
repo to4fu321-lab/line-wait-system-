@@ -15,6 +15,9 @@ function field(over: Partial<ExtractionField>): ExtractionField {
     description: null,
     sort_order: 0,
     is_required: false,
+    scope: 'item',
+    role: null,
+    master_kind: null,
     ...over,
   }
 }
@@ -134,5 +137,15 @@ describe('sanitizeSuggestedFields', () => {
   it('配列以外・空は空配列', () => {
     expect(sanitizeSuggestedFields(null)).toEqual([])
     expect(sanitizeSuggestedFields({})).toEqual([])
+  })
+
+  it('scope/role を丸める（不正値は既定）', () => {
+    const out = sanitizeSuggestedFields([
+      { field_key: 'name', scope: 'header', role: 'customer_name' },
+      { field_key: 'price', scope: 'item', role: 'unit_price' },
+      { field_key: 'bad', scope: 'xxx', role: 'nope' }, // 不正 → item / null
+    ])
+    expect(out.map((f) => f.scope)).toEqual(['header', 'item', 'item'])
+    expect(out.map((f) => f.role)).toEqual(['customer_name', 'unit_price', null])
   })
 })

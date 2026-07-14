@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { assertStorePin } from '@/lib/auth/storeAuth'
 import { callVisionJson, callVisionTool, VisionNotConfiguredError } from '@/lib/ocr/callVision'
 import { createAdminClient } from '@/lib/supabaseAdmin'
-import { buildProperties, buildRequired, type ExtractionField } from '@/lib/extraction-schema'
+import { buildProperties, buildRequired, headerFields, itemFields, type ExtractionField } from '@/lib/extraction-schema'
 
 // ── お直し伝票の抽出スキーマ ────────────────────────────────────
 const REPAIR_SCHEMA = `
@@ -114,22 +114,26 @@ ${schema}
 }
 
 // ── 動的抽出プロンプト（マルチテナント） ────────────────────────
-//   extraction_schemas の項目定義から、店舗ごとの読み取り指示文を組み立てる。
-function buildDynamicPrompt(fields: ExtractionField[]): string {
-  const lines = fields.map((f) => {
-    const typeHint =
-      f.field_type === 'number' ? '数値のみ' :
-      f.field_type === 'date'   ? 'YYYY-MM-DD形式' : 'テキスト'
-    const hint = f.description && f.description.trim() ? `（${f.description.trim()}）` : ''
-    const req  = f.is_required ? ' [必須]' : ''
-    return `- ${f.field_key}: ${f.field_label}${hint} / ${typeHint}${req}`
-  }).join('\n')
+//   見出し(header)と明細(items)を区別して指示文を組み立てる。
+function fieldLine(f: ExtractionField): string {
+  const typeHint =
+    f.field_type === 'number' ? '数値のみ' :
+    f.field_type === 'date'   ? 'YYYY-MM-DD形式' : 'テキスト'
+  const hint = f.description && f.description.trim() ? `（${f.description.trim()}）` : ''
+  const req  = f.is_required ? ' [必須]' : ''
+  return `- ${f.field_key}: ${f.field_label}${hint} / ${typeHint}${req}`
+}
 
-  return `この画像は伝票です。手書き・印刷どちらにも対応し、記載された明細を読み取ってください。
-伝票には複数の明細が含まれることがあります。1明細ごとに1オブジェクトとして items 配列に格納してください。
+function buildDynamicPrompt(heads: ExtractionField[], lines: ExtractionField[]): string {
+  const headerBlock = heads.length
+    ? `\n【伝票全体で1つの項目（header）】\n${heads.map(fieldLine).join('\n')}\n`
+    : ''
+  const itemsBlock = `\n【明細行の項目（items の各要素）】\n${lines.map(fieldLine).join('\n')}\n`
 
-【抽出する項目】
-${lines}
+  return `この画像は伝票です。手書き・印刷どちらにも対応し、記載内容を読み取ってください。
+${headerBlock}${itemsBlock}
+伝票には複数の明細行が含まれることがあります。1行ごとに1オブジェクトとして items 配列に格納してください。
+伝票全体で1つの情報（顧客名・電話・日付など）は header に入れてください。
 
 【抽出ルール】
 - 読み取れない・書かれていない項目は null にする
@@ -175,7 +179,7 @@ async function handleDynamic(
 
   const { data: fields, error } = await supabase
     .from('extraction_schemas')
-    .select('field_key, field_label, field_type, description, sort_order, is_required')
+    .select('field_key, field_label, field_type, description, sort_order, is_required, scope, role, master_kind')
     .eq('template_id', template.id)
     .order('sort_order', { ascending: true })
 
@@ -190,28 +194,41 @@ async function handleDynamic(
     )
   }
 
-  const inputSchema = {
-    type: 'object',
-    properties: {
-      items: {
-        type: 'array',
-        description: '伝票に記載された明細の配列。各明細が1オブジェクト。',
-        items: {
-          type: 'object',
-          properties: buildProperties(defs),
-          required: buildRequired(defs),
-        },
-      },
+  const heads = headerFields(defs)
+  const lines = itemFields(defs)
+
+  // items の properties は明細項目。明細項目が無ければ全項目を明細扱い（後方互換）。
+  const lineDefs = lines.length ? lines : defs
+  const itemsSchema = {
+    type: 'array',
+    description: '伝票に記載された明細行の配列。各行が1オブジェクト。',
+    items: {
+      type: 'object',
+      properties: buildProperties(lineDefs),
+      required: buildRequired(lineDefs),
     },
-    required: ['items'],
   }
 
-  const { data, raw } = await callVisionTool<{ items?: unknown[] }>({
+  const properties: Record<string, unknown> = { items: itemsSchema }
+  const required: string[] = ['items']
+  if (heads.length) {
+    properties.header = {
+      type: 'object',
+      description: '伝票全体で1つの情報（顧客名・電話・日付など）',
+      properties: buildProperties(heads),
+      required: buildRequired(heads),
+    }
+    required.push('header')
+  }
+
+  const inputSchema = { type: 'object', properties, required }
+
+  const { data, raw } = await callVisionTool<{ header?: Record<string, unknown>; items?: unknown[] }>({
     imageBase64,
     mimeType,
-    prompt: buildDynamicPrompt(defs),
+    prompt: buildDynamicPrompt(heads, lineDefs),
     toolName: 'register_slip',
-    toolDescription: '伝票から読み取った明細を登録する',
+    toolDescription: '伝票から読み取った内容を登録する',
     inputSchema,
     maxTokens: 2048,
   })
@@ -221,14 +238,16 @@ async function handleDynamic(
   }
 
   const items = Array.isArray(data.items) ? data.items : []
+  const header = (data.header && typeof data.header === 'object') ? data.header : {}
   return NextResponse.json({
     ok: true,
     slipType: 'dynamic',
     templateId: template.id,
     templateLabel: template.label,
-    data: { items },
+    data: { header, items },
+    header,
     items,
-    fields: defs, // 確認画面がラベル表示に使えるよう項目定義も返す
+    fields: defs, // 確認画面がラベル表示に使えるよう項目定義（scope/role含む）も返す
   })
 }
 

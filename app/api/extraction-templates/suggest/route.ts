@@ -19,14 +19,21 @@ const SUGGEST_PROMPT = `あなたは帳票設計のアシスタントです。
 この伝票をOCRで自動入力できるようにするために、「1件の明細として抽出すべき項目」を設計してください。
 
 【設計ルール】
-- 伝票の見出し・記入欄・繰り返し行などから、繰り返し記入される1明細分の項目を洗い出す
-- 顧客名・電話番号など伝票全体で1つの情報も、有用なら項目に含めてよい
+- 伝票の見出し・記入欄・繰り返し行などから項目を洗い出す
 - field_key は英小文字・数字・アンダースコアのみ（例: product_name, tension, unit_price）
 - field_label は日本語の分かりやすい名称（例: 品名, ガットテンション, 単価）
 - field_type は text / number / date のいずれか（金額・数量・mm等は number、日付は date）
 - description には読み取り時の注意（単位・書式など）があれば簡潔に
 - is_required は、その伝票で必ず記入される中心的な項目のみ true
 - 項目数は多すぎないよう、実際に使う3〜12個程度に絞る
+
+【scope（見出し/明細の区別）】
+- scope='header' … 伝票全体で1つだけの情報（顧客名・電話番号・受付日・希望日など）
+- scope='item'   … 明細行として繰り返し書かれる情報（品名・サイズ・数量・単価など）
+
+【role（意味役割・分かる場合のみ設定、無ければ省略）】
+- customer_name=顧客氏名, customer_tel=電話番号, date=日付,
+  quantity=数量, unit_price=単価(金額), line_name=明細の主品目名, note=備考
 
 必ず propose_template ツールを呼び出して結果を返してください。`
 
@@ -66,8 +73,14 @@ export async function POST(req: NextRequest) {
               field_type: { type: 'string', enum: ['text', 'number', 'date'] },
               description: { type: ['string', 'null'], description: '読み取り時の注意（任意）' },
               is_required: { type: 'boolean' },
+              scope: { type: 'string', enum: ['header', 'item'], description: 'header=伝票全体で1つ / item=明細行' },
+              role: {
+                type: ['string', 'null'],
+                enum: ['customer_name', 'customer_tel', 'date', 'quantity', 'unit_price', 'line_name', 'note', null],
+                description: '意味役割（分かる場合のみ）',
+              },
             },
-            required: ['field_key', 'field_label', 'field_type'],
+            required: ['field_key', 'field_label', 'field_type', 'scope'],
           },
         },
       },

@@ -287,6 +287,9 @@ export interface Database {
           description: string | null
           sort_order: number
           is_required: boolean
+          scope: string
+          role: string | null
+          master_kind: string | null
           created_at: string
         }
         Insert: {
@@ -299,6 +302,9 @@ export interface Database {
           description?: string | null
           sort_order?: number
           is_required?: boolean
+          scope?: string
+          role?: string | null
+          master_kind?: string | null
           created_at?: string
         }
         Update: {
@@ -311,6 +317,9 @@ export interface Database {
           description?: string | null
           sort_order?: number
           is_required?: boolean
+          scope?: string
+          role?: string | null
+          master_kind?: string | null
           created_at?: string
         }
         Relationships: [
@@ -338,6 +347,7 @@ export interface Database {
           label: string
           description: string | null
           sort_order: number
+          target: string
           created_at: string
         }
         Insert: {
@@ -347,6 +357,7 @@ export interface Database {
           label: string
           description?: string | null
           sort_order?: number
+          target?: string
           created_at?: string
         }
         Update: {
@@ -356,6 +367,7 @@ export interface Database {
           label?: string
           description?: string | null
           sort_order?: number
+          target?: string
           created_at?: string
         }
         Relationships: [
@@ -364,6 +376,70 @@ export interface Database {
             columns: ["store_id"]
             isOneToOne: false
             referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      slip_records: {
+        Row: {
+          id: string
+          store_id: string
+          template_id: string | null
+          customer_id: string | null
+          header: Json
+          items: Json
+          total_amount: number | null
+          status: string
+          received_date: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          store_id: string
+          template_id?: string | null
+          customer_id?: string | null
+          header?: Json
+          items?: Json
+          total_amount?: number | null
+          status?: string
+          received_date?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          store_id?: string
+          template_id?: string | null
+          customer_id?: string | null
+          header?: Json
+          items?: Json
+          total_amount?: number | null
+          status?: string
+          received_date?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "slip_records_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "slip_records_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "extraction_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "slip_records_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
             referencedColumns: ["id"]
           },
         ]

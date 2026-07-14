@@ -18,7 +18,8 @@ import {
   GripVertical, ChevronUp, ChevronDown, Sparkles, Save,
 } from 'lucide-react'
 import { Toast } from '@/app/_components/Toast'
-import type { ExtractionField, FieldType } from '@/lib/extraction-schema'
+import { fileToJpegBase64 } from '@/lib/imageResize'
+import type { ExtractionField, FieldType, FieldScope, FieldRole } from '@/lib/extraction-schema'
 
 const INPUT = 'w-full border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:border-indigo-500 bg-white'
 
@@ -26,6 +27,18 @@ const TYPE_OPTIONS: { value: FieldType; label: string }[] = [
   { value: 'text', label: 'テキスト' },
   { value: 'number', label: '数値' },
   { value: 'date', label: '日付' },
+]
+
+// 意味役割（受付保存時に顧客解決・合計計算へ使う）
+const ROLE_OPTIONS: { value: FieldRole | ''; label: string }[] = [
+  { value: '', label: '（なし）' },
+  { value: 'customer_name', label: '顧客名' },
+  { value: 'customer_tel', label: '電話番号' },
+  { value: 'date', label: '日付' },
+  { value: 'line_name', label: '品目名' },
+  { value: 'quantity', label: '数量' },
+  { value: 'unit_price', label: '単価・金額' },
+  { value: 'note', label: '備考' },
 ]
 
 interface TemplateWithFields {
@@ -44,6 +57,8 @@ interface FieldRow {
   field_type: FieldType
   description: string
   is_required: boolean
+  scope: FieldScope
+  role: FieldRole | null
 }
 
 function toRows(fields: ExtractionField[]): FieldRow[] {
@@ -53,38 +68,13 @@ function toRows(fields: ExtractionField[]): FieldRow[] {
     field_type: f.field_type,
     description: f.description ?? '',
     is_required: f.is_required,
+    scope: f.scope ?? 'item',
+    role: f.role ?? null,
   }))
 }
 
-function emptyRow(): FieldRow {
-  return { field_key: '', field_label: '', field_type: 'text', description: '', is_required: false }
-}
-
-// スマホ写真（数MB・HEIC）をそのまま送るとサイズ超過や形式不一致で失敗するため、
-// canvas で最大1280pxのJPEGに再エンコードしてから base64 化する（tray-scan と同方式）。
-function fileToJpegBase64(file: File, maxW = 1280, quality = 0.85): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file)
-    const img = new Image()
-    img.onload = () => {
-      URL.revokeObjectURL(url)
-      const w = img.naturalWidth || maxW
-      const h = img.naturalHeight || maxW
-      const scale = Math.min(1, maxW / w)
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.max(1, Math.round(w * scale))
-      canvas.height = Math.max(1, Math.round(h * scale))
-      const ctx = canvas.getContext('2d')
-      if (!ctx) { reject(new Error('画像の変換に失敗しました')); return }
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-      const dataUrl = canvas.toDataURL('image/jpeg', quality)
-      const base64 = dataUrl.split(',')[1] ?? ''
-      if (!base64) { reject(new Error('画像の変換に失敗しました')); return }
-      resolve(base64)
-    }
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('画像を読み込めませんでした')) }
-    img.src = url
-  })
+function emptyRow(scope: FieldScope = 'item'): FieldRow {
+  return { field_key: '', field_label: '', field_type: 'text', description: '', is_required: false, scope, role: null }
 }
 
 export default function OcrTemplatesPage() {
@@ -111,6 +101,7 @@ export default function OcrTemplatesPage() {
   const [scanTarget, setScanTarget] = useState<TemplateWithFields | null>(null)
   const [scanning, setScanning] = useState(false)
   const [scanItems, setScanItems] = useState<Record<string, unknown>[] | null>(null)
+  const [scanHeader, setScanHeader] = useState<Record<string, unknown>>({})
 
   const fileRef = useRef<HTMLInputElement>(null)
   const scanFileRef = useRef<HTMLInputElement>(null)
@@ -206,6 +197,8 @@ export default function OcrTemplatesPage() {
         field_type: r.field_type,
         description: r.description,
         is_required: r.is_required,
+        scope: r.scope,
+        role: r.role,
         sort_order: i + 1,
       }))
     if (fields.length === 0) { showToast('err', '項目を1つ以上追加してください'); return }
@@ -247,12 +240,14 @@ export default function OcrTemplatesPage() {
   const openScan = (t: TemplateWithFields) => {
     setScanTarget(t)
     setScanItems(null)
+    setScanHeader({})
     setTimeout(() => scanFileRef.current?.click(), 0)
   }
   const onPickScan = async (file: File) => {
     if (!scanTarget) return
     setScanning(true)
     setScanItems(null)
+    setScanHeader({})
     try {
       const base64 = await fileToJpegBase64(file)
       const res = await fetch('/api/slip-ocr', {
@@ -266,6 +261,7 @@ export default function OcrTemplatesPage() {
       const json = await res.json()
       if (!json.ok) throw new Error(json.error ?? '読み取りに失敗しました')
       const items = (json.items ?? []) as Record<string, unknown>[]
+      setScanHeader((json.header ?? {}) as Record<string, unknown>)
       setScanItems(items)
       showToast('ok', `${items.length}件の明細を読み取りました`)
     } catch (e) {
@@ -397,19 +393,30 @@ export default function OcrTemplatesPage() {
                         </div>
                         <button onClick={() => removeRow(i)} className="p-1 rounded text-red-400 hover:bg-red-50"><Trash2 size={15} /></button>
                       </div>
-                      <div className="flex items-center gap-2 pl-6">
-                        <select className={`${INPUT} w-28`} value={r.field_type}
+                      <div className="flex items-center gap-2 pl-6 flex-wrap">
+                        {/* 見出し/明細トグル */}
+                        <div className="flex rounded-lg overflow-hidden border border-gray-300 text-xs shrink-0">
+                          <button type="button" onClick={() => updateRow(i, { scope: 'header' })}
+                            className={`px-2.5 py-2 font-bold ${r.scope === 'header' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500'}`}>見出し</button>
+                          <button type="button" onClick={() => updateRow(i, { scope: 'item' })}
+                            className={`px-2.5 py-2 font-bold ${r.scope !== 'header' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500'}`}>明細</button>
+                        </div>
+                        <select className={`${INPUT} w-24`} value={r.field_type}
                           onChange={(e) => updateRow(i, { field_type: e.target.value as FieldType })}>
                           {TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                        <select className={`${INPUT} w-32`} value={r.role ?? ''}
+                          onChange={(e) => updateRow(i, { role: (e.target.value || null) as FieldRole | null })}>
+                          {ROLE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                         <label className="flex items-center gap-1.5 text-xs text-gray-600 select-none">
                           <input type="checkbox" checked={r.is_required}
                             onChange={(e) => updateRow(i, { is_required: e.target.checked })} />
                           必須
                         </label>
-                        <input className={`${INPUT} flex-1`} value={r.description}
+                        <input className={`${INPUT} flex-1 min-w-[8rem]`} value={r.description}
                           onChange={(e) => updateRow(i, { description: e.target.value })}
-                          placeholder="読み取りヒント（任意・単位や書式など）" />
+                          placeholder="読み取りヒント（任意）" />
                       </div>
                     </div>
                   ))}
@@ -453,35 +460,57 @@ export default function OcrTemplatesPage() {
                 </div>
               ) : scanItems === null ? (
                 <div className="text-center text-gray-400 text-sm py-8">伝票を撮影してください</div>
-              ) : scanItems.length === 0 ? (
-                <div className="text-center text-gray-400 text-sm py-8">明細を検出できませんでした</div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm border-collapse">
-                    <thead>
-                      <tr className="text-left text-gray-500 border-b border-gray-200">
-                        <th className="py-2 pr-2 font-bold">#</th>
-                        {scanTarget.fields.map((f) => (
-                          <th key={f.field_key} className="py-2 px-2 font-bold whitespace-nowrap">{f.field_label}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {scanItems.map((it, idx) => (
-                        <tr key={idx} className="border-b border-gray-100">
-                          <td className="py-2 pr-2 text-gray-400">{idx + 1}</td>
-                          {scanTarget.fields.map((f) => {
-                            const v = it[f.field_key]
-                            return (
-                              <td key={f.field_key} className="py-2 px-2 text-gray-900 whitespace-nowrap">
-                                {v === null || v === undefined || v === '' ? <span className="text-gray-300">—</span> : String(v)}
-                              </td>
-                            )
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="space-y-4">
+                  {/* 見出し項目 */}
+                  {scanTarget.fields.filter((f) => f.scope === 'header').length > 0 && (
+                    <div className="space-y-1">
+                      {scanTarget.fields.filter((f) => f.scope === 'header').map((f) => {
+                        const v = scanHeader[f.field_key]
+                        return (
+                          <div key={f.field_key} className="flex gap-2 text-sm">
+                            <span className="text-gray-500 w-28 shrink-0">{f.field_label}</span>
+                            <span className="text-gray-900">
+                              {v === null || v === undefined || v === '' ? <span className="text-gray-300">—</span> : String(v)}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {/* 明細 */}
+                  {scanItems.length === 0 ? (
+                    <div className="text-center text-gray-400 text-sm py-4">明細を検出できませんでした</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm border-collapse">
+                        <thead>
+                          <tr className="text-left text-gray-500 border-b border-gray-200">
+                            <th className="py-2 pr-2 font-bold">#</th>
+                            {scanTarget.fields.filter((f) => f.scope !== 'header').map((f) => (
+                              <th key={f.field_key} className="py-2 px-2 font-bold whitespace-nowrap">{f.field_label}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {scanItems.map((it, idx) => (
+                            <tr key={idx} className="border-b border-gray-100">
+                              <td className="py-2 pr-2 text-gray-400">{idx + 1}</td>
+                              {scanTarget.fields.filter((f) => f.scope !== 'header').map((f) => {
+                                const v = it[f.field_key]
+                                return (
+                                  <td key={f.field_key} className="py-2 px-2 text-gray-900 whitespace-nowrap">
+                                    {v === null || v === undefined || v === '' ? <span className="text-gray-300">—</span> : String(v)}
+                                  </td>
+                                )
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  <p className="text-[11px] text-gray-400">※ ここは読み取り確認用です。実際の受付保存は「伝票受付」画面から行えます。</p>
                 </div>
               )}
             </div>

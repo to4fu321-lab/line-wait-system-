@@ -11,6 +11,32 @@ export type FieldType = 'text' | 'number' | 'date'
 
 export const FIELD_TYPES: FieldType[] = ['text', 'number', 'date']
 
+/** 見出し(伝票共通) か 明細行 か */
+export type FieldScope = 'header' | 'item'
+
+export const FIELD_SCOPES: FieldScope[] = ['header', 'item']
+
+/** 汎用受付プロモータ用の意味役割（顧客解決・合計計算に使う。null=通常項目） */
+export type FieldRole =
+  | 'customer_name'
+  | 'customer_tel'
+  | 'date'
+  | 'quantity'
+  | 'unit_price'
+  | 'line_name'
+  | 'note'
+
+export const FIELD_ROLES: FieldRole[] = [
+  'customer_name', 'customer_tel', 'date', 'quantity', 'unit_price', 'line_name', 'note',
+]
+
+/** 紐付け先マスタ（Phase 2 で使用。null=非連動） */
+export type MasterKind = 'repair_item' | 'repair_option' | 'product' | 'repair_vendor' | 'customer'
+
+export const MASTER_KINDS: MasterKind[] = [
+  'repair_item', 'repair_option', 'product', 'repair_vendor', 'customer',
+]
+
 /** extraction_schemas 1レコード（DB定義）に対応する型 */
 export interface ExtractionField {
   field_key: string
@@ -19,7 +45,23 @@ export interface ExtractionField {
   description: string | null
   sort_order: number
   is_required: boolean
+  scope: FieldScope
+  role: FieldRole | null
+  master_kind: MasterKind | null
 }
+
+/** 見出し項目だけ抽出 */
+export function headerFields(fields: ExtractionField[]): ExtractionField[] {
+  return fields.filter((f) => f.scope === 'header')
+}
+
+/** 明細項目だけ抽出 */
+export function itemFields(fields: ExtractionField[]): ExtractionField[] {
+  return fields.filter((f) => f.scope !== 'header')
+}
+
+/** テンプレートの保存先種別 */
+export type TemplateTarget = 'reception' | 'repair' | 'order'
 
 /** extraction_templates 1レコード（伝票種別）に対応する型 */
 export interface ExtractionTemplate {
@@ -29,6 +71,7 @@ export interface ExtractionTemplate {
   label: string
   description: string | null
   sort_order: number
+  target: TemplateTarget
 }
 
 /** テンプレート + その項目一覧 */
@@ -95,6 +138,9 @@ export interface RawSuggestedField {
   field_type?: unknown
   description?: unknown
   is_required?: unknown
+  scope?: unknown
+  role?: unknown
+  master_kind?: unknown
 }
 
 /**
@@ -146,6 +192,16 @@ export function sanitizeSuggestedFields(raw: unknown): ExtractionField[] {
       ? r.description.trim()
       : null
 
+    const scope: FieldScope =
+      typeof r.scope === 'string' && FIELD_SCOPES.includes(r.scope as FieldScope)
+        ? (r.scope as FieldScope) : 'item'
+    const role: FieldRole | null =
+      typeof r.role === 'string' && FIELD_ROLES.includes(r.role as FieldRole)
+        ? (r.role as FieldRole) : null
+    const master_kind: MasterKind | null =
+      typeof r.master_kind === 'string' && MASTER_KINDS.includes(r.master_kind as MasterKind)
+        ? (r.master_kind as MasterKind) : null
+
     out.push({
       field_key: key,
       field_label: label || key,
@@ -153,6 +209,9 @@ export function sanitizeSuggestedFields(raw: unknown): ExtractionField[] {
       description,
       sort_order: i + 1,
       is_required: r.is_required === true,
+      scope,
+      role,
+      master_kind,
     })
   })
 

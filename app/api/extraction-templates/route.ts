@@ -62,6 +62,9 @@ async function replaceFields(
     description: f.description,
     sort_order: f.sort_order,
     is_required: f.is_required,
+    scope: f.scope,
+    role: f.role,
+    master_kind: f.master_kind,
   }))
   const { error } = await supabase.from('extraction_schemas').insert(rows)
   if (error) throw new Error(error.message)
@@ -84,7 +87,7 @@ export async function POST(req: NextRequest) {
     if (action === 'list') {
       const { data: templates, error: tErr } = await supabase
         .from('extraction_templates')
-        .select('id, store_id, key, label, description, sort_order')
+        .select('id, store_id, key, label, description, sort_order, target')
         .eq('store_id', storeId)
         .order('sort_order', { ascending: true })
       if (tErr) return NextResponse.json({ ok: false, error: tErr.message }, { status: 500 })
@@ -93,7 +96,7 @@ export async function POST(req: NextRequest) {
       const { data: fields } = ids.length
         ? await supabase
             .from('extraction_schemas')
-            .select('template_id, field_key, field_label, field_type, description, sort_order, is_required')
+            .select('template_id, field_key, field_label, field_type, description, sort_order, is_required, scope, role, master_kind')
             .in('template_id', ids)
             .order('sort_order', { ascending: true })
         : { data: [] as Array<{ template_id: string } & ExtractionField> }
