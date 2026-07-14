@@ -266,7 +266,7 @@ export default function OcrTemplatesPage() {
       {/* Header */}
       <div className="sticky top-0 z-40 bg-gradient-to-r from-indigo-700 to-violet-700" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
-          <button onClick={() => router.push(`/${storeId}/admin/master`)}
+          <button onClick={() => router.push(`/${storeId}/admin/settings/staff`)}
             className="p-1.5 rounded-lg hover:bg-white/15 text-white/90 transition-colors">
             <ArrowLeft size={18} />
           </button>
