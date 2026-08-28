@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { parseRepairSettings, PROFILE_DEFAULTS } from '@/lib/repairProfile'
+import { parseRepairSettings, PROFILE_DEFAULTS, PRESET_SETS_FOR } from '@/lib/repairProfile'
+import { PRESETS_BY_KEY } from '@/lib/repairPresets'
 import { toFieldDefs } from '@/types/repair'
 import { canNotifyNow } from '@/lib/notifyWindow'
 import type { BusinessHours } from '@/lib/pop'
@@ -30,6 +31,41 @@ describe('parseRepairSettings', () => {
     expect(parseRepairSettings('なにか').profile).toBe('uniform')
     expect(parseRepairSettings([1, 2]).profile).toBe('uniform')
     expect(parseRepairSettings({ profile: 'unknown' }).profile).toBe('uniform')
+  })
+
+  it('両方やる店は「服種」でも「種目」でもない中立語彙になる', () => {
+    const s = parseRepairSettings({ profile: 'both' })
+    expect(s.labels.garment).toBe('種類')
+    expect(s.labels.item).toBe('作業')
+    expect(s.labels.measurement).toBe('仕様')
+    // 制服固有・ラケット固有のどちらの語彙も出さない
+    expect(s.labels.garment).not.toBe('服種')
+    expect(s.labels.garment).not.toBe('種目')
+  })
+})
+
+describe('標準セットの選択（語彙と取り込み内容は別の判断）', () => {
+  it('両方やる店は制服・ラケットの両方を取り込める', () => {
+    expect(PRESET_SETS_FOR.both).toEqual(['uniform', 'racket'])
+  })
+
+  it('単一業種の店は自分のセットだけ', () => {
+    expect(PRESET_SETS_FOR.uniform).toEqual(['uniform'])
+    expect(PRESET_SETS_FOR.racket).toEqual(['racket'])
+  })
+
+  it('制服とラケットの服種コードが衝突しない（併用店で上書きが起きない）', () => {
+    const uniformCodes = new Set(PRESETS_BY_KEY.uniform.map(g => g.code))
+    const racketCodes  = PRESETS_BY_KEY.racket.map(g => g.code)
+    const collided = racketCodes.filter(c => uniformCodes.has(c))
+    expect(collided).toEqual([])
+  })
+
+  it('各セット内でも服種コードは一意', () => {
+    for (const key of ['uniform', 'racket'] as const) {
+      const codes = PRESETS_BY_KEY[key].map(g => g.code)
+      expect(new Set(codes).size).toBe(codes.length)
+    }
   })
 })
 

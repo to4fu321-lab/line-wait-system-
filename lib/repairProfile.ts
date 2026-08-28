@@ -8,7 +8,10 @@
 //  設計: docs/repair-flexible-catalog-design.md §3 追加①
 // ============================================================================
 
-export type RepairProfileKey = 'uniform' | 'racket' | 'custom'
+//  both = 制服お直しとラケット張替えを両方やっている店（ビーストロークが実例）。
+//  1店舗1業種を前提にすると「服種」とも「種目」とも呼べなくなるため、
+//  中立の語彙（種類/作業/仕様）を既定にする。
+export type RepairProfileKey = 'uniform' | 'racket' | 'both' | 'custom'
 
 // 画面に出る語彙。テーブル名・カラム名は一切変えない。
 export interface RepairLabels {
@@ -49,21 +52,50 @@ const RACKET_LABELS: RepairLabels = {
   vendor:      '外注ストリンガー',
 }
 
+// 両方やる店の中立語彙。「服種」でも「種目」でもない呼び方にする。
+const BOTH_LABELS: RepairLabels = {
+  domain:      '加工',
+  garment:     '種類',
+  item:        '作業',
+  option:      'オプション',
+  measurement: '仕様',
+  unit_count:  '点',
+  vendor:      '外注先',
+}
+
 export const PROFILE_DEFAULTS: Record<RepairProfileKey, {
   label:                 string
   labels:                RepairLabels
   material_enabled:      boolean
   intake_photo_required: boolean
 }> = {
-  uniform: { label: '制服・衣類のお直し', labels: UNIFORM_LABELS, material_enabled: false, intake_photo_required: false },
+  uniform: { label: '制服・衣類のお直し',   labels: UNIFORM_LABELS, material_enabled: false, intake_photo_required: false },
   racket:  { label: 'ラケットのガット張り', labels: RACKET_LABELS,  material_enabled: true,  intake_photo_required: true  },
+  both:    { label: '制服＋ラケット（両方）', labels: BOTH_LABELS,  material_enabled: true,  intake_photo_required: true  },
   custom:  { label: 'その他（自由設定）',   labels: UNIFORM_LABELS, material_enabled: false, intake_photo_required: false },
 }
 
-export const PROFILE_ORDER: RepairProfileKey[] = ['uniform', 'racket', 'custom']
+export const PROFILE_ORDER: RepairProfileKey[] = ['uniform', 'racket', 'both', 'custom']
+
+// そのプロファイルで取り込める標準セット。
+//   語彙(profile)と「どのプリセットを入れるか」は別の判断なので分けて持つ。
+//   both は両方入れられる（シードは追記式・冪等なので順不同・再実行安全）。
+export type PresetKey = 'uniform' | 'racket'
+
+export const PRESET_SETS_FOR: Record<RepairProfileKey, PresetKey[]> = {
+  uniform: ['uniform'],
+  racket:  ['racket'],
+  both:    ['uniform', 'racket'],
+  custom:  ['uniform', 'racket'],   // 自由設定でも取り込みは選べる
+}
+
+export const PRESET_SET_LABELS: Record<PresetKey, string> = {
+  uniform: '制服お直し一式',
+  racket:  'ガット張り一式',
+}
 
 function isProfileKey(v: unknown): v is RepairProfileKey {
-  return v === 'uniform' || v === 'racket' || v === 'custom'
+  return v === 'uniform' || v === 'racket' || v === 'both' || v === 'custom'
 }
 
 // stores.repair_settings（jsonb）を安全に読む。null/壊れ値は uniform 既定へ。

@@ -9,7 +9,7 @@
 
 import { supabase } from './supabase'
 import type { PriceUnit, MeasurementDef, FieldDef, RepairManual } from '@/types/repair'
-import type { RepairProfileKey } from './repairProfile'
+import type { PresetKey } from './repairProfile'
 
 // ── プリセット定義の型（ローカル） ──────────────────────────────
 interface PresetOption {
@@ -276,7 +276,8 @@ export const RACKET_PRESET: PresetGarment[] = [
     ],
   },
   {
-    code: 'other', name: 'その他', icon: '🔧',
+    // 制服プリセットにも code:'other' の服種があるため、併用店で衝突しないよう別コードにする
+    code: 'racket_other', name: 'ラケットその他', icon: '🔧',
     items: [
       {
         code: 'repair', name: 'その他・修理（個別見積もり）', icon: '📝',
@@ -288,22 +289,22 @@ export const RACKET_PRESET: PresetGarment[] = [
   },
 ]
 
-// ── 業種別プリセット ────────────────────────────────────────
-//  マスタ画面の「一括取り込み」で業種を選ばせる。既定は制服（既存挙動）。
-export const PRESETS_BY_PROFILE: Record<RepairProfileKey, PresetGarment[]> = {
+// ── 標準セット ──────────────────────────────────────────────
+//  「どの語彙で見せるか(profile)」と「どのセットを取り込むか(PresetKey)」は
+//  別の判断。両方やる店は両方取り込める（追記式・冪等なので順不同・再実行可）。
+export const PRESETS_BY_KEY: Record<PresetKey, PresetGarment[]> = {
   uniform: REPAIR_PRESET,
   racket:  RACKET_PRESET,
-  custom:  [],
 }
 
 // ── 追記式シード（既存は壊さない・不足分のみ追加） ──────────────
 export async function seedRepairPresets(
   storeId: string,
-  profile: RepairProfileKey = 'uniform',
+  presetKey: PresetKey = 'uniform',
 ): Promise<{ garments: number; items: number; options: number }> {
   let gAdded = 0, iAdded = 0, oAdded = 0
   const db = supabase as any
-  const preset = PRESETS_BY_PROFILE[profile] ?? REPAIR_PRESET
+  const preset = PRESETS_BY_KEY[presetKey] ?? REPAIR_PRESET
 
   // 既存服種
   const { data: exG } = await db.from('repair_garment_types')

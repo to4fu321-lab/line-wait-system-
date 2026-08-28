@@ -24,7 +24,10 @@ import {
 } from '@/types/repair'
 import { seedRepairPresets, SIZE_RANGE_PRESETS } from '@/lib/repairPresets'
 import { useRepairProfile } from '@/lib/useRepairProfile'
-import { PROFILE_DEFAULTS, PROFILE_ORDER, type RepairProfileKey } from '@/lib/repairProfile'
+import {
+  PROFILE_DEFAULTS, PROFILE_ORDER, PRESET_SETS_FOR, PRESET_SET_LABELS,
+  type RepairProfileKey, type PresetKey,
+} from '@/lib/repairProfile'
 import { Toast } from '@/app/_components/Toast'
 import { Field } from '@/app/_components/Field'
 
@@ -163,6 +166,8 @@ export default function RepairMasterPage() {
   const { profile, labels, save: saveProfile } = useRepairProfile(storeId)
   const [switching, setSwitching] = useState(false)
 
+  const presetSets = PRESET_SETS_FOR[profile] ?? []
+
   const changeProfile = async (next: RepairProfileKey) => {
     if (next === profile || switching) return
     setSwitching(true)
@@ -197,13 +202,12 @@ export default function RepairMasterPage() {
   useEffect(() => { if (selectedGarment) fetchItems(selectedGarment) }, [selectedGarment, fetchItems])
 
   // ── 標準お直しを一括取り込み（追記式・既存は壊さない）──────────
-  const handleSeedPreset = async () => {
+  const handleSeedPreset = async (key: PresetKey) => {
     if (seeding) return
-    const presetLabel = PROFILE_DEFAULTS[profile].label
-    if (!confirm(`「${presetLabel}」の標準一式（${labels.garment}・${labels.item}・${labels.option}）を取り込みます。\n既存の設定はそのまま、不足分のみ追加します。よろしいですか？\n※金額は仮の値で入ります。取り込み後に各${labels.item}で調整してください。`)) return
+    if (!confirm(`「${PRESET_SET_LABELS[key]}」を取り込みます。\n既存の設定はそのまま、不足分のみ追加します。よろしいですか？\n※金額は仮の値で入ります。取り込み後に各${labels.item}で調整してください。`)) return
     setSeeding(true)
     try {
-      const r = await seedRepairPresets(storeId, profile)
+      const r = await seedRepairPresets(storeId, key)
       if (r.garments + r.items + r.options === 0) {
         showToast('ok', '追加分はありませんでした（既に取り込み済み）')
       } else {
@@ -419,7 +423,7 @@ export default function RepairMasterPage() {
           {/* 業種プロファイル: 画面の呼び名とプリセットの中身が切り替わる */}
           <div className="bg-white rounded-2xl p-3 shadow-sm">
             <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider mb-2">業種</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {PROFILE_ORDER.map(k => (
                 <button
                   key={k}
@@ -437,17 +441,38 @@ export default function RepairMasterPage() {
             </p>
           </div>
 
-          {/* 服種が空のとき: 標準お直しを一括取り込み CTA */}
-          {garments.length === 0 && (
-            <button onClick={handleSeedPreset} disabled={seeding}
-              className="w-full flex items-center gap-3 rounded-2xl bg-indigo-600 text-white px-4 py-4 shadow-sm hover:bg-indigo-700 active:scale-[0.99] transition-all disabled:opacity-60">
-              <span className="text-2xl">{seeding ? '⏳' : '⚡'}</span>
-              <span className="flex-1 text-left">
-                <span className="block font-black text-base">{PROFILE_DEFAULTS[profile].label}の標準セットを取り込む</span>
-                <span className="block text-[11px] text-white/80">{labels.garment}・{labels.item}・{labels.option}を一括作成。金額はあとから調整できます。</span>
-              </span>
-              {seeding ? <Loader2 size={18} className="animate-spin" /> : <ChevronRight size={18} className="opacity-80" />}
-            </button>
+          {/* 標準セットの取り込み。両方やる店は2つ出る。
+              一度取り込んだ後も押せる必要がある（制服→ラケットと順に足すため）。*/}
+          {presetSets.length > 0 && (
+            garments.length === 0 ? (
+              <div className="space-y-2">
+                {presetSets.map(key => (
+                  <button key={key} onClick={() => handleSeedPreset(key)} disabled={seeding}
+                    className="w-full flex items-center gap-3 rounded-2xl bg-indigo-600 text-white px-4 py-4 shadow-sm hover:bg-indigo-700 active:scale-[0.99] transition-all disabled:opacity-60">
+                    <span className="text-2xl">{seeding ? '⏳' : '⚡'}</span>
+                    <span className="flex-1 text-left">
+                      <span className="block font-black text-base">{PRESET_SET_LABELS[key]}を取り込む</span>
+                      <span className="block text-[11px] text-white/80">{labels.garment}・{labels.item}・{labels.option}を一括作成。金額はあとから調整できます。</span>
+                    </span>
+                    {seeding ? <Loader2 size={18} className="animate-spin" /> : <ChevronRight size={18} className="opacity-80" />}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl p-3 shadow-sm">
+                <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider mb-2">標準セットの追加取り込み</p>
+                <div className="flex flex-wrap gap-2">
+                  {presetSets.map(key => (
+                    <button key={key} onClick={() => handleSeedPreset(key)} disabled={seeding}
+                      className="flex items-center gap-1.5 rounded-full bg-indigo-50 border border-indigo-200 px-3 py-1.5 text-xs font-bold text-indigo-700 active:scale-95 disabled:opacity-60">
+                      {seeding ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                      {PRESET_SET_LABELS[key]}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-gray-400 mt-2">不足分のみ追加されます。取り込み済みのものは重複しません。</p>
+              </div>
+            )
           )}
 
           {/* 服種チップ */}
