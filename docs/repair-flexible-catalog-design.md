@@ -19,6 +19,9 @@
 > - **3版: 店舗の実伝票「ガット張り申込用紙」を入手して突き合わせ（§4）。** 構造の結論は変わらず裏が取れたが、
 >   30項目案は過剰と判明（縦/横別テンションは使われていない）。学校・チーム・学年が伝票最上段にあり
 >   既存 `children` がそのまま使えるため Phase 1 へ前倒し。プリセットを実伝票版に差し替え。
+> - **4版: 完了通知（LINE/SMS）への移行を前提に「PM4時」の `due_time` 列追加を撤回（§4-5）。**
+>   紙の時刻欄は控えしか連絡手段がなかった時代の代替物で、通知に移れば役目が消える。
+>   通知は `notify-repair` に LINE→SMS フォールバックが既に実装済み。残る論点は営業時間ガードのみ（`stores.business_hours` が既存）。
 
 ---
 
@@ -357,7 +360,7 @@ export const PRESETS_BY_PROFILE: Record<string, PresetGarment[]> = {
 | **ポンド数 ○○P** | `inputs.tension_lbs`（`number`） | ⚠️ 追加② |
 | **ガット名（カラー）** | `products`（銘柄×色） | ⚠️ 追加③ |
 | 備考 | `notes` | ✅ 既存 |
-| 張り上がり予定日 月日 **PM4時** | `desired_completion_date` ＋ **時刻** | ❌ date型で時刻が入らない |
+| 張り上がり予定日 月日 ~~PM4時~~ | `desired_completion_date`（日付のみ） | ✅ **時刻は不要**（§4-5） |
 | ガット 有・無（＝持ち込み） | `inputs.bring_in`（`bool`） | ⚠️ 追加② |
 | グリップ 有（布・ハード）・無 | オプション `single` | ⚠️ 追加② |
 | グリップ巻く | オプション `bool` | ⚠️ 追加② |
@@ -394,11 +397,39 @@ export const PRESETS_BY_PROFILE: Record<string, PresetGarment[]> = {
 4. **「購入後3ヶ月以上経っていますか？」** — 想定していなかった欄。フレーム破損リスクの判定材料。
    → `customer_rackets` に `purchased_at` を持てば、**2回目以降は自動で答えが出る**。個体台帳（追加④）の価値がここでも効く。
 
-5. **張り上がり予定日が「PM4時」まで印字されている。** 時刻まで約束している運用。
-   → `desired_completion_date` は `date` 型で時刻の器がない。`due_time time` を1列足すか、店舗既定の受け渡し時刻を `repair_settings` に持つ。
-
-6. **「受付」と「張」で担当者が2人記録される。** 受付者と施工者は別人。
+5. **「受付」と「張」で担当者が2人記録される。** 受付者と施工者は別人。
    → `repair_histories` に `received_by` / `strung_by`（→ `staff.id`）を追加。
+
+### 4-5. 「PM4時」は通知移行で不要になる（`due_time` 列追加は撤回）
+
+伝票の「張り上がり予定日 ○月○日 PM4時」は、**客に知らせる手段が紙の控えしかなかったから**必要だった項目。
+完了をLINE/SMSで通知するなら、約束の時刻ではなく**実際に上がった時点の連絡**が客の行動を決めるので、役目が消える。
+
+**しかも通知側は既に実装済み**（`app/api/notify-repair/route.ts`）:
+- **LINE優先 → SMSフォールバック（Twilio）→ 連絡先なしはスキップ**、という分岐が既にある
+- `sms_notify` フィーチャーフラグで店舗ごとにON/OFF（`lib/features.ts`）
+- 受付通知の文面が既に **「仕上がり次第あらためてご連絡いたします」** ＝ 時刻を約束しない前提で書かれている
+
+紙の「PM4時」が担っていた役割の移行先（**すべて既存**）:
+
+| 紙での役割 | 移行先 |
+|---|---|
+| 受付時に伝える目安 | `repair_items.lead_time_days`（既存）「〜2日程度」 |
+| 急ぎの指定（明日試合など） | `desired_completion_date`（既存・日付のみで足りる） |
+| 「取りに来て」の合図 | **完了通知**（既存の `notify-repair`） |
+
+→ **`due_time` 列の追加は撤回。** Phase 1 の作業がその分減る。
+
+**残る時間の論点は「営業時間」だけ**（伝票単位ではなく店舗単位）:
+- 19:00閉店の店で18:50に「できました」を送っても客は来られない。**翌営業日の開店時刻に送る**ガードが要る。
+- `stores.business_hours`（Json）が**既にある**ので、`notify-repair` 側で参照すればよい。列追加は不要。
+
+**過渡期の注意**: LINE未友だちで電話番号もない客は `no_contact` で通知が届かない。
+この層には預り書が残るが、刷る文言を「PM4時」から**「仕上がり次第 LINE / SMS でご連絡します」**に変えるだけでよく、
+これはデータ項目ではなく `RepairPrintSlip.tsx` の文面変更。
+
+> 💡 完了通知に **ガット名・ポンド数** を載せておくと、客の手元に前回設定の記録が残り、
+> 次回の「前回と同じで」がスムーズになる（`customer_rackets` と対になる小さな仕掛け）。
 
 ### 4-4. 改訂プリセット（実伝票に合わせた最小形）
 
@@ -429,7 +460,7 @@ export const PRESETS_BY_PROFILE: Record<string, PresetGarment[]> = {
 
 | Phase | 内容 | 触るファイル | 到達点 | リスク |
 |---|---|---|---|---|
-| **1** | 業種プロファイル（語彙）＋ `FieldDef` 拡張 ＋ ラケットプリセット ＋ 伝票の小欄（`due_time` / `received_by` / `strung_by`）＋ 学校・チーム・学年（既存 `children` を出すだけ） | `stores.repair_settings` migration / `types/repair.ts` / `lib/repairProfile.ts`(新) / `lib/repairPresets.ts` / `master/repair/page.tsx` / `NewRepairModal.tsx` / `constants.ts` / `RepairPrintSlip.tsx` | **試験運用レベル**。ポンド数・免責・部活・預り書印刷まで実伝票を再現できるが、糸は自由入力で在庫も履歴も繋がらない | 小。既存は `type` 未指定でそのまま動く |
+| **1** | 業種プロファイル（語彙）＋ `FieldDef` 拡張 ＋ ラケットプリセット ＋ 担当者欄（`received_by` / `strung_by`）＋ 学校・チーム・学年（既存 `children` を出すだけ）＋ 預り書の文面を通知前提に差し替え | `stores.repair_settings` migration / `types/repair.ts` / `lib/repairProfile.ts`(新) / `lib/repairPresets.ts` / `master/repair/page.tsx` / `NewRepairModal.tsx` / `constants.ts` / `RepairPrintSlip.tsx` | **試験運用レベル**。ポンド数・免責・部活・預り書印刷まで実伝票を再現でき、完了通知（LINE→SMS）は既存のまま動く。糸は自由入力で在庫も履歴も繋がらない | 小。既存は `type` 未指定でそのまま動く |
 | **2** | ①糸を `products` へ（`group_name`＋2段選択）②`customer_rackets` ③1本＝1明細の動線 ④価格式に材料費＋持込トグル | 上記＋ migration 2本 / `lib/repairPricing.ts` / `products` マスタUI / 受付モーダル | **実務に乗る（ここが本当のゴール）**。「前回と同じ」「前回+1ポンド」が言える | 中。価格計算に手を入れる → `tests/` にユニットテスト必須 |
 | **3** | ロール在庫の減算 ／ 張替えサイクル通知 ／ 部活一括受付 ／ 業種別ダッシュボード | 既存 notify・followup 基盤 | 継続来店の仕掛け・粗利の可視化 | 低 |
 
