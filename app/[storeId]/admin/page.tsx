@@ -37,7 +37,7 @@ function urlBase64ToUint8Array(base64: string) {
   return Uint8Array.from(Array.from(raw).map(c => c.charCodeAt(0)))
 }
 
-type AdminView       = 'loading' | 'not_found' | 'select_store' | 'pin' | 'dashboard'
+type AdminView       = 'loading' | 'not_found' | 'load_error' | 'select_store' | 'pin' | 'dashboard'
 type FocusedSection  = 'calling' | 'waiting' | 'completed' | 'cancelled' | null
 
 // ============================================================
@@ -807,9 +807,18 @@ export default function StoreAdminPage() {
 
   useEffect(() => {
     if (!storeId) { setView('not_found'); return }
-    // 認証前は自分の storeId 以外の店舗情報を一切取得しない
-    fetch(`/api/admin/stores?storeId=${storeId}`)
-      .then(res => res.json())
+    // 認証前は自分の storeId 以外の店舗情報を一切取得しない。
+    // ここが失敗すると view='loading' のまま無限スピナー(=画面がフリーズしたように
+    // 見える)になるため、タイムアウトと catch で必ず結果を確定させる。
+    const ac = new AbortController()
+    let timedOut = false   // タイムアウトによる中断か、アンマウントによる中断かの区別
+    let cancelled = false
+    const timer = setTimeout(() => { timedOut = true; ac.abort() }, 15000)
+    fetch(`/api/admin/stores?storeId=${storeId}`, { signal: ac.signal })
+      .then(async res => {
+        if (!res.ok) throw new Error(`サーバーエラー (${res.status})`)
+        return res.json()
+      })
       .then(async ({ stores: data, error }: { stores?: StoreInfo[]; error?: string }) => {
         const match = (data as StoreInfo[] | undefined)?.[0]
         if (error || !match) {
@@ -828,6 +837,15 @@ export default function StoreAdminPage() {
         }
         setView('pin')
       })
+      .catch((e: unknown) => {
+        if (cancelled && !timedOut) return /* 画面離脱・StrictModeの再実行による中断は無視 */
+        setFetchError(timedOut
+          ? 'サーバーの応答がありません（15秒でタイムアウト）'
+          : e instanceof Error ? e.message : String(e))
+        setView('load_error')
+      })
+      .finally(() => clearTimeout(timer))
+    return () => { cancelled = true; clearTimeout(timer); ac.abort() }
   }, [storeId, loadGroupCode, loadGroupStores])
 
   const handleSelectStore = (s: StoreInfo) => { setSelectedStore(s); setView('pin') }
@@ -854,6 +872,21 @@ export default function StoreAdminPage() {
   if (view === 'loading') return (
     <div className="min-h-[100dvh] bg-gray-50 flex items-center justify-center">
       <Loader2 size={36} className="animate-spin text-indigo-600" />
+    </div>
+  )
+  // 通信・サーバー障害。「店舗が見つかりません」と区別し、再試行できるようにする
+  if (view === 'load_error') return (
+    <div className="min-h-[100dvh] bg-gray-50 flex flex-col items-center justify-center gap-3 px-6 text-center">
+      <div className="text-4xl">⚠️</div>
+      <p className="text-gray-700 font-bold">店舗情報を読み込めませんでした</p>
+      <p className="text-gray-400 text-sm max-w-xs">
+        通信状況をご確認のうえ、もう一度お試しください。復旧しない場合は時間をおいて再度お試しください。
+      </p>
+      {fetchError && <p className="text-gray-400 text-xs break-all max-w-xs">{fetchError}</p>}
+      <button onClick={() => window.location.reload()}
+        className="mt-2 px-6 py-3 bg-indigo-600 text-white font-bold rounded-2xl active:scale-95 transition-transform">
+        再読み込み
+      </button>
     </div>
   )
   if (view === 'not_found' || (view === 'select_store' && groupStores.length === 0)) return (
