@@ -14,12 +14,13 @@ import {
 import { supabase } from '@/lib/supabase'
 import type { RepairType } from '@/types/crm'
 import {
-  PRICE_UNIT_LABELS, PRICING_MODE_LABELS, REPAIR_PHOTOS_BUCKET,
+  PRICE_UNIT_LABELS, PRICING_MODE_LABELS, REPAIR_PHOTOS_BUCKET, toFieldDefs,
   type RepairGarmentType, type RepairItem, type RepairOption,
-  type PricingMode, type SelectedOptionSnapshot, type RepairManual,
+  type PricingMode, type SelectedOptionSnapshot, type RepairManual, type FieldDef,
 } from '@/types/repair'
 import { calcLinePrice, needsQuote, toOptionSnapshot, addBusinessDays } from '@/lib/repairPricing'
 import { RepairIcon } from '@/lib/garmentIcons'
+import { useRepairProfile } from '@/lib/useRepairProfile'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { isSessionExpiredError } from '@/lib/staffSessionClient'
 import type { CustResult } from './types'
@@ -49,6 +50,8 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
   const [buildStep, setBuildStep] = useState(0) // build内サブステップ index
   const [linkSheetOpen, setLinkSheetOpen] = useState(false) // 顧客インライン紐付け
   const { hasFeature } = useStoreFeatures(storeId)
+  // 業種プロファイル（「服種/項目/採寸」などの語彙を店舗設定で差し替える）
+  const { labels } = useRepairProfile(storeId)
   const smsEnabled = hasFeature('sms_notify')
 
   // ── 顧客 ──────────────────────────────────────────────────
@@ -282,7 +285,15 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
     setPricingMode(it.requires_quote ? 'manual' : 'master')
     setOverridePrice(''); setManualReason(''); setManualConfirmed(false)
     setManualItemName(it.code === 'other' ? '' : it.name); setManualContent('')
-    setQty(1); setInputs({})
+    setQty(1)
+    // マスタが既定値を持つ入力は先に埋めておく（ポンド数24など。現場は変更だけで済む）
+    const defs: Record<string, string> = {}
+    for (const f of toFieldDefs(it.fields, it.measurements)) {
+      if (f.default !== undefined && f.default !== null && f.default !== false) {
+        defs[f.key] = String(f.default)
+      }
+    }
+    setInputs(defs)
     const { data } = await (supabase as any).from('repair_options')
       .select('*').eq('item_id', it.id).eq('active', true).order('sort_order')
     const opts = (data ?? []) as RepairOption[]
@@ -346,8 +357,10 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
     const parts: string[] = [item.name]
     const optNames = selectedOptions.map(o => o.name)
     if (optNames.length) parts.push(`（${optNames.join('・')}）`)
-    // 採寸の要約
-    const meas = (item.measurements ?? []).filter(m => inputs[m.key]).map(m => `${m.label}${inputs[m.key]}${m.unit}`)
+    // 入力の要約（bool は ON のときだけラベルを出す）
+    const meas = toFieldDefs(item.fields, item.measurements)
+      .filter(f => inputs[f.key] !== undefined && inputs[f.key] !== '')
+      .map(f => (f.type ?? 'text') === 'bool' ? f.label : `${f.label}${inputs[f.key]}${f.unit ?? ''}`)
     if (meas.length) parts.push(meas.join(' '))
     return parts.join(' ').trim()
   }
@@ -403,9 +416,9 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
       selected_options: snapshots, inputs,
     }
     // 既存カラムへ採寸の代表値を反映（カード/編集画面の互換）
-    for (const m of item.measurements ?? []) {
-      const col = LEGACY_MEAS[m.key]
-      if (col && inputs[m.key] != null && inputs[m.key] !== '') payload[col] = Number(inputs[m.key])
+    for (const f of toFieldDefs(item.fields, item.measurements)) {
+      const col = LEGACY_MEAS[f.key]
+      if (col && inputs[f.key] != null && inputs[f.key] !== '') payload[col] = Number(inputs[f.key])
     }
     if (inputs.text) payload.embroidery_text = inputs.text
 
@@ -522,30 +535,117 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
     return addBusinessDays(new Date(), item.lead_time_days).toISOString().slice(0, 10)
   }
 
-  // ── 採寸入力（既存 mm 系は±ボタン、それ以外はテキスト） ──
-  const renderMeasurement = (key: string, label: string, unit: string, required: boolean) => {
-    const isMm = unit === 'mm'
-    const val = inputs[key] ?? ''
-    if (isMm) {
-      const n = Number(val) || 0
+  // ── 入力フィールド（FieldDef 駆動）──────────────────────────
+  //  制服の採寸(mm)は従来どおり±5mmボタン。ラケットのポンド数のように
+  //  min/max/step を持つ数値は範囲内で±する。type はマスタ側が決める。
+  const renderField = (f: FieldDef) => {
+    const type     = f.type ?? 'text'
+    const val      = inputs[f.key] ?? ''
+    const required = !!f.required
+    const head = (
+      <label className="text-xs font-bold text-gray-600 block mb-1">
+        {f.label}{required && <span className="text-red-500">*</span>}
+      </label>
+    )
+    const hint = f.hint
+      ? <p className="text-[11px] text-gray-400 mt-1">{f.hint}</p>
+      : null
+
+    if (type === 'number') {
+      const isMm  = f.unit === 'mm'
+      const step  = f.step ?? (isMm ? 5 : 1)
+      const n     = val === '' ? (typeof f.default === 'number' ? f.default : 0) : Number(val) || 0
+      // min/max があればその範囲に丸める（適正ポンド数を外れた受付を防ぐ）
+      const clamp = (v: number) =>
+        Math.min(f.max ?? Number.POSITIVE_INFINITY, Math.max(f.min ?? Number.NEGATIVE_INFINITY, v))
+      const set = (v: number) => setInputs({ ...inputs, [f.key]: String(clamp(v)) })
       return (
-        <div key={key}>
-          <label className="text-xs font-bold text-gray-600 block mb-1">{label}{required && <span className="text-red-500">*</span>}</label>
+        <div key={f.key}>
+          {head}
           <div className="flex items-center gap-2 bg-gray-50 rounded-xl p-2">
-            <button type="button" onClick={() => setInputs({ ...inputs, [key]: String(n - 5) })} className="w-10 h-10 rounded-lg bg-white border font-black text-lg">−</button>
-            <div className="flex-1 text-center font-black text-2xl text-gray-800">{n > 0 ? '+' : ''}{n}<span className="text-sm ml-0.5">mm</span></div>
-            <button type="button" onClick={() => setInputs({ ...inputs, [key]: String(n + 5) })} className="w-10 h-10 rounded-lg bg-white border font-black text-lg">＋</button>
+            <button type="button" onClick={() => set(n - step)} className="w-10 h-10 rounded-lg bg-white border font-black text-lg">−</button>
+            <div className="flex-1 text-center font-black text-2xl text-gray-800">
+              {isMm && n > 0 ? '+' : ''}{n}{f.unit && <span className="text-sm ml-0.5">{f.unit}</span>}
+            </div>
+            <button type="button" onClick={() => set(n + step)} className="w-10 h-10 rounded-lg bg-white border font-black text-lg">＋</button>
           </div>
+          {hint}
         </div>
       )
     }
+
+    if (type === 'bool') {
+      // inputs は Record<string,string>。bool は 'true' 文字列で保持する
+      const on = val === 'true' || val === '1'
+      return (
+        <div key={f.key}>
+          <button
+            type="button"
+            onClick={() => setInputs({ ...inputs, [f.key]: on ? '' : 'true' })}
+            className={`w-full flex items-center justify-between gap-3 rounded-xl border-2 px-4 py-3 text-left transition ${
+              on ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-white'
+            }`}
+          >
+            <span className="text-sm font-bold text-gray-800">
+              {f.label}{required && <span className="text-red-500">*</span>}
+            </span>
+            <span className={`shrink-0 w-12 h-7 rounded-full p-0.5 transition ${on ? 'bg-indigo-500' : 'bg-gray-300'}`}>
+              <span className={`block w-6 h-6 rounded-full bg-white transition-transform ${on ? 'translate-x-5' : ''}`} />
+            </span>
+          </button>
+          {hint}
+        </div>
+      )
+    }
+
+    if (type === 'select') {
+      const choices = f.choices ?? []
+      return (
+        <div key={f.key}>
+          {head}
+          <div className="grid grid-cols-2 gap-2">
+            {choices.map(c => (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => setInputs({ ...inputs, [f.key]: c.value })}
+                className={`rounded-xl border-2 px-3 py-2.5 text-sm font-bold transition ${
+                  val === c.value ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-700'
+                }`}
+              >{c.label}</button>
+            ))}
+          </div>
+          {hint}
+        </div>
+      )
+    }
+
+    // material は Phase 2（products 連携）で実装。それまではテキストとして扱う。
     return (
-      <div key={key}>
-        <label className="text-xs font-bold text-gray-600 block mb-1">{label}{required && <span className="text-red-500">*</span>}</label>
-        <input className={INPUT} value={val} onChange={e => setInputs({ ...inputs, [key]: e.target.value })} placeholder={unit} />
+      <div key={f.key}>
+        {head}
+        <input
+          className={INPUT}
+          value={String(val)}
+          onChange={e => setInputs({ ...inputs, [f.key]: e.target.value })}
+          placeholder={f.unit || ''}
+        />
+        {hint}
       </div>
     )
   }
+
+  // マスタが定義した入力（fields 優先・無ければ旧 measurements）
+  const itemFields = useMemo(
+    () => toFieldDefs(item?.fields, item?.measurements),
+    [item],
+  )
+
+  // 必須未入力があれば次へ進ませない
+  const missingRequired = useMemo(
+    () => itemFields.some(f => f.required && (inputs[f.key] === undefined || inputs[f.key] === '')),
+    [itemFields, inputs],
+  )
 
   // 選択オプションをグループ表示
   const groupedOptions = useMemo(() => {
@@ -561,11 +661,11 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
   // ── build サブステップ（該当が無い段は自動スキップ）─────────────
   const buildStepDefs = useMemo(() => {
     const defs: { key: string; label: string }[] = [
-      { key: 'garment', label: '服種' },
-      { key: 'item',    label: '項目' },
+      { key: 'garment', label: labels.garment },
+      { key: 'item',    label: labels.item },
     ]
-    if (item && ((item.measurements ?? []).length > 0 || manuals.length > 0)) defs.push({ key: 'measure', label: '採寸' })
-    if (item && groupedOptions.length > 0) defs.push({ key: 'options', label: 'オプション' })
+    if (item && (itemFields.length > 0 || manuals.length > 0)) defs.push({ key: 'measure', label: labels.measurement })
+    if (item && groupedOptions.length > 0) defs.push({ key: 'options', label: labels.option })
     if (item) {
       defs.push({ key: 'price',   label: '価格' })
       defs.push({ key: 'photo',   label: '写真' })
@@ -573,7 +673,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
       defs.push({ key: 'confirm', label: '確認' })
     }
     return defs
-  }, [item, manuals, groupedOptions])
+  }, [item, manuals, groupedOptions, itemFields, labels])
 
   const curBuildIdx = Math.min(buildStep, buildStepDefs.length - 1)
   const curBuildKey = buildStepDefs[curBuildIdx]?.key ?? 'garment'
@@ -582,7 +682,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
   const canNextBuild = (() => {
     if (curBuildKey === 'garment') return !!garmentId
     if (curBuildKey === 'item')    return !!item
-    if (curBuildKey === 'measure') return !(hasDanger && !manualConfirmed)
+    if (curBuildKey === 'measure') return !(hasDanger && !manualConfirmed) && !missingRequired
     return true
   })()
 
@@ -828,7 +928,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
                         <p className="text-amber-600 font-black mt-1">{it.requires_quote ? '見積もり' : `¥${it.base_price.toLocaleString()}`}</p>
                       </button>
                     ))}
-                    {items.length === 0 && <p className="col-span-2 text-center text-sm text-gray-400 py-6">この服種の項目がありません</p>}
+                    {items.length === 0 && <p className="col-span-2 text-center text-sm text-gray-400 py-6">この{labels.garment}の{labels.item}がありません</p>}
                   </div>
                   <RefPhotoStrip photos={refPhotos} loading={refLoading} open={refOpen} onToggle={() => setRefOpen(v => !v)} />
                 </div>
@@ -839,7 +939,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
                   {/* 採寸・特殊ケース */}
                   {curBuildKey === 'measure' && (
                     <div>
-                      <p className="text-xl font-black text-gray-800 mb-1">採寸・注意事項</p>
+                      <p className="text-xl font-black text-gray-800 mb-1">{labels.measurement}・注意事項</p>
                       <p className="text-sm text-gray-500 mb-5">内容を確認して入力してください</p>
                       <div className="space-y-4">
                         {manuals.map((m, i) => (
@@ -861,10 +961,10 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
                             <input type="checkbox" checked={manualConfirmed} onChange={e => setManualConfirmed(e.target.checked)} className="w-5 h-5" />内容を確認しました
                           </label>
                         )}
-                        {(item.measurements ?? []).length > 0 && (
+                        {itemFields.length > 0 && (
                           <div>
-                            <p className="text-sm font-black text-gray-500 mb-3">採寸・入力</p>
-                            <div className="space-y-3">{item.measurements.map(m => renderMeasurement(m.key, m.label, m.unit, !!m.required))}</div>
+                            <p className="text-sm font-black text-gray-500 mb-3">{labels.measurement}・入力</p>
+                            <div className="space-y-3">{itemFields.map(renderField)}</div>
                           </div>
                         )}
                       </div>
@@ -1019,7 +1119,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
                       <div className="bg-gray-50 rounded-2xl p-5 space-y-4">
                         {[
                           { label: 'お客様', value: selectedCust ? `${selectedCust.name}${selectedChild ? ` / ${selectedChild.name}` : ''}` : '未紐付け（後で登録できます）' },
-                          { label: '服種・項目', value: `${garments.find(g => g.id === garmentId)?.name ?? ''} / ${item.name}` },
+                          { label: `${labels.garment}・${labels.item}`, value: `${garments.find(g => g.id === garmentId)?.name ?? ''} / ${item.name}` },
                           ...(qty > 1 ? [{ label: '数量', value: `${qty}点（1点ずつ登録・印刷されます）` }] : []),
                           { label: '金額', value: (() => {
                             const perUnit = pricingMode === 'master' ? calculated : finalPrice
