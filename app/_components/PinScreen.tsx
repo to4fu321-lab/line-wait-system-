@@ -3,6 +3,11 @@
 import { useState, type ReactNode } from 'react'
 import { applyStaffSession, type StaffSessionTokens } from '@/lib/staffSessionClient'
 
+import { PinAuthError, PIN_ERROR_MESSAGES } from '@/lib/pinAuth'
+
+// 既存の import 経路を壊さないための再エクスポート（定義は lib/pinAuth.ts）
+export { PinAuthError, PIN_ERROR_MESSAGES }
+
 // ============================================================
 // PIN認証画面（共通コンポーネント）
 //
@@ -25,9 +30,10 @@ export function PinScreen<T>({
   backLabel?: string
   headerExtra?: ReactNode
 }) {
-  const [pin,     setPin]     = useState('')
-  const [error,   setError]   = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [pin,      setPin]      = useState('')
+  const [error,    setError]    = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string>(PIN_ERROR_MESSAGES.wrongPin)
+  const [loading,  setLoading]  = useState(false)
 
   const handleDigit = async (d: string) => {
     if (pin.length >= digits || loading) return
@@ -37,11 +43,15 @@ export function PinScreen<T>({
     if (next.length !== digits) return
 
     setLoading(true)
+    // 既定は入力ミス。障害由来の失敗は PinAuthError の文面をそのまま出す
+    let message: string = PIN_ERROR_MESSAGES.wrongPin
     try {
       const result = await verify(next)
       if (result !== null) { onAuth(result); return }
-    } catch { /* 通信エラーも入力エラーと同扱い */ }
-    setTimeout(() => { setPin(''); setError(true); setLoading(false) }, 400)
+    } catch (e) {
+      message = e instanceof PinAuthError ? e.message : PIN_ERROR_MESSAGES.network
+    }
+    setTimeout(() => { setPin(''); setError(true); setErrorMsg(message); setLoading(false) }, 400)
   }
 
   const c = dark
@@ -80,7 +90,14 @@ export function PinScreen<T>({
         ))}
       </div>
       {loading && <p className="relative text-indigo-400 text-sm mb-4 font-medium">確認中...</p>}
-      {error && <p className="relative text-red-500 text-sm mb-4 font-medium animate-pulse">PINが違います</p>}
+      {error && (
+        // 入力ミスは1行、障害の説明は複数行になるため折り返して表示する
+        <p className={`relative text-red-500 text-sm mb-4 font-medium max-w-xs text-center leading-relaxed ${
+          errorMsg === PIN_ERROR_MESSAGES.wrongPin ? 'animate-pulse' : ''
+        }`}>
+          {errorMsg}
+        </p>
+      )}
       <div className="relative grid grid-cols-3 gap-3 w-60">
         {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((d, i) => (
           <button key={i} disabled={loading}
@@ -109,29 +126,49 @@ export function PinScreen<T>({
  * サーバー側でセットされる。sessionStorage は UI 表示用フラグのみ。
  */
 export async function verifySuperAdminPin(pin: string): Promise<true | null> {
-  const res = await fetch('/api/super-admin/auth', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pin }),
-  })
-  if (!res.ok) return null
+  let res: Response
+  try {
+    res = await fetch('/api/super-admin/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin }),
+    })
+  } catch {
+    // fetch自体が失敗＝サーバーに到達できていない（通信断・DNS・遮断）
+    throw new PinAuthError(PIN_ERROR_MESSAGES.network)
+  }
+  if (res.status === 401) return null /* 本当にPINが違う場合だけ入力ミス扱い */
+  if (!res.ok) throw new PinAuthError(PIN_ERROR_MESSAGES.server(res.status))
   sessionStorage.setItem('super_admin_auth', '1')
   return true
 }
 
 export async function verifyStorePinApi(storeId: string, pin: string): Promise<'owner' | 'staff' | null> {
-  const res = await fetch('/api/admin/verify-pin', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ storeId, pin }),
-  })
-  if (!res.ok) return null
-  const json = await res.json()
-  if (!json.ok) return null
-  // 店舗スコープの Supabase Auth セッションを適用(RLS 通過に必須)
+  let res: Response
+  try {
+    res = await fetch('/api/admin/verify-pin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storeId, pin }),
+    })
+  } catch {
+    // fetch自体が失敗＝サーバーに到達できていない（通信断・DNS・遮断）
+    throw new PinAuthError(PIN_ERROR_MESSAGES.network)
+  }
+  // 401 のみが「PINが違う」。他はサーバー障害なので原因を区別して伝える
+  if (res.status === 401) return null
+  if (!res.ok) throw new PinAuthError(PIN_ERROR_MESSAGES.server(res.status))
+
+  const json = await res.json().catch(() => null) as
+    { ok?: boolean; role?: string; session?: StaffSessionTokens } | null
+  if (!json?.ok) throw new PinAuthError(PIN_ERROR_MESSAGES.badResponse)
+
+  // 店舗スコープの Supabase Auth セッションを適用(RLS 通過に必須)。
+  // ここはブラウザ→Supabaseの直接通信なので、社内ネットワークの遮断で
+  // PIN照合成功後にだけ失敗しうる。入力ミスと明確に区別して伝える。
   if (json.session) {
-    const ok = await applyStaffSession(json.session as StaffSessionTokens)
-    if (!ok) return null
+    const ok = await applyStaffSession(json.session)
+    if (!ok) throw new PinAuthError(PIN_ERROR_MESSAGES.database)
   }
   sessionStorage.setItem('admin_auth', '1')
   sessionStorage.setItem(`admin_pin_${storeId}`, pin)

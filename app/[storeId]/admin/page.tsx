@@ -879,8 +879,9 @@ export default function StoreAdminPage() {
     <div className="min-h-[100dvh] bg-gray-50 flex flex-col items-center justify-center gap-3 px-6 text-center">
       <div className="text-4xl">⚠️</div>
       <p className="text-gray-700 font-bold">店舗情報を読み込めませんでした</p>
-      <p className="text-gray-400 text-sm max-w-xs">
-        通信状況をご確認のうえ、もう一度お試しください。復旧しない場合は時間をおいて再度お試しください。
+      <p className="text-gray-400 text-sm max-w-xs leading-relaxed">
+        通信状況をご確認のうえ、もう一度お試しください。社内ネットワークやWi-Fiで通信が
+        制限されている場合があります。解決しない場合は管理者へご連絡ください。
       </p>
       {fetchError && <p className="text-gray-400 text-xs break-all max-w-xs">{fetchError}</p>}
       <button onClick={() => window.location.reload()}

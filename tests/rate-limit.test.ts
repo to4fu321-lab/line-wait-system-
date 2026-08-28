@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { rateLimit } from '@/lib/rateLimit'
 
 describe('rateLimit', () => {
@@ -16,13 +16,17 @@ describe('rateLimit', () => {
     expect(rateLimit(a, 1, 60_000)).toBe(false)
     expect(rateLimit(b, 1, 60_000)).toBe(true)
   })
+  // 実時間に依存させると負荷次第で結果が変わるため、時刻を固定して進める
   it('ウィンドウが過ぎたらリセットされる', () => {
-    const key = `test-${Date.now()}-c`
-    expect(rateLimit(key, 1, 1)).toBe(true)   // windowMs=1ms
-    expect(rateLimit(key, 1, 1)).toBe(false)
-    return new Promise<void>(resolve => setTimeout(() => {
-      expect(rateLimit(key, 1, 1)).toBe(true) // 期限切れ後は再度許可
-      resolve()
-    }, 10))
+    vi.useFakeTimers()
+    try {
+      const key = `test-window-reset-${Math.random()}`
+      expect(rateLimit(key, 1, 60_000)).toBe(true)
+      expect(rateLimit(key, 1, 60_000)).toBe(false)
+      vi.advanceTimersByTime(60_001)
+      expect(rateLimit(key, 1, 60_000)).toBe(true) // 期限切れ後は再度許可
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
