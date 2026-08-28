@@ -8,7 +8,8 @@
 // ============================================================================
 
 import { supabase } from './supabase'
-import type { PriceUnit, MeasurementDef, RepairManual } from '@/types/repair'
+import type { PriceUnit, MeasurementDef, FieldDef, RepairManual } from '@/types/repair'
+import type { RepairProfileKey } from './repairProfile'
 
 // ── プリセット定義の型（ローカル） ──────────────────────────────
 interface PresetOption {
@@ -28,6 +29,8 @@ interface PresetItem {
   base_price:     number
   price_unit:     PriceUnit
   measurements?:  MeasurementDef[]
+  fields?:        FieldDef[]          // 受付で聞く入力（measurements の一般化）
+  manual?:        RepairManual | null
   lead_time_days?: number | null
   requires_quote?: boolean
   options?:       PresetOption[]
@@ -189,12 +192,118 @@ export const REPAIR_PRESET: PresetGarment[] = [
   },
 ]
 
+// ============================================================================
+//  ラケットショップ プリセット（ガット張り）
+//  実店舗の「ガット張り申込用紙」の欄をそのまま写した最小形。
+//  ・テンションは縦/横を分けず「ポンド数」1つ（実伝票がそうなっている）
+//  ・機種・色は customer_rackets（Phase 2）から入るので項目には持たない
+//  設計: docs/repair-flexible-catalog-design.md §4-4
+// ============================================================================
+
+// 伝票下部の免責文をそのまま確認必須チェックにする
+const RACKET_DISCLAIMER: RepairManual = {
+  title:    'フレーム破損の免責について',
+  body:     'フレームに傷やヒビ割れ等がありますと、適正ポンド数であっても破損してしまうことがあります。'
+          + 'ご了承いただいた上でお預かりいたします。\n'
+          + '※お客様に「傷やヒビで破損する可能性があっても張ってよいか」を必ず確認してください。',
+  severity: 'danger',
+  images:   [],
+}
+
+// 競技ごとに適正ポンド数の幅が違うので、レンジだけ差し替えて使う
+function stringingFields(opts: { min: number; max: number; def: number }): FieldDef[] {
+  return [
+    { key: 'tension_lbs', label: 'ポンド数', type: 'number', unit: 'P', required: true,
+      default: opts.def, min: opts.min, max: opts.max, step: 1,
+      hint: `適正範囲 ${opts.min}〜${opts.max}P` },
+    { key: 'string_name', label: 'ガット名（カラー）', type: 'text',
+      hint: '持ち込みの場合は銘柄と色を記入' },
+    { key: 'bring_in', label: 'ガット持ち込み', type: 'bool', default: false,
+      hint: 'ON＝お客様持ち込み（ガット代なし）' },
+    { key: 'over_3months', label: '購入後3ヶ月以上経過', type: 'bool', default: false,
+      hint: '伝票の確認欄。フレーム破損リスクの判断材料' },
+  ]
+}
+
+// 全競技で共通のグリップ関連オプション（伝票の「グリップ 有（布・ハード）・無」）
+function gripOptions(): PresetOption[] {
+  return [
+    { group_label: 'グリップ', group_select: 'single', code: 'grip_none',  name: '無',           price_delta: 0, default_selected: true },
+    { group_label: 'グリップ', group_select: 'single', code: 'grip_cloth', name: '有（布）',     price_delta: 0 },
+    { group_label: 'グリップ', group_select: 'single', code: 'grip_hard',  name: '有（ハード）', price_delta: 0 },
+    { group_label: null, group_select: 'multi', code: 'grip_wrap', name: 'グリップ巻く', price_delta: 0 },
+  ]
+}
+
+export const RACKET_PRESET: PresetGarment[] = [
+  {
+    code: 'badminton', name: 'バドミントン', icon: '🏸',
+    items: [
+      {
+        code: 'stringing', name: 'ガット張り', icon: '🎯',
+        base_price: 0, price_unit: 'per_item',
+        fields: stringingFields({ min: 15, max: 30, def: 24 }),
+        manual: RACKET_DISCLAIMER,
+        lead_time_days: 2,
+        options: gripOptions(),
+      },
+    ],
+  },
+  {
+    code: 'tennis', name: 'テニス', icon: '🎾',
+    items: [
+      {
+        code: 'stringing', name: 'ガット張り', icon: '🎯',
+        base_price: 0, price_unit: 'per_item',
+        fields: stringingFields({ min: 35, max: 65, def: 50 }),
+        manual: RACKET_DISCLAIMER,
+        lead_time_days: 2,
+        options: gripOptions(),
+      },
+    ],
+  },
+  {
+    code: 'soft_tennis', name: 'ソフトテニス', icon: '🥎',
+    items: [
+      {
+        code: 'stringing', name: 'ガット張り', icon: '🎯',
+        base_price: 0, price_unit: 'per_item',
+        fields: stringingFields({ min: 20, max: 40, def: 30 }),
+        manual: RACKET_DISCLAIMER,
+        lead_time_days: 2,
+        options: gripOptions(),
+      },
+    ],
+  },
+  {
+    code: 'other', name: 'その他', icon: '🔧',
+    items: [
+      {
+        code: 'repair', name: 'その他・修理（個別見積もり）', icon: '📝',
+        base_price: 0, price_unit: 'per_item',
+        fields: [{ key: 'symptom', label: '症状・ご要望', type: 'text', required: true }],
+        lead_time_days: 7, requires_quote: true,
+      },
+    ],
+  },
+]
+
+// ── 業種別プリセット ────────────────────────────────────────
+//  マスタ画面の「一括取り込み」で業種を選ばせる。既定は制服（既存挙動）。
+export const PRESETS_BY_PROFILE: Record<RepairProfileKey, PresetGarment[]> = {
+  uniform: REPAIR_PRESET,
+  racket:  RACKET_PRESET,
+  custom:  [],
+}
+
 // ── 追記式シード（既存は壊さない・不足分のみ追加） ──────────────
 export async function seedRepairPresets(
   storeId: string,
+  profile: RepairProfileKey = 'uniform',
 ): Promise<{ garments: number; items: number; options: number }> {
   let gAdded = 0, iAdded = 0, oAdded = 0
   const db = supabase as any
+  const preset = PRESETS_BY_PROFILE[profile] ?? REPAIR_PRESET
 
   // 既存服種
   const { data: exG } = await db.from('repair_garment_types')
@@ -202,7 +311,7 @@ export async function seedRepairPresets(
   const garmentByCode = new Map<string, string>((exG ?? []).map((g: any) => [g.code, g.id as string]))
   let gSort = Math.max(0, ...((exG ?? []).map((g: any) => g.sort_order ?? 0)))
 
-  for (const pg of REPAIR_PRESET) {
+  for (const pg of preset) {
     let garmentId = garmentByCode.get(pg.code)
     if (!garmentId) {
       gSort += 10
@@ -230,7 +339,9 @@ export async function seedRepairPresets(
           store_id: storeId, garment_type_id: gid,
           code: pi.code, name: pi.name, icon: pi.icon,
           base_price: pi.base_price, price_unit: pi.price_unit,
-          measurements: pi.measurements ?? [], manual: null,
+          measurements: pi.measurements ?? [],
+          fields: pi.fields ?? [],
+          manual: pi.manual ?? null,
           lead_time_days: pi.lead_time_days ?? null,
           requires_quote: pi.requires_quote ?? false,
           sort_order: iSort,

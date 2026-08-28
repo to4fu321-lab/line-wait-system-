@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { getLineToken } from '@/lib/line-config'
 import { pushCard } from '@/lib/line-flex'
+import { canNotifyNow } from '@/lib/notifyWindow'
+import type { BusinessHours } from '@/lib/pop'
 
 const TOKEN      = getLineToken('uniform')
 const TWILIO_SID   = process.env.TWILIO_ACCOUNT_SID  ?? ''
@@ -58,6 +60,27 @@ export async function POST(req: NextRequest) {
   }
   const supabase = createAdminClient()
 
+  // 営業時間チェック（完了通知のみ）。閉店間際・定休日は現場に知らせる。
+  //   ※ 定期実行の仕組みが無いため「保留して後で自動送信」はできない。
+  //     黙って送らないと通知そのものが消えるので、送信は止めず outsideHours を
+  //     返し、呼び出し側（完了操作のUI）が声かけを判断できるようにする。
+  //   store_id は呼び出し元が渡していないので repairId から引く。
+  let outsideHours = false
+  let nextOpenAt: string | null = null
+  if (kind === 'completed') {
+    const { data: row } = await (supabase as any)
+      .from('repair_histories').select('store_id').eq('id', repairId).maybeSingle()
+    if (row?.store_id) {
+      const { data: store } = await (supabase as any)
+        .from('stores').select('business_hours').eq('id', row.store_id).maybeSingle()
+      const w = canNotifyNow(store?.business_hours as BusinessHours | null)
+      if (!w.canSendNow) {
+        outsideHours = true
+        nextOpenAt = w.nextOpenAt ? w.nextOpenAt.toISOString() : null
+      }
+    }
+  }
+
   const storeLabel = storeName ? `【${storeName}】` : ''
   const reqText    = reqNo ? `\n依頼番号：${reqNo}` : ''
   const dateText   = desiredDate ? `\n仕上がり希望：${desiredDate}` : ''
@@ -85,7 +108,7 @@ export async function POST(req: NextRequest) {
       await (supabase as any).from('repair_histories').update({ notified: true }).eq('id', repairId)
     }
     console.log('[notify-repair] LINE sent:', repairId, kind)
-    return NextResponse.json({ ok: true, channel: 'line' })
+    return NextResponse.json({ ok: true, channel: 'line', outsideHours, nextOpenAt })
   }
 
   // ── SMS通知 ─────────────────────────────────────────────────
@@ -107,7 +130,7 @@ export async function POST(req: NextRequest) {
         await (supabase as any).from('repair_histories').update({ notified: true }).eq('id', repairId)
       }
       console.log('[notify-repair] SMS sent:', repairId, toE164Japan(tel), kind)
-      return NextResponse.json({ ok: true, channel: 'sms' })
+      return NextResponse.json({ ok: true, channel: 'sms', outsideHours, nextOpenAt })
     } catch (e) {
       console.error('[notify-repair] SMS error:', e)
       return NextResponse.json({ ok: false, error: String(e) }, { status: 500 })

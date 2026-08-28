@@ -38,11 +38,11 @@ function DetailLines({ item }: { item: PrintableRepair }) {
   )
 }
 
-function Slip({ item, storeName }: { item: PrintableRepair; storeName: string }) {
+function Slip({ item, storeName, domainLabel }: { item: PrintableRepair; storeName: string; domainLabel: string }) {
   return (
     <div className="border-b-2 border-dashed border-gray-300 py-5 break-inside-avoid last:border-0">
       <div className="flex items-center justify-between mb-3">
-        <p className="font-black text-lg">{storeName || 'お店'}　お直し依頼書</p>
+        <p className="font-black text-lg">{storeName || 'お店'}　{domainLabel}依頼書</p>
         <p className="font-mono font-black text-lg">{item.reqNo}</p>
       </div>
       <div className="border-t border-gray-300 pt-3 space-y-2">
@@ -95,8 +95,10 @@ function Slip({ item, storeName }: { item: PrintableRepair; storeName: string })
   )
 }
 
-export function RepairPrintModal({ items, storeName, onClose }: {
+export function RepairPrintModal({ items, storeName, onClose, domainLabel = 'お直し' }: {
   items: PrintableRepair[]; storeName: string; onClose: () => void
+  /** 業種プロファイルの語彙（例: ガット張り）。未指定は従来どおり「お直し」 */
+  domainLabel?: string
 }) {
   return (
     <div className="fixed inset-0 z-[80] bg-black/50 flex items-end sm:items-center justify-center print:bg-white print:static" onClick={onClose}>
@@ -117,7 +119,7 @@ export function RepairPrintModal({ items, storeName, onClose }: {
         <p className="px-5 pt-3 text-[11px] text-gray-400 print:hidden">価格は印刷されません。商品に添付して外注先へお渡しいただけます。</p>
         <div id="repair-print" className="flex-1 overflow-y-auto px-5 py-4 bg-white text-gray-900">
           {items.length === 0 && <p className="text-center text-sm text-gray-400 py-8">印刷する内容がありません</p>}
-          {items.map((it, i) => <Slip key={i} item={it} storeName={storeName} />)}
+          {items.map((it, i) => <Slip key={i} item={it} storeName={storeName} domainLabel={domainLabel} />)}
         </div>
       </div>
       <style>{`@media print {

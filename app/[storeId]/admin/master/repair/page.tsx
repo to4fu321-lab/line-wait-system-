@@ -19,9 +19,12 @@ import { BulkImportModal, bulkFromParsed, type ImportGarment } from './_componen
 import {
   PRICE_UNIT_LABELS, PRICE_UNIT_HELP, MANUAL_SEVERITY_LABELS, REPAIR_PHOTOS_BUCKET,
   type RepairGarmentType, type RepairItem, type RepairOption,
-  type PriceUnit, type MeasurementDef, type RepairManual, type ManualSeverity,
+  FIELD_TYPE_LABELS,
+  type PriceUnit, type MeasurementDef, type FieldDef, type RepairManual, type ManualSeverity,
 } from '@/types/repair'
 import { seedRepairPresets, SIZE_RANGE_PRESETS } from '@/lib/repairPresets'
+import { useRepairProfile } from '@/lib/useRepairProfile'
+import { PROFILE_DEFAULTS, PROFILE_ORDER, type RepairProfileKey } from '@/lib/repairProfile'
 import { Toast } from '@/app/_components/Toast'
 import { Field } from '@/app/_components/Field'
 
@@ -156,6 +159,18 @@ export default function RepairMasterPage() {
   const [loading, setLoading] = useState(true)
   const [seeding, setSeeding] = useState(false)
 
+  // 業種プロファイル（画面の語彙とプリセットの中身を切り替える）
+  const { profile, labels, save: saveProfile } = useRepairProfile(storeId)
+  const [switching, setSwitching] = useState(false)
+
+  const changeProfile = async (next: RepairProfileKey) => {
+    if (next === profile || switching) return
+    setSwitching(true)
+    const ok = await saveProfile({ profile: next })
+    showToast(ok ? 'ok' : 'err', ok ? `業種を「${PROFILE_DEFAULTS[next].label}」に変更しました` : '業種の変更に失敗しました')
+    setSwitching(false)
+  }
+
   // ── fetch ──────────────────────────────────────────────────
   const fetchGarments = useCallback(async () => {
     const { data } = await (supabase as any).from('repair_garment_types')
@@ -184,14 +199,15 @@ export default function RepairMasterPage() {
   // ── 標準お直しを一括取り込み（追記式・既存は壊さない）──────────
   const handleSeedPreset = async () => {
     if (seeding) return
-    if (!confirm('標準お直し一式（服種・項目・サイズ段階）を取り込みます。\n既存の設定はそのまま、不足分のみ追加します。よろしいですか？\n※金額は仮の値で入ります。取り込み後に各項目で調整してください。')) return
+    const presetLabel = PROFILE_DEFAULTS[profile].label
+    if (!confirm(`「${presetLabel}」の標準一式（${labels.garment}・${labels.item}・${labels.option}）を取り込みます。\n既存の設定はそのまま、不足分のみ追加します。よろしいですか？\n※金額は仮の値で入ります。取り込み後に各${labels.item}で調整してください。`)) return
     setSeeding(true)
     try {
-      const r = await seedRepairPresets(storeId)
+      const r = await seedRepairPresets(storeId, profile)
       if (r.garments + r.items + r.options === 0) {
         showToast('ok', '追加分はありませんでした（既に取り込み済み）')
       } else {
-        showToast('ok', `服種${r.garments}・項目${r.items}・オプション${r.options}件を追加しました`)
+        showToast('ok', `${labels.garment}${r.garments}・${labels.item}${r.items}・${labels.option}${r.options}件を追加しました`)
       }
       await fetchGarments()
     } catch {
@@ -231,6 +247,8 @@ export default function RepairMasterPage() {
   const [iBase, setIBase] = useState('0'); const [iUnit, setIUnit] = useState<PriceUnit>('per_item')
   const [iLead, setILead] = useState(''); const [iQuote, setIQuote] = useState(false)
   const [iMeas, setIMeas] = useState<MeasurementDef[]>([])
+  // プリセット由来の入力定義。saveI の payload に含めない＝update で保持される
+  const [iFields, setIFields] = useState<FieldDef[]>([])
   const [iManual, setIManual] = useState<RepairManual | null>(null)
   const [iSaving, setISaving] = useState(false)
   const openI = (it?: RepairItem) => {
@@ -240,6 +258,7 @@ export default function RepairMasterPage() {
     setILead(it?.lead_time_days != null ? String(it.lead_time_days) : '')
     setIQuote(it?.requires_quote ?? false)
     setIMeas(it?.measurements ?? []); setIManual(it?.manual ?? null)
+    setIFields(it?.fields ?? [])
     setIModal(true)
   }
   const saveI = async () => {
@@ -390,21 +409,42 @@ export default function RepairMasterPage() {
       <div className="bg-gradient-to-r from-amber-600 to-orange-600 px-4 py-3.5 flex items-center gap-3 sticky top-0 z-30">
         <Link href={`/${storeId}/admin/settings/staff`} className="text-white/90"><ChevronLeft size={22} /></Link>
         <Scissors size={18} className="text-white" />
-        <h1 className="text-white font-black text-base">お直しマスタ（服種・項目・オプション）</h1>
+        <h1 className="text-white font-black text-base">{labels.domain}マスタ（{labels.garment}・{labels.item}・{labels.option}）</h1>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-20"><Loader2 className="animate-spin text-gray-300" size={32} /></div>
       ) : (
         <div className="p-4 space-y-4">
+          {/* 業種プロファイル: 画面の呼び名とプリセットの中身が切り替わる */}
+          <div className="bg-white rounded-2xl p-3 shadow-sm">
+            <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider mb-2">業種</p>
+            <div className="grid grid-cols-3 gap-2">
+              {PROFILE_ORDER.map(k => (
+                <button
+                  key={k}
+                  onClick={() => changeProfile(k)}
+                  disabled={switching}
+                  className={`rounded-xl border-2 px-2 py-2.5 text-xs font-bold transition disabled:opacity-60 ${
+                    profile === k ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-gray-200 bg-white text-gray-600'
+                  }`}
+                >{PROFILE_DEFAULTS[k].label}</button>
+              ))}
+            </div>
+            <p className="text-[11px] text-gray-400 mt-2">
+              画面の呼び名（{labels.garment}・{labels.item}・{labels.measurement}）と、下の一括取り込みの中身が変わります。
+              登録済みのデータは変わりません。
+            </p>
+          </div>
+
           {/* 服種が空のとき: 標準お直しを一括取り込み CTA */}
           {garments.length === 0 && (
             <button onClick={handleSeedPreset} disabled={seeding}
               className="w-full flex items-center gap-3 rounded-2xl bg-indigo-600 text-white px-4 py-4 shadow-sm hover:bg-indigo-700 active:scale-[0.99] transition-all disabled:opacity-60">
               <span className="text-2xl">{seeding ? '⏳' : '⚡'}</span>
               <span className="flex-1 text-left">
-                <span className="block font-black text-base">標準お直しを取り込む</span>
-                <span className="block text-[11px] text-white/80">服種・項目・サイズ段階を一括作成。金額はあとから調整できます。</span>
+                <span className="block font-black text-base">{PROFILE_DEFAULTS[profile].label}の標準セットを取り込む</span>
+                <span className="block text-[11px] text-white/80">{labels.garment}・{labels.item}・{labels.option}を一括作成。金額はあとから調整できます。</span>
               </span>
               {seeding ? <Loader2 size={18} className="animate-spin" /> : <ChevronRight size={18} className="opacity-80" />}
             </button>
@@ -413,7 +453,7 @@ export default function RepairMasterPage() {
           {/* 服種チップ */}
           <div className="bg-white rounded-2xl p-3 shadow-sm">
             <div className="flex items-center justify-between gap-2 mb-2">
-              <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider">服種（大項目）</p>
+              <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider">{labels.garment}（大項目）</p>
               <div className="flex items-center gap-1.5">
                 <button onClick={() => setImportData({ title: 'プリセットから一括追加', initial: bulkFromParsed(REPAIR_PRESETS) })}
                   className="flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-1 text-xs font-bold text-amber-700 active:scale-95">
@@ -565,10 +605,36 @@ export default function RepairMasterPage() {
             </label>
           </div>
 
+          {/* プリセット由来の入力定義（fields）— 表示のみ。編集は Phase 2 */}
+          {iFields.length > 0 && (
+            <div className="border border-indigo-200 bg-indigo-50/40 rounded-xl p-3">
+              <span className="text-sm font-bold text-gray-700 flex items-center gap-1 mb-2">
+                <Ruler size={14} className="text-indigo-500" /> {labels.measurement}入力（プリセット定義）
+              </span>
+              <div className="space-y-1.5">
+                {iFields.map(f => (
+                  <div key={f.key} className="flex items-center gap-2 text-xs">
+                    <span className="font-bold text-gray-700">{f.label}</span>
+                    <span className="rounded bg-white border border-indigo-200 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600">
+                      {FIELD_TYPE_LABELS[f.type ?? 'text']}
+                    </span>
+                    {f.type === 'number' && (f.min != null || f.max != null) && (
+                      <span className="text-gray-400">{f.min ?? ''}〜{f.max ?? ''}{f.unit ?? ''}</span>
+                    )}
+                    {f.required && <span className="text-red-500 font-bold">必須</span>}
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-gray-400 mt-2">
+                この{labels.measurement}はプリセットで定義されています。画面からの編集は次回対応予定です（保存しても消えません）。
+              </p>
+            </div>
+          )}
+
           {/* 採寸定義 */}
           <div className="border border-gray-200 rounded-xl p-3">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-bold text-gray-700 flex items-center gap-1"><Ruler size={14} className="text-indigo-500" /> 採寸入力（受付で聞く数値）</span>
+              <span className="text-sm font-bold text-gray-700 flex items-center gap-1"><Ruler size={14} className="text-indigo-500" /> {labels.measurement}入力（受付で聞く数値）</span>
               <button type="button" onClick={() => setIMeas([...iMeas, { key: `m_${Date.now().toString(36)}`, label: '', unit: 'mm', required: false }])} className="text-indigo-600 text-xs font-bold flex items-center gap-1"><Plus size={13} />追加</button>
             </div>
             <div className="space-y-2">

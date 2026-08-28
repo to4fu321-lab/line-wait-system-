@@ -26,11 +26,69 @@ export const PRICE_UNIT_HELP: Record<PriceUnit, { desc: string; example: string 
 export const PRICE_UNIT_ORDER: PriceUnit[] = ['per_item', 'per_name', 'per_pair', 'per_cm']
 
 // 採寸入力の定義（マスタ側で「受付時に聞く数値」を指定）
+// ※ 後方互換のため残す。新規は FieldDef を使う（MeasurementDef は FieldDef の部分集合）。
 export interface MeasurementDef {
   key:       string   // inputs に格納するキー（例: hem_length_mm）
   label:     string   // 表示ラベル（例: 仕上がり丈）
   unit:      string   // 単位（例: mm / 文字）
   required?: boolean
+}
+
+// ── 入力フィールド定義（MeasurementDef の一般化） ─────────────
+//  制服の「採寸」だけでなく、ラケットの「ポンド数」「持ち込みガット」など
+//  業種ごとに違う入力を、コードではなくマスタ側で定義できるようにする。
+export type FieldType = 'text' | 'number' | 'select' | 'bool' | 'material'
+
+export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
+  text:     '自由入力',
+  number:   '数値',
+  select:   '選択肢',
+  bool:     'はい / いいえ',
+  material: '商品から選ぶ',
+}
+
+export interface FieldChoice {
+  value:        string
+  label:        string
+  price_delta?: number   // 選ぶと加算される額（Phase 2 で価格計算に参入）
+}
+
+export interface FieldDef {
+  key:       string
+  label:     string
+  type?:     FieldType         // 省略時 'text' = 従来の measurements と同じ挙動
+  unit?:     string
+  required?: boolean
+  default?:  string | number | boolean
+  // type='number' のガード（例: バドミントンのポンド数 15〜30）
+  min?:      number
+  max?:      number
+  step?:     number
+  // type='select'
+  choices?:  FieldChoice[]
+  // type='material'（Phase 2: products から選ぶ。category で絞る）
+  material_category?: string
+  // 価格計算に参入するか（Phase 2）
+  affects_price?: boolean
+  // 補足説明（受付画面でラベル下に小さく出す）
+  hint?:     string
+}
+
+// measurements（旧）を FieldDef（新）に正規化する。
+//  - fields が入っていればそれを使う
+//  - 空なら measurements を FieldDef として読む（mm/cm は数値扱い）
+const NUMERIC_UNITS = ['mm', 'cm', '度', '℃']
+
+export function toFieldDefs(
+  fields?: FieldDef[] | null,
+  measurements?: MeasurementDef[] | null,
+): FieldDef[] {
+  if (fields && fields.length > 0) return fields
+  if (!measurements || measurements.length === 0) return []
+  return measurements.map(m => ({
+    ...m,
+    type: (NUMERIC_UNITS.includes(m.unit) ? 'number' : 'text') as FieldType,
+  }))
 }
 
 // 特殊ケースのマニュアル（参考画像・注意書き）
@@ -72,7 +130,8 @@ export interface RepairItem {
   icon:            string | null
   base_price:      number
   price_unit:      PriceUnit
-  measurements:    MeasurementDef[]
+  measurements:    MeasurementDef[]   // 旧。読み取りは toFieldDefs() 経由で
+  fields:          FieldDef[]         // 新。受付で聞く入力定義
   manual:          RepairManual | null
   lead_time_days:  number | null
   requires_quote:  boolean
@@ -97,6 +156,7 @@ export interface RepairOption {
   price_unit:       PriceUnit
   default_selected: boolean
   requires_quote:   boolean
+  fields:           FieldDef[]        // 選択時に追加で聞く入力
   manual:           RepairManual | null
   sort_order:       number
   active:           boolean
