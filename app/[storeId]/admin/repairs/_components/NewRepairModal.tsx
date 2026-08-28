@@ -722,7 +722,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
             </button>
           </div>
         </div>
-        {showPrint && <RepairPrintModal items={printQueue} storeName={storeName} onClose={() => setShowPrint(false)} />}
+        {showPrint && <RepairPrintModal items={printQueue} storeName={storeName} domainLabel={labels.domain} onClose={() => setShowPrint(false)} />}
       </div>
     )
   }
