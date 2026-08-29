@@ -1,73 +1,43 @@
 import { describe, it, expect } from 'vitest'
-import { parseRepairSettings, PROFILE_DEFAULTS, PRESET_SETS_FOR } from '@/lib/repairProfile'
+import { REPAIR_LABELS, PRESET_KEYS } from '@/lib/repairProfile'
 import { PRESETS_BY_KEY } from '@/lib/repairPresets'
 import { toFieldDefs } from '@/types/repair'
 import { canNotifyNow } from '@/lib/notifyWindow'
 import type { BusinessHours } from '@/lib/pop'
 
-describe('parseRepairSettings', () => {
-  it('未設定の店舗は制服プロファイル（既存店を壊さない）', () => {
-    const s = parseRepairSettings(null)
-    expect(s.profile).toBe('uniform')
-    expect(s.labels.garment).toBe('服種')
-    expect(s.material_enabled).toBe(false)
-  })
-
-  it('racket プロファイルは語彙が入れ替わる', () => {
-    const s = parseRepairSettings({ profile: 'racket' })
-    expect(s.labels.domain).toBe('ガット張り')
-    expect(s.labels.garment).toBe('種目')
-    expect(s.labels.measurement).toBe('仕様')
-    expect(s.intake_photo_required).toBe(true)
-  })
-
-  it('店舗が個別に上書きしたラベルだけが既定に重なる', () => {
-    const s = parseRepairSettings({ profile: 'racket', labels: { garment: '競技' } })
-    expect(s.labels.garment).toBe('競技')
-    expect(s.labels.item).toBe(PROFILE_DEFAULTS.racket.labels.item) // 未指定は既定のまま
-  })
-
-  it('壊れた値・未知のプロファイルは uniform へフォールバック', () => {
-    expect(parseRepairSettings('なにか').profile).toBe('uniform')
-    expect(parseRepairSettings([1, 2]).profile).toBe('uniform')
-    expect(parseRepairSettings({ profile: 'unknown' }).profile).toBe('uniform')
-  })
-
-  it('店が独自の呼び名を入れられる（業種は決め打ちしない）', () => {
-    const s = parseRepairSettings({ profile: 'custom', labels: { domain: '修理', garment: '品目', unit_count: '足' } })
-    expect(s.labels.domain).toBe('修理')
-    expect(s.labels.garment).toBe('品目')
-    expect(s.labels.unit_count).toBe('足')
-    expect(s.labels.option).toBe('オプション')   // 未指定は既定
-  })
-
-  it('両方やる店は「服種」でも「種目」でもない中立語彙になる', () => {
-    const s = parseRepairSettings({ profile: 'both' })
-    expect(s.labels.garment).toBe('種類')
-    expect(s.labels.item).toBe('作業')
-    expect(s.labels.measurement).toBe('仕様')
-    // 制服固有・ラケット固有のどちらの語彙も出さない
-    expect(s.labels.garment).not.toBe('服種')
-    expect(s.labels.garment).not.toBe('種目')
-  })
-})
-
-describe('標準セット（語彙と取り込み内容は別の判断）', () => {
-  it('どのプロファイルでも取り込み候補は空にならない', () => {
-    for (const k of ['uniform', 'racket', 'both', 'custom'] as const) {
-      expect(PRESET_SETS_FOR[k].length).toBeGreaterThan(0)
+describe('REPAIR_LABELS（業種を問わない標準語彙）', () => {
+  it('どの業種にも寄らない中立語である', () => {
+    // 制服固有（服種・採寸）にもラケット固有（種目）にも寄らない
+    expect(REPAIR_LABELS.garment).toBe('種類')
+    expect(REPAIR_LABELS.item).toBe('作業')
+    expect(REPAIR_LABELS.measurement).toBe('仕様')
+    for (const v of Object.values(REPAIR_LABELS)) {
+      expect(['服種', '採寸', '種目', 'お直し', 'ガット張り']).not.toContain(v)
     }
   })
 
-  it('制服とラケットの服種コードが衝突しない（併用店で上書きが起きない）', () => {
+  it('助数詞は業種を選ばない汎用のものを使う（本・足・枚に寄らない）', () => {
+    expect(REPAIR_LABELS.unit_count).toBe('点')
+  })
+
+  it('すべての呼び名が空でない（画面に空文字が出ない）', () => {
+    for (const v of Object.values(REPAIR_LABELS)) expect(v.trim().length).toBeGreaterThan(0)
+  })
+})
+
+describe('標準セット', () => {
+  it('業種で絞らず、どの店でも両方取り込める', () => {
+    expect(PRESET_KEYS).toEqual(['uniform', 'racket'])
+  })
+
+  it('制服とラケットの種類コードが衝突しない（併用店で上書きが起きない）', () => {
     const uniformCodes = new Set(PRESETS_BY_KEY.uniform.map(g => g.code))
-    const racketCodes  = PRESETS_BY_KEY.racket.map(g => g.code)
-    const collided = racketCodes.filter(c => uniformCodes.has(c))
+    const collided = PRESETS_BY_KEY.racket.map(g => g.code).filter(c => uniformCodes.has(c))
     expect(collided).toEqual([])
   })
 
-  it('各セット内でも服種コードは一意', () => {
-    for (const key of ['uniform', 'racket'] as const) {
+  it('各セット内でも種類コードは一意', () => {
+    for (const key of PRESET_KEYS) {
       const codes = PRESETS_BY_KEY[key].map(g => g.code)
       expect(new Set(codes).size).toBe(codes.length)
     }

@@ -1,60 +1,32 @@
 // ============================================================================
-//  お直し業種プロファイル（語彙レイヤー）
+//  受付マスタの語彙と標準セット
 //
-//  「服種 > 項目 > オプション」の3階層マスタは構造としては業種非依存だが、
-//  画面の文言が制服固定だった。テーブルはリネームせず、表示ラベルだけを
-//  店舗設定（stores.repair_settings）で差し替える。
+//  以前は業種プロファイル（制服/ラケット/…）で画面の呼び名を切り替え、
+//  さらに店ごとに自由編集させていたが、どちらも筋が悪かった:
+//    - 業種は決め打ちできない（靴修理・時計修理…と際限がない）
+//    - 呼び名を店に設定させるのは手間なだけで、得るものが無い
+//  そこで「どの業種でも意味が通る中立語彙」を1つだけ持つ。設定は無い。
 //
-//  設計: docs/repair-flexible-catalog-design.md §3 追加①
+//    種類 = 大分類   バドミントン / スラックス / 革靴
+//    作業 = 中分類   ガット張り / 裾上げ / ソール交換
+//    仕様 = 受付で聞く内容  ポンド数 / 仕上がり丈 / ヒール高さ
+//    点   = 数え方（本・足・枚のどれにも寄らない汎用の助数詞）
 // ============================================================================
 
-//  both = 制服お直しとラケット張替えを両方やっている店（ビーストロークが実例）。
-//  1店舗1業種を前提にすると「服種」とも「種目」とも呼べなくなるため、
-//  中立の語彙（種類/作業/仕様）を既定にする。
-export type RepairProfileKey = 'uniform' | 'racket' | 'both' | 'custom'
-
-// 画面に出る語彙。テーブル名・カラム名は一切変えない。
 export interface RepairLabels {
-  domain:      string   // 「お直し」   → 「ガット張り」
-  garment:     string   // 「服種」     → 「種目」
-  item:        string   // 「項目」     → 「作業」
-  option:      string   // 「オプション」
-  measurement: string   // 「採寸」     → 「仕様」
-  unit_count:  string   // 「点」       → 「本」
-  vendor:      string   // 「外注先」   → 「外注ストリンガー」
+  /** 大分類（旧: 服種） */
+  garment:     string
+  /** 中分類（旧: 項目） */
+  item:        string
+  option:      string
+  /** 受付で聞く入力（旧: 採寸） */
+  measurement: string
+  /** 助数詞 */
+  unit_count:  string
+  vendor:      string
 }
 
-export interface RepairSettings {
-  profile?:               RepairProfileKey
-  labels?:                Partial<RepairLabels>
-  material_enabled?:      boolean   // 材料（商品）選択をUIに出すか（Phase 2）
-  intake_photo_required?: boolean   // 受付時写真を必須にするか
-}
-
-// ── プロファイル既定 ────────────────────────────────────────
-const UNIFORM_LABELS: RepairLabels = {
-  domain:      'お直し',
-  garment:     '服種',
-  item:        '項目',
-  option:      'オプション',
-  measurement: '採寸',
-  unit_count:  '点',
-  vendor:      '外注先',
-}
-
-const RACKET_LABELS: RepairLabels = {
-  domain:      'ガット張り',
-  garment:     '種目',
-  item:        '作業',
-  option:      'オプション',
-  measurement: '仕様',
-  unit_count:  '本',
-  vendor:      '外注ストリンガー',
-}
-
-// 両方やる店の中立語彙。「服種」でも「種目」でもない呼び方にする。
-const BOTH_LABELS: RepairLabels = {
-  domain:      '加工',
+export const REPAIR_LABELS: RepairLabels = {
   garment:     '種類',
   item:        '作業',
   option:      'オプション',
@@ -63,54 +35,14 @@ const BOTH_LABELS: RepairLabels = {
   vendor:      '外注先',
 }
 
-export const PROFILE_DEFAULTS: Record<RepairProfileKey, {
-  label:                 string
-  labels:                RepairLabels
-  material_enabled:      boolean
-  intake_photo_required: boolean
-}> = {
-  uniform: { label: '制服・衣類のお直し',   labels: UNIFORM_LABELS, material_enabled: false, intake_photo_required: false },
-  racket:  { label: 'ラケットのガット張り', labels: RACKET_LABELS,  material_enabled: true,  intake_photo_required: true  },
-  both:    { label: '制服＋ラケット（両方）', labels: BOTH_LABELS,  material_enabled: true,  intake_photo_required: true  },
-  custom:  { label: 'その他（自由設定）',   labels: UNIFORM_LABELS, material_enabled: false, intake_photo_required: false },
-}
-
-export const PROFILE_ORDER: RepairProfileKey[] = ['uniform', 'racket', 'both', 'custom']
-
-// そのプロファイルで取り込める標準セット。
-//   語彙(profile)と「どのプリセットを入れるか」は別の判断なので分けて持つ。
-//   both は両方入れられる（シードは追記式・冪等なので順不同・再実行安全）。
+// ── 標準セット ──────────────────────────────────────────────
+//  取り込みは追記式・冪等なので、どの店でも好きなものを好きな順に入れられる。
+//  業種で絞らない（制服とラケットを両方やる店が実在する）。
 export type PresetKey = 'uniform' | 'racket'
 
-export const PRESET_SETS_FOR: Record<RepairProfileKey, PresetKey[]> = {
-  uniform: ['uniform'],
-  racket:  ['racket'],
-  both:    ['uniform', 'racket'],
-  custom:  ['uniform', 'racket'],   // 自由設定でも取り込みは選べる
-}
+export const PRESET_KEYS: PresetKey[] = ['uniform', 'racket']
 
 export const PRESET_SET_LABELS: Record<PresetKey, string> = {
   uniform: '制服お直し一式',
   racket:  'ガット張り一式',
 }
-
-function isProfileKey(v: unknown): v is RepairProfileKey {
-  return v === 'uniform' || v === 'racket' || v === 'both' || v === 'custom'
-}
-
-// stores.repair_settings（jsonb）を安全に読む。null/壊れ値は uniform 既定へ。
-export function parseRepairSettings(raw: unknown): Required<Omit<RepairSettings, 'labels'>> & { labels: RepairLabels } {
-  const s = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw as RepairSettings : {}
-  const profile = isProfileKey(s.profile) ? s.profile : 'uniform'
-  const base    = PROFILE_DEFAULTS[profile]
-  return {
-    profile,
-    // 店舗が個別に上書きしたラベルだけを既定に重ねる
-    labels: { ...base.labels, ...(s.labels ?? {}) },
-    material_enabled:      s.material_enabled      ?? base.material_enabled,
-    intake_photo_required: s.intake_photo_required ?? base.intake_photo_required,
-  }
-}
-
-// 既定ラベル（設定を読む前の初期描画・DBなし時のフォールバック）
-export const DEFAULT_LABELS = UNIFORM_LABELS

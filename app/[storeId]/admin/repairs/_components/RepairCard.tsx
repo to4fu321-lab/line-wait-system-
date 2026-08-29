@@ -9,7 +9,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { REPAIR_PHOTOS_BUCKET } from '@/types/repair'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
-import { useRepairProfile } from '@/lib/useRepairProfile'
+import { REPAIR_LABELS as labels } from '@/lib/repairProfile'
 import {
   REPAIR_STATUS_LABELS, REPAIR_STATUS_COLORS,
   REQUEST_TYPE_LABELS, REQUEST_TYPE_COLORS,
@@ -71,7 +71,6 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
   }
 
   const { hasFeature } = useStoreFeatures(storeId)
-  const { labels } = useRepairProfile(storeId)
   const smsEnabled = hasFeature('sms_notify') // アドオン未契約なら false → 電話連絡ステップ
 
   const reqType = (item.request_type ?? 'repair') as RequestType
@@ -186,10 +185,10 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
     }
     setLoading(false); onRefresh()
     if (outsideHours) {
-      onToast('ok', `${labels.domain}完了・通知しました（営業時間外のため、ご来店は次の営業日になります）`)
+      onToast('ok', '完了・通知しました（営業時間外のため、ご来店は次の営業日になります）')
       return
     }
-    onToast('ok', fullNotifyMode === 'line' ? `${labels.domain}完了・LINEで通知しました` : fullNotifyMode === 'sms' ? `${labels.domain}完了・SMSで通知しました` : `${labels.domain}完了にしました`)
+    onToast('ok', fullNotifyMode === 'line' ? '完了・LINEで通知しました' : fullNotifyMode === 'sms' ? '完了・SMSで通知しました' : '完了にしました')
   }
 
   // Primary action config
@@ -206,7 +205,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       }
     } else {
       primaryBtn = {
-        label: `✅ ${labels.domain}完了`,
+        label: '✅ 完了',
         color: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-200',
         onClick: handleRepairComplete,
       }
@@ -282,9 +281,9 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       notifyMode === 'sms'  ? 'SMSで通知して完了にしますか？' :
                               '完了にしますか？（通知なし）'
     const completeToast =
-      notifyMode === 'line'         ? `✅ ${labels.domain}完了・LINEで通知しました` :
-      notifyMode === 'sms'          ? `✅ ${labels.domain}完了・SMSで通知しました` :
-                                      `✅ ${labels.domain}完了にしました`
+      notifyMode === 'line'         ? '✅ 完了・LINEで通知しました' :
+      notifyMode === 'sms'          ? '✅ 完了・SMSで通知しました' :
+                                      '✅ 完了にしました'
 
     const handlePaymentToggle = async () => {
       const newPrepaid = !item.prepaid
@@ -719,7 +718,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             </div>
           )}
         </div>
-        {printOpen && <RepairPrintModal items={[printableItem]} storeName={storeName} domainLabel={labels.domain} onClose={() => setPrintOpen(false)} />}
+        {printOpen && <RepairPrintModal items={[printableItem]} storeName={storeName} onClose={() => setPrintOpen(false)} />}
       </div>
     )
   }
@@ -1057,7 +1056,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       )}
         </div>
       </div>
-      {printOpen && <RepairPrintModal items={[printableItem]} storeName={storeName} domainLabel={labels.domain} onClose={() => setPrintOpen(false)} />}
+      {printOpen && <RepairPrintModal items={[printableItem]} storeName={storeName} onClose={() => setPrintOpen(false)} />}
     </div>
   )
 }

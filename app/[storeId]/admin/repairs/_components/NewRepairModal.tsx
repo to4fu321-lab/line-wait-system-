@@ -1,8 +1,8 @@
 'use client'
 
 // ============================================================================
-//  お直し受付モーダル（再構築版）
-//  フロー: お客様 → 服種 > 項目 > オプション → 価格/見積もり → 受付写真 → 保存
+//  受付モーダル（再構築版）
+//  フロー: お客様 → 種類 > 作業 > オプション → 価格/見積もり → 受付写真 → 保存
 //  価格 = 基本料金(項目) + Σオプション加算。特殊ケースはマニュアル表示。
 //  マスタにない特殊対応は「個別見積もり(manual)」で金額自由入力・未定受付も可。
 // ============================================================================
@@ -20,7 +20,7 @@ import {
 } from '@/types/repair'
 import { calcLinePrice, needsQuote, toOptionSnapshot, addBusinessDays } from '@/lib/repairPricing'
 import { RepairIcon } from '@/lib/garmentIcons'
-import { useRepairProfile } from '@/lib/useRepairProfile'
+import { REPAIR_LABELS as labels } from '@/lib/repairProfile'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { isSessionExpiredError } from '@/lib/staffSessionClient'
 import type { CustResult } from './types'
@@ -62,8 +62,6 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
   const [buildStep, setBuildStep] = useState(0) // build内サブステップ index
   const [linkSheetOpen, setLinkSheetOpen] = useState(false) // 顧客インライン紐付け
   const { hasFeature } = useStoreFeatures(storeId)
-  // 業種プロファイル（「服種/項目/採寸」などの語彙を店舗設定で差し替える）
-  const { labels } = useRepairProfile(storeId)
   const smsEnabled = hasFeature('sms_notify')
 
   // ── 顧客 ──────────────────────────────────────────────────
@@ -496,7 +494,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
 
     if (closeAfter) {
       const total = savedItems.length + insertedRows.length
-      onToast('ok', total > 1 ? `✂️ ${total}${labels.unit_count}の${labels.domain}を受付しました` : (finalPrice == null ? '✂️ 見積もり待ちで受付しました' : `✂️ ${labels.domain}を受付しました`))
+      onToast('ok', total > 1 ? `✂️ ${total}${labels.unit_count}を受付しました` : (finalPrice == null ? '✂️ 見積もり待ちで受付しました' : '✂️ 受付しました'))
       setStep('done')
     } else {
       setSavedItems(prev => [...prev, label])
@@ -849,7 +847,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
             </button>
           </div>
         </div>
-        {showPrint && <RepairPrintModal items={printQueue} storeName={storeName} domainLabel={labels.domain} onClose={() => setShowPrint(false)} />}
+        {showPrint && <RepairPrintModal items={printQueue} storeName={storeName} onClose={() => setShowPrint(false)} />}
       </div>
     )
   }
@@ -871,7 +869,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
               </button>
             )}
             <div>
-              <h2 className="text-lg font-black text-gray-800">✂️ {labels.domain}受付</h2>
+              <h2 className="text-lg font-black text-gray-800">✂️ 受付</h2>
               <p className="text-sm text-gray-400">
                 {stepLabel}　{currentStepNum + 1} / {totalSteps}
                 {savedItems.length > 0 && <span className="ml-1.5 text-indigo-500 font-bold">・登録済み{savedItems.length}点</span>}
@@ -906,7 +904,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
           {/* ── 顧客選択 ── */}
           {step === 'customer' && (
             <div>
-              <p className="text-xl font-black text-gray-800 mb-1">どなたの{labels.domain}ですか？</p>
+              <p className="text-xl font-black text-gray-800 mb-1">お客様を選んでください</p>
               <p className="text-sm text-gray-500 mb-5">お名前・電話番号・学校で検索できます</p>
 
               {selectedCust ? (
@@ -1012,7 +1010,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
             </div>
           )}
 
-          {/* ── お直し内容（build steps） ── */}
+          {/* ── 受付内容（build steps） ── */}
           {step === 'build' && (
             <div>
               {savedItems.length > 0 && (
@@ -1021,7 +1019,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
                   <p className="text-[11px] text-indigo-500 mt-0.5">{savedItems.join('、')}</p>
                 </div>
               )}
-              {/* 服種 */}
+              {/* 大分類 */}
               {curBuildKey === 'garment' && (
                 <div>
                   <p className="text-xl font-black text-gray-800 mb-1">{labels.garment}を選んでください</p>
@@ -1063,7 +1061,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
 
               {item && (
                 <>
-                  {/* 採寸・特殊ケース */}
+                  {/* 仕様・特殊ケース */}
                   {curBuildKey === 'measure' && (
                     <div>
                       <p className="text-xl font-black text-gray-800 mb-1">{labels.measurement}・注意事項</p>

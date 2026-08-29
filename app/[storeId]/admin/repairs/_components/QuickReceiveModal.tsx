@@ -16,7 +16,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { X, Search, Loader2, Phone, Check, ChevronLeft } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { isSessionExpiredError } from '@/lib/staffSessionClient'
-import { useRepairProfile } from '@/lib/useRepairProfile'
+import { REPAIR_LABELS as labels } from '@/lib/repairProfile'
 import type { RepairGarmentType } from '@/types/repair'
 import type { CustResult } from './types'
 
@@ -28,7 +28,6 @@ export function QuickReceiveModal({ storeId, onClose, onSaved, onToast }: {
   onSaved:  () => void
   onToast:  (t: 'ok' | 'err', m: string) => void
 }) {
-  const { labels } = useRepairProfile(storeId)
 
   // ── お客様 ────────────────────────────────────────────────
   const [custSearch, setCustSearch]   = useState('')
@@ -103,7 +102,7 @@ export function QuickReceiveModal({ storeId, onClose, onSaved, onToast }: {
   const save = async () => {
     if (!selectedCust || saving) return
     setSaving(true)
-    const itemName = garment?.name ?? labels.domain
+    const itemName = garment?.name ?? 'お預かり品'
     const content  = qty > 1 ? `${itemName} ${qty}${labels.unit_count}` : itemName
     const { error } = await (supabase as any).from('repair_histories').insert({
       store_id:     storeId,

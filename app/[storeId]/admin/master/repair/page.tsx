@@ -1,8 +1,9 @@
 'use client'
 
 // ============================================================================
-//  お直しマスタ管理 — 服種 > 項目 > オプション の3階層CRUD
-//  基本料金=項目 / 加算=オプション。採寸定義・マニュアル(参考画像)もここで編集。
+//  受付マスタ管理 — 種類 > 作業 > オプション の3階層CRUD
+//  基本料金=作業 / 加算=オプション。仕様定義・マニュアル(参考画像)もここで編集。
+//  語彙は業種を問わない中立語（lib/repairProfile.ts）。店ごとの設定は持たない。
 // ============================================================================
 
 import { useState, useEffect, useCallback, useRef } from 'react'
@@ -23,10 +24,8 @@ import {
   type PriceUnit, type MeasurementDef, type FieldDef, type RepairManual, type ManualSeverity,
 } from '@/types/repair'
 import { seedRepairPresets, SIZE_RANGE_PRESETS } from '@/lib/repairPresets'
-import { useRepairProfile } from '@/lib/useRepairProfile'
 import {
-  PROFILE_DEFAULTS, PROFILE_ORDER, PRESET_SETS_FOR, PRESET_SET_LABELS,
-  type RepairProfileKey, type PresetKey,
+  REPAIR_LABELS as labels, PRESET_KEYS, PRESET_SET_LABELS, type PresetKey,
 } from '@/lib/repairProfile'
 import { Toast } from '@/app/_components/Toast'
 import { Field } from '@/app/_components/Field'
@@ -47,17 +46,6 @@ function Modal({ title, onClose, children, wide }: { title: string; onClose: () 
     </div>
   )
 }
-
-// 画面に出る呼び名。業種を決め打ちせず、店が自由に書き換えられるようにする。
-const LABEL_FIELDS: { key: string; label: string; placeholder: string }[] = [
-  { key: 'domain',      label: '仕事の呼び名', placeholder: 'お直し / ガット張り / 修理' },
-  { key: 'garment',     label: '大分類',       placeholder: '服種 / 種目 / 種類' },
-  { key: 'item',        label: '中分類',       placeholder: '項目 / 作業' },
-  { key: 'option',      label: 'オプション',   placeholder: 'オプション' },
-  { key: 'measurement', label: '入力欄',       placeholder: '採寸 / 仕様' },
-  { key: 'unit_count',  label: '数え方',       placeholder: '点 / 本 / 足' },
-  { key: 'vendor',      label: '外注先',       placeholder: '外注先' },
-]
 
 const PRICE_UNITS: PriceUnit[] = ['per_item', 'per_name', 'per_pair', 'per_cm']
 const SEVERITIES: ManualSeverity[] = ['info', 'warn', 'danger']
@@ -173,46 +161,11 @@ export default function RepairMasterPage() {
   const [loading, setLoading] = useState(true)
   const [seeding, setSeeding] = useState(false)
 
-  // 業種プロファイル（画面の語彙とプリセットの中身を切り替える）
-  const { profile, labels, materialEnabled, save: saveProfile } = useRepairProfile(storeId)
   const [switching, setSwitching] = useState(false)
 
   // 標準セットは業種に縛らない。追記式・冪等なので、どの店でも好きなものを
   // 好きな順に取り込めた方が実態に合う（制服とラケットを両方やる店もある）。
-  const presetSets: PresetKey[] = ['uniform', 'racket']
-
-  const [labelOpen, setLabelOpen]   = useState(false)
-  const [labelDraft, setLabelDraft] = useState<Record<string, string>>({})
-
-  // 保存済みラベルを下書きへ反映（開いた時・読み込み後）
-  useEffect(() => {
-    setLabelDraft(prev => (Object.keys(prev).length ? prev : (labels as unknown as Record<string, string>)))
-  }, [labels])
-
-  const saveLabels = async () => {
-    if (switching) return
-    setSwitching(true)
-    // 空欄は「既定に戻す」扱いにして、labels から落とす
-    const cleaned: Record<string, string> = {}
-    for (const f of LABEL_FIELDS) {
-      const v = (labelDraft[f.key] ?? '').trim()
-      if (v) cleaned[f.key] = v
-    }
-    const ok = await saveProfile({ labels: cleaned as never })
-    showToast(ok ? 'ok' : 'err', ok ? '呼び名を保存しました' : '保存に失敗しました')
-    setSwitching(false)
-  }
-
-  // 業種候補のラベル一式を下書きに流し込む（そのあと自由に直せる）
-  const applyProfileLabels = async (next: RepairProfileKey) => {
-    if (switching) return
-    setSwitching(true)
-    const base = PROFILE_DEFAULTS[next].labels as unknown as Record<string, string>
-    setLabelDraft({ ...base })
-    const ok = await saveProfile({ profile: next, labels: base as never })
-    showToast(ok ? 'ok' : 'err', ok ? `「${PROFILE_DEFAULTS[next].label}」の呼び名を入れました` : '変更に失敗しました')
-    setSwitching(false)
-  }
+  const presetSets: PresetKey[] = PRESET_KEYS
 
   // ── fetch ──────────────────────────────────────────────────
   const fetchGarments = useCallback(async () => {
@@ -457,7 +410,7 @@ export default function RepairMasterPage() {
       <div className="bg-gradient-to-r from-amber-600 to-orange-600 px-4 py-3.5 flex items-center gap-3 sticky top-0 z-30">
         <Link href={`/${storeId}/admin/settings/staff`} className="text-white/90"><ChevronLeft size={22} /></Link>
         <Scissors size={18} className="text-white" />
-        <h1 className="text-white font-black text-base">{labels.domain}マスタ（{labels.garment}・{labels.item}・{labels.option}）</h1>
+        <h1 className="text-white font-black text-base">受付マスタ（{labels.garment}・{labels.item}・{labels.option}）</h1>
       </div>
 
       {loading ? (
@@ -465,7 +418,7 @@ export default function RepairMasterPage() {
       ) : (
         <div className="p-4 space-y-4">
           {/* 材料をタップ選択にするための入口（material フィールドの参照先） */}
-          {materialEnabled && (
+          {(
             <Link href={`/${storeId}/admin/master/materials`}
               className="w-full flex items-center gap-3 rounded-2xl bg-white px-4 py-3.5 shadow-sm active:scale-[0.99] transition-all">
               <span className="text-xl">🧵</span>
@@ -476,66 +429,6 @@ export default function RepairMasterPage() {
               <ChevronRight size={18} className="text-gray-300" />
             </Link>
           )}
-
-          {/* 呼び名は自由入力。業種は「出発点の候補」であって選択肢ではない
-              （靴修理・時計修理など、決め打ちできる業種は存在しない） */}
-          <div className="bg-white rounded-2xl p-3 shadow-sm">
-            <button onClick={() => setLabelOpen(v => !v)}
-              className="w-full flex items-center justify-between gap-2">
-              <span className="text-left">
-                <span className="block text-[11px] font-black text-gray-400 uppercase tracking-wider">この店での呼び名</span>
-                <span className="block text-sm font-black text-gray-800 mt-0.5">
-                  {labels.domain}／{labels.garment}／{labels.item}／{labels.measurement}
-                </span>
-              </span>
-              {labelOpen ? <ChevronUp size={18} className="text-gray-400 shrink-0" /> : <ChevronDown size={18} className="text-gray-400 shrink-0" />}
-            </button>
-
-            {labelOpen && (
-              <div className="mt-3 space-y-3">
-                <p className="text-[11px] text-gray-500">
-                  画面に出る言葉を自由に変えられます。登録済みのデータは変わりません。
-                </p>
-
-                <div className="space-y-2">
-                  {LABEL_FIELDS.map(f => (
-                    <div key={f.key} className="flex items-center gap-2">
-                      <span className="w-24 shrink-0 text-[11px] font-bold text-gray-500">{f.label}</span>
-                      <input className={INPUT + ' flex-1'} value={labelDraft[f.key] ?? ''}
-                        placeholder={f.placeholder}
-                        onChange={e => setLabelDraft({ ...labelDraft, [f.key]: e.target.value })} />
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex gap-2">
-                  <button onClick={saveLabels} disabled={switching}
-                    className="flex-1 py-2.5 rounded-xl bg-amber-600 text-white text-sm font-black disabled:opacity-60">
-                    {switching ? '保存中…' : '呼び名を保存'}
-                  </button>
-                  <button onClick={() => setLabelDraft(labels as unknown as Record<string, string>)}
-                    className="px-4 py-2.5 rounded-xl border border-gray-300 text-sm font-bold text-gray-600">
-                    元に戻す
-                  </button>
-                </div>
-
-                <div className="border-t border-gray-100 pt-3">
-                  <p className="text-[11px] font-black text-gray-400 mb-1.5">よくある業種から一括で入れる</p>
-                  <div className="flex flex-wrap gap-2">
-                    {PROFILE_ORDER.filter(k => k !== 'custom').map(k => (
-                      <button key={k} onClick={() => applyProfileLabels(k)} disabled={switching}
-                        className={`rounded-full border px-3 py-1.5 text-xs font-bold disabled:opacity-60 ${
-                          profile === k ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-gray-200 bg-white text-gray-600'
-                        }`}>{PROFILE_DEFAULTS[k].label}</button>
-                    ))}
-                  </div>
-                  <p className="text-[11px] text-gray-400 mt-1.5">
-                    候補を入れてから、上で自由に書き換えてください。
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* 標準セットの取り込み。両方やる店は2つ出る。
               一度取り込んだ後も押せる必要がある（制服→ラケットと順に足すため）。*/}
@@ -571,7 +464,7 @@ export default function RepairMasterPage() {
             )
           )}
 
-          {/* 服種チップ */}
+          {/* 大分類チップ */}
           <div className="bg-white rounded-2xl p-3 shadow-sm">
             <div className="flex items-center justify-between gap-2 mb-2">
               <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider">{labels.garment}（大項目）</p>
@@ -599,7 +492,7 @@ export default function RepairMasterPage() {
                 </div>
               ))}
               <button onClick={() => openG()} className="flex items-center gap-1 rounded-full border-2 border-dashed border-gray-300 px-3 py-1.5 text-sm font-bold text-gray-400 hover:border-amber-400 hover:text-amber-500">
-                <Plus size={14} /> 服種を追加
+                <Plus size={14} /> {labels.garment}を追加
               </button>
             </div>
           </div>
@@ -637,7 +530,7 @@ export default function RepairMasterPage() {
                           {it.manual && <span className="text-[10px] bg-amber-100 text-amber-700 rounded px-1.5 py-0.5 font-bold">📋マニュアル</span>}
                         </div>
                         <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-400">
-                          {it.measurements.length > 0 && <span className="flex items-center gap-0.5"><Ruler size={11} />採寸{it.measurements.length}項目</span>}
+                          {it.measurements.length > 0 && <span className="flex items-center gap-0.5"><Ruler size={11} />{labels.measurement}{it.measurements.length}件</span>}
                           {it.lead_time_days != null && <span>納期{it.lead_time_days}営業日</span>}
                           <span>オプション{opts.length || (optionsByItem[it.id] ? 0 : '…')}</span>
                         </div>
@@ -696,9 +589,9 @@ export default function RepairMasterPage() {
         />
       )}
 
-      {/* ── 服種 Modal ── */}
+      {/* ── 大分類 Modal ── */}
       {gModal && (
-        <Modal title={editingG ? '服種を編集' : '服種を追加'} onClose={() => setGModal(false)}>
+        <Modal title={editingG ? `${labels.garment}を編集` : `${labels.garment}を追加`} onClose={() => setGModal(false)}>
           <Field label="アイコン"><GarmentIconPicker value={gIcon} onChange={setGIcon} inputClassName={INPUT} /></Field>
           <Field label="名称" required><input className={INPUT} value={gName} onChange={e => setGName(e.target.value)} placeholder="スラックス" /></Field>
           <button onClick={saveG} className="w-full bg-amber-500 text-white font-black py-3 rounded-xl">保存</button>
@@ -752,7 +645,7 @@ export default function RepairMasterPage() {
             </div>
           )}
 
-          {/* 採寸定義 */}
+          {/* 仕様定義 */}
           <div className="border border-gray-200 rounded-xl p-3">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-bold text-gray-700 flex items-center gap-1"><Ruler size={14} className="text-indigo-500" /> {labels.measurement}入力（受付で聞く数値）</span>
