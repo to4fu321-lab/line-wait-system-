@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabaseAdmin'
 import { getLineToken } from '@/lib/line-config'
 import { pushCard } from '@/lib/line-flex'
 import { canNotifyNow } from '@/lib/notifyWindow'
+import { buildRepairSms, smsSegments } from '@/lib/smsText'
 import type { BusinessHours } from '@/lib/pop'
 
 const TOKEN      = getLineToken('uniform')
@@ -81,10 +82,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const storeLabel = storeName ? `【${storeName}】` : ''
-  const reqText    = reqNo ? `\n依頼番号：${reqNo}` : ''
-  const dateText   = desiredDate ? `\n仕上がり希望：${desiredDate}` : ''
-
   // ── LINE通知 ────────────────────────────────────────────────
   if (lineUserId) {
     const bodyLines = [itemName, reqNo ? `依頼番号：${reqNo}` : null, kind === 'received' && desiredDate ? `仕上がり希望：${desiredDate}` : null]
@@ -117,19 +114,18 @@ export async function POST(req: NextRequest) {
       console.log('[notify-repair] Twilio未設定 skip')
       return NextResponse.json({ ok: true, skipped: true, reason: 'no_twilio_config' })
     }
-    const smsText = kind === 'received'
-      ? `${storeLabel}✂️お直し受付のお知らせ\n\n` +
-        `${customerName} 様\n${itemName}のお直しを受け付けました。` +
-        `${reqText}${dateText}\n仕上がり次第あらためてご連絡いたします。`
-      : `${storeLabel}✂️お直し完了のお知らせ\n\n` +
-        `${customerName} 様\n${itemName}のお直しが完了しました。` +
-        `${reqText}\nお受け取りにお越しください。`
+    // 日本語SMSは70文字で1セグメント。超えると課金が倍になるので収める。
+    const smsText = buildRepairSms({
+      kind, storeName, customerName, itemName,
+      reqNo: reqNo ?? null,
+      desiredDate: kind === 'received' ? (desiredDate ?? null) : null,
+    })
     try {
       await sendSms(tel, smsText)
       if (kind !== 'received') {
         await (supabase as any).from('repair_histories').update({ notified: true }).eq('id', repairId)
       }
-      console.log('[notify-repair] SMS sent:', repairId, toE164Japan(tel), kind)
+      console.log('[notify-repair] SMS sent:', repairId, toE164Japan(tel), kind, `${smsText.length}文字/${smsSegments(smsText)}通分`)
       return NextResponse.json({ ok: true, channel: 'sms', outsideHours, nextOpenAt })
     } catch (e) {
       console.error('[notify-repair] SMS error:', e)
