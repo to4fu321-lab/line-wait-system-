@@ -46,6 +46,9 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
   const [completionPhotos, setCompletionPhotos] = useState<{ file: File; url: string }[]>([])
   const [repairPhotos, setRepairPhotos] = useState<{ phase: string; url: string }[] | null>(null)
   const [photosOpen,   setPhotosOpen]   = useState(false)
+  // 一覧は「次に何をやるか」の判断に絞る。金額・日付・詳細は畳んで、
+  // 同じトグル（下部の「…」行）でまとめて開く。
+  const detailOpen = photosOpen
   const [printOpen,    setPrintOpen]    = useState(false)
   const photosLoadedRef = useRef(false)
 
@@ -427,7 +430,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
 
           {/* 顧客名 ｜ 大項目 ｜ お直し内容（1行にまとめる） */}
           <div className="flex items-baseline gap-x-2 gap-y-0.5 flex-wrap">
-            {item.child?.school_name && (
+            {detailOpen && item.child?.school_name && (
               <span className={tx('text-xs', 'text-sm') + ' font-black text-amber-600'}>{item.child.school_name}</span>
             )}
             {item.garment_name && (
@@ -441,27 +444,33 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             {item.item_name && item.content && item.item_name !== item.content && (
               <span className={tx('text-xs', 'text-sm') + ' text-gray-400 font-bold'}>{item.item_name}</span>
             )}
-            {item.child?.name && item.customer?.name && (
+            {detailOpen && item.child?.name && item.customer?.name && (
               <span className={tx('text-[11px]', 'text-xs') + ' text-gray-400'}>（保護者: {item.customer.name}）</span>
             )}
           </div>
 
-          {/* お直し項目（mm・刺繍） */}
-          {item.repair_type === 'hem' && item.hem_length_mm != null && item.hem_length_mm !== 0 && (
+          {/* 詳細（mm・刺繍）— 一覧では畳む */}
+          {detailOpen && item.repair_type === 'hem' && item.hem_length_mm != null && item.hem_length_mm !== 0 && (
             <p className="text-sm font-black text-amber-700">裾上げ {item.hem_length_mm > 0 ? '+' : ''}{item.hem_length_mm}mm</p>
           )}
-          {item.repair_type === 'sleeve' && item.sleeve_adjust_mm != null && item.sleeve_adjust_mm !== 0 && (
+          {detailOpen && item.repair_type === 'sleeve' && item.sleeve_adjust_mm != null && item.sleeve_adjust_mm !== 0 && (
             <p className="text-sm font-black text-blue-700">袖丈 {item.sleeve_adjust_mm > 0 ? '+' : ''}{item.sleeve_adjust_mm}mm</p>
           )}
-          {item.repair_type === 'waist' && item.waist_adjust_mm != null && item.waist_adjust_mm !== 0 && (
+          {detailOpen && item.repair_type === 'waist' && item.waist_adjust_mm != null && item.waist_adjust_mm !== 0 && (
             <p className="text-sm font-black text-purple-700">ウエスト {item.waist_adjust_mm > 0 ? '+' : ''}{item.waist_adjust_mm}mm</p>
           )}
-          {item.repair_type === 'embroidery' && item.embroidery_text && (
+          {detailOpen && item.repair_type === 'embroidery' && item.embroidery_text && (
             <p className="text-sm font-black text-pink-700">刺繍「{item.embroidery_text}」{item.embroidery_color} {item.embroidery_pos}</p>
           )}
 
-          {/* 支払い状況 ＋ 受付→希望（横並び・入りきらなければ折返し） */}
-          <div className="flex items-center gap-x-3 gap-y-1 flex-wrap">
+          {/* 納期は常に見せる（次に何をやるかの判断に要る）。
+              金額・受付日は展開時のみ（作業中は使わない情報） */}
+          {!detailOpen && item.desired_completion_date && (
+            <span className={`text-sm font-black ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-gray-600'}`}>
+              {isOverdue ? '🚨' : isDueSoon ? '⚠️' : '📅'} 希望 {fmtDate(item.desired_completion_date)}
+            </span>
+          )}
+          <div className={`items-center gap-x-3 gap-y-1 flex-wrap ${detailOpen ? 'flex' : 'hidden'}`}>
             {item.price != null && (
               <button onClick={handlePaymentToggle} disabled={loading}
                 style={{ touchAction: 'manipulation' }}
@@ -639,7 +648,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             style={{ touchAction: 'manipulation' }}
             className="w-full flex items-center justify-center gap-1 text-[11px] text-gray-400 font-bold pt-0.5 active:opacity-60">
             {photosOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-            {photosOpen ? '閉じる' : '電話・写真・受付に戻す・削除'}
+            {photosOpen ? '閉じる' : '金額・日付・電話・写真・削除'}
           </button>
 
           {photosOpen && (

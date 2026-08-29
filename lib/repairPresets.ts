@@ -213,6 +213,11 @@ const RACKET_DISCLAIMER: RepairManual = {
 // 競技ごとに適正ポンド数の幅が違うので、レンジだけ差し替えて使う
 function stringingFields(opts: { min: number; max: number; def: number }): FieldDef[] {
   return [
+    // どのラケットに張るかが分からないと現場で特定できない。
+    // 2本目以降は過去の入力がタップ候補で出るので、打つのは初回だけ。
+    { key: 'racket', label: 'ラケット', type: 'text', required: true,
+      suggest_from_history: true,
+      hint: 'メーカー・機種・色など（例: ヨネックス アストロクス100ZZ 赤）' },
     { key: 'tension_lbs', label: 'ポンド数', type: 'number', unit: 'P', required: true,
       default: opts.def, min: opts.min, max: opts.max, step: 1,
       hint: `適正範囲 ${opts.min}〜${opts.max}P` },

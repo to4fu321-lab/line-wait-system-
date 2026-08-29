@@ -710,6 +710,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
       )
     }
 
+    const suggestions = f.suggest_from_history ? suggestionsFor(f.key) : []
     return (
       <div key={f.key}>
         {head}
@@ -719,6 +720,18 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
           onChange={e => setInputs({ ...inputs, [f.key]: e.target.value })}
           placeholder={f.unit || ''}
         />
+        {suggestions.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
+            <span className="text-[11px] font-bold text-gray-400 self-center">前回まで:</span>
+            {suggestions.map(v => (
+              <button key={v} type="button"
+                onClick={() => setInputs({ ...inputs, [f.key]: v })}
+                className={`rounded-full border px-2.5 py-1 text-xs font-bold transition ${
+                  val === v ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-600'
+                }`}>{v}</button>
+            ))}
+          </div>
+        )}
         {hint}
       </div>
     )
@@ -729,6 +742,37 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
     () => toFieldDefs(item?.fields, item?.measurements),
     [item],
   )
+
+  // ── 過去入力のサジェスト ────────────────────────────────────
+  //  ラケットの機種のように「毎回同じだが店では覚えていない」値を、
+  //  同じお客様の過去の受付から拾ってタップ候補にする。
+  //  （個体台帳を作らずに再入力の手間だけ消す。新テーブル不要）
+  const [history, setHistory] = useState<Record<string, string>[]>([])
+
+  useEffect(() => {
+    if (!selectedCust) { setHistory([]); return }
+    let cancelled = false
+    ;(async () => {
+      const { data } = await (supabase as any).from('repair_histories')
+        .select('inputs').eq('store_id', storeId).eq('customer_id', selectedCust.id)
+        .not('inputs', 'is', null)
+        .order('received_date', { ascending: false }).limit(30)
+      if (!cancelled) setHistory((data ?? []).map((r: any) => r.inputs ?? {}))
+    })()
+    return () => { cancelled = true }
+  }, [selectedCust, storeId])
+
+  // key ごとの過去値（新しい順・重複除去）
+  const suggestionsFor = useCallback((key: string): string[] => {
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const h of history) {
+      const v = typeof h?.[key] === 'string' ? h[key].trim() : ''
+      if (v && !seen.has(v)) { seen.add(v); out.push(v) }
+      if (out.length >= 4) break
+    }
+    return out
+  }, [history])
 
   // ── 材料（糸・グリップ等）の候補を商品マスタから取る ──────────
   //  ガットは「銘柄×色」でSKUが分かれるので、group_name でまとめて

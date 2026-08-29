@@ -72,6 +72,9 @@ export interface FieldDef {
   affects_price?: boolean
   // 補足説明（受付画面でラベル下に小さく出す）
   hint?:     string
+  // 同じお客様の過去の入力値を候補として出す（type='text' 用）。
+  // ラケットの機種など「毎回同じだが店では覚えられない」値の再入力を省く。
+  suggest_from_history?: boolean
 }
 
 // measurements（旧）を FieldDef（新）に正規化する。
