@@ -163,7 +163,7 @@ export default function RepairMasterPage() {
   const [seeding, setSeeding] = useState(false)
 
   // 業種プロファイル（画面の語彙とプリセットの中身を切り替える）
-  const { profile, labels, save: saveProfile } = useRepairProfile(storeId)
+  const { profile, labels, materialEnabled, save: saveProfile } = useRepairProfile(storeId)
   const [switching, setSwitching] = useState(false)
 
   const presetSets = PRESET_SETS_FOR[profile] ?? []
@@ -420,6 +420,19 @@ export default function RepairMasterPage() {
         <div className="flex justify-center py-20"><Loader2 className="animate-spin text-gray-300" size={32} /></div>
       ) : (
         <div className="p-4 space-y-4">
+          {/* 材料をタップ選択にするための入口（material フィールドの参照先） */}
+          {materialEnabled && (
+            <Link href={`/${storeId}/admin/master/materials`}
+              className="w-full flex items-center gap-3 rounded-2xl bg-white px-4 py-3.5 shadow-sm active:scale-[0.99] transition-all">
+              <span className="text-xl">🧵</span>
+              <span className="flex-1 text-left">
+                <span className="block font-black text-sm text-gray-800">糸・部材マスタ</span>
+                <span className="block text-[11px] text-gray-400">登録すると受付で〈銘柄→色〉のタップ選択になります</span>
+              </span>
+              <ChevronRight size={18} className="text-gray-300" />
+            </Link>
+          )}
+
           {/* 業種プロファイル: 画面の呼び名とプリセットの中身が切り替わる */}
           <div className="bg-white rounded-2xl p-3 shadow-sm">
             <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider mb-2">業種</p>

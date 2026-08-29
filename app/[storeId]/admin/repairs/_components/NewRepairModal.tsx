@@ -24,6 +24,18 @@ import { useRepairProfile } from '@/lib/useRepairProfile'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { isSessionExpiredError } from '@/lib/staffSessionClient'
 import type { CustResult } from './types'
+
+// 材料候補（商品マスタから引く。ガット・グリップ等）
+interface MaterialProduct {
+  id:                string
+  name:              string
+  group_name:        string | null
+  color_code:        string | null
+  maker:             string | null
+  base_price_tax_in: number | null
+  stock:             number | null
+  category:          string | null
+}
 import { CustomerLinkSheet } from './CustomerLinkSheet'
 import { RecentCustomers, type RecentCust } from '../../_components/RecentCustomers'
 import { OcrCaptureButton, type OcrResult } from '../../_components/OcrCaptureButton'
@@ -620,7 +632,86 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
       )
     }
 
-    // material は Phase 2（products 連携）で実装。それまではテキストとして扱う。
+    if (type === 'material') {
+      const cat    = f.material_category ?? ''
+      const groups = materialGroups(cat)
+      // 銘柄の選択状態は inputs に持たせる（`_g` サフィックス）
+      const gKey   = `${f.key}_g`
+      const picked = String(inputs[gKey] ?? '')
+      const colors = groups.find(([g]) => g === picked)?.[1] ?? []
+
+      if (groups.length === 0) {
+        // 商品マスタ未登録。受付を止めないよう自由入力に落とす。
+        return (
+          <div key={f.key}>
+            {head}
+            <input className={INPUT} value={String(val)}
+              onChange={e => setInputs({ ...inputs, [f.key]: e.target.value })}
+              placeholder="商品マスタ未登録のため手入力" />
+            <p className="text-[11px] text-amber-600 mt-1">
+              商品マスタに「{cat}」の商品がありません。マスタに登録するとタップで選べます。
+            </p>
+          </div>
+        )
+      }
+
+      return (
+        <div key={f.key}>
+          {head}
+          {/* ① 銘柄 */}
+          <div className="grid grid-cols-2 gap-2">
+            {groups.map(([g, rows]) => (
+              <button key={g} type="button"
+                onClick={() => {
+                  // 色が1つしかない銘柄はその場で確定させる（タップ数を減らす）
+                  const next = { ...inputs, [gKey]: g }
+                  if (rows.length === 1) {
+                    next[f.key] = rows[0].name
+                    next[`${f.key}_id`] = rows[0].id
+                  } else {
+                    next[f.key] = ''
+                    delete next[`${f.key}_id`]
+                  }
+                  setInputs(next)
+                }}
+                className={`rounded-xl border-2 px-3 py-2.5 text-sm font-bold text-left transition ${
+                  picked === g ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-700'
+                }`}>
+                <span className="block truncate">{g}</span>
+                {rows[0]?.maker && <span className="block text-[10px] font-normal text-gray-400 truncate">{rows[0].maker}</span>}
+              </button>
+            ))}
+          </div>
+
+          {/* ② 色（銘柄を選んで2つ以上あるときだけ） */}
+          {picked && colors.length > 1 && (
+            <div className="mt-2">
+              <p className="text-[11px] font-black text-gray-400 mb-1.5">色を選ぶ</p>
+              <div className="grid grid-cols-3 gap-2">
+                {colors.map(c => (
+                  <button key={c.id} type="button"
+                    onClick={() => setInputs({ ...inputs, [f.key]: c.name, [`${f.key}_id`]: c.id })}
+                    className={`rounded-xl border-2 px-2 py-2 text-xs font-bold transition ${
+                      inputs[`${f.key}_id`] === c.id ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-700'
+                    }`}>
+                    <span className="block truncate">{c.color_code || c.name}</span>
+                    {c.stock != null && (
+                      <span className={`block text-[10px] font-normal ${c.stock > 0 ? 'text-gray-400' : 'text-red-500'}`}>
+                        残{c.stock}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {val && <p className="text-xs font-bold text-indigo-700 mt-2">選択中: {String(val)}</p>}
+          {hint}
+        </div>
+      )
+    }
+
     return (
       <div key={f.key}>
         {head}
@@ -640,6 +731,42 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
     () => toFieldDefs(item?.fields, item?.measurements),
     [item],
   )
+
+  // ── 材料（糸・グリップ等）の候補を商品マスタから取る ──────────
+  //  ガットは「銘柄×色」でSKUが分かれるので、group_name でまとめて
+  //  〈銘柄を選ぶ → 色を選ぶ〉の2段タップにする。
+  const [materials, setMaterials] = useState<MaterialProduct[]>([])
+  const materialCats = useMemo(
+    () => Array.from(new Set(
+      itemFields.filter(f => f.type === 'material').map(f => f.material_category ?? ''),
+    )).filter(Boolean),
+    [itemFields],
+  )
+
+  useEffect(() => {
+    if (materialCats.length === 0) { setMaterials([]); return }
+    let cancelled = false
+    ;(async () => {
+      const { data } = await (supabase as any).from('products')
+        .select('id, name, group_name, color_code, maker, base_price_tax_in, stock, category')
+        .eq('store_id', storeId).in('category', materialCats).eq('active', true)
+        .order('group_name').order('sort_order')
+      if (!cancelled) setMaterials((data ?? []) as MaterialProduct[])
+    })()
+    return () => { cancelled = true }
+  }, [materialCats, storeId])
+
+  // 銘柄（group_name。未設定の商品は自分の名前を銘柄として単独で並べる）
+  const materialGroups = useCallback((category: string) => {
+    const rows = materials.filter(m => m.category === category)
+    const map = new Map<string, MaterialProduct[]>()
+    for (const r of rows) {
+      const k = r.group_name?.trim() || r.name
+      if (!map.has(k)) map.set(k, [])
+      map.get(k)!.push(r)
+    }
+    return Array.from(map.entries())
+  }, [materials])
 
   // 必須未入力があれば次へ進ませない
   const missingRequired = useMemo(
