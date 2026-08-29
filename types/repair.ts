@@ -75,6 +75,9 @@ export interface FieldDef {
   // 同じお客様の過去の入力値を候補として出す（type='text' 用）。
   // ラケットの機種など「毎回同じだが店では覚えられない」値の再入力を省く。
   suggest_from_history?: boolean
+  // タップで先頭に差し込む定型語（type='text' 用）。メーカー名など。
+  // select と違い排他ではなく、続きは自由入力できる。
+  suggest_choices?: string[]
 }
 
 // measurements（旧）を FieldDef（新）に正規化する。

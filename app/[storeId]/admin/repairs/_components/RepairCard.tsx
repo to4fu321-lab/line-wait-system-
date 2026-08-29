@@ -403,7 +403,13 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       item.work_started    ? 'border-l-emerald-400' : 'border-l-indigo-400'
 
     return (
-      <div className={`bg-white rounded-2xl shadow-sm border border-gray-100 border-l-4 ${leftBorderColor}`}>
+      <div
+        className={`bg-white rounded-2xl shadow-sm border border-gray-100 border-l-4 ${leftBorderColor} cursor-pointer`}
+        onClick={e => {
+          // カードのどこを触っても開閉する。操作系の上では無効。
+          if ((e.target as HTMLElement).closest('button, a, input, label, textarea, select')) return
+          setPhotosOpen(v => !v)
+        }}>
         <div className="p-3.5 space-y-2">
           {/* バッジ + 受付番号 */}
           <div className="flex items-center justify-between gap-2">
@@ -412,19 +418,20 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                 {REQUEST_TYPE_LABELS[reqType]}
               </span>
               {item.sent_to_vendor_at ? (
-                <span className="font-black text-orange-600">🏭 業者さんに依頼中{item.vendor_name ? `（${item.vendor_name}）` : ''}</span>
-              ) : item.vendor_name ? (
+                <span className="font-black text-orange-600">🏭 業者さんに依頼中{detailOpen && item.vendor_name ? `（${item.vendor_name}）` : ''}</span>
+              ) : detailOpen && item.vendor_name ? (
                 <span className="font-black text-slate-500">📤 業者さんに出す予定（{item.vendor_name}）</span>
               ) : null}
-              {isOverdue && <span className="font-black text-red-600">⚠️ 期限超過</span>}
-              {isDueSoon && !isOverdue && <span className="font-black text-amber-600">⚠️ 明日まで</span>}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <button onClick={() => setPrintOpen(true)} style={{ touchAction: 'manipulation' }}
-                className="p-1.5 rounded-lg text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 active:scale-90 transition-all">
-                <Printer size={16} />
-              </button>
-              <span className={tx('text-lg', 'text-2xl') + ' font-black text-indigo-500 font-mono'}>{reqNo}</span>
+              {detailOpen && (
+                <button onClick={() => setPrintOpen(true)} style={{ touchAction: 'manipulation' }}
+                  className="p-1.5 rounded-lg text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 active:scale-90 transition-all">
+                  <Printer size={16} />
+                </button>
+              )}
+              <span className={tx('text-base', 'text-xl') + ' font-black text-indigo-500 font-mono'}>{reqNo}</span>
+              {detailOpen ? <ChevronUp size={16} className="text-gray-300" /> : <ChevronDown size={16} className="text-gray-300" />}
             </div>
           </div>
 
@@ -465,10 +472,21 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
 
           {/* 納期は常に見せる（次に何をやるかの判断に要る）。
               金額・受付日は展開時のみ（作業中は使わない情報） */}
-          {!detailOpen && item.desired_completion_date && (
-            <span className={`text-sm font-black ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-gray-600'}`}>
-              {isOverdue ? '🚨' : isDueSoon ? '⚠️' : '📅'} 希望 {fmtDate(item.desired_completion_date)}
-            </span>
+          {!detailOpen && (
+            <div className="flex items-center justify-between gap-2">
+              <span className={`text-sm font-black ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-gray-500'}`}>
+                {item.desired_completion_date
+                  ? <>{isOverdue ? '🚨' : isDueSoon ? '⚠️' : '📅'} 希望 {fmtDate(item.desired_completion_date)}</>
+                  : <span className="text-gray-400">納期未設定</span>}
+              </span>
+              {!confirmPrimary && (
+                <button onClick={() => setConfirmPrimary(true)} disabled={loading}
+                  style={{ touchAction: 'manipulation' }}
+                  className="shrink-0 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-black active:scale-95 transition-all disabled:opacity-50">
+                  ✅ 完了
+                </button>
+              )}
+            </div>
           )}
           <div className={`items-center gap-x-3 gap-y-1 flex-wrap ${detailOpen ? 'flex' : 'hidden'}`}>
             {item.price != null && (
@@ -501,8 +519,10 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             </span>
           </div>
 
-          {/* アクション: 完了 ＋ 外注（詰めた横並び。確認中は全幅パネル） */}
-          <div className="border-t border-gray-100 pt-2">
+          {/* アクション: 完了 ＋ 外注（畳んでいる間は隠す。確認中は必ず出す） */}
+          <div className={`border-t border-gray-100 pt-2 ${
+            detailOpen || confirmPrimary || confirmVendor || confirmInspect ? '' : 'hidden'
+          }`}>
           {confirmPrimary ? (
             notifyMode === 'phone_manual' ? (
               /* SMS未契約: 電話連絡をうながす2ステップ */
@@ -643,13 +663,14 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
           )}
           </div>
 
-          {/* 詳細トグル: 電話・写真・受付に戻す・削除（タップで展開） */}
-          <button onClick={() => setPhotosOpen(v => !v)}
-            style={{ touchAction: 'manipulation' }}
-            className="w-full flex items-center justify-center gap-1 text-[11px] text-gray-400 font-bold pt-0.5 active:opacity-60">
-            {photosOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-            {photosOpen ? '閉じる' : '金額・日付・電話・写真・削除'}
-          </button>
+          {/* 開閉はカード全体のタップで行う。開いている時だけ「閉じる」を出す。 */}
+          {photosOpen && (
+            <button onClick={() => setPhotosOpen(false)}
+              style={{ touchAction: 'manipulation' }}
+              className="w-full flex items-center justify-center gap-1 text-[11px] text-gray-400 font-bold pt-0.5 active:opacity-60">
+              <ChevronUp size={12} />閉じる
+            </button>
+          )}
 
           {photosOpen && (
             <div className="space-y-2.5 pt-2 border-t border-gray-100">

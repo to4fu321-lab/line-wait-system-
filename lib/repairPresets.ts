@@ -200,6 +200,13 @@ export const REPAIR_PRESET: PresetGarment[] = [
 //  設計: docs/repair-flexible-catalog-design.md §4-4
 // ============================================================================
 
+// ラケットのメーカー候補（バドミントン・テニス共通で流通量の多い順）。
+// マスタ(repair_items.fields)に入るデータなので、店ごとに追加・削除できる。
+const RACKET_MAKERS = [
+  'ヨネックス', 'ミズノ', 'ゴーセン', 'プリンス', 'ウイルソン',
+  'バボラ', 'ヘッド', 'ダンロップ', 'ビクター', 'リーニン',
+]
+
 // 伝票下部の免責文をそのまま確認必須チェックにする
 const RACKET_DISCLAIMER: RepairManual = {
   title:    'フレーム破損の免責について',
@@ -217,7 +224,9 @@ function stringingFields(opts: { min: number; max: number; def: number }): Field
     // 2本目以降は過去の入力がタップ候補で出るので、打つのは初回だけ。
     { key: 'racket', label: 'ラケット', type: 'text', required: true,
       suggest_from_history: true,
-      hint: 'メーカー・機種・色など（例: ヨネックス アストロクス100ZZ 赤）' },
+      // メーカーはタップで先頭に入る。機種名はそのまま続けて打てる。
+      suggest_choices: RACKET_MAKERS,
+      hint: 'メーカーをタップ →機種・色を入力（例: ヨネックス アストロクス100ZZ 赤）' },
     { key: 'tension_lbs', label: 'ポンド数', type: 'number', unit: 'P', required: true,
       default: opts.def, min: opts.min, max: opts.max, step: 1,
       hint: `適正範囲 ${opts.min}〜${opts.max}P` },
@@ -337,12 +346,27 @@ export async function seedRepairPresets(
 
     // 既存項目（この服種配下）
     const { data: exI } = await db.from('repair_items')
-      .select('id, code, sort_order').eq('store_id', storeId).eq('garment_type_id', gid)
-    const itemByCode = new Map<string, string>((exI ?? []).map((it: any) => [it.code, it.id as string]))
+      .select('id, code, sort_order, fields').eq('store_id', storeId).eq('garment_type_id', gid)
+    const itemByCode  = new Map<string, string>((exI ?? []).map((it: any) => [it.code, it.id as string]))
+    const itemFieldsBy = new Map<string, FieldDef[]>((exI ?? []).map((it: any) => [it.code, (it.fields ?? []) as FieldDef[]]))
     let iSort = Math.max(0, ...((exI ?? []).map((it: any) => it.sort_order ?? 0)))
 
     for (const pi of pg.items) {
       let itemId = itemByCode.get(pi.code)
+      if (itemId && pi.fields?.length) {
+        // 取り込み済みの項目にも、プリセット側で後から増えた入力欄を足す。
+        // 既存キーには触らないので、店が直した内容は壊れない（追記式）。
+        const cur  = itemFieldsBy.get(pi.code) ?? []
+        const have = new Set(cur.map(f => f.key))
+        const add  = pi.fields.filter(f => !have.has(f.key))
+        if (add.length) {
+          // プリセットの並び順を保つため、定義順にマージし直す
+          const merged = [...pi.fields.filter(f => !have.has(f.key)), ...cur]
+          const { error } = await db.from('repair_items').update({ fields: merged }).eq('id', itemId)
+          if (error) firstError ??= error.message
+          else iAdded += 0   // 新規追加ではないので件数には数えない
+        }
+      }
       if (!itemId) {
         iSort += 10
         const { data, error } = await db.from('repair_items').insert({

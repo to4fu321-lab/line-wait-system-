@@ -720,6 +720,25 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
           onChange={e => setInputs({ ...inputs, [f.key]: e.target.value })}
           placeholder={f.unit || ''}
         />
+        {(f.suggest_choices?.length ?? 0) > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
+            {f.suggest_choices!.map(c => {
+              const cur = String(val)
+              const on  = cur.startsWith(c)
+              return (
+                <button key={c} type="button"
+                  onClick={() => {
+                    // 排他選択ではなく「先頭に差し込む」。続きは自由に打てる。
+                    const rest = (f.suggest_choices ?? []).reduce((acc, m) => acc.startsWith(m) ? acc.slice(m.length).trimStart() : acc, cur)
+                    setInputs({ ...inputs, [f.key]: on ? rest : `${c} ${rest}`.trim() + (rest ? '' : ' ') })
+                  }}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-bold transition ${
+                    on ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-600'
+                  }`}>{c}</button>
+              )
+            })}
+          </div>
+        )}
         {suggestions.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-1.5">
             <span className="text-[11px] font-bold text-gray-400 self-center">前回まで:</span>
