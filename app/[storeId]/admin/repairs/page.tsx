@@ -7,7 +7,7 @@ import {
   Check, Package, AlertCircle, CheckCheck,
   History, Search, Database, ShoppingCart, PackageCheck,
   MessageSquarePlus, Download, BarChart2,
-  ChevronUp, ChevronDown,
+  ChevronUp, ChevronDown, Zap,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../_components/BottomNav'
@@ -19,6 +19,7 @@ import { useSimpleMode } from '@/lib/useSimpleMode'
 import type { RepairRow, PurchaseRow, UniformOrderRow, DeliveryItem } from './_components/types'
 import { Toast } from '@/app/_components/Toast'
 import { NewRepairModal } from './_components/NewRepairModal'
+import { QuickReceiveModal } from './_components/QuickReceiveModal'
 import { NewOrderModal } from './_components/NewOrderModal'
 import { RepairCard } from './_components/RepairCard'
 import { MakerOrderPanel, UniformMakerOrderPanel } from './_components/PurchaseOrderPanel'
@@ -66,6 +67,7 @@ export default function RepairsPage() {
   const [searchText,     setSearchText]     = useState('')
   const [dummyLoading,   setDummyLoading]   = useState(false)
   const [showNewRepair,      setShowNewRepair]      = useState(false)
+  const [showQuickReceive,   setShowQuickReceive]   = useState(false)
   const [showNewOrder,    setShowNewOrder]    = useState(false)
   const [batchSelected,  setBatchSelected]  = useState<Set<string>>(new Set())
   const [batchUpdating,  setBatchUpdating]  = useState(false)
@@ -723,6 +725,12 @@ export default function RepairsPage() {
                 </button>
                 {receiptOpen && (
                   <div className="flex gap-2 px-3 pt-2 pb-3 border-t border-indigo-200/70">
+                    <button onClick={() => setShowQuickReceive(true)}
+                      style={{ touchAction: 'manipulation' }}
+                      className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white active:scale-[0.97] transition-all shadow-sm">
+                      <Zap size={18} />
+                      <span className="text-[11px] font-black">クイック受付</span>
+                    </button>
                     <button onClick={() => setShowNewRepair(true)}
                       style={{ touchAction: 'manipulation' }}
                       className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white active:scale-[0.97] transition-all shadow-sm">
@@ -1293,6 +1301,14 @@ export default function RepairsPage() {
           onClose={() => setEditItem(null)}
           onSave={() => { setEditItem(null); fetchAll() }}
           onToast={(t, m) => showToast(t, m)} />
+      )}
+      {showQuickReceive && (
+        <QuickReceiveModal
+          storeId={storeId}
+          onClose={() => setShowQuickReceive(false)}
+          onSaved={fetchAll}
+          onToast={showToast}
+        />
       )}
       {showNewRepair && (
         <NewRepairModal
