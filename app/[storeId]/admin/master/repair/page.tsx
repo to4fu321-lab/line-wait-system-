@@ -10,7 +10,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   ChevronLeft, Plus, Pencil, Trash2, Loader2, X, Scissors, ChevronDown, ChevronRight,
-  Ruler, ImagePlus, AlertTriangle, Sparkles, Camera,
+  Ruler, ImagePlus, AlertTriangle, Sparkles, Camera, ChevronUp,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { REPAIR_PRESETS } from '@/lib/repairPresets'
@@ -47,6 +47,17 @@ function Modal({ title, onClose, children, wide }: { title: string; onClose: () 
     </div>
   )
 }
+
+// 画面に出る呼び名。業種を決め打ちせず、店が自由に書き換えられるようにする。
+const LABEL_FIELDS: { key: string; label: string; placeholder: string }[] = [
+  { key: 'domain',      label: '仕事の呼び名', placeholder: 'お直し / ガット張り / 修理' },
+  { key: 'garment',     label: '大分類',       placeholder: '服種 / 種目 / 種類' },
+  { key: 'item',        label: '中分類',       placeholder: '項目 / 作業' },
+  { key: 'option',      label: 'オプション',   placeholder: 'オプション' },
+  { key: 'measurement', label: '入力欄',       placeholder: '採寸 / 仕様' },
+  { key: 'unit_count',  label: '数え方',       placeholder: '点 / 本 / 足' },
+  { key: 'vendor',      label: '外注先',       placeholder: '外注先' },
+]
 
 const PRICE_UNITS: PriceUnit[] = ['per_item', 'per_name', 'per_pair', 'per_cm']
 const SEVERITIES: ManualSeverity[] = ['info', 'warn', 'danger']
@@ -166,13 +177,40 @@ export default function RepairMasterPage() {
   const { profile, labels, materialEnabled, save: saveProfile } = useRepairProfile(storeId)
   const [switching, setSwitching] = useState(false)
 
-  const presetSets = PRESET_SETS_FOR[profile] ?? []
+  // 標準セットは業種に縛らない。追記式・冪等なので、どの店でも好きなものを
+  // 好きな順に取り込めた方が実態に合う（制服とラケットを両方やる店もある）。
+  const presetSets: PresetKey[] = ['uniform', 'racket']
 
-  const changeProfile = async (next: RepairProfileKey) => {
-    if (next === profile || switching) return
+  const [labelOpen, setLabelOpen]   = useState(false)
+  const [labelDraft, setLabelDraft] = useState<Record<string, string>>({})
+
+  // 保存済みラベルを下書きへ反映（開いた時・読み込み後）
+  useEffect(() => {
+    setLabelDraft(prev => (Object.keys(prev).length ? prev : (labels as unknown as Record<string, string>)))
+  }, [labels])
+
+  const saveLabels = async () => {
+    if (switching) return
     setSwitching(true)
-    const ok = await saveProfile({ profile: next })
-    showToast(ok ? 'ok' : 'err', ok ? `業種を「${PROFILE_DEFAULTS[next].label}」に変更しました` : '業種の変更に失敗しました')
+    // 空欄は「既定に戻す」扱いにして、labels から落とす
+    const cleaned: Record<string, string> = {}
+    for (const f of LABEL_FIELDS) {
+      const v = (labelDraft[f.key] ?? '').trim()
+      if (v) cleaned[f.key] = v
+    }
+    const ok = await saveProfile({ labels: cleaned as never })
+    showToast(ok ? 'ok' : 'err', ok ? '呼び名を保存しました' : '保存に失敗しました')
+    setSwitching(false)
+  }
+
+  // 業種候補のラベル一式を下書きに流し込む（そのあと自由に直せる）
+  const applyProfileLabels = async (next: RepairProfileKey) => {
+    if (switching) return
+    setSwitching(true)
+    const base = PROFILE_DEFAULTS[next].labels as unknown as Record<string, string>
+    setLabelDraft({ ...base })
+    const ok = await saveProfile({ profile: next, labels: base as never })
+    showToast(ok ? 'ok' : 'err', ok ? `「${PROFILE_DEFAULTS[next].label}」の呼び名を入れました` : '変更に失敗しました')
     setSwitching(false)
   }
 
@@ -208,7 +246,13 @@ export default function RepairMasterPage() {
     setSeeding(true)
     try {
       const r = await seedRepairPresets(storeId, key)
-      if (r.garments + r.items + r.options === 0) {
+      const added = r.garments + r.items + r.options
+      if (r.error) {
+        // 以前はエラーを握りつぶして「取り込み済み」と嘘の成功を出していた
+        showToast('err', added > 0
+          ? `一部だけ追加されました（${added}件）。エラー: ${r.error}`
+          : `取り込みに失敗しました: ${r.error}`)
+      } else if (added === 0) {
         showToast('ok', '追加分はありませんでした（既に取り込み済み）')
       } else {
         showToast('ok', `${labels.garment}${r.garments}・${labels.item}${r.items}・${labels.option}${r.options}件を追加しました`)
@@ -433,25 +477,64 @@ export default function RepairMasterPage() {
             </Link>
           )}
 
-          {/* 業種プロファイル: 画面の呼び名とプリセットの中身が切り替わる */}
+          {/* 呼び名は自由入力。業種は「出発点の候補」であって選択肢ではない
+              （靴修理・時計修理など、決め打ちできる業種は存在しない） */}
           <div className="bg-white rounded-2xl p-3 shadow-sm">
-            <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider mb-2">業種</p>
-            <div className="grid grid-cols-2 gap-2">
-              {PROFILE_ORDER.map(k => (
-                <button
-                  key={k}
-                  onClick={() => changeProfile(k)}
-                  disabled={switching}
-                  className={`rounded-xl border-2 px-2 py-2.5 text-xs font-bold transition disabled:opacity-60 ${
-                    profile === k ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-gray-200 bg-white text-gray-600'
-                  }`}
-                >{PROFILE_DEFAULTS[k].label}</button>
-              ))}
-            </div>
-            <p className="text-[11px] text-gray-400 mt-2">
-              画面の呼び名（{labels.garment}・{labels.item}・{labels.measurement}）と、下の一括取り込みの中身が変わります。
-              登録済みのデータは変わりません。
-            </p>
+            <button onClick={() => setLabelOpen(v => !v)}
+              className="w-full flex items-center justify-between gap-2">
+              <span className="text-left">
+                <span className="block text-[11px] font-black text-gray-400 uppercase tracking-wider">この店での呼び名</span>
+                <span className="block text-sm font-black text-gray-800 mt-0.5">
+                  {labels.domain}／{labels.garment}／{labels.item}／{labels.measurement}
+                </span>
+              </span>
+              {labelOpen ? <ChevronUp size={18} className="text-gray-400 shrink-0" /> : <ChevronDown size={18} className="text-gray-400 shrink-0" />}
+            </button>
+
+            {labelOpen && (
+              <div className="mt-3 space-y-3">
+                <p className="text-[11px] text-gray-500">
+                  画面に出る言葉を自由に変えられます。登録済みのデータは変わりません。
+                </p>
+
+                <div className="space-y-2">
+                  {LABEL_FIELDS.map(f => (
+                    <div key={f.key} className="flex items-center gap-2">
+                      <span className="w-24 shrink-0 text-[11px] font-bold text-gray-500">{f.label}</span>
+                      <input className={INPUT + ' flex-1'} value={labelDraft[f.key] ?? ''}
+                        placeholder={f.placeholder}
+                        onChange={e => setLabelDraft({ ...labelDraft, [f.key]: e.target.value })} />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex gap-2">
+                  <button onClick={saveLabels} disabled={switching}
+                    className="flex-1 py-2.5 rounded-xl bg-amber-600 text-white text-sm font-black disabled:opacity-60">
+                    {switching ? '保存中…' : '呼び名を保存'}
+                  </button>
+                  <button onClick={() => setLabelDraft(labels as unknown as Record<string, string>)}
+                    className="px-4 py-2.5 rounded-xl border border-gray-300 text-sm font-bold text-gray-600">
+                    元に戻す
+                  </button>
+                </div>
+
+                <div className="border-t border-gray-100 pt-3">
+                  <p className="text-[11px] font-black text-gray-400 mb-1.5">よくある業種から一括で入れる</p>
+                  <div className="flex flex-wrap gap-2">
+                    {PROFILE_ORDER.filter(k => k !== 'custom').map(k => (
+                      <button key={k} onClick={() => applyProfileLabels(k)} disabled={switching}
+                        className={`rounded-full border px-3 py-1.5 text-xs font-bold disabled:opacity-60 ${
+                          profile === k ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-gray-200 bg-white text-gray-600'
+                        }`}>{PROFILE_DEFAULTS[k].label}</button>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-1.5">
+                    候補を入れてから、上で自由に書き換えてください。
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 標準セットの取り込み。両方やる店は2つ出る。

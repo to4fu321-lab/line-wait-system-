@@ -206,7 +206,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       }
     } else {
       primaryBtn = {
-        label: '✅ お直し完了',
+        label: `✅ ${labels.domain}完了`,
         color: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-200',
         onClick: handleRepairComplete,
       }
@@ -282,10 +282,9 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       notifyMode === 'sms'  ? 'SMSで通知して完了にしますか？' :
                               '完了にしますか？（通知なし）'
     const completeToast =
-      notifyMode === 'line'         ? '✅ お直し完了・LINEで通知しました' :
-      notifyMode === 'sms'          ? '✅ お直し完了・SMSで通知しました' :
-      notifyMode === 'phone_manual' ? '✅ お直し完了にしました' :
-                                      '✅ お直し完了にしました'
+      notifyMode === 'line'         ? `✅ ${labels.domain}完了・LINEで通知しました` :
+      notifyMode === 'sms'          ? `✅ ${labels.domain}完了・SMSで通知しました` :
+                                      `✅ ${labels.domain}完了にしました`
 
     const handlePaymentToggle = async () => {
       const newPrepaid = !item.prepaid

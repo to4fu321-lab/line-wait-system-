@@ -302,8 +302,11 @@ export const PRESETS_BY_KEY: Record<PresetKey, PresetGarment[]> = {
 export async function seedRepairPresets(
   storeId: string,
   presetKey: PresetKey = 'uniform',
-): Promise<{ garments: number; items: number; options: number }> {
+): Promise<{ garments: number; items: number; options: number; error?: string }> {
   let gAdded = 0, iAdded = 0, oAdded = 0
+  // 失敗を握りつぶすと「追加分はありませんでした」と嘘の成功を返してしまうので、
+  // 最初のエラーを持ち帰って呼び出し側で表示する
+  let firstError: string | null = null
   const db = supabase as any
   const preset = PRESETS_BY_KEY[presetKey] ?? REPAIR_PRESET
 
@@ -320,7 +323,7 @@ export async function seedRepairPresets(
       const { data, error } = await db.from('repair_garment_types')
         .insert({ store_id: storeId, code: pg.code, name: pg.name, icon: pg.icon, sort_order: gSort })
         .select('id').single()
-      if (error || !data) continue
+      if (error || !data) { firstError ??= error?.message ?? `${pg.name} の追加に失敗しました`; continue }
       garmentId = data.id as string
       garmentByCode.set(pg.code, garmentId)
       gAdded++
@@ -348,7 +351,7 @@ export async function seedRepairPresets(
           requires_quote: pi.requires_quote ?? false,
           sort_order: iSort,
         }).select('id').single()
-        if (error || !data) continue
+        if (error || !data) { firstError ??= error?.message ?? `${pi.name} の追加に失敗しました`; continue }
         itemId = data.id as string
         itemByCode.set(pi.code, itemId)
         iAdded++
@@ -378,12 +381,13 @@ export async function seedRepairPresets(
         })
       if (toInsert.length) {
         const { error } = await db.from('repair_options').insert(toInsert)
-        if (!error) oAdded += toInsert.length
+        if (error) firstError ??= error.message
+        else oAdded += toInsert.length
       }
     }
   }
 
-  return { garments: gAdded, items: iAdded, options: oAdded }
+  return { garments: gAdded, items: iAdded, options: oAdded, error: firstError ?? undefined }
 }
 
 // ── BulkImportModal向けシンプルプリセット（プリセットボタン用） ──

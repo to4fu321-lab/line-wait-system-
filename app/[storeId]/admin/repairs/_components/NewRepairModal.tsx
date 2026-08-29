@@ -496,7 +496,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
 
     if (closeAfter) {
       const total = savedItems.length + insertedRows.length
-      onToast('ok', total > 1 ? `✂️ ${total}点のお直しを受付しました` : (finalPrice == null ? '✂️ 見積もり待ちで受付しました' : '✂️ お直しを受付しました'))
+      onToast('ok', total > 1 ? `✂️ ${total}${labels.unit_count}の${labels.domain}を受付しました` : (finalPrice == null ? '✂️ 見積もり待ちで受付しました' : `✂️ ${labels.domain}を受付しました`))
       setStep('done')
     } else {
       setSavedItems(prev => [...prev, label])
@@ -871,7 +871,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
               </button>
             )}
             <div>
-              <h2 className="text-lg font-black text-gray-800">✂️ お直し受付</h2>
+              <h2 className="text-lg font-black text-gray-800">✂️ {labels.domain}受付</h2>
               <p className="text-sm text-gray-400">
                 {stepLabel}　{currentStepNum + 1} / {totalSteps}
                 {savedItems.length > 0 && <span className="ml-1.5 text-indigo-500 font-bold">・登録済み{savedItems.length}点</span>}
@@ -906,7 +906,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
           {/* ── 顧客選択 ── */}
           {step === 'customer' && (
             <div>
-              <p className="text-xl font-black text-gray-800 mb-1">どなたのお直しですか？</p>
+              <p className="text-xl font-black text-gray-800 mb-1">どなたの{labels.domain}ですか？</p>
               <p className="text-sm text-gray-500 mb-5">お名前・電話番号・学校で検索できます</p>
 
               {selectedCust ? (
@@ -1024,8 +1024,8 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
               {/* 服種 */}
               {curBuildKey === 'garment' && (
                 <div>
-                  <p className="text-xl font-black text-gray-800 mb-1">どの服ですか？</p>
-                  <p className="text-sm text-gray-500 mb-5">服の種類を選んでください</p>
+                  <p className="text-xl font-black text-gray-800 mb-1">{labels.garment}を選んでください</p>
+                  <p className="text-sm text-gray-500 mb-5">お預かりするものの種類です</p>
                   <div className="grid grid-cols-2 gap-3">
                     {garments.map(g => (
                       <button key={g.id} onClick={() => setGarmentId(g.id)}
@@ -1043,7 +1043,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
               {/* 項目 */}
               {curBuildKey === 'item' && (
                 <div>
-                  <p className="text-xl font-black text-gray-800 mb-1">お直し内容は？</p>
+                  <p className="text-xl font-black text-gray-800 mb-1">{labels.item}を選んでください</p>
                   <p className="text-sm text-gray-500 mb-5">項目をタップして選んでください</p>
                   <div className="grid grid-cols-2 gap-3">
                     {items.map(it => (
@@ -1278,7 +1278,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
               <button onClick={() => setStep('build')}
                 style={{ touchAction: 'manipulation' }}
                 className="w-full py-5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xl font-black transition-colors active:scale-[0.98] flex items-center justify-center gap-2">
-                <Check size={22} />お直し内容へ進む
+                <Check size={22} />{labels.item}へ進む
               </button>
             ) : (
               <button onClick={() => setStep('build')}

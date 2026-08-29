@@ -33,6 +33,14 @@ describe('parseRepairSettings', () => {
     expect(parseRepairSettings({ profile: 'unknown' }).profile).toBe('uniform')
   })
 
+  it('店が独自の呼び名を入れられる（業種は決め打ちしない）', () => {
+    const s = parseRepairSettings({ profile: 'custom', labels: { domain: '修理', garment: '品目', unit_count: '足' } })
+    expect(s.labels.domain).toBe('修理')
+    expect(s.labels.garment).toBe('品目')
+    expect(s.labels.unit_count).toBe('足')
+    expect(s.labels.option).toBe('オプション')   // 未指定は既定
+  })
+
   it('両方やる店は「服種」でも「種目」でもない中立語彙になる', () => {
     const s = parseRepairSettings({ profile: 'both' })
     expect(s.labels.garment).toBe('種類')
@@ -44,14 +52,11 @@ describe('parseRepairSettings', () => {
   })
 })
 
-describe('標準セットの選択（語彙と取り込み内容は別の判断）', () => {
-  it('両方やる店は制服・ラケットの両方を取り込める', () => {
-    expect(PRESET_SETS_FOR.both).toEqual(['uniform', 'racket'])
-  })
-
-  it('単一業種の店は自分のセットだけ', () => {
-    expect(PRESET_SETS_FOR.uniform).toEqual(['uniform'])
-    expect(PRESET_SETS_FOR.racket).toEqual(['racket'])
+describe('標準セット（語彙と取り込み内容は別の判断）', () => {
+  it('どのプロファイルでも取り込み候補は空にならない', () => {
+    for (const k of ['uniform', 'racket', 'both', 'custom'] as const) {
+      expect(PRESET_SETS_FOR[k].length).toBeGreaterThan(0)
+    }
   })
 
   it('制服とラケットの服種コードが衝突しない（併用店で上書きが起きない）', () => {
