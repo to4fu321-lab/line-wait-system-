@@ -95,6 +95,24 @@ const SPECIAL_FABRIC_MANUAL: RepairManual = {
   images: [],
 }
 
+// ── 裾上げ／裾出しで実際に測る項目 ────────────────────────────
+//  制服店は「仕上がり丈」だけでは足りず、総丈・股下を控える。
+//  裾出しは「あと何cm出せるか（残り布）」が可否の判断材料になる。
+const HEM_UP_FIELDS: FieldDef[] = [
+  { key: 'inseam_cm',     label: '股下',       type: 'number', unit: 'cm', required: true, min: 30, max: 120, step: 1 },
+  { key: 'total_len_cm',  label: '総丈',       type: 'number', unit: 'cm', min: 40, max: 140, step: 1 },
+  { key: 'finish_len_cm', label: '仕上がり丈', type: 'number', unit: 'cm', required: true, min: 30, max: 120, step: 1 },
+  { key: 'fold_keep_cm',  label: '折り返し残し', type: 'number', unit: 'cm', min: 0, max: 15, step: 1 },
+]
+
+const HEM_OUT_FIELDS: FieldDef[] = [
+  { key: 'out_width_cm',  label: '裾出し幅',   type: 'number', unit: 'cm', required: true, min: 1, max: 15, step: 1 },
+  { key: 'inseam_cm',     label: '股下（現状）', type: 'number', unit: 'cm', min: 30, max: 120, step: 1 },
+  { key: 'spare_cm',      label: '残り布',     type: 'number', unit: 'cm', min: 0, max: 15, step: 1,
+    hint: '折り返しの内側に残っている布。これ以上は出せない' },
+  { key: 'finish_len_cm', label: '仕上がり丈', type: 'number', unit: 'cm', required: true, min: 30, max: 120, step: 1 },
+]
+
 // ── 標準プリセット本体（ベース: sql/repair-system-seed.sql ＋ サイズ段階） ──
 export const REPAIR_PRESET: PresetGarment[] = [
   {
@@ -102,10 +120,9 @@ export const REPAIR_PRESET: PresetGarment[] = [
     items: [
       {
         code: 'hem', name: '裾上げ', icon: '✂️', base_price: 1200, price_unit: 'per_item',
-        measurements: [
-          { key: 'hem_length_mm', label: '仕上がり丈', unit: 'mm', required: true },
-          { key: 'fold_keep_mm',  label: '折り返し残し', unit: 'mm' },
-        ],
+        // 現場が実際に測るのは 総丈・股下・仕上がり。cm は ±1 刻みで押せる。
+        // （旧 measurements の mm 定義は fields に置き換えたので持たせない）
+        fields: HEM_UP_FIELDS,
         lead_time_days: 5,
         options: [
           { group_label: '仕上げ方法', group_select: 'single', code: 'matsuri', name: 'まつり縫い',       price_delta: 0,   default_selected: true },
@@ -122,6 +139,15 @@ export const REPAIR_PRESET: PresetGarment[] = [
         options: [
           ...buildSizeTier({ groupCode: 'tsume', group: '詰め幅', min: 1, max: 5, step: 1 }),
           ...buildSizeTier({ groupCode: 'dashi', group: '出し幅', min: 1, max: 5, step: 1 }),
+        ],
+      },
+      {
+        code: 'hem_out', name: '裾出し', icon: '📐', base_price: 1500, price_unit: 'per_item',
+        fields: HEM_OUT_FIELDS,
+        lead_time_days: 5,
+        options: [
+          { group_label: '折り筋', group_select: 'single', code: 'crease_ok',   name: '筋が消える',     price_delta: 0, default_selected: true },
+          { group_label: '折り筋', group_select: 'single', code: 'crease_stay', name: '筋が残る可能性', price_delta: 0 },
         ],
       },
       { code: 'tear', name: '破れ補修', icon: '🩹', base_price: 1000, price_unit: 'per_item', lead_time_days: 7 },

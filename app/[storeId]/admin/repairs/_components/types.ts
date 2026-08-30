@@ -42,6 +42,11 @@ export interface RepairRow {
   inputs?: Record<string, string | number>
   /** 一覧の展開表示用のラベル付きスナップショット（受付時に凍結） */
   input_details?: { label: string; value: string }[]
+  received_by?: string | null
+  strung_by?:   string | null
+  /** FK埋め込みで引く担当スタッフ名 */
+  received_by_staff?: { name: string } | null
+  strung_by_staff?:   { name: string } | null
 }
 
 export interface PurchaseRow {

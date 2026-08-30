@@ -19,6 +19,7 @@ import { isSessionExpiredError } from '@/lib/staffSessionClient'
 import { REPAIR_LABELS as labels } from '@/lib/repairProfile'
 import type { RepairGarmentType } from '@/types/repair'
 import type { CustResult } from './types'
+import { StaffPicker, lastStaffId } from './StaffPicker'
 
 const INPUT = 'w-full border border-gray-300 rounded-xl px-3 py-3 text-gray-900 text-base focus:outline-none focus:border-indigo-500 bg-white'
 
@@ -47,6 +48,8 @@ export function QuickReceiveModal({ storeId, onClose, onSaved, onToast }: {
   const [slipNo,   setSlipNo]   = useState('')
   const [qty,      setQty]      = useState(1)
   const [saving,   setSaving]   = useState(false)
+  const [receivedBy, setReceivedBy] = useState<string | null>(null)
+  useEffect(() => { setReceivedBy(lastStaffId(storeId)) }, [storeId])
 
   useEffect(() => {
     ;(supabase as any).from('repair_garment_types')
@@ -115,6 +118,7 @@ export function QuickReceiveModal({ storeId, onClose, onSaved, onToast }: {
       slip_number:  slipNo.trim() || null,
       garment_type_id: garment?.id ?? null,
       garment_name: garment?.name ?? null,
+      received_by:  receivedBy,
     })
     setSaving(false)
     if (error) {
@@ -228,6 +232,9 @@ export function QuickReceiveModal({ storeId, onClose, onSaved, onToast }: {
                   <p className="text-[11px] text-gray-400">連絡メッセージに載る名前です。</p>
                 </div>
               )}
+
+              {/* 受付担当（前回選んだ人が既定） */}
+              <StaffPicker storeId={storeId} label="受付担当" value={receivedBy} onChange={setReceivedBy} />
 
               {/* ③ 伝票No.・本数 */}
               <div className="space-y-2">

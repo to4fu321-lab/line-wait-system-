@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { REPAIR_PHOTOS_BUCKET } from '@/types/repair'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { REPAIR_LABELS as labels } from '@/lib/repairProfile'
+import { lastStaffId } from './StaffPicker'
 import {
   REPAIR_STATUS_LABELS, REPAIR_STATUS_COLORS,
   REQUEST_TYPE_LABELS, REQUEST_TYPE_COLORS,
@@ -153,7 +154,9 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
     const today = new Date().toISOString().slice(0, 10)
     const markNotifiedNow = fullNotifyMode !== 'line' && fullNotifyMode !== 'sms'
     const { error } = await (supabase as any).from('repair_histories')
-      .update({ status: 'completed', completed_date: today, ...(markNotifiedNow ? { notified: true } : {}), updated_at: new Date().toISOString() })
+      .update({ status: 'completed', completed_date: today, ...(markNotifiedNow ? { notified: true } : {}),
+                ...(item.strung_by ? {} : { strung_by: lastStaffId(storeId) }),
+                updated_at: new Date().toISOString() })
       .eq('id', item.id)
     if (error) { setLoading(false); onToast('err', '更新に失敗しました'); return }
     let outsideHours = false
@@ -218,7 +221,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       label: '✅ 対応完了・連絡する',
       color: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-200',
       onClick: () => update(
-        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true },
+        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true, ...(item.strung_by ? {} : { strung_by: lastStaffId(storeId) }) },
         '対応完了にしました',
         { status: 'received', completed_date: null, notified: false }
       ),
@@ -228,7 +231,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       label: '✅ 確保済み・連絡する',
       color: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-200',
       onClick: () => update(
-        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true },
+        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true, ...(item.strung_by ? {} : { strung_by: lastStaffId(storeId) }) },
         '確保済みにしました',
         { status: 'received', completed_date: null, notified: false }
       ),
@@ -238,7 +241,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       label: '✅ 問合せ対応完了',
       color: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-200',
       onClick: () => update(
-        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true },
+        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true, ...(item.strung_by ? {} : { strung_by: lastStaffId(storeId) }) },
         '問合せ対応完了にしました',
         { status: 'received', completed_date: null, notified: false }
       ),
@@ -248,7 +251,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       label: '✅ 相談完了',
       color: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-200',
       onClick: () => update(
-        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true },
+        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true, ...(item.strung_by ? {} : { strung_by: lastStaffId(storeId) }) },
         '相談完了にしました',
         { status: 'received', completed_date: null, notified: false }
       ),
@@ -258,7 +261,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       label: '✅ 入金確認・回収完了',
       color: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-200',
       onClick: () => update(
-        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true },
+        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true, ...(item.strung_by ? {} : { strung_by: lastStaffId(storeId) }) },
         '入金確認・回収完了にしました',
         { status: 'received', completed_date: null, notified: false }
       ),
@@ -448,10 +451,12 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             {/* 畳んだ時は作業名だけ。ポンド数などの内訳は展開時に出す。 */}
             {/* 種類バッジと同じ文字列なら重ねて出さない */}
             {(() => {
-              const work = detailOpen
+              // 内訳（input_details）を出すときは、同じ内容を並べた content は出さない
+              const hasDetails = (item.input_details?.length ?? 0) > 0
+              const work = (detailOpen && !hasDetails)
                 ? (item.content || item.item_name || '内容未記入')
                 : (item.item_name || item.content || '内容未記入')
-              if (!detailOpen && work === item.garment_name) return null
+              if (work === item.garment_name) return null
               return (
                 <span className={tx('text-base', 'text-lg') + ' font-black text-gray-900 leading-tight'}>{work}</span>
               )
@@ -470,6 +475,18 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                   <span className="font-black text-gray-800 break-all">{d.value}</span>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* 担当スタッフ（受付・作業） */}
+          {detailOpen && (item.received_by_staff?.name || item.strung_by_staff?.name) && (
+            <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-xs">
+              {item.received_by_staff?.name && (
+                <span className="text-gray-500">受付 <span className="font-black text-gray-800">{item.received_by_staff.name}</span></span>
+              )}
+              {item.strung_by_staff?.name && (
+                <span className="text-gray-500">作業・連絡 <span className="font-black text-gray-800">{item.strung_by_staff.name}</span></span>
+              )}
             </div>
           )}
 

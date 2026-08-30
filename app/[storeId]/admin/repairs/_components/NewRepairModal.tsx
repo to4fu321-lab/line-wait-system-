@@ -24,6 +24,7 @@ import { REPAIR_LABELS as labels } from '@/lib/repairProfile'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { isSessionExpiredError } from '@/lib/staffSessionClient'
 import type { CustResult } from './types'
+import { StaffPicker, lastStaffId } from './StaffPicker'
 
 // 材料候補（商品マスタから引く。ガット・グリップ等）
 interface MaterialProduct {
@@ -158,6 +159,8 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
   const [optSel, setOptSel] = useState<Record<string, boolean>>({})
   const [inputs, setInputs] = useState<Record<string, string>>({})
   const [qty, setQty] = useState(1)
+  const [receivedBy, setReceivedBy] = useState<string | null>(null)
+  useEffect(() => { setReceivedBy(lastStaffId(storeId)) }, [storeId])
   const [pricingMode, setPricingMode] = useState<PricingMode>('master')
   const [overridePrice, setOverridePrice] = useState('')
   const [manualReason, setManualReason] = useState('')
@@ -425,6 +428,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
     const payload: Record<string, unknown> = {
       store_id: storeId, customer_id: selectedCust.id, child_id: selectedChild?.id ?? null,
       item_name: itemName, content, input_details: buildInputDetails(),
+      received_by: receivedBy,
       request_type: finalPrice == null ? 'repair_consult' : 'repair',
       repair_type: repairTypeCode,
       status: 'received', received_date: new Date().toISOString().slice(0, 10),
@@ -1291,6 +1295,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
                       <p className="text-xl font-black text-gray-800 mb-1">仕上がり日・メモ</p>
                       <p className="text-sm text-gray-500 mb-5">希望日と外注先・メモを入力してください</p>
                       <div className="space-y-4">
+                        <StaffPicker storeId={storeId} label="受付担当" value={receivedBy} onChange={setReceivedBy} />
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label className="text-xs font-bold text-gray-600 block mb-1.5">仕上がり希望日</label>
