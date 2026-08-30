@@ -150,12 +150,24 @@ describe('mergePresetFields（取り込み時の入力欄の更新）', () => {
     expect(mergePresetFields(cur, preset).map(f => f.key)).toEqual(['inseam_cm', 'total_len_cm'])
   })
 
+  it('他の項目のプリセット由来のキーは、この項目のプリセットに無ければ落とす', () => {
+    // inseam_cm は裾上げでは使うが裾出しでは使わない。裾出し側に残っていたら消す。
+    const cur: FieldDef[] = [
+      { key: 'out_len_cm', label: '出す長さ', type: 'number' },
+      { key: 'inseam_cm',  label: '股下',     type: 'number' },
+    ]
+    const outPreset: FieldDef[] = [{ key: 'out_len_cm', label: '出す長さ', type: 'number' }]
+    const known = new Set(['inseam_cm', 'total_len_cm', 'out_len_cm'])
+    expect(mergePresetFields(cur, outPreset, known).map(f => f.key)).toEqual(['out_len_cm'])
+  })
+
   it('店が独自に足した項目は消さずに後ろへ残す', () => {
     const cur: FieldDef[] = [
       { key: 'hem_length_mm', label: '仕上がり丈', type: 'number' },
       { key: 'shop_note',     label: '当店メモ',   type: 'text' },
     ]
-    expect(mergePresetFields(cur, preset).map(f => f.key)).toEqual(['inseam_cm', 'total_len_cm', 'shop_note'])
+    expect(mergePresetFields(cur, preset, new Set(['inseam_cm', 'total_len_cm'])).map(f => f.key))
+      .toEqual(['inseam_cm', 'total_len_cm', 'shop_note'])
   })
 
   it('プリセット側の定義が優先される（同キーは重複しない）', () => {

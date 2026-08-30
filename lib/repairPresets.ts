@@ -26,10 +26,35 @@ const SUPERSEDED_FIELD_KEYS = new Set([
  *  - 店が独自に足した項目は後ろに残す（追記式：勝手に消さない）
  *  - プリセットが過去に配って今は使わない項目だけは落とす（同じことを2回聞かない）
  */
-export function mergePresetFields(current: FieldDef[], preset: FieldDef[]): FieldDef[] {
+export function mergePresetFields(
+  current: FieldDef[],
+  preset: FieldDef[],
+  /** プリセットがどこかの項目で使っているキー全部。テスト用に差し替え可能 */
+  knownPresetKeys: Set<string> = allPresetFieldKeys(),
+): FieldDef[] {
   const presetKeys = new Set(preset.map(f => f.key))
-  const extra = current.filter(f => !SUPERSEDED_FIELD_KEYS.has(f.key) && !presetKeys.has(f.key))
+  const extra = current.filter(f =>
+    !presetKeys.has(f.key)               // この項目のプリセットに無く、
+    && !SUPERSEDED_FIELD_KEYS.has(f.key) // 廃止済みでもなく、
+    && !knownPresetKeys.has(f.key),      // 他の項目のプリセット由来でもない＝店が足したもの
+  )
   return [...preset, ...extra]
+}
+
+/**
+ * プリセットがどこかで使っているキーの集合。
+ * 「裾上げでは使うが裾出しでは使わない」ような項目（inseam_cm）を、
+ * 裾出し側で店の独自項目と誤認して残さないために使う。
+ */
+let _allKeys: Set<string> | null = null
+export function allPresetFieldKeys(): Set<string> {
+  if (_allKeys) return _allKeys
+  const out = new Set<string>()
+  for (const set of Object.values(PRESETS_BY_KEY)) {
+    for (const g of set) for (const it of g.items) for (const f of it.fields ?? []) out.add(f.key)
+  }
+  _allKeys = out
+  return out
 }
 
 // ── プリセット定義の型（ローカル） ──────────────────────────────
@@ -173,7 +198,7 @@ export const REPAIR_PRESET: PresetGarment[] = [
           // 裾上げ（シングル）/（ダブル）を別項目に分けず、ここで選ぶ
           { group_label: '裾の形', group_select: 'single', code: 'single_hem', name: 'シングル', price_delta: 0, default_selected: true },
           { group_label: '裾の形', group_select: 'single', code: 'double_hem', name: 'ダブル',   price_delta: 500 },
-          { group_label: '仕上げ方法', group_select: 'single', code: 'matsuri', name: 'まつり縫い',       price_delta: 0,   default_selected: true },
+          { group_label: '仕上げ方法', group_select: 'single', code: 'matsuri', name: 'すくい縫い',       price_delta: 0,   default_selected: true },
           { group_label: '仕上げ方法', group_select: 'single', code: 'stitch',  name: 'シングルステッチ', price_delta: 200 },
           { group_label: '仕上げ方法', group_select: 'single', code: 'chidori', name: '千鳥がけ',         price_delta: 300 },
           { group_label: null, group_select: 'multi', code: 'nonslip', name: 'すべり止めテープ', price_delta: 200 },
