@@ -480,6 +480,22 @@ export async function seedRepairPresets(
         iAdded++
       }
       const iid = itemId
+
+      // プリセットが配ったサイズ段階(sz_)のうち、今のプリセットに無いものを消す。
+      // 数値入力に置き換えた「詰め幅」「出し幅」等が択一オプションとして残り、
+      // 同じことを2回聞く画面になっていた。
+      // sz_ はプリセット専用の接頭辞（画面から作るオプションは o_ なので巻き込まない）。
+      {
+        const keep = new Set((pi.options ?? []).map(po => po.code))
+        const { data: stale } = await db.from('repair_options')
+          .select('id, code').eq('item_id', iid).like('code', 'sz\\_%')
+        const ids = (stale ?? []).filter((o: any) => !keep.has(o.code)).map((o: any) => o.id)
+        if (ids.length) {
+          const { error } = await db.from('repair_options').delete().in('id', ids)
+          if (error) firstError ??= error.message
+        }
+      }
+
       if (!pi.options?.length) continue
 
       // 既存オプション（この項目配下）
