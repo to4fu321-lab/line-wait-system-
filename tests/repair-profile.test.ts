@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { REPAIR_LABELS, PRESET_KEYS } from '@/lib/repairProfile'
 import { PRESETS_BY_KEY, mergePresetFields } from '@/lib/repairPresets'
 import type { FieldDef } from '@/types/repair'
-import { toFieldDefs } from '@/types/repair'
+import { toFieldDefs, visibleFields } from '@/types/repair'
 import { canNotifyNow } from '@/lib/notifyWindow'
 import type { BusinessHours } from '@/lib/pop'
 
@@ -167,5 +167,32 @@ describe('mergePresetFields（取り込み時の入力欄の更新）', () => {
 
   it('未取り込みの項目にはプリセットがそのまま入る', () => {
     expect(mergePresetFields([], preset)).toEqual(preset)
+  })
+})
+
+describe('visibleFields（条件付きの入力欄）', () => {
+  const fields: FieldDef[] = [
+    { key: 'hem_measure',  label: '測り方', type: 'select' },
+    { key: 'inseam_cm',    label: '股下',   type: 'number', show_if: { key: 'hem_measure', equals: '股下' } },
+    { key: 'total_len_cm', label: '総丈',   type: 'number', show_if: { key: 'hem_measure', equals: '総丈' } },
+  ]
+
+  it('股下を選ぶと股下だけ出る（総丈は出さない）', () => {
+    expect(visibleFields(fields, { hem_measure: '股下' }).map(f => f.key))
+      .toEqual(['hem_measure', 'inseam_cm'])
+  })
+
+  it('総丈を選ぶと総丈だけ出る', () => {
+    expect(visibleFields(fields, { hem_measure: '総丈' }).map(f => f.key))
+      .toEqual(['hem_measure', 'total_len_cm'])
+  })
+
+  it('未選択なら条件付きの欄は出ない', () => {
+    expect(visibleFields(fields, {}).map(f => f.key)).toEqual(['hem_measure'])
+  })
+
+  it('show_if を持たない項目は常に出る', () => {
+    const plain: FieldDef[] = [{ key: 'a', label: 'A' }]
+    expect(visibleFields(plain, {})).toEqual(plain)
   })
 })

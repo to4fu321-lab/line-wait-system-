@@ -78,12 +78,20 @@ export interface FieldDef {
   // タップで先頭に差し込む定型語（type='text' 用）。メーカー名など。
   // select と違い排他ではなく、続きは自由入力できる。
   suggest_choices?: string[]
+  // 他の項目の値によって出し分ける。
+  // 例: 「測り方＝股下」のときだけ股下の欄を出す（股下と総丈は片方しか測らない）
+  show_if?: { key: string; equals: string }
 }
 
 // measurements（旧）を FieldDef（新）に正規化する。
 //  - fields が入っていればそれを使う
 //  - 空なら measurements を FieldDef として読む（mm/cm は数値扱い）
 const NUMERIC_UNITS = ['mm', 'cm', '度', '℃']
+
+/** show_if の条件を満たして画面に出る項目だけを返す */
+export function visibleFields(fields: FieldDef[], inputs: Record<string, unknown>): FieldDef[] {
+  return fields.filter(f => !f.show_if || String(inputs[f.show_if.key] ?? '') === f.show_if.equals)
+}
 
 export function toFieldDefs(
   fields?: FieldDef[] | null,

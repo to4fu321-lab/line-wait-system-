@@ -14,7 +14,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import type { RepairType } from '@/types/crm'
 import {
-  PRICE_UNIT_LABELS, PRICING_MODE_LABELS, REPAIR_PHOTOS_BUCKET, toFieldDefs,
+  PRICE_UNIT_LABELS, PRICING_MODE_LABELS, REPAIR_PHOTOS_BUCKET, toFieldDefs, visibleFields,
   type RepairGarmentType, type RepairItem, type RepairOption,
   type PricingMode, type SelectedOptionSnapshot, type RepairManual, type FieldDef,
 } from '@/types/repair'
@@ -370,7 +370,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
   function buildInputDetails(): { label: string; value: string }[] {
     if (!item) return []
     const out: { label: string; value: string }[] = []
-    for (const f of toFieldDefs(item.fields, item.measurements)) {
+    for (const f of visibleFields(toFieldDefs(item.fields, item.measurements), inputs)) {
       const v = inputs[f.key]
       if (v === undefined || v === '') continue
       const isBool = (f.type ?? 'text') === 'bool'
@@ -389,7 +389,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
     const optNames = selectedOptions.map(o => o.name)
     if (optNames.length) parts.push(`（${optNames.join('・')}）`)
     // 入力の要約（bool は ON のときだけラベルを出す）
-    const meas = toFieldDefs(item.fields, item.measurements)
+    const meas = visibleFields(toFieldDefs(item.fields, item.measurements), inputs)
       .filter(f => inputs[f.key] !== undefined && inputs[f.key] !== '')
       .map(f => (f.type ?? 'text') === 'bool' ? f.label : `${f.label}${inputs[f.key]}${f.unit ?? ''}`)
     if (meas.length) parts.push(meas.join(' '))
@@ -793,8 +793,9 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
 
   // マスタが定義した入力（fields 優先・無ければ旧 measurements）
   const itemFields = useMemo(
-    () => toFieldDefs(item?.fields, item?.measurements),
-    [item],
+    // show_if を満たさない項目は出さない（股下と総丈は片方だけ測る）
+    () => visibleFields(toFieldDefs(item?.fields, item?.measurements), inputs),
+    [item, inputs],
   )
 
   // ── 過去入力のサジェスト ────────────────────────────────────

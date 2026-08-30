@@ -121,9 +121,16 @@ const SPECIAL_FABRIC_MANUAL: RepairManual = {
 //  裾出しは「あと何cm出せるか（残り布）」が可否の判断材料になる。
 //  範囲は「実際にありえる幅」に絞る。広すぎるとスワイプが遠くなり、
 //  狭すぎると自由入力に落ちる。規格外は各項目の「自由入力」で入れられる。
+//  股下と総丈は「どちらか一方」しか測らない。測り方を先に選ばせ、
+//  選んだ方の欄だけ出す（default が店の既定。受付でその場で変えられる）。
 const HEM_UP_FIELDS: FieldDef[] = [
-  { key: 'inseam_cm',    label: '股下', type: 'number', unit: 'cm', required: true, min: 50, max: 100, step: 1, default: 70 },
-  { key: 'total_len_cm', label: '総丈', type: 'number', unit: 'cm', required: true, min: 70, max: 120, step: 1, default: 95 },
+  { key: 'hem_measure', label: '測り方', type: 'select', required: true, default: '股下',
+    choices: [{ value: '股下', label: '股下' }, { value: '総丈', label: '総丈' }],
+    hint: '店の既定。受付でどちらでも選べます' },
+  { key: 'inseam_cm',    label: '股下', type: 'number', unit: 'cm', required: true,
+    min: 50, max: 100, step: 1, default: 75, show_if: { key: 'hem_measure', equals: '股下' } },
+  { key: 'total_len_cm', label: '総丈', type: 'number', unit: 'cm', required: true,
+    min: 70, max: 120, step: 1, default: 95, show_if: { key: 'hem_measure', equals: '総丈' } },
 ]
 
 const HEM_OUT_FIELDS: FieldDef[] = [
@@ -151,6 +158,9 @@ export const REPAIR_PRESET: PresetGarment[] = [
         fields: HEM_UP_FIELDS,
         lead_time_days: 5,
         options: [
+          // 裾上げ（シングル）/（ダブル）を別項目に分けず、ここで選ぶ
+          { group_label: '裾の形', group_select: 'single', code: 'single_hem', name: 'シングル', price_delta: 0, default_selected: true },
+          { group_label: '裾の形', group_select: 'single', code: 'double_hem', name: 'ダブル',   price_delta: 500 },
           { group_label: '仕上げ方法', group_select: 'single', code: 'matsuri', name: 'まつり縫い',       price_delta: 0,   default_selected: true },
           { group_label: '仕上げ方法', group_select: 'single', code: 'stitch',  name: 'シングルステッチ', price_delta: 200 },
           { group_label: '仕上げ方法', group_select: 'single', code: 'chidori', name: '千鳥がけ',         price_delta: 300 },
