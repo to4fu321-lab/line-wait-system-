@@ -10,7 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { REPAIR_PHOTOS_BUCKET } from '@/types/repair'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { REPAIR_LABELS as labels } from '@/lib/repairProfile'
-import { lastStaffId } from './StaffPicker'
+import { StaffPicker, lastStaffId, useStaffList } from './StaffPicker'
 import {
   REPAIR_STATUS_LABELS, REPAIR_STATUS_COLORS,
   REQUEST_TYPE_LABELS, REQUEST_TYPE_COLORS,
@@ -50,6 +50,11 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
   // 一覧は「次に何をやるか」の判断に絞る。金額・日付・詳細は畳んで、
   // 同じトグル（下部の「…」行）でまとめて開く。
   const detailOpen = photosOpen
+  // 作業・連絡の担当。完了時に必ず選ばせる（誰がやったか後で分からなくなるため）
+  const staffCount = useStaffList(storeId).length
+  const [doneBy, setDoneBy] = useState<string | null>(null)
+  useEffect(() => { setDoneBy(item.strung_by ?? lastStaffId(storeId)) }, [item.strung_by, storeId])
+  const staffMissing = staffCount > 0 && !doneBy
   const [printOpen,    setPrintOpen]    = useState(false)
   const photosLoadedRef = useRef(false)
 
@@ -155,7 +160,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
     const markNotifiedNow = fullNotifyMode !== 'line' && fullNotifyMode !== 'sms'
     const { error } = await (supabase as any).from('repair_histories')
       .update({ status: 'completed', completed_date: today, ...(markNotifiedNow ? { notified: true } : {}),
-                ...(item.strung_by ? {} : { strung_by: lastStaffId(storeId) }),
+                ...(item.strung_by ? {} : { strung_by: doneBy }),
                 updated_at: new Date().toISOString() })
       .eq('id', item.id)
     if (error) { setLoading(false); onToast('err', '更新に失敗しました'); return }
@@ -221,7 +226,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       label: '✅ 対応完了・連絡する',
       color: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-200',
       onClick: () => update(
-        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true, ...(item.strung_by ? {} : { strung_by: lastStaffId(storeId) }) },
+        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true, ...(item.strung_by ? {} : { strung_by: doneBy }) },
         '対応完了にしました',
         { status: 'received', completed_date: null, notified: false }
       ),
@@ -231,7 +236,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       label: '✅ 確保済み・連絡する',
       color: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-200',
       onClick: () => update(
-        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true, ...(item.strung_by ? {} : { strung_by: lastStaffId(storeId) }) },
+        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true, ...(item.strung_by ? {} : { strung_by: doneBy }) },
         '確保済みにしました',
         { status: 'received', completed_date: null, notified: false }
       ),
@@ -241,7 +246,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       label: '✅ 問合せ対応完了',
       color: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-200',
       onClick: () => update(
-        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true, ...(item.strung_by ? {} : { strung_by: lastStaffId(storeId) }) },
+        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true, ...(item.strung_by ? {} : { strung_by: doneBy }) },
         '問合せ対応完了にしました',
         { status: 'received', completed_date: null, notified: false }
       ),
@@ -251,7 +256,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       label: '✅ 相談完了',
       color: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-200',
       onClick: () => update(
-        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true, ...(item.strung_by ? {} : { strung_by: lastStaffId(storeId) }) },
+        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true, ...(item.strung_by ? {} : { strung_by: doneBy }) },
         '相談完了にしました',
         { status: 'received', completed_date: null, notified: false }
       ),
@@ -261,7 +266,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       label: '✅ 入金確認・回収完了',
       color: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-200',
       onClick: () => update(
-        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true, ...(item.strung_by ? {} : { strung_by: lastStaffId(storeId) }) },
+        { status: 'completed', completed_date: new Date().toISOString().slice(0, 10), notified: true, ...(item.strung_by ? {} : { strung_by: doneBy }) },
         '入金確認・回収完了にしました',
         { status: 'received', completed_date: null, notified: false }
       ),
@@ -592,13 +597,14 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                   </a>
                 )}
                 <CompletionPhotoCapture photos={completionPhotos} onAdd={f => setCompletionPhotos(cp => [...cp, f])} onRemove={i => setCompletionPhotos(cp => cp.filter((_, j) => j !== i))} />
+                <StaffPicker storeId={storeId} label="作業・連絡した人（必須）" value={doneBy} onChange={setDoneBy} />
                 <div className="flex gap-2">
                   <button onClick={() => setConfirmPrimary(false)}
                     className="flex-1 py-2 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-black active:scale-95 transition-all"
                     style={{ touchAction: 'manipulation' }}>
                     戻る
                   </button>
-                  <button onClick={() => { setConfirmPrimary(false); handleSimpleComplete() }} disabled={loading}
+                  <button onClick={() => { setConfirmPrimary(false); handleSimpleComplete() }} disabled={loading || staffMissing}
                     className="flex-1 py-2 rounded-xl bg-emerald-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md disabled:opacity-50"
                     style={{ touchAction: 'manipulation' }}>
                     {loading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
@@ -610,13 +616,14 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 px-3 py-2.5 space-y-2">
               <p className="text-sm text-center text-emerald-800 font-black">{confirmText}</p>
               <CompletionPhotoCapture photos={completionPhotos} onAdd={f => setCompletionPhotos(cp => [...cp, f])} onRemove={i => setCompletionPhotos(cp => cp.filter((_, j) => j !== i))} />
+              <StaffPicker storeId={storeId} label="作業・連絡した人（必須）" value={doneBy} onChange={setDoneBy} />
               <div className="flex gap-2">
                 <button onClick={() => setConfirmPrimary(false)}
                   className="flex-1 py-2 rounded-xl bg-white border-2 border-gray-200 text-gray-600 text-sm font-black active:scale-95 transition-all"
                   style={{ touchAction: 'manipulation' }}>
                   戻る
                 </button>
-                <button onClick={() => { setConfirmPrimary(false); handleSimpleComplete() }} disabled={loading}
+                <button onClick={() => { setConfirmPrimary(false); handleSimpleComplete() }} disabled={loading || staffMissing}
                   className="flex-1 py-2 rounded-xl bg-emerald-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md disabled:opacity-50"
                   style={{ touchAction: 'manipulation' }}>
                   {loading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
@@ -920,6 +927,10 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                     もう一度タップして確定します
                   </p>
                   <CompletionPhotoCapture photos={completionPhotos} onAdd={f => setCompletionPhotos(cp => [...cp, f])} onRemove={i => setCompletionPhotos(cp => cp.filter((_, j) => j !== i))} />
+                  {/* 完了のときだけ担当者を必須にする（作業開始は不要） */}
+                  {primaryBtn.label.includes('完了') && (
+                    <StaffPicker storeId={storeId} label="作業・連絡した人（必須）" value={doneBy} onChange={setDoneBy} />
+                  )}
                   <div className="flex gap-2">
                     <button onClick={() => setConfirmPrimary(false)}
                       className="flex-1 py-3 rounded-xl bg-white border border-gray-200 text-gray-600 text-sm font-bold active:scale-95 transition-all">
@@ -929,7 +940,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                       setConfirmPrimary(false)
                       if (completionPhotos.length > 0) { setLoading(true); await uploadCompletionPhotos(); setLoading(false) }
                       primaryBtn.onClick()
-                    }} disabled={loading}
+                    }} disabled={loading || (primaryBtn.label.includes('完了') && staffMissing)}
                       className={`flex-1 py-3 rounded-xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-all shadow-sm ${primaryBtn.color}`}>
                       {loading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                       確定する

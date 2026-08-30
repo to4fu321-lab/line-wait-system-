@@ -24,7 +24,7 @@ import { REPAIR_LABELS as labels } from '@/lib/repairProfile'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { isSessionExpiredError } from '@/lib/staffSessionClient'
 import type { CustResult } from './types'
-import { StaffPicker, lastStaffId } from './StaffPicker'
+import { StaffPicker, lastStaffId, useStaffList } from './StaffPicker'
 import { NumberSwipePicker } from './NumberSwipePicker'
 
 // 材料候補（商品マスタから引く。ガット・グリップ等）
@@ -162,6 +162,8 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
   const [qty, setQty] = useState(1)
   const [receivedBy, setReceivedBy] = useState<string | null>(null)
   useEffect(() => { setReceivedBy(lastStaffId(storeId)) }, [storeId])
+  // スタッフ未登録の店では担当者を必須にしない
+  const staffCount = useStaffList(storeId).length
   const [pricingMode, setPricingMode] = useState<PricingMode>('master')
   const [overridePrice, setOverridePrice] = useState('')
   const [manualReason, setManualReason] = useState('')
@@ -308,6 +310,10 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
       }
     }
     setInputs(defs)
+    // 納期は選んだ作業の標準日数から先に埋める（未入力のまま進むのを防ぐ）
+    if (it.lead_time_days != null) {
+      setDeadline(addBusinessDays(new Date(), it.lead_time_days).toISOString().slice(0, 10))
+    }
     const { data } = await (supabase as any).from('repair_options')
       .select('*').eq('item_id', it.id).eq('active', true).order('sort_order')
     const opts = (data ?? []) as RepairOption[]
@@ -1002,6 +1008,12 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
           {/* ── 顧客選択 ── */}
           {step === 'customer' && (
             <div>
+              <div className="mb-5 rounded-2xl border-2 border-indigo-100 bg-indigo-50/40 p-3">
+                <StaffPicker storeId={storeId} label="受付担当（必須）" value={receivedBy} onChange={setReceivedBy} />
+                {staffCount > 0 && !receivedBy && (
+                  <p className="text-[11px] font-bold text-red-500 mt-1.5">受付した人を選んでください</p>
+                )}
+              </div>
               <p className="text-xl font-black text-gray-800 mb-1">お客様を選んでください</p>
               <p className="text-sm text-gray-500 mb-5">お名前・電話番号・学校で検索できます</p>
 
@@ -1309,7 +1321,6 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
                       <p className="text-xl font-black text-gray-800 mb-1">仕上がり日・メモ</p>
                       <p className="text-sm text-gray-500 mb-5">希望日と外注先・メモを入力してください</p>
                       <div className="space-y-4">
-                        <StaffPicker storeId={storeId} label="受付担当" value={receivedBy} onChange={setReceivedBy} />
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label className="text-xs font-bold text-gray-600 block mb-1.5">仕上がり希望日</label>
@@ -1376,8 +1387,9 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
           {step === 'customer' ? (
             selectedCust ? (
               <button onClick={() => setStep('build')}
+                disabled={staffCount > 0 && !receivedBy}
                 style={{ touchAction: 'manipulation' }}
-                className="w-full py-5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xl font-black transition-colors active:scale-[0.98] flex items-center justify-center gap-2">
+                className="w-full py-5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xl font-black transition-colors active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-40">
                 <Check size={22} />{labels.item}へ進む
               </button>
             ) : (
