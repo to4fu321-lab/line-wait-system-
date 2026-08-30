@@ -98,20 +98,26 @@ const SPECIAL_FABRIC_MANUAL: RepairManual = {
 // ── 裾上げ／裾出しで実際に測る項目 ────────────────────────────
 //  制服店は「仕上がり丈」だけでは足りず、総丈・股下を控える。
 //  裾出しは「あと何cm出せるか（残り布）」が可否の判断材料になる。
+//  範囲は「実際にありえる幅」に絞る。広すぎるとスワイプが遠くなり、
+//  狭すぎると自由入力に落ちる。規格外は各項目の「自由入力」で入れられる。
 const HEM_UP_FIELDS: FieldDef[] = [
-  { key: 'inseam_cm',     label: '股下',       type: 'number', unit: 'cm', required: true, min: 30, max: 120, step: 1 },
-  { key: 'total_len_cm',  label: '総丈',       type: 'number', unit: 'cm', min: 40, max: 140, step: 1 },
-  { key: 'finish_len_cm', label: '仕上がり丈', type: 'number', unit: 'cm', required: true, min: 30, max: 120, step: 1 },
-  { key: 'fold_keep_cm',  label: '折り返し残し', type: 'number', unit: 'cm', min: 0, max: 15, step: 1 },
+  { key: 'inseam_cm',    label: '股下', type: 'number', unit: 'cm', required: true, min: 50, max: 100, step: 1, default: 70 },
+  { key: 'total_len_cm', label: '総丈', type: 'number', unit: 'cm', required: true, min: 70, max: 120, step: 1, default: 95 },
 ]
 
 const HEM_OUT_FIELDS: FieldDef[] = [
-  { key: 'out_width_cm',  label: '裾出し幅',   type: 'number', unit: 'cm', required: true, min: 1, max: 15, step: 1 },
-  { key: 'inseam_cm',     label: '股下（現状）', type: 'number', unit: 'cm', min: 30, max: 120, step: 1 },
-  { key: 'spare_cm',      label: '残り布',     type: 'number', unit: 'cm', min: 0, max: 15, step: 1,
-    hint: '折り返しの内側に残っている布。これ以上は出せない' },
-  { key: 'finish_len_cm', label: '仕上がり丈', type: 'number', unit: 'cm', required: true, min: 30, max: 120, step: 1 },
+  { key: 'out_len_cm', label: '出す長さ', type: 'number', unit: 'cm', required: true, min: 1, max: 10, step: 1, default: 3 },
 ]
+
+// 詰め／出しは方向と量に分ける（符号で表すと現場が迷う）
+function adjustFields(key: string, label: string, max: number, def: number): FieldDef[] {
+  return [
+    { key: `${key}_dir`, label: `${label}の方向`, type: 'select', required: true,
+      choices: [{ value: '詰める', label: '詰める' }, { value: '出す', label: '出す' }] },
+    { key: `${key}_cm`,  label: `${label}の量`, type: 'number', unit: 'cm', required: true,
+      min: 1, max, step: 1, default: def },
+  ]
+}
 
 // ── 標準プリセット本体（ベース: sql/repair-system-seed.sql ＋ サイズ段階） ──
 export const REPAIR_PRESET: PresetGarment[] = [
@@ -120,8 +126,7 @@ export const REPAIR_PRESET: PresetGarment[] = [
     items: [
       {
         code: 'hem', name: '裾上げ', icon: '✂️', base_price: 1200, price_unit: 'per_item',
-        // 現場が実際に測るのは 総丈・股下・仕上がり。cm は ±1 刻みで押せる。
-        // （旧 measurements の mm 定義は fields に置き換えたので持たせない）
+        // 現場が実際に測るのは 股下と総丈。スワイプの目盛りで選ぶ。
         fields: HEM_UP_FIELDS,
         lead_time_days: 5,
         options: [
@@ -134,12 +139,8 @@ export const REPAIR_PRESET: PresetGarment[] = [
       },
       {
         code: 'waist', name: 'ウエスト詰め・出し', icon: '📏', base_price: 1500, price_unit: 'per_item',
-        measurements: [{ key: 'waist_adjust_mm', label: '増減量', unit: 'mm', required: true }],
+        fields: adjustFields('waist', 'ウエスト', 10, 3),
         lead_time_days: 5,
-        options: [
-          ...buildSizeTier({ groupCode: 'tsume', group: '詰め幅', min: 1, max: 5, step: 1 }),
-          ...buildSizeTier({ groupCode: 'dashi', group: '出し幅', min: 1, max: 5, step: 1 }),
-        ],
       },
       {
         code: 'hem_out', name: '裾出し', icon: '📐', base_price: 1500, price_unit: 'per_item',
@@ -158,15 +159,16 @@ export const REPAIR_PRESET: PresetGarment[] = [
     items: [
       {
         code: 'hem', name: '丈詰め', icon: '✂️', base_price: 1500, price_unit: 'per_item',
-        measurements: [{ key: 'hem_length_mm', label: '仕上がり丈', unit: 'mm', required: true }],
+        fields: [
+          { key: 'skirt_len_cm',  label: '仕上がり丈', type: 'number', unit: 'cm', required: true, min: 35, max: 90, step: 1, default: 55 },
+          { key: 'skirt_cut_cm',  label: '詰める量',   type: 'number', unit: 'cm', min: 1, max: 20, step: 1, default: 5 },
+        ],
         lead_time_days: 5,
-        options: buildSizeTier({ groupCode: 'skhem', group: '詰め丈', min: 2, max: 20, step: 2 }),
       },
       {
         code: 'waist', name: 'ウエスト調整', icon: '📏', base_price: 1500, price_unit: 'per_item',
-        measurements: [{ key: 'waist_adjust_mm', label: '増減量', unit: 'mm', required: true }],
+        fields: adjustFields('waist', 'ウエスト', 10, 3),
         lead_time_days: 5,
-        options: buildSizeTier({ groupCode: 'skwaist', group: '調整幅', min: 1, max: 5, step: 1 }),
       },
     ],
   },
@@ -174,10 +176,9 @@ export const REPAIR_PRESET: PresetGarment[] = [
     code: 'jacket', name: '上着（ブレザー・学ラン）', icon: '🧥',
     items: [
       {
-        code: 'sleeve', name: '袖丈直し', icon: '👔', base_price: 2000, price_unit: 'per_item',
-        measurements: [{ key: 'sleeve_adjust_mm', label: '袖丈増減', unit: 'mm', required: true }],
+        code: 'sleeve', name: '袖丈直し（詰め・出し）', icon: '👔', base_price: 2000, price_unit: 'per_item',
+        fields: adjustFields('sleeve', '袖丈', 10, 3),
         lead_time_days: 7,
-        options: buildSizeTier({ groupCode: 'sode', group: '袖丈', min: 1, max: 5, step: 1 }),
       },
       { code: 'badge',  name: '校章付け',       icon: '🏅', base_price: 500, price_unit: 'per_item', lead_time_days: 3 },
       { code: 'button', name: 'ボタン付け替え', icon: '🔘', base_price: 300, price_unit: 'per_item', lead_time_days: 3 },

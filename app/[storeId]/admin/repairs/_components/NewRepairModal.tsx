@@ -25,6 +25,7 @@ import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { isSessionExpiredError } from '@/lib/staffSessionClient'
 import type { CustResult } from './types'
 import { StaffPicker, lastStaffId } from './StaffPicker'
+import { NumberSwipePicker } from './NumberSwipePicker'
 
 // 材料候補（商品マスタから引く。ガット・グリップ等）
 interface MaterialProduct {
@@ -583,13 +584,26 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
       : null
 
     if (type === 'number') {
+      // min/max があればスワイプの目盛りにする（±ボタンで1ずつは遅すぎる）。
+      // 範囲が無い項目だけ従来の±ボタンにフォールバック。
+      if (f.min != null && f.max != null) {
+        return (
+          <div key={f.key}>
+            {head}
+            <NumberSwipePicker
+              value={String(val)}
+              onChange={v => setInputs({ ...inputs, [f.key]: v })}
+              min={f.min} max={f.max} step={f.step ?? 1} unit={f.unit ?? ''}
+              fallbackDefault={typeof f.default === 'number' ? f.default : undefined}
+            />
+            {hint}
+          </div>
+        )
+      }
       const isMm  = f.unit === 'mm'
       const step  = f.step ?? (isMm ? 5 : 1)
       const n     = val === '' ? (typeof f.default === 'number' ? f.default : 0) : Number(val) || 0
-      // min/max があればその範囲に丸める（適正ポンド数を外れた受付を防ぐ）
-      const clamp = (v: number) =>
-        Math.min(f.max ?? Number.POSITIVE_INFINITY, Math.max(f.min ?? Number.NEGATIVE_INFINITY, v))
-      const set = (v: number) => setInputs({ ...inputs, [f.key]: String(clamp(v)) })
+      const set = (v: number) => setInputs({ ...inputs, [f.key]: String(v) })
       return (
         <div key={f.key}>
           {head}
