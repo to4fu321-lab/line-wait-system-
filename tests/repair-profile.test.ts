@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { REPAIR_LABELS, PRESET_KEYS } from '@/lib/repairProfile'
-import { PRESETS_BY_KEY } from '@/lib/repairPresets'
+import { PRESETS_BY_KEY, mergePresetFields } from '@/lib/repairPresets'
+import type { FieldDef } from '@/types/repair'
 import { toFieldDefs } from '@/types/repair'
 import { canNotifyNow } from '@/lib/notifyWindow'
 import type { BusinessHours } from '@/lib/pop'
@@ -122,5 +123,39 @@ describe('canNotifyNow', () => {
     const r = canNotifyNow(broken, at('2026-08-31T14:00:00'))
     expect(r.canSendNow).toBe(false) // 判定できない曜日は翌営業日を探しにいく
     expect(r.nextOpenAt).toBeNull()  // 全曜日不明 → 呼び出し側は送信扱いにする
+  })
+})
+
+describe('mergePresetFields（取り込み時の入力欄の更新）', () => {
+  const preset: FieldDef[] = [
+    { key: 'inseam_cm',    label: '股下', type: 'number' },
+    { key: 'total_len_cm', label: '総丈', type: 'number' },
+  ]
+
+  it('cm入力に置き換えた旧mm項目は落とす（同じことを2回聞かせない）', () => {
+    const cur: FieldDef[] = [
+      { key: 'hem_length_mm', label: '仕上がり丈', type: 'number', unit: 'mm' },
+      { key: 'fold_keep_mm',  label: '折り返し残し', type: 'number', unit: 'mm' },
+    ]
+    expect(mergePresetFields(cur, preset).map(f => f.key)).toEqual(['inseam_cm', 'total_len_cm'])
+  })
+
+  it('店が独自に足した項目は消さずに後ろへ残す', () => {
+    const cur: FieldDef[] = [
+      { key: 'hem_length_mm', label: '仕上がり丈', type: 'number' },
+      { key: 'shop_note',     label: '当店メモ',   type: 'text' },
+    ]
+    expect(mergePresetFields(cur, preset).map(f => f.key)).toEqual(['inseam_cm', 'total_len_cm', 'shop_note'])
+  })
+
+  it('プリセット側の定義が優先される（同キーは重複しない）', () => {
+    const cur: FieldDef[] = [{ key: 'inseam_cm', label: '古い股下', type: 'text' }]
+    const out = mergePresetFields(cur, preset)
+    expect(out.map(f => f.key)).toEqual(['inseam_cm', 'total_len_cm'])
+    expect(out[0].label).toBe('股下')
+  })
+
+  it('未取り込みの項目にはプリセットがそのまま入る', () => {
+    expect(mergePresetFields([], preset)).toEqual(preset)
   })
 })

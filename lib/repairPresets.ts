@@ -11,6 +11,25 @@ import { supabase } from './supabase'
 import type { PriceUnit, MeasurementDef, FieldDef, RepairManual } from '@/types/repair'
 import type { PresetKey } from './repairProfile'
 
+// 旧「採寸(measurements)」由来の mm 項目。cm のスワイプ入力に置き換えたので、
+// プリセットが fields を持つ項目では取り込み時に落とす。
+// 限定列挙にしているので、店が独自に足した項目は消えない。
+const LEGACY_FIELD_KEYS = new Set([
+  'hem_length_mm', 'fold_keep_mm', 'sleeve_adjust_mm', 'waist_adjust_mm',
+])
+
+/**
+ * 取り込み済み項目の入力欄を、プリセットの最新定義に合わせる。
+ *  - プリセットの項目を（定義順で）先頭に置く
+ *  - 店が独自に足した項目は後ろに残す（追記式：勝手に消さない）
+ *  - cm入力へ置き換えた旧mm項目だけは落とす（残すと同じことを2回聞く）
+ */
+export function mergePresetFields(current: FieldDef[], preset: FieldDef[]): FieldDef[] {
+  const presetKeys = new Set(preset.map(f => f.key))
+  const extra = current.filter(f => !LEGACY_FIELD_KEYS.has(f.key) && !presetKeys.has(f.key))
+  return [...preset, ...extra]
+}
+
 // ── プリセット定義の型（ローカル） ──────────────────────────────
 interface PresetOption {
   group_label:      string | null
@@ -381,17 +400,15 @@ export async function seedRepairPresets(
     for (const pi of pg.items) {
       let itemId = itemByCode.get(pi.code)
       if (itemId && pi.fields?.length) {
-        // 取り込み済みの項目にも、プリセット側で後から増えた入力欄を足す。
-        // 既存キーには触らないので、店が直した内容は壊れない（追記式）。
-        const cur  = itemFieldsBy.get(pi.code) ?? []
-        const have = new Set(cur.map(f => f.key))
-        const add  = pi.fields.filter(f => !have.has(f.key))
-        if (add.length) {
-          // プリセットの並び順を保つため、定義順にマージし直す
-          const merged = [...pi.fields.filter(f => !have.has(f.key)), ...cur]
-          const { error } = await db.from('repair_items').update({ fields: merged }).eq('id', itemId)
+        const cur    = itemFieldsBy.get(pi.code) ?? []
+        const merged = mergePresetFields(cur, pi.fields)
+        const changed = merged.length !== cur.length || merged.some((f, i) => f.key !== cur[i]?.key)
+        if (changed) {
+          // measurements も空にする。残すと fields が空になった時に
+          // 旧mm項目へフォールバックして復活してしまう。
+          const { error } = await db.from('repair_items')
+            .update({ fields: merged, measurements: [] }).eq('id', itemId)
           if (error) firstError ??= error.message
-          else iAdded += 0   // 新規追加ではないので件数には数えない
         }
       }
       if (!itemId) {
