@@ -361,6 +361,23 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
 
   const pubUrl = (path: string) => supabase.storage.from(REPAIR_PHOTOS_BUCKET).getPublicUrl(path).data.publicUrl
 
+  // 一覧の展開表示用。ラベルはマスタ側にあるので受付時に凍結して持たせる
+  // （毎行マスタを引かずに済み、後からラベルを変えても過去伝票は当時のまま）
+  function buildInputDetails(): { label: string; value: string }[] {
+    if (!item) return []
+    const out: { label: string; value: string }[] = []
+    for (const f of toFieldDefs(item.fields, item.measurements)) {
+      const v = inputs[f.key]
+      if (v === undefined || v === '') continue
+      const isBool = (f.type ?? 'text') === 'bool'
+      out.push({ label: f.label, value: isBool ? 'あり' : `${v}${f.unit ?? ''}` })
+    }
+    for (const o of selectedOptions) {
+      out.push({ label: o.group_label ?? 'オプション', value: o.name })
+    }
+    return out
+  }
+
   function buildContent(): string {
     if (pricingMode === 'manual' && item?.code === 'other') return manualContent || manualItemName || '特殊対応'
     if (!item) return manualContent
@@ -407,7 +424,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
     // qty は「同じ内容の点数」= 何行(＝何点の物理的な服)作るか。価格は1点あたり(finalPrice)を各行に設定する
     const payload: Record<string, unknown> = {
       store_id: storeId, customer_id: selectedCust.id, child_id: selectedChild?.id ?? null,
-      item_name: itemName, content,
+      item_name: itemName, content, input_details: buildInputDetails(),
       request_type: finalPrice == null ? 'repair_consult' : 'repair',
       repair_type: repairTypeCode,
       status: 'received', received_date: new Date().toISOString().slice(0, 10),

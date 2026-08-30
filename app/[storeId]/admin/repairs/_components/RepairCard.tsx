@@ -445,16 +445,47 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             )}
             <span className={tx('text-lg', 'text-xl') + ' font-black text-gray-900 leading-tight'}>{name}</span>
             <span className="text-gray-300 font-black">｜</span>
-            <span className={tx('text-base', 'text-lg') + ' font-black text-gray-900 leading-tight'}>
-              {item.content || item.item_name || '内容未記入'}
-            </span>
-            {item.item_name && item.content && item.item_name !== item.content && (
-              <span className={tx('text-xs', 'text-sm') + ' text-gray-400 font-bold'}>{item.item_name}</span>
-            )}
+            {/* 畳んだ時は作業名だけ。ポンド数などの内訳は展開時に出す。 */}
+            {/* 種類バッジと同じ文字列なら重ねて出さない */}
+            {(() => {
+              const work = detailOpen
+                ? (item.content || item.item_name || '内容未記入')
+                : (item.item_name || item.content || '内容未記入')
+              if (!detailOpen && work === item.garment_name) return null
+              return (
+                <span className={tx('text-base', 'text-lg') + ' font-black text-gray-900 leading-tight'}>{work}</span>
+              )
+            })()}
             {detailOpen && item.child?.name && item.customer?.name && (
               <span className={tx('text-[11px]', 'text-xs') + ' text-gray-400'}>（保護者: {item.customer.name}）</span>
             )}
           </div>
+
+          {/* 受付内容の内訳（ラケット・糸・ポンド数・巻き・希望…） */}
+          {detailOpen && (item.input_details?.length ?? 0) > 0 && (
+            <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2 space-y-1">
+              {item.input_details!.map((d, i) => (
+                <div key={i} className="flex items-baseline gap-2 text-sm">
+                  <span className="w-24 shrink-0 text-[11px] font-bold text-gray-400">{d.label}</span>
+                  <span className="font-black text-gray-800 break-all">{d.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 詳細の希望・スタッフメモ */}
+          {detailOpen && item.notes && (
+            <div className="rounded-xl bg-blue-50 border border-blue-100 px-3 py-2">
+              <p className="text-[10px] font-bold text-blue-500 mb-0.5">ご希望・メモ</p>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap">{item.notes}</p>
+            </div>
+          )}
+          {detailOpen && item.internal_memo && (
+            <div className="rounded-xl bg-yellow-50 border border-yellow-200 px-3 py-2">
+              <p className="text-[10px] font-bold text-yellow-600 mb-0.5">スタッフメモ</p>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap">{item.internal_memo}</p>
+            </div>
+          )}
 
           {/* 詳細（mm・刺繍）— 一覧では畳む */}
           {detailOpen && item.repair_type === 'hem' && item.hem_length_mm != null && item.hem_length_mm !== 0 && (

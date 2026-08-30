@@ -40,6 +40,8 @@ export interface RepairRow {
   manual_reason?: string | null
   selected_options?: import('@/types/repair').SelectedOptionSnapshot[]
   inputs?: Record<string, string | number>
+  /** 一覧の展開表示用のラベル付きスナップショット（受付時に凍結） */
+  input_details?: { label: string; value: string }[]
 }
 
 export interface PurchaseRow {
