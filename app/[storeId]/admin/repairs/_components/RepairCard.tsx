@@ -440,7 +440,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
 
           {/* 顧客名 ｜ 大項目 ｜ お直し内容（1行にまとめる） */}
           <div className="flex items-baseline gap-x-2 gap-y-0.5 flex-wrap">
-            {detailOpen && item.child?.school_name && (
+            {item.child?.school_name && (
               <span className={tx('text-xs', 'text-sm') + ' font-black text-amber-600'}>{item.child.school_name}</span>
             )}
             {item.garment_name && (
@@ -520,6 +520,14 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
 
           {/* 納期は常に見せる（次に何をやるかの判断に要る）。
               金額・受付日は展開時のみ（作業中は使わない情報） */}
+          {!detailOpen && (() => {
+            const size = item.input_details?.find(d => d.label.startsWith('サイズ'))?.value
+            return size ? (
+              <span className="inline-block rounded-lg bg-amber-50 border border-amber-200 px-2 py-0.5 text-xs font-black text-amber-700">
+                サイズ {size}
+              </span>
+            ) : null
+          })()}
           {!detailOpen && (
             <div className="flex items-center justify-between gap-2">
               <span className={`text-sm font-black ${isOverdue ? 'text-red-600' : isDueSoon ? 'text-amber-600' : 'text-gray-500'}`}>

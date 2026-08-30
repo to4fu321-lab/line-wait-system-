@@ -385,9 +385,8 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
   function buildContent(): string {
     if (pricingMode === 'manual' && item?.code === 'other') return manualContent || manualItemName || '特殊対応'
     if (!item) return manualContent
+    // 仕上げ方法などのオプションは一覧に出さない（内訳＝input_details に入る）
     const parts: string[] = [item.name]
-    const optNames = selectedOptions.map(o => o.name)
-    if (optNames.length) parts.push(`（${optNames.join('・')}）`)
     // 入力の要約（bool は ON のときだけラベルを出す）
     const meas = visibleFields(toFieldDefs(item.fields, item.measurements), inputs)
       .filter(f => inputs[f.key] !== undefined && inputs[f.key] !== '')
@@ -1344,7 +1343,10 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
                       <div className="bg-gray-50 rounded-2xl p-5 space-y-4">
                         {[
                           { label: 'お客様', value: selectedCust ? `${selectedCust.name}${selectedChild ? ` / ${selectedChild.name}` : ''}` : '未紐付け（後で登録できます）' },
+                          ...(selectedChild?.school_name ? [{ label: '学校', value: selectedChild.school_name }] : []),
                           { label: `${labels.garment}・${labels.item}`, value: `${garments.find(g => g.id === garmentId)?.name ?? ''} / ${item.name}` },
+                          // 取り違え防止のため、サイズと採寸は必ず確認画面に出す
+                          ...buildInputDetails().map(d => ({ label: d.label, value: d.value })),
                           ...(qty > 1 ? [{ label: '数量', value: `${qty}点（1点ずつ登録・印刷されます）` }] : []),
                           { label: '金額', value: (() => {
                             const perUnit = pricingMode === 'master' ? calculated : finalPrice
