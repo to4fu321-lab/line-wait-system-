@@ -140,6 +140,16 @@ describe('mergePresetFields（取り込み時の入力欄の更新）', () => {
     expect(mergePresetFields(cur, preset).map(f => f.key)).toEqual(['inseam_cm', 'total_len_cm'])
   })
 
+  it('過去のプリセットが配った項目も落とす（裾上げ4項目→2項目の整理）', () => {
+    const cur: FieldDef[] = [
+      { key: 'inseam_cm', label: '股下', type: 'number' },
+      { key: 'total_len_cm', label: '総丈', type: 'number' },
+      { key: 'finish_len_cm', label: '仕上がり丈', type: 'number' },
+      { key: 'fold_keep_cm', label: '折り返し残し', type: 'number' },
+    ]
+    expect(mergePresetFields(cur, preset).map(f => f.key)).toEqual(['inseam_cm', 'total_len_cm'])
+  })
+
   it('店が独自に足した項目は消さずに後ろへ残す', () => {
     const cur: FieldDef[] = [
       { key: 'hem_length_mm', label: '仕上がり丈', type: 'number' },

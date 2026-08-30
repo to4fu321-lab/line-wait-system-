@@ -46,7 +46,8 @@ export function NumberSwipePicker({
     if (freeInput || outOfRange) return
     const el = ref.current
     if (!el) return
-    const n = num ?? fallbackDefault ?? min
+    // 既定値が無い項目は範囲の中央から始める（最小値からだとスワイプが遠い）
+    const n = num ?? fallbackDefault ?? values[Math.floor(values.length / 2)] ?? min
     if (scrollingRef.current) return
     el.scrollTo({ left: indexOf(n) * ITEM_W, behavior: 'auto' })
   }, [num, fallbackDefault, min, indexOf, freeInput, outOfRange])
@@ -89,7 +90,9 @@ export function NumberSwipePicker({
         {/* 中央の選択枠 */}
         <div className="pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 z-10"
           style={{ width: ITEM_W }}>
-          <div className="h-full rounded-xl border-2 border-indigo-400 bg-indigo-50/40" />
+          <div className={`h-full rounded-xl border-2 ${
+            num == null ? 'border-dashed border-gray-300' : 'border-indigo-400 bg-indigo-50/40'
+          }`} />
         </div>
         <div
           ref={ref}

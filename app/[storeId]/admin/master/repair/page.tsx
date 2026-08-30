@@ -332,10 +332,12 @@ export default function RepairMasterPage() {
     showToast('ok', '削除しました'); fetchOptions(o.item_id)
   }
 
-  // ── サイズ段階を一括生成 modal ──────────────────────────────
+  // ── 数値の入力欄／段階の一括生成 modal ──────────────────────
   //  「〜5cm まで」「サイズで金額が変わる」を、タップ選択の択一オプション一式として生成。
   const [szModal, setSzModal]   = useState(false)
   const [szItemId, setSzItemId] = useState<string | null>(null)
+  // 既定は数値入力（スワイプ）。金額が段階で変わるものだけ択一オプションにする。
+  const [szMode, setSzMode] = useState<'field' | 'options'>('field')
   const [szGroup, setSzGroup]   = useState('詰め幅')
   const [szUnit, setSzUnit]     = useState('cm')
   const [szMin, setSzMin]       = useState('1')
@@ -370,6 +372,34 @@ export default function RepairMasterPage() {
     }
     return out
   })()
+  // 数値入力（スワイプ）として項目に足す
+  const generateSizeField = async () => {
+    if (!szItemId) return
+    if (!szGroup.trim()) return showToast('err', '項目名は必須です')
+    const min = Number(szMin), max = Number(szMax), step = Number(szStep)
+    if (!(step > 0) || !(max >= min)) return showToast('err', '最小・最大・刻みを確認してください')
+    setSzSaving(true)
+    const cur = items.find(it => it.id === szItemId)?.fields ?? []
+    const next: FieldDef[] = [...cur, {
+      key: `f_${Date.now().toString(36)}`,
+      label: szGroup.trim(),
+      type: 'number',
+      unit: szUnit || undefined,
+      min, max, step,
+      // 中央を初期位置にすると現場が近い値から動かせる
+      default: Math.round(((min + max) / 2) / step) * step,
+    }]
+    try {
+      const { error } = await (supabase as any).from('repair_items')
+        .update({ fields: next }).eq('id', szItemId)
+      if (error) throw error
+      setSzModal(false)
+      showToast('ok', `「${szGroup.trim()}」を${labels.measurement}に追加しました`)
+      if (selectedGarment) fetchItems(selectedGarment)
+    } catch (e) { showToast('err', `追加に失敗しました: ${(e as Error).message}`) }
+    finally { setSzSaving(false) }
+  }
+
   const generateSizes = async () => {
     if (!szItemId) return
     if (!szGroup.trim()) return showToast('err', 'グループ名は必須です')
@@ -562,7 +592,7 @@ export default function RepairMasterPage() {
                             <Plus size={13} /> オプションを追加
                           </button>
                           <button onClick={() => openSize(it.id)} className="flex-1 flex items-center justify-center gap-1 rounded-xl border-2 border-dashed border-indigo-200 py-2 text-xs font-bold text-indigo-400 hover:border-indigo-400 hover:text-indigo-600">
-                            <Ruler size={13} /> サイズ段階を一括生成
+                            <Ruler size={13} /> 数値の入力欄を追加
                           </button>
                         </div>
                       </div>
@@ -694,15 +724,33 @@ export default function RepairMasterPage() {
         </Modal>
       )}
 
-      {/* ── サイズ段階を一括生成 Modal ── */}
+      {/* ── 数値の入力欄／段階の一括生成 Modal ── */}
       {szModal && (
-        <Modal title="サイズ・文字数の段階を一括生成" onClose={() => setSzModal(false)} wide>
-          <p className="text-xs text-gray-500 leading-relaxed -mt-1">
-            受付画面で<strong>タップで選べる段階</strong>を一式作ります（択一）。長さ(cm)でも文字数でも使えます。<br />
-            「<strong>〜5cmまで</strong>」は最大を5に。ネーム刺繍は<strong>単位「文字」＋「サイズごとに加算」</strong>で「3文字まで→超過1文字ごと加算」を作れます。
+        <Modal title="サイズ・数値の入力欄を追加" onClose={() => setSzModal(false)} wide>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => setSzMode('field')}
+              className={`rounded-xl border-2 px-3 py-2.5 text-left transition ${
+                szMode === 'field' ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-white'
+              }`}>
+              <span className="block text-sm font-black text-gray-800">数値を入力</span>
+              <span className="block text-[11px] text-gray-500">スワイプで選ぶ。金額は変わらない</span>
+            </button>
+            <button type="button" onClick={() => setSzMode('options')}
+              className={`rounded-xl border-2 px-3 py-2.5 text-left transition ${
+                szMode === 'options' ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-white'
+              }`}>
+              <span className="block text-sm font-black text-gray-800">段階で選ぶ</span>
+              <span className="block text-[11px] text-gray-500">金額が段階で変わるとき</span>
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 leading-relaxed">
+            {szMode === 'field'
+              ? <>股下・総丈・ポンド数のように<strong>数値をそのまま控える</strong>ものはこちら。受付では目盛りをスワイプして選びます。範囲外は自由入力できます。</>
+              : <>ネーム刺繍の文字数のように<strong>段階で金額が変わる</strong>ものはこちら。タップで選ぶ択一の選択肢を作ります。</>}
           </p>
-          <Field label="グループ名" required hint="受付で見出しになります">
-            <input className={INPUT} value={szGroup} onChange={e => setSzGroup(e.target.value)} placeholder="例: 詰め幅 / 出し幅 / 文字数" />
+          <Field label={szMode === 'field' ? '項目名' : 'グループ名'} required hint="受付で見出しになります">
+            <input className={INPUT} value={szGroup} onChange={e => setSzGroup(e.target.value)}
+              placeholder={szMode === 'field' ? '例: 股下 / 総丈 / 出す長さ' : '例: 文字数'} />
           </Field>
           <div>
             <p className="text-xs font-bold text-gray-600 mb-1">クイック範囲 <span className="font-normal text-gray-400">タップで下の欄を自動入力</span></p>
@@ -722,7 +770,7 @@ export default function RepairMasterPage() {
             <Field label="刻み"><input type="number" className={INPUT} value={szStep} onChange={e => setSzStep(e.target.value)} /></Field>
             <Field label="単位"><input className={INPUT} value={szUnit} onChange={e => setSzUnit(e.target.value)} placeholder="cm" /></Field>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className={`grid-cols-2 gap-3 ${szMode === 'options' ? 'grid' : 'hidden'}`}>
             <Field label="表示形式">
               <select className={INPUT} value={szLabel} onChange={e => setSzLabel(e.target.value as 'upto' | 'exact')}>
                 <option value="upto">〜Ncm（◯◯まで）</option>
@@ -736,13 +784,25 @@ export default function RepairMasterPage() {
               </select>
             </Field>
           </div>
-          {szPrice === 'increment' && (
+          {szMode === 'options' && szPrice === 'increment' && (
             <div className="grid grid-cols-2 gap-3">
               <Field label="最小サイズの加算額（円）" hint="基本料金への上乗せ"><input type="number" className={INPUT} value={szBaseAdd} onChange={e => setSzBaseAdd(e.target.value)} /></Field>
               <Field label="1段ふえるごとに（円）"><input type="number" className={INPUT} value={szStepAdd} onChange={e => setSzStepAdd(e.target.value)} /></Field>
             </div>
           )}
           {/* プレビュー */}
+          {szMode === 'field' ? (
+            <div className="border border-gray-200 rounded-xl p-3 bg-gray-50">
+              <p className="text-xs font-bold text-gray-500 mb-2">プレビュー</p>
+              <p className="text-sm font-black text-gray-800">
+                {szGroup.trim() || '（項目名）'} … {szMin}〜{szMax}{szUnit}（{szStep}刻み）
+              </p>
+              <p className="text-[11px] text-gray-400 mt-1">
+                受付では中央の {Math.round(((Number(szMin) + Number(szMax)) / 2) / (Number(szStep) || 1)) * (Number(szStep) || 1)}{szUnit} 付近から
+                スワイプで選びます。金額は基本料金のままです。
+              </p>
+            </div>
+          ) : (
           <div className="border border-gray-200 rounded-xl p-3 bg-gray-50">
             <p className="text-xs font-bold text-gray-500 mb-2">プレビュー（{szPreview.length}件）</p>
             {szPreview.length === 0 ? (
@@ -760,10 +820,18 @@ export default function RepairMasterPage() {
               受付時の金額 = 基本料金{szPrice === 'increment' ? ' + サイズの加算額' : ''}。生成後も1つずつ編集できます。
             </p>
           </div>
-          <button onClick={generateSizes} disabled={szSaving || szPreview.length === 0}
-            className="w-full bg-indigo-600 text-white font-black py-3 rounded-xl disabled:opacity-50">
-            {szSaving ? '生成中…' : `${szPreview.length}件のサイズを追加`}
-          </button>
+          )}
+          {szMode === 'field' ? (
+            <button onClick={generateSizeField} disabled={szSaving || !szGroup.trim()}
+              className="w-full bg-indigo-600 text-white font-black py-3 rounded-xl disabled:opacity-50">
+              {szSaving ? '追加中…' : '入力欄を追加'}
+            </button>
+          ) : (
+            <button onClick={generateSizes} disabled={szSaving || szPreview.length === 0}
+              className="w-full bg-indigo-600 text-white font-black py-3 rounded-xl disabled:opacity-50">
+              {szSaving ? '生成中…' : `${szPreview.length}件の段階を追加`}
+            </button>
+          )}
         </Modal>
       )}
     </div>

@@ -11,22 +11,24 @@ import { supabase } from './supabase'
 import type { PriceUnit, MeasurementDef, FieldDef, RepairManual } from '@/types/repair'
 import type { PresetKey } from './repairProfile'
 
-// 旧「採寸(measurements)」由来の mm 項目。cm のスワイプ入力に置き換えたので、
-// プリセットが fields を持つ項目では取り込み時に落とす。
+// プリセットが過去に配っていて、いまは使わない入力欄。取り込み時に落とす。
+//  - *_mm: 旧「採寸(measurements)」由来。cmのスワイプ入力に置き換えた
+//  - finish_len_cm 等: 裾上げ/裾出しを股下・総丈・出す長さだけに絞る前の名残
 // 限定列挙にしているので、店が独自に足した項目は消えない。
-const LEGACY_FIELD_KEYS = new Set([
+const SUPERSEDED_FIELD_KEYS = new Set([
   'hem_length_mm', 'fold_keep_mm', 'sleeve_adjust_mm', 'waist_adjust_mm',
+  'finish_len_cm', 'fold_keep_cm', 'out_width_cm', 'spare_cm',
 ])
 
 /**
  * 取り込み済み項目の入力欄を、プリセットの最新定義に合わせる。
  *  - プリセットの項目を（定義順で）先頭に置く
  *  - 店が独自に足した項目は後ろに残す（追記式：勝手に消さない）
- *  - cm入力へ置き換えた旧mm項目だけは落とす（残すと同じことを2回聞く）
+ *  - プリセットが過去に配って今は使わない項目だけは落とす（同じことを2回聞かない）
  */
 export function mergePresetFields(current: FieldDef[], preset: FieldDef[]): FieldDef[] {
   const presetKeys = new Set(preset.map(f => f.key))
-  const extra = current.filter(f => !LEGACY_FIELD_KEYS.has(f.key) && !presetKeys.has(f.key))
+  const extra = current.filter(f => !SUPERSEDED_FIELD_KEYS.has(f.key) && !presetKeys.has(f.key))
   return [...preset, ...extra]
 }
 
