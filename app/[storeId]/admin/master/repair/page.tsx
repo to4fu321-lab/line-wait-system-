@@ -24,7 +24,8 @@ import {
   type PriceUnit, type FieldDef, type RepairManual, type ManualSeverity,
 } from '@/types/repair'
 import { FieldsEditor } from './_components/FieldsEditor'
-import { seedRepairPresets, SIZE_RANGE_PRESETS } from '@/lib/repairPresets'
+import { TierWizard } from './_components/TierWizard'
+import { seedRepairPresets } from '@/lib/repairPresets'
 import {
   REPAIR_LABELS as labels, PRESET_KEYS, PRESET_SET_LABELS, type PresetKey,
 } from '@/lib/repairProfile'
@@ -340,69 +341,10 @@ export default function RepairMasterPage() {
     showToast('ok', '削除しました'); fetchOptions(o.item_id)
   }
 
-  // ── 数値の入力欄／段階の一括生成 modal ──────────────────────
-  //  「〜5cm まで」「サイズで金額が変わる」を、タップ選択の択一オプション一式として生成。
-  const [szModal, setSzModal]   = useState(false)
+  // ── 段階で選ぶ選択肢のウィザード ────────────────────────────
+  //  設定項目を一度に並べると何を触ればよいか分からなかったので、
+  //  1画面1問のウィザード（TierWizard）に出す。ここは「どの作業に足すか」だけ持つ。
   const [szItemId, setSzItemId] = useState<string | null>(null)
-  const [szGroup, setSzGroup]   = useState('文字数')
-  const [szUnit, setSzUnit]     = useState('cm')
-  const [szMin, setSzMin]       = useState('1')
-  const [szMax, setSzMax]       = useState('5')
-  const [szStep, setSzStep]     = useState('1')
-  const [szLabel, setSzLabel]   = useState<'upto' | 'exact'>('upto') // 〜Ncm / Ncm
-  const [szPrice, setSzPrice]   = useState<'flat' | 'increment'>('flat')
-  const [szBaseAdd, setSzBaseAdd] = useState('0') // 最小サイズの加算額
-  const [szStepAdd, setSzStepAdd] = useState('0') // 1段ふえるごとの加算額
-  const [szSaving, setSzSaving] = useState(false)
-
-  const openSize = (itemId: string) => {
-    setSzItemId(itemId); setSzGroup('文字数'); setSzUnit('文字')
-    setSzMin('3'); setSzMax('10'); setSzStep('1')
-    setSzLabel('upto'); setSzPrice('flat'); setSzBaseAdd('0'); setSzStepAdd('0')
-    setSzModal(true)
-  }
-  // プレビュー用に生成内容を計算
-  const szPreview = (() => {
-    const min = Number(szMin), max = Number(szMax), step = Number(szStep)
-    if (!(step > 0) || !(max >= min)) return [] as { name: string; delta: number }[]
-    const baseAdd = Number(szBaseAdd) || 0, stepAdd = Number(szStepAdd) || 0
-    const out: { name: string; delta: number }[] = []
-    let idx = 0
-    for (let v = min; v <= max + 1e-9 && out.length < 60; v += step) {
-      const val = Math.round(v * 100) / 100
-      out.push({
-        name:  szLabel === 'upto' ? `〜${val}${szUnit}` : `${val}${szUnit}`,
-        delta: szPrice === 'flat' ? 0 : Math.round(baseAdd + stepAdd * idx),
-      })
-      idx++
-    }
-    return out
-  })()
-  const generateSizes = async () => {
-    if (!szItemId) return
-    if (!szGroup.trim()) return showToast('err', 'グループ名は必須です')
-    const rows = szPreview
-    if (rows.length === 0) return showToast('err', '最小・最大・刻みを確認してください')
-    if (rows.length > 50) return showToast('err', '段階が多すぎます（50以下にしてください）')
-    setSzSaving(true)
-    const list = optionsByItem[szItemId] ?? []
-    let sort = (list.at(-1)?.sort_order ?? 0) + 10
-    const payload = rows.map((r, i) => ({
-      store_id: storeId, item_id: szItemId,
-      group_label: szGroup.trim(), group_select: 'single' as const,
-      code: `o_${Date.now().toString(36)}_${i}`,
-      name: r.name, price_delta: r.delta, price_unit: 'per_item' as const,
-      default_selected: false, requires_quote: false, manual: null,
-      sort_order: (sort += 10),
-    }))
-    try {
-      const { error } = await (supabase as any).from('repair_options').insert(payload)
-      if (error) throw error
-      setSzModal(false); showToast('ok', `${payload.length}件のサイズを追加しました`)
-      setExpandedItem(szItemId); fetchOptions(szItemId)
-    } catch { showToast('err', '生成に失敗しました') }
-    finally { setSzSaving(false) }
-  }
 
   const toggleItem = (itemId: string) => {
     if (expandedItem === itemId) { setExpandedItem(null); return }
@@ -620,7 +562,7 @@ export default function RepairMasterPage() {
                           <button onClick={() => openO(it.id)} className="flex-1 flex items-center justify-center gap-1 rounded-xl border-2 border-dashed border-gray-200 py-2 text-xs font-bold text-gray-400 hover:border-amber-400 hover:text-amber-500">
                             <Plus size={13} /> オプションを追加
                           </button>
-                          <button onClick={() => openSize(it.id)} className="flex-1 flex items-center justify-center gap-1 rounded-xl border-2 border-dashed border-indigo-200 py-2 text-xs font-bold text-indigo-400 hover:border-indigo-400 hover:text-indigo-600">
+                          <button onClick={() => setSzItemId(it.id)} className="flex-1 flex items-center justify-center gap-1 rounded-xl border-2 border-dashed border-indigo-200 py-2 text-xs font-bold text-indigo-400 hover:border-indigo-400 hover:text-indigo-600">
                             <Ruler size={13} /> 段階で一括作成
                           </button>
                         </div>
@@ -720,78 +662,21 @@ export default function RepairMasterPage() {
         </Modal>
       )}
 
-      {/* ── 金額が段階で変わる選択肢の一括生成 Modal ── */}
-      {szModal && (
-        <Modal title="段階で選ぶ選択肢を作る" onClose={() => setSzModal(false)} wide>
-          <p className="text-xs text-gray-500 leading-relaxed">
-            ネーム刺繍の文字数のように<strong>段階で金額が変わる</strong>ものを、タップで選ぶ択一の
-            選択肢として一気に作ります。<br />
-            金額が変わらない数値（股下・ポンド数など）は、{labels.item}の編集画面
-            「受付で聞くこと」から追加してください。
-          </p>
-          <Field label="グループ名" required hint="受付で見出しになります">
-            <input className={INPUT} value={szGroup} onChange={e => setSzGroup(e.target.value)} placeholder="例: 文字数" />
-          </Field>
-          <div>
-            <p className="text-xs font-bold text-gray-600 mb-1">クイック範囲 <span className="font-normal text-gray-400">タップで下の欄を自動入力</span></p>
-            <div className="flex flex-wrap gap-1.5">
-              {SIZE_RANGE_PRESETS.map(p => (
-                <button key={p.label} type="button"
-                  onClick={() => { setSzMin(String(p.min)); setSzMax(String(p.max)); setSzStep(String(p.step)); setSzUnit(p.unit); setSzLabel(p.labelStyle) }}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold border-2 border-indigo-200 text-indigo-600 bg-white hover:border-indigo-400 hover:bg-indigo-50 active:scale-95 transition-all">
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="grid grid-cols-4 gap-3">
-            <Field label="最小"><input type="number" inputMode="numeric" className={INPUT} value={szMin} onChange={e => setSzMin(e.target.value)} /></Field>
-            <Field label="最大"><input type="number" inputMode="numeric" className={INPUT} value={szMax} onChange={e => setSzMax(e.target.value)} /></Field>
-            <Field label="刻み"><input type="number" inputMode="numeric" className={INPUT} value={szStep} onChange={e => setSzStep(e.target.value)} /></Field>
-            <Field label="単位"><input className={INPUT} value={szUnit} onChange={e => setSzUnit(e.target.value)} placeholder="文字" /></Field>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="表示形式">
-              <select className={INPUT} value={szLabel} onChange={e => setSzLabel(e.target.value as 'upto' | 'exact')}>
-                <option value="upto">〜N{szUnit}（◯◯まで）</option>
-                <option value="exact">N{szUnit}（ぴったり）</option>
-              </select>
-            </Field>
-            <Field label="金額の付け方">
-              <select className={INPUT} value={szPrice} onChange={e => setSzPrice(e.target.value as 'flat' | 'increment')}>
-                <option value="flat">一律（基本料金のまま）</option>
-                <option value="increment">段階ごとに加算</option>
-              </select>
-            </Field>
-          </div>
-          {szPrice === 'increment' && (
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="最小の加算額（円）" hint="基本料金への上乗せ"><input type="number" inputMode="numeric" className={INPUT} value={szBaseAdd} onChange={e => setSzBaseAdd(e.target.value)} /></Field>
-              <Field label="1段ふえるごとに（円）"><input type="number" inputMode="numeric" className={INPUT} value={szStepAdd} onChange={e => setSzStepAdd(e.target.value)} /></Field>
-            </div>
-          )}
-          <div className="border border-gray-200 rounded-xl p-3 bg-gray-50">
-            <p className="text-xs font-bold text-gray-500 mb-2">プレビュー（{szPreview.length}件）</p>
-            {szPreview.length === 0 ? (
-              <p className="text-xs text-gray-400">最小・最大・刻みを確認してください</p>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {szPreview.map((p, i) => (
-                  <span key={i} className="inline-flex items-center gap-1 bg-white border-2 border-indigo-200 rounded-lg px-2.5 py-1 text-xs font-bold text-indigo-700">
-                    {p.name}{p.delta !== 0 && <span className="text-gray-400">{p.delta > 0 ? '+' : ''}¥{p.delta.toLocaleString()}</span>}
-                  </span>
-                ))}
-              </div>
-            )}
-            <p className="text-[11px] text-gray-400 mt-2">
-              受付時の金額 = 基本料金{szPrice === 'increment' ? ' + 段階の加算額' : ''}。生成後も1つずつ編集できます。
-            </p>
-          </div>
-          <button onClick={generateSizes} disabled={szSaving || szPreview.length === 0}
-            className="w-full bg-indigo-600 text-white font-black py-3 rounded-xl disabled:opacity-50">
-            {szSaving ? '生成中…' : `${szPreview.length}件の段階を追加`}
-          </button>
-        </Modal>
+      {/* ── 段階で選ぶ選択肢のウィザード ── */}
+      {szItemId && (
+        <TierWizard
+          storeId={storeId}
+          itemId={szItemId}
+          startSort={(optionsByItem[szItemId]?.at(-1)?.sort_order ?? 0) + 10}
+          onClose={() => setSzItemId(null)}
+          onError={msg => showToast('err', msg)}
+          onDone={added => {
+            const id = szItemId
+            setSzItemId(null)
+            showToast('ok', `${added}件の段階を追加しました`)
+            setExpandedItem(id); fetchOptions(id)
+          }}
+        />
       )}
     </div>
   )

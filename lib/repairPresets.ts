@@ -88,35 +88,60 @@ interface PresetGarment {
   items: PresetItem[]
 }
 
-// ── サイズ段階生成（プリセット定義 & クイック範囲で共用） ────────
+// ── 段階の生成（プリセット定義・受付マスタのウィザードで共用） ────────
+/** 段階1つ。表示名と基本料金への加算額 */
+export interface Tier { name: string; delta: number }
+
+/**
+ * 「〜3文字 / 〜4文字 / …」のような段階の一覧を作る。
+ * ウィザードのプレビューと実際に作られる選択肢が食い違わないよう、
+ * 数え方はこの1か所だけに置く。
+ *  - step が 0 以下 / max < min は空（無限ループと不正入力の防止）
+ *  - 打ち間違いで数百件作らないよう 60 件で打ち切る
+ */
+export function buildTiers(o: {
+  min: number; max: number; step: number
+  unit?:       string               // 既定 cm（'文字' なども可）
+  labelStyle?: 'upto' | 'exact'     // 〜Ncm / Ncm
+  baseAdd?:    number               // 先頭の加算（既定0＝基本料金に含む）
+  stepAdd?:    number               // 1段ふえるごとの加算（既定0＝一律）
+}): Tier[] {
+  const { min, max, step, unit = 'cm', labelStyle = 'upto', baseAdd = 0, stepAdd = 0 } = o
+  const out: Tier[] = []
+  if (!(step > 0) || !(max >= min)) return out
+  let idx = 0
+  for (let v = min; v <= max + 1e-9 && out.length < 60; v += step) {
+    const val = Math.round(v * 100) / 100
+    out.push({
+      name:  labelStyle === 'upto' ? `〜${val}${unit}` : `${val}${unit}`,
+      delta: Math.round(baseAdd + stepAdd * idx),
+    })
+    idx++
+  }
+  return out
+}
+
+/** buildTiers をプリセットの択一オプションの形にする */
 export function buildSizeTier(opts: {
   groupCode:   string                // code のユニーク化に使う英数キー（例: tsume）
   group:       string                // 表示グループ名（例: 詰め幅）
   min:         number
   max:         number
   step:        number
-  unit?:       string                // 既定 cm（'文字' なども可）
-  labelStyle?: 'upto' | 'exact'      // 〜Ncm / Ncm
-  baseAdd?:    number                // 先頭バンドの加算（既定0）
-  stepAdd?:    number                // 1段ふえるごとの加算（既定0=一律）
+  unit?:       string
+  labelStyle?: 'upto' | 'exact'
+  baseAdd?:    number
+  stepAdd?:    number
 }): PresetOption[] {
-  const { groupCode, group, min, max, step, unit = 'cm', labelStyle = 'upto', baseAdd = 0, stepAdd = 0 } = opts
-  const out: PresetOption[] = []
-  if (!(step > 0) || !(max >= min)) return out
-  let idx = 0
-  for (let v = min; v <= max + 1e-9 && out.length < 60; v += step) {
-    const val = Math.round(v * 100) / 100
-    out.push({
-      group_label:  group,
-      group_select: 'single',
-      code:         `sz_${groupCode}_${val}`,
-      name:         labelStyle === 'upto' ? `〜${val}${unit}` : `${val}${unit}`,
-      price_delta:  Math.round(baseAdd + stepAdd * idx),
-      default_selected: idx === 0 && stepAdd !== 0,   // 増分方式は先頭(=基本料金内)を初期選択
-    })
-    idx++
-  }
-  return out
+  const { groupCode, group, step, stepAdd = 0 } = opts
+  return buildTiers(opts).map((t, idx) => ({
+    group_label:  group,
+    group_select: 'single' as const,
+    code:         `sz_${groupCode}_${Math.round((opts.min + step * idx) * 100) / 100}`,
+    name:         t.name,
+    price_delta:  t.delta,
+    default_selected: idx === 0 && stepAdd !== 0,   // 増分方式は先頭(=基本料金内)を初期選択
+  }))
 }
 
 // ── 生成モーダル「クイック範囲」チップ ───────────────────────────

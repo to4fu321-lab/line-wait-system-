@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { FeatureKey } from '@/lib/features'
+// vi.mock は import より前に巻き上げられるので、静的 import で問題ない
+import { fetchWorkBadgeCount } from '@/lib/workBadge'
 
 // supabase クライアントを差し替えて「どのテーブルを何件数えたか」を検証する。
 // 実害が出たのは repairs_focus プラン（発注・入荷待ちタブOFF）で、
@@ -25,8 +27,6 @@ function makeQuery(table: string) {
 vi.mock('@/lib/supabase', () => ({
   supabase: { from: (table: string) => ({ select: () => makeQuery(table) }) },
 }))
-
-const { fetchWorkBadgeCount } = await import('@/lib/workBadge')
 
 const featuresOn  = (): boolean => true
 const repairsFocus = (k: FeatureKey) => k === 'repairs_tab_delivery'   // 発注・入荷待ちはOFF
