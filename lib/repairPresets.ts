@@ -616,3 +616,17 @@ export const REPAIR_PRESETS: BulkPresetGarment[] = [
     ],
   },
 ]
+
+// ── 受付で聞く数値のクイック範囲（作業モーダルの入力欄エディタ用）────
+//  SIZE_RANGE_PRESETS が「金額が変わる段階（〜5cm 等）」用なのに対し、
+//  こちらは「数値をそのまま控える欄」用。現場でありえる幅にしてある。
+export const FIELD_RANGE_PRESETS: {
+  label: string; min: number; max: number; step: number; unit: string
+}[] = [
+  { label: '股下 50〜100cm',   min: 50, max: 100, step: 1, unit: 'cm'   },
+  { label: '総丈 70〜120cm',   min: 70, max: 120, step: 1, unit: 'cm'   },
+  { label: '直し幅 1〜10cm',   min: 1,  max: 10,  step: 1, unit: 'cm'   },
+  { label: '袖丈 40〜70cm',    min: 40, max: 70,  step: 1, unit: 'cm'   },
+  { label: 'ポンド数 15〜35',  min: 15, max: 35,  step: 1, unit: 'P'    },
+  { label: '文字数 1〜10',     min: 1,  max: 10,  step: 1, unit: '文字' },
+]

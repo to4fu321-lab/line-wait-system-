@@ -20,9 +20,10 @@ import { BulkImportModal, bulkFromParsed, type ImportGarment } from './_componen
 import {
   PRICE_UNIT_LABELS, PRICE_UNIT_HELP, MANUAL_SEVERITY_LABELS, REPAIR_PHOTOS_BUCKET,
   type RepairGarmentType, type RepairItem, type RepairOption,
-  FIELD_TYPE_LABELS,
-  type PriceUnit, type MeasurementDef, type FieldDef, type RepairManual, type ManualSeverity,
+  toFieldDefs,
+  type PriceUnit, type FieldDef, type RepairManual, type ManualSeverity,
 } from '@/types/repair'
+import { FieldsEditor } from './_components/FieldsEditor'
 import { seedRepairPresets, SIZE_RANGE_PRESETS } from '@/lib/repairPresets'
 import {
   REPAIR_LABELS as labels, PRESET_KEYS, PRESET_SET_LABELS, type PresetKey,
@@ -248,42 +249,48 @@ export default function RepairMasterPage() {
   const [iName, setIName] = useState(''); const [iIcon, setIIcon] = useState('')
   const [iBase, setIBase] = useState('0'); const [iUnit, setIUnit] = useState<PriceUnit>('per_item')
   const [iLead, setILead] = useState(''); const [iQuote, setIQuote] = useState(false)
-  const [iMeas, setIMeas] = useState<MeasurementDef[]>([])
-  // プリセット由来の入力定義。saveI の payload に含めない＝update で保持される
   const [iFields, setIFields] = useState<FieldDef[]>([])
   const [iManual, setIManual] = useState<RepairManual | null>(null)
   const [iSaving, setISaving] = useState(false)
+  const [iAdvanced, setIAdvanced] = useState(false)
   const openI = (it?: RepairItem) => {
     setEditingI(it ?? null)
     setIName(it?.name ?? ''); setIIcon(it?.icon ?? '✂️')
     setIBase(String(it?.base_price ?? 0)); setIUnit(it?.price_unit ?? 'per_item')
     setILead(it?.lead_time_days != null ? String(it.lead_time_days) : '')
     setIQuote(it?.requires_quote ?? false)
-    setIMeas(it?.measurements ?? []); setIManual(it?.manual ?? null)
-    setIFields(it?.fields ?? [])
+    setIManual(it?.manual ?? null)
+    // 旧 measurements しか持たない作業もここで fields に寄せる。
+    // 保存時に measurements を空にするので、二重管理が残らない。
+    setIFields(toFieldDefs(it?.fields, it?.measurements))
+    setIAdvanced(false)
     setIModal(true)
   }
   const saveI = async () => {
     if (!selectedGarment) return
-    if (!iName.trim()) return showToast('err', '項目名は必須です')
+    if (!iName.trim()) return showToast('err', `${labels.item}名は必須です`)
     setISaving(true)
     const payload = {
       name: iName.trim(), icon: iIcon || null,
       base_price: Number(iBase) || 0, price_unit: iUnit,
       lead_time_days: iLead ? Number(iLead) : null,
-      requires_quote: iQuote, measurements: iMeas, manual: iManual,
+      requires_quote: iQuote, manual: iManual,
+      // 入力欄は fields に一本化。旧 measurements は空にして残骸を消す
+      // （toFieldDefs が fields 優先なので、空にしないと古い定義が復活する）
+      fields: iFields, measurements: [],
     }
     try {
-      if (editingI) {
-        await (supabase as any).from('repair_items').update(payload).eq('id', editingI.id)
-      } else {
-        await (supabase as any).from('repair_items').insert({
-          ...payload, store_id: storeId, garment_type_id: selectedGarment,
-          code: `i_${Date.now().toString(36)}`, sort_order: (items.at(-1)?.sort_order ?? 0) + 10,
-        })
-      }
+      // PostgREST はエラーを throw せず { error } で返す。握りつぶすと
+      // 「保存しました」と出たのに保存されていない、が起きる
+      const { error } = editingI
+        ? await (supabase as any).from('repair_items').update(payload).eq('id', editingI.id)
+        : await (supabase as any).from('repair_items').insert({
+            ...payload, store_id: storeId, garment_type_id: selectedGarment,
+            code: `i_${Date.now().toString(36)}`, sort_order: (items.at(-1)?.sort_order ?? 0) + 10,
+          })
+      if (error) throw error
       setIModal(false); showToast('ok', '保存しました'); fetchItems(selectedGarment)
-    } catch { showToast('err', '保存に失敗しました') }
+    } catch (e) { showToast('err', `保存に失敗しました: ${(e as Error).message}`) }
     finally { setISaving(false) }
   }
   const delI = async (it: RepairItem) => {
@@ -337,9 +344,7 @@ export default function RepairMasterPage() {
   //  「〜5cm まで」「サイズで金額が変わる」を、タップ選択の択一オプション一式として生成。
   const [szModal, setSzModal]   = useState(false)
   const [szItemId, setSzItemId] = useState<string | null>(null)
-  // 既定は数値入力（スワイプ）。金額が段階で変わるものだけ択一オプションにする。
-  const [szMode, setSzMode] = useState<'field' | 'options'>('field')
-  const [szGroup, setSzGroup]   = useState('詰め幅')
+  const [szGroup, setSzGroup]   = useState('文字数')
   const [szUnit, setSzUnit]     = useState('cm')
   const [szMin, setSzMin]       = useState('1')
   const [szMax, setSzMax]       = useState('5')
@@ -351,8 +356,8 @@ export default function RepairMasterPage() {
   const [szSaving, setSzSaving] = useState(false)
 
   const openSize = (itemId: string) => {
-    setSzItemId(itemId); setSzGroup('詰め幅'); setSzUnit('cm')
-    setSzMin('1'); setSzMax('5'); setSzStep('1')
+    setSzItemId(itemId); setSzGroup('文字数'); setSzUnit('文字')
+    setSzMin('3'); setSzMax('10'); setSzStep('1')
     setSzLabel('upto'); setSzPrice('flat'); setSzBaseAdd('0'); setSzStepAdd('0')
     setSzModal(true)
   }
@@ -373,34 +378,6 @@ export default function RepairMasterPage() {
     }
     return out
   })()
-  // 数値入力（スワイプ）として項目に足す
-  const generateSizeField = async () => {
-    if (!szItemId) return
-    if (!szGroup.trim()) return showToast('err', '項目名は必須です')
-    const min = Number(szMin), max = Number(szMax), step = Number(szStep)
-    if (!(step > 0) || !(max >= min)) return showToast('err', '最小・最大・刻みを確認してください')
-    setSzSaving(true)
-    const cur = items.find(it => it.id === szItemId)?.fields ?? []
-    const next: FieldDef[] = [...cur, {
-      key: `f_${Date.now().toString(36)}`,
-      label: szGroup.trim(),
-      type: 'number',
-      unit: szUnit || undefined,
-      min, max, step,
-      // 中央を初期位置にすると現場が近い値から動かせる
-      default: Math.round(((min + max) / 2) / step) * step,
-    }]
-    try {
-      const { error } = await (supabase as any).from('repair_items')
-        .update({ fields: next }).eq('id', szItemId)
-      if (error) throw error
-      setSzModal(false)
-      showToast('ok', `「${szGroup.trim()}」を${labels.measurement}に追加しました`)
-      if (selectedGarment) fetchItems(selectedGarment)
-    } catch (e) { showToast('err', `追加に失敗しました: ${(e as Error).message}`) }
-    finally { setSzSaving(false) }
-  }
-
   const generateSizes = async () => {
     if (!szItemId) return
     if (!szGroup.trim()) return showToast('err', 'グループ名は必須です')
@@ -610,7 +587,9 @@ export default function RepairMasterPage() {
                           {it.manual && <span className="text-[10px] bg-amber-100 text-amber-700 rounded px-1.5 py-0.5 font-bold">📋マニュアル</span>}
                         </div>
                         <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-400">
-                          {it.measurements.length > 0 && <span className="flex items-center gap-0.5"><Ruler size={11} />{labels.measurement}{it.measurements.length}件</span>}
+                          {toFieldDefs(it.fields, it.measurements).length > 0 && (
+                            <span className="flex items-center gap-0.5"><Ruler size={11} />入力{toFieldDefs(it.fields, it.measurements).length}件</span>
+                          )}
                           {it.lead_time_days != null && <span>納期{it.lead_time_days}営業日</span>}
                           <span>オプション{opts.length || (optionsByItem[it.id] ? 0 : '…')}</span>
                         </div>
@@ -642,7 +621,7 @@ export default function RepairMasterPage() {
                             <Plus size={13} /> オプションを追加
                           </button>
                           <button onClick={() => openSize(it.id)} className="flex-1 flex items-center justify-center gap-1 rounded-xl border-2 border-dashed border-indigo-200 py-2 text-xs font-bold text-indigo-400 hover:border-indigo-400 hover:text-indigo-600">
-                            <Ruler size={13} /> 数値の入力欄を追加
+                            <Ruler size={13} /> 段階で一括作成
                           </button>
                         </div>
                       </div>
@@ -680,71 +659,38 @@ export default function RepairMasterPage() {
 
       {/* ── 項目 Modal ── */}
       {iModal && (
-        <Modal title={editingI ? '項目を編集' : '項目を追加'} onClose={() => setIModal(false)} wide>
+        <Modal title={editingI ? `${labels.item}を編集` : `${labels.item}を追加`} onClose={() => setIModal(false)} wide>
           <div className="grid grid-cols-4 gap-3">
             <Field label="アイコン"><input className={INPUT} value={iIcon} onChange={e => setIIcon(e.target.value)} /></Field>
-            <div className="col-span-3"><Field label="項目名" required><input className={INPUT} value={iName} onChange={e => setIName(e.target.value)} placeholder="裾上げ" /></Field></div>
+            <div className="col-span-3"><Field label={`${labels.item}名`} required><input className={INPUT} value={iName} onChange={e => setIName(e.target.value)} placeholder="裾上げ" /></Field></div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="基本料金（円・税込）" required><input type="number" className={INPUT} value={iBase} onChange={e => setIBase(e.target.value)} /></Field>
-            <Field label="単価方式">
-              <select className={INPUT} value={iUnit} onChange={e => setIUnit(e.target.value as PriceUnit)}>{PRICE_UNITS.map(u => <option key={u} value={u}>{PRICE_UNIT_LABELS[u]}</option>)}</select>
-              <p className="text-[11px] text-gray-500 mt-1 leading-snug">{PRICE_UNIT_HELP[iUnit].desc}<br /><span className="text-gray-400">例: {PRICE_UNIT_HELP[iUnit].example}</span></p>
-            </Field>
-          </div>
-          <div className="grid grid-cols-2 gap-3 items-end">
-            <Field label="標準納期（営業日）" hint="空欄=店舗既定"><input type="number" className={INPUT} value={iLead} onChange={e => setILead(e.target.value)} /></Field>
-            <label className="flex items-center gap-2 text-sm font-bold text-gray-700 pb-2.5">
-              <input type="checkbox" checked={iQuote} onChange={e => setIQuote(e.target.checked)} /> 金額未定で受付可（要見積もり）
-            </label>
+            <Field label="基本料金（円・税込）" required><input type="number" inputMode="numeric" className={INPUT} value={iBase} onChange={e => setIBase(e.target.value)} /></Field>
+            <Field label="標準納期（営業日）" hint="空欄=店舗既定"><input type="number" inputMode="numeric" className={INPUT} value={iLead} onChange={e => setILead(e.target.value)} /></Field>
           </div>
 
-          {/* プリセット由来の入力定義（fields）— 表示のみ。編集は Phase 2 */}
-          {iFields.length > 0 && (
-            <div className="border border-indigo-200 bg-indigo-50/40 rounded-xl p-3">
-              <span className="text-sm font-bold text-gray-700 flex items-center gap-1 mb-2">
-                <Ruler size={14} className="text-indigo-500" /> {labels.measurement}入力（プリセット定義）
-              </span>
-              <div className="space-y-1.5">
-                {iFields.map(f => (
-                  <div key={f.key} className="flex items-center gap-2 text-xs">
-                    <span className="font-bold text-gray-700">{f.label}</span>
-                    <span className="rounded bg-white border border-indigo-200 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600">
-                      {FIELD_TYPE_LABELS[f.type ?? 'text']}
-                    </span>
-                    {f.type === 'number' && (f.min != null || f.max != null) && (
-                      <span className="text-gray-400">{f.min ?? ''}〜{f.max ?? ''}{f.unit ?? ''}</span>
-                    )}
-                    {f.required && <span className="text-red-500 font-bold">必須</span>}
-                  </div>
-                ))}
+          <FieldsEditor value={iFields} onChange={setIFields} />
+
+          {/* ふだん触らない設定は畳んでおく。開くのは単価方式を変えるときぐらい */}
+          <div className="border border-gray-200 rounded-xl overflow-hidden">
+            <button type="button" onClick={() => setIAdvanced(v => !v)}
+              className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-bold text-gray-600">
+              <span>詳細設定<span className="ml-1.5 text-[11px] font-normal text-gray-400">単価方式・要見積もり・参考画像</span></span>
+              {iAdvanced ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+            {iAdvanced && (
+              <div className="border-t p-3 space-y-3">
+                <Field label="単価方式">
+                  <select className={INPUT} value={iUnit} onChange={e => setIUnit(e.target.value as PriceUnit)}>{PRICE_UNITS.map(u => <option key={u} value={u}>{PRICE_UNIT_LABELS[u]}</option>)}</select>
+                  <p className="text-[11px] text-gray-500 mt-1 leading-snug">{PRICE_UNIT_HELP[iUnit].desc}<br /><span className="text-gray-400">例: {PRICE_UNIT_HELP[iUnit].example}</span></p>
+                </Field>
+                <label className="flex items-center gap-2 text-sm font-bold text-gray-700">
+                  <input type="checkbox" checked={iQuote} onChange={e => setIQuote(e.target.checked)} /> 金額未定で受付可（要見積もり）
+                </label>
+                <ManualEditor value={iManual} onChange={setIManual} storeId={storeId} onToast={showToast} />
               </div>
-              <p className="text-[11px] text-gray-400 mt-2">
-                この{labels.measurement}はプリセットで定義されています。画面からの編集は次回対応予定です（保存しても消えません）。
-              </p>
-            </div>
-          )}
-
-          {/* 仕様定義 */}
-          <div className="border border-gray-200 rounded-xl p-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-bold text-gray-700 flex items-center gap-1"><Ruler size={14} className="text-indigo-500" /> {labels.measurement}入力（受付で聞く数値）</span>
-              <button type="button" onClick={() => setIMeas([...iMeas, { key: `m_${Date.now().toString(36)}`, label: '', unit: 'mm', required: false }])} className="text-indigo-600 text-xs font-bold flex items-center gap-1"><Plus size={13} />追加</button>
-            </div>
-            <div className="space-y-2">
-              {iMeas.map((md, idx) => (
-                <div key={idx} className="flex items-center gap-1.5">
-                  <input className={INPUT + ' flex-1'} placeholder="ラベル（例: 仕上がり丈）" value={md.label} onChange={e => setIMeas(iMeas.map((x, i) => i === idx ? { ...x, label: e.target.value } : x))} />
-                  <input className={INPUT + ' w-20'} placeholder="単位" value={md.unit} onChange={e => setIMeas(iMeas.map((x, i) => i === idx ? { ...x, unit: e.target.value } : x))} />
-                  <label className="text-[11px] font-bold text-gray-500 flex items-center gap-0.5"><input type="checkbox" checked={!!md.required} onChange={e => setIMeas(iMeas.map((x, i) => i === idx ? { ...x, required: e.target.checked } : x))} />必須</label>
-                  <button type="button" onClick={() => setIMeas(iMeas.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-500"><Trash2 size={14} /></button>
-                </div>
-              ))}
-              {iMeas.length === 0 && <p className="text-xs text-gray-400">なし</p>}
-            </div>
+            )}
           </div>
-
-          <ManualEditor value={iManual} onChange={setIManual} storeId={storeId} onToast={showToast} />
 
           <button onClick={saveI} disabled={iSaving} className="w-full bg-amber-500 text-white font-black py-3 rounded-xl disabled:opacity-50">{iSaving ? '保存中…' : '保存'}</button>
         </Modal>
@@ -774,33 +720,17 @@ export default function RepairMasterPage() {
         </Modal>
       )}
 
-      {/* ── 数値の入力欄／段階の一括生成 Modal ── */}
+      {/* ── 金額が段階で変わる選択肢の一括生成 Modal ── */}
       {szModal && (
-        <Modal title="サイズ・数値の入力欄を追加" onClose={() => setSzModal(false)} wide>
-          <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => setSzMode('field')}
-              className={`rounded-xl border-2 px-3 py-2.5 text-left transition ${
-                szMode === 'field' ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-white'
-              }`}>
-              <span className="block text-sm font-black text-gray-800">数値を入力</span>
-              <span className="block text-[11px] text-gray-500">スワイプで選ぶ。金額は変わらない</span>
-            </button>
-            <button type="button" onClick={() => setSzMode('options')}
-              className={`rounded-xl border-2 px-3 py-2.5 text-left transition ${
-                szMode === 'options' ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-white'
-              }`}>
-              <span className="block text-sm font-black text-gray-800">段階で選ぶ</span>
-              <span className="block text-[11px] text-gray-500">金額が段階で変わるとき</span>
-            </button>
-          </div>
+        <Modal title="段階で選ぶ選択肢を作る" onClose={() => setSzModal(false)} wide>
           <p className="text-xs text-gray-500 leading-relaxed">
-            {szMode === 'field'
-              ? <>股下・総丈・ポンド数のように<strong>数値をそのまま控える</strong>ものはこちら。受付では目盛りをスワイプして選びます。範囲外は自由入力できます。</>
-              : <>ネーム刺繍の文字数のように<strong>段階で金額が変わる</strong>ものはこちら。タップで選ぶ択一の選択肢を作ります。</>}
+            ネーム刺繍の文字数のように<strong>段階で金額が変わる</strong>ものを、タップで選ぶ択一の
+            選択肢として一気に作ります。<br />
+            金額が変わらない数値（股下・ポンド数など）は、{labels.item}の編集画面
+            「受付で聞くこと」から追加してください。
           </p>
-          <Field label={szMode === 'field' ? '項目名' : 'グループ名'} required hint="受付で見出しになります">
-            <input className={INPUT} value={szGroup} onChange={e => setSzGroup(e.target.value)}
-              placeholder={szMode === 'field' ? '例: 股下 / 総丈 / 出す長さ' : '例: 文字数'} />
+          <Field label="グループ名" required hint="受付で見出しになります">
+            <input className={INPUT} value={szGroup} onChange={e => setSzGroup(e.target.value)} placeholder="例: 文字数" />
           </Field>
           <div>
             <p className="text-xs font-bold text-gray-600 mb-1">クイック範囲 <span className="font-normal text-gray-400">タップで下の欄を自動入力</span></p>
@@ -815,44 +745,31 @@ export default function RepairMasterPage() {
             </div>
           </div>
           <div className="grid grid-cols-4 gap-3">
-            <Field label="最小"><input type="number" className={INPUT} value={szMin} onChange={e => setSzMin(e.target.value)} /></Field>
-            <Field label="最大"><input type="number" className={INPUT} value={szMax} onChange={e => setSzMax(e.target.value)} /></Field>
-            <Field label="刻み"><input type="number" className={INPUT} value={szStep} onChange={e => setSzStep(e.target.value)} /></Field>
-            <Field label="単位"><input className={INPUT} value={szUnit} onChange={e => setSzUnit(e.target.value)} placeholder="cm" /></Field>
+            <Field label="最小"><input type="number" inputMode="numeric" className={INPUT} value={szMin} onChange={e => setSzMin(e.target.value)} /></Field>
+            <Field label="最大"><input type="number" inputMode="numeric" className={INPUT} value={szMax} onChange={e => setSzMax(e.target.value)} /></Field>
+            <Field label="刻み"><input type="number" inputMode="numeric" className={INPUT} value={szStep} onChange={e => setSzStep(e.target.value)} /></Field>
+            <Field label="単位"><input className={INPUT} value={szUnit} onChange={e => setSzUnit(e.target.value)} placeholder="文字" /></Field>
           </div>
-          <div className={`grid-cols-2 gap-3 ${szMode === 'options' ? 'grid' : 'hidden'}`}>
+          <div className="grid grid-cols-2 gap-3">
             <Field label="表示形式">
               <select className={INPUT} value={szLabel} onChange={e => setSzLabel(e.target.value as 'upto' | 'exact')}>
-                <option value="upto">〜Ncm（◯◯まで）</option>
-                <option value="exact">Ncm（ぴったり）</option>
+                <option value="upto">〜N{szUnit}（◯◯まで）</option>
+                <option value="exact">N{szUnit}（ぴったり）</option>
               </select>
             </Field>
             <Field label="金額の付け方">
               <select className={INPUT} value={szPrice} onChange={e => setSzPrice(e.target.value as 'flat' | 'increment')}>
                 <option value="flat">一律（基本料金のまま）</option>
-                <option value="increment">サイズごとに加算</option>
+                <option value="increment">段階ごとに加算</option>
               </select>
             </Field>
           </div>
-          {szMode === 'options' && szPrice === 'increment' && (
+          {szPrice === 'increment' && (
             <div className="grid grid-cols-2 gap-3">
-              <Field label="最小サイズの加算額（円）" hint="基本料金への上乗せ"><input type="number" className={INPUT} value={szBaseAdd} onChange={e => setSzBaseAdd(e.target.value)} /></Field>
-              <Field label="1段ふえるごとに（円）"><input type="number" className={INPUT} value={szStepAdd} onChange={e => setSzStepAdd(e.target.value)} /></Field>
+              <Field label="最小の加算額（円）" hint="基本料金への上乗せ"><input type="number" inputMode="numeric" className={INPUT} value={szBaseAdd} onChange={e => setSzBaseAdd(e.target.value)} /></Field>
+              <Field label="1段ふえるごとに（円）"><input type="number" inputMode="numeric" className={INPUT} value={szStepAdd} onChange={e => setSzStepAdd(e.target.value)} /></Field>
             </div>
           )}
-          {/* プレビュー */}
-          {szMode === 'field' ? (
-            <div className="border border-gray-200 rounded-xl p-3 bg-gray-50">
-              <p className="text-xs font-bold text-gray-500 mb-2">プレビュー</p>
-              <p className="text-sm font-black text-gray-800">
-                {szGroup.trim() || '（項目名）'} … {szMin}〜{szMax}{szUnit}（{szStep}刻み）
-              </p>
-              <p className="text-[11px] text-gray-400 mt-1">
-                受付では中央の {Math.round(((Number(szMin) + Number(szMax)) / 2) / (Number(szStep) || 1)) * (Number(szStep) || 1)}{szUnit} 付近から
-                スワイプで選びます。金額は基本料金のままです。
-              </p>
-            </div>
-          ) : (
           <div className="border border-gray-200 rounded-xl p-3 bg-gray-50">
             <p className="text-xs font-bold text-gray-500 mb-2">プレビュー（{szPreview.length}件）</p>
             {szPreview.length === 0 ? (
@@ -867,21 +784,13 @@ export default function RepairMasterPage() {
               </div>
             )}
             <p className="text-[11px] text-gray-400 mt-2">
-              受付時の金額 = 基本料金{szPrice === 'increment' ? ' + サイズの加算額' : ''}。生成後も1つずつ編集できます。
+              受付時の金額 = 基本料金{szPrice === 'increment' ? ' + 段階の加算額' : ''}。生成後も1つずつ編集できます。
             </p>
           </div>
-          )}
-          {szMode === 'field' ? (
-            <button onClick={generateSizeField} disabled={szSaving || !szGroup.trim()}
-              className="w-full bg-indigo-600 text-white font-black py-3 rounded-xl disabled:opacity-50">
-              {szSaving ? '追加中…' : '入力欄を追加'}
-            </button>
-          ) : (
-            <button onClick={generateSizes} disabled={szSaving || szPreview.length === 0}
-              className="w-full bg-indigo-600 text-white font-black py-3 rounded-xl disabled:opacity-50">
-              {szSaving ? '生成中…' : `${szPreview.length}件の段階を追加`}
-            </button>
-          )}
+          <button onClick={generateSizes} disabled={szSaving || szPreview.length === 0}
+            className="w-full bg-indigo-600 text-white font-black py-3 rounded-xl disabled:opacity-50">
+            {szSaving ? '生成中…' : `${szPreview.length}件の段階を追加`}
+          </button>
         </Modal>
       )}
     </div>
