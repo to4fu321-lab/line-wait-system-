@@ -273,6 +273,11 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
     }
   }
 
+  // 受付時に聞いた内容のスナップショット。これがあるなら、全部つなげた1文字列の
+  // content より、ラベル付きで並べたほうが読みやすい（content は truncate で切れる）
+  const details = item.input_details ?? []
+  const hasDetails = details.length > 0
+
   const cardBg =
     isOverdue  ? 'bg-red-50 border-2 border-red-400' :
     isDueSoon  ? 'bg-amber-50 border-2 border-amber-400' :
@@ -324,7 +329,12 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       // 電話連絡運用は手動連絡済みなので notified:true で確定（SMS送信はしない）
       const markNotified = notifyMode === 'phone_manual'
       const { error } = await (supabase as any).from('repair_histories')
-        .update({ status: 'completed', completed_date: today, work_started: true, ...(markNotified ? { notified: true } : {}), updated_at: new Date().toISOString() })
+        // 担当者を必須で選ばせているのに保存していなかったため、誰が仕上げたか
+        // が一切残っていなかった（画面には「作業・連絡」欄が出ない）
+        .update({ status: 'completed', completed_date: today, work_started: true,
+                  ...(markNotified ? { notified: true } : {}),
+                  ...(item.strung_by ? {} : { strung_by: doneBy }),
+                  updated_at: new Date().toISOString() })
         .eq('id', item.id)
       if (error) { setLoading(false); onToast('err', '更新に失敗しました'); return }
       if (notifyMode === 'line' || notifyMode === 'sms') {
@@ -878,7 +888,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                 </p>
               )}
               <p className={tx('text-sm', 'text-lg') + ' font-black text-gray-900 leading-tight truncate'}>
-                {item.content || item.item_name || '内容未記入'}
+                {(hasDetails ? item.item_name || item.content : item.content || item.item_name) || '内容未記入'}
               </p>
             </div>
             {item.price != null && (
@@ -918,6 +928,45 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       {/* Expanded details */}
       {open && (
         <div className="px-4 pb-4 space-y-2 border-t border-gray-100 pt-3">
+          {/* 受付内容 — 学校・アイテム・作業・サイズ・聞いた項目をまとめて先に見せる。
+              これが無いと、切れた content から作業内容を読み取るしかなかった */}
+          <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2.5 space-y-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {item.child?.school_name && (
+                <span className="text-xs font-black text-amber-600">{item.child.school_name}</span>
+              )}
+              {item.garment_name && (
+                <span className="text-xs font-black text-indigo-600 bg-white border border-indigo-100 px-1.5 py-0.5 rounded">{item.garment_name}</span>
+              )}
+              <span className="text-sm font-black text-gray-900">{item.item_name || item.content || '内容未記入'}</span>
+            </div>
+
+            {hasDetails ? (
+              <div className="space-y-1 pt-0.5">
+                {details.map((d, i) => (
+                  <div key={i} className="flex items-baseline gap-2 text-sm">
+                    <span className="w-24 shrink-0 text-[11px] font-bold text-gray-400">{d.label}</span>
+                    <span className="font-black text-gray-800 break-all">{d.value}</span>
+                  </div>
+                ))}
+              </div>
+            ) : item.content && item.content !== item.item_name ? (
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{item.content}</p>
+            ) : null}
+
+            {/* 誰が受けて、誰が仕上げたか */}
+            {(item.received_by_staff?.name || item.strung_by_staff?.name) && (
+              <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-xs pt-1.5 border-t border-gray-200/70">
+                {item.received_by_staff?.name && (
+                  <span className="text-gray-500">受付 <span className="font-black text-gray-800">{item.received_by_staff.name}</span></span>
+                )}
+                {item.strung_by_staff?.name && (
+                  <span className="text-gray-500">作業・完了 <span className="font-black text-gray-800">{item.strung_by_staff.name}</span></span>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Primary action button — 2-tap confirmation */}
           {primaryBtn && (
             <div>
@@ -1104,31 +1153,33 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             </button>
           )}
 
-          {onEdit && (
-            <button onClick={() => onEdit(item)}
-              className="w-full py-2.5 rounded-xl font-bold text-xs border border-indigo-200 bg-indigo-50 text-indigo-600 flex items-center justify-center gap-1.5 hover:bg-indigo-100 active:scale-95 transition-all">
-              <Pencil size={11} />注文内容を変更する
-            </button>
+          {/* ふだん押さない操作は小さく1行にまとめる（誤タップも減らす） */}
+          {!confirmCancel && (
+            <div className="flex items-center gap-1.5 pt-0.5">
+              {onEdit && (
+                <button onClick={() => onEdit(item)}
+                  className="flex-1 py-2 rounded-lg text-[11px] font-bold border border-gray-200 bg-white text-gray-600 flex items-center justify-center gap-1 hover:bg-gray-50 active:scale-95 transition-all">
+                  <Pencil size={10} />内容変更
+                </button>
+              )}
+              {item.status !== 'received' && (
+                <button onClick={() => update(
+                  { status: 'received', completed_date: null, delivered_date: null, notified: false },
+                  '受付中に戻しました',
+                  { status: item.status, completed_date: item.completed_date, delivered_date: item.delivered_date, notified: item.notified }
+                )} disabled={loading}
+                  className="flex-1 py-2 rounded-lg text-[11px] font-bold border border-gray-200 bg-white text-gray-600 flex items-center justify-center gap-1 hover:bg-gray-50 active:scale-95 transition-all">
+                  <RotateCcw size={10} />受付中に戻す
+                </button>
+              )}
+              <button onClick={() => setConfirmCancel(true)}
+                className="flex-1 py-2 rounded-lg text-[11px] font-bold border border-red-100 bg-white text-red-400 flex items-center justify-center gap-1 hover:bg-red-50 active:scale-95 transition-all">
+                <Trash2 size={10} />削除
+              </button>
+            </div>
           )}
 
-          {item.status !== 'received' && (
-            <button onClick={() => update(
-              { status: 'received', completed_date: null, delivered_date: null, notified: false },
-              '受付中に戻しました',
-              { status: item.status, completed_date: item.completed_date, delivered_date: item.delivered_date, notified: item.notified }
-            )} disabled={loading}
-              className="w-full py-2.5 rounded-xl font-bold text-xs border border-gray-200 bg-gray-50 text-gray-500 flex items-center justify-center gap-1.5 hover:bg-gray-100 active:scale-95 transition-all">
-              <RotateCcw size={11} />受付中に戻す
-            </button>
-          )}
-
-          {/* Cancel / delete */}
-          {!confirmCancel ? (
-            <button onClick={() => setConfirmCancel(true)}
-              className="w-full py-2.5 rounded-xl font-bold text-xs border border-red-200 bg-red-50 text-red-500 flex items-center justify-center gap-1.5 hover:bg-red-100 active:scale-95 transition-all">
-              <Trash2 size={11} />キャンセル（削除）
-            </button>
-          ) : (
+          {confirmCancel && (
             <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 space-y-2.5">
               <p className="text-sm text-red-700 font-black text-center">本当に削除しますか？</p>
               <p className="text-[10px] text-red-400 text-center">この操作は取り消せません</p>
