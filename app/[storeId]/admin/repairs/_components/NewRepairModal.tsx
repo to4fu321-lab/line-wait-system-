@@ -650,21 +650,43 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
 
     if (type === 'select') {
       const choices = f.choices ?? []
+      // サイズのように選択肢が多いものは折り返しの小さいチップ。
+      // 2〜4択（測り方・詰める/出す）は従来どおり大きめの2列ボタン。
+      const wrap = choices.length > 4
+      const cls = (on: boolean) =>
+        `rounded-xl border-2 font-bold transition ${wrap ? 'px-3 py-2 text-sm' : 'px-3 py-2.5 text-sm'} ${
+          on ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-700'
+        }`
+      // 「その他」を選んでいる状態は inputs に持たせる（material の _g と同じ流儀）。
+      // 値が空でも手入力欄を出し続けるために、値そのものとは別に覚える必要がある。
+      const freeKey  = `${f.key}_free`
+      const isFree   = f.allow_free
+        && (String(inputs[freeKey] ?? '') === 'true'
+            || (String(val) !== '' && !choices.some(c => c.value === String(val))))
       return (
         <div key={f.key}>
           {head}
-          <div className="grid grid-cols-2 gap-2">
+          <div className={wrap ? 'flex flex-wrap gap-2' : 'grid grid-cols-2 gap-2'}>
             {choices.map(c => (
               <button
                 key={c.value}
                 type="button"
-                onClick={() => setInputs({ ...inputs, [f.key]: c.value })}
-                className={`rounded-xl border-2 px-3 py-2.5 text-sm font-bold transition ${
-                  val === c.value ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-700'
-                }`}
+                onClick={() => setInputs({ ...inputs, [f.key]: c.value, [freeKey]: '' })}
+                className={cls(!isFree && val === c.value)}
               >{c.label}</button>
             ))}
+            {f.allow_free && (
+              <button type="button"
+                onClick={() => setInputs({ ...inputs, [f.key]: isFree ? '' : String(val), [freeKey]: isFree ? '' : 'true' })}
+                className={cls(!!isFree)}
+              >その他</button>
+            )}
           </div>
+          {isFree && (
+            <input className={INPUT + ' mt-2'} value={String(val)} autoFocus
+              onChange={e => setInputs({ ...inputs, [f.key]: e.target.value })}
+              placeholder="タグの表示をそのまま入力（例: 180B）" />
+          )}
           {hint}
         </div>
       )

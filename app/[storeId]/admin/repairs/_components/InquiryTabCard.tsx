@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { Loader2, CheckCheck, ChevronLeft, Sparkles, Mic, Square, Camera } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { notifyWorkChanged } from '@/lib/workBadge'
 import { fmtReqNo, compressImage } from './utils'
 import type { InquiryRow, InquiryStatus, ResponseMethod } from '../../_components/InquiryModal'
 import {
@@ -42,6 +43,7 @@ export function InquiryTabCard({ item, storeId, onEdit, onStatusChange, isSimple
     await (supabase as any).from('inquiries').update({ status: n, responded_at: n === 'completed' ? now : null, updated_at: now }).eq('id', item.id)
     setUpdating(false)
     onStatusChange(item.id, n)
+    notifyWorkChanged()   // バッジを60秒待たずに追随させる
   }
 
   // ✨ AI提案を取得（手入力欄にタップで挿入）
@@ -127,6 +129,7 @@ export function InquiryTabCard({ item, storeId, onEdit, onStatusChange, isSimple
     }).eq('id', item.id)
     setUpdating(false)
     onStatusChange(item.id, 'completed')
+    notifyWorkChanged()
     setSimpleStep('idle')
     setReplyText('')
     setAiSuggestions([])

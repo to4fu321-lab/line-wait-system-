@@ -66,6 +66,9 @@ export interface FieldDef {
   step?:     number
   // type='select'
   choices?:  FieldChoice[]
+  // 選択肢に無い値を手入力できるようにする（「その他」チップが出る）。
+  // 制服のサイズのように、規格外がそこそこ来るものに使う。
+  allow_free?: boolean
   // type='material'（Phase 2: products から選ぶ。category で絞る）
   material_category?: string
   // 価格計算に参入するか（Phase 2）

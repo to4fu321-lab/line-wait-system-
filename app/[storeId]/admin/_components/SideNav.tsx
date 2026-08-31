@@ -7,6 +7,7 @@ import { Timer, Search, Settings, ClipboardList, Smartphone, Ruler, ShoppingCart
 import { supabase, getTodayStart } from '@/lib/supabase'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { useDeviceMode } from '@/lib/useDeviceMode'
+import { useWorkBadge } from '@/lib/workBadge'
 
 const ALL_TABS = [
   { id: 'queue',    featureKey: 'tab_queue',   label: '受付管理', icon: Timer,         exact: true,  path: (sid: string) => `/${sid}/admin` },
@@ -25,34 +26,24 @@ export function SideNav() {
   const pathname = usePathname()
   const storeId  = params?.storeId ?? ''
   const [queueBadge,  setQueueBadge]  = useState(0)
-  const [repairBadge, setRepairBadge] = useState(0)
   const [shiftBadge,  setShiftBadge]  = useState(0)
   const [storeName,   setStoreName]   = useState<string>('')
   const { hasFeature, loaded: featLoaded } = useStoreFeatures(storeId)
   const { setMode } = useDeviceMode()
+  // 集計は lib/workBadge.ts に集約（BottomNav と同じ定義を使う）
+  const repairBadge = useWorkBadge(storeId, hasFeature, featLoaded)
 
   useEffect(() => {
     if (!storeId) return
     const fetchData = async () => {
-      const [{ count: waiting }, { count: r }, { count: p }, { count: rc }, { count: pa }, { count: inqPending }, { count: shiftReq }, storeRes] = await Promise.all([
+      const [{ count: waiting }, { count: shiftReq }, storeRes] = await Promise.all([
         (supabase as any).from('queues').select('*', { count: 'exact', head: true })
           .eq('store_id', storeId).eq('status', 'waiting').gte('created_at', getTodayStart()),
-        (supabase as any).from('repair_histories').select('*', { count: 'exact', head: true })
-          .eq('store_id', storeId).eq('status', 'received'),
-        (supabase as any).from('purchase_orders').select('*', { count: 'exact', head: true })
-          .eq('store_id', storeId).in('status', ['ordered', 'received', 'on_order']),
-        (supabase as any).from('repair_histories').select('*', { count: 'exact', head: true })
-          .eq('store_id', storeId).eq('status', 'completed'),
-        (supabase as any).from('purchase_orders').select('*', { count: 'exact', head: true })
-          .eq('store_id', storeId).eq('status', 'arrived'),
-        (supabase as any).from('inquiries').select('*', { count: 'exact', head: true })
-          .eq('store_id', storeId).eq('status', 'pending'),
         (supabase as any).from('shift_requests').select('*', { count: 'exact', head: true })
           .eq('store_id', storeId).eq('status', 'submitted'),
         (supabase as any).from('stores').select('name').eq('id', storeId).single(),
       ])
       setQueueBadge(waiting ?? 0)
-      setRepairBadge((r ?? 0) + (p ?? 0) + (rc ?? 0) + (pa ?? 0) + (inqPending ?? 0))
       setShiftBadge(shiftReq ?? 0)
       if (storeRes.data?.name) setStoreName(storeRes.data.name)
     }

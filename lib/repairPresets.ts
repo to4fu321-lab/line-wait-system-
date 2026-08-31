@@ -146,19 +146,32 @@ const SPECIAL_FABRIC_MANUAL: RepairManual = {
 //  裾出しは「あと何cm出せるか（残り布）」が可否の判断材料になる。
 //  範囲は「実際にありえる幅」に絞る。広すぎるとスワイプが遠くなり、
 //  狭すぎると自由入力に落ちる。規格外は各項目の「自由入力」で入れられる。
-// お預かりした品物のサイズ（タグ表示）。同じ学校の同じ品が並ぶので、
-// これが無いと現場で取り違える。号数(cm)もウエスト(W)も入るよう自由入力＋候補。
-const SIZE_FIELD: FieldDef = {
-  key: 'garment_size', label: 'サイズ（タグ表示）', type: 'text', required: true,
-  suggest_from_history: true,
-  suggest_choices: ['150', '155', '160', '165', '170', '175', '180', 'W70', 'W76', 'W82'],
-  hint: 'タグの表示をそのまま。取り違え防止に使います',
+// お預かりした品物のサイズ。同じ学校の同じ品が並ぶので、これが無いと現場で
+// 取り違える。制服のサイズ表記は上下で体系が違う:
+//   上着（ブレザー・学ラン・シャツ）… 身長（150〜185）＋ S/M/L
+//   ボトム（スラックス・スカート）  … ウエスト（W64〜W88）＋ S/M/L
+// 以前は両方を1つの候補リストに混ぜていて、現場では使わない方が邪魔だった。
+// 規格外（180B・W78 など）は「その他」から手入力できる。
+const TOP_SIZES    = ['150', '155', '160', '165', '170', '175', '180', '185', 'S', 'M', 'L', 'LL']
+const BOTTOM_SIZES = ['W64', 'W67', 'W70', 'W73', 'W76', 'W79', 'W82', 'W85', 'S', 'M', 'L', 'LL']
+
+function sizeField(kind: 'top' | 'bottom'): FieldDef {
+  return {
+    key: 'garment_size',
+    label: kind === 'top' ? 'サイズ（身長）' : 'サイズ（ウエスト）',
+    type: 'select', required: true, allow_free: true,
+    choices: (kind === 'top' ? TOP_SIZES : BOTTOM_SIZES).map(v => ({ value: v, label: v })),
+    hint: 'タグの表示どおりに。一覧に無いサイズは「その他」から手入力',
+  }
 }
+
+const TOP_SIZE_FIELD    = sizeField('top')
+const BOTTOM_SIZE_FIELD = sizeField('bottom')
 
 //  股下と総丈は「どちらか一方」しか測らない。測り方を先に選ばせ、
 //  選んだ方の欄だけ出す（default が店の既定。受付でその場で変えられる）。
 const HEM_UP_FIELDS: FieldDef[] = [
-  SIZE_FIELD,
+  BOTTOM_SIZE_FIELD,
   { key: 'hem_measure', label: '測り方', type: 'select', required: true, default: '股下',
     choices: [{ value: '股下', label: '股下' }, { value: '総丈', label: '総丈' }],
     hint: '店の既定。受付でどちらでも選べます' },
@@ -169,14 +182,14 @@ const HEM_UP_FIELDS: FieldDef[] = [
 ]
 
 const HEM_OUT_FIELDS: FieldDef[] = [
-  SIZE_FIELD,
+  BOTTOM_SIZE_FIELD,
   { key: 'out_len_cm', label: '出す長さ', type: 'number', unit: 'cm', required: true, min: 1, max: 10, step: 1, default: 3 },
 ]
 
 // 詰め／出しは方向と量に分ける（符号で表すと現場が迷う）
-function adjustFields(key: string, label: string, max: number, def: number): FieldDef[] {
+function adjustFields(size: FieldDef, key: string, label: string, max: number, def: number): FieldDef[] {
   return [
-    SIZE_FIELD,
+    size,
     { key: `${key}_dir`, label: `${label}の方向`, type: 'select', required: true,
       choices: [{ value: '詰める', label: '詰める' }, { value: '出す', label: '出す' }] },
     { key: `${key}_cm`,  label: `${label}の量`, type: 'number', unit: 'cm', required: true,
@@ -207,7 +220,7 @@ export const REPAIR_PRESET: PresetGarment[] = [
       },
       {
         code: 'waist', name: 'ウエスト詰め・出し', icon: '📏', base_price: 1500, price_unit: 'per_item',
-        fields: adjustFields('waist', 'ウエスト', 10, 3),
+        fields: adjustFields(BOTTOM_SIZE_FIELD, 'waist', 'ウエスト', 10, 3),
         lead_time_days: 5,
       },
       {
@@ -219,7 +232,7 @@ export const REPAIR_PRESET: PresetGarment[] = [
           { group_label: '折り筋', group_select: 'single', code: 'crease_stay', name: '筋が残る可能性', price_delta: 0 },
         ],
       },
-      { code: 'tear', name: '破れ補修', icon: '🩹', base_price: 1000, price_unit: 'per_item', lead_time_days: 7, fields: [SIZE_FIELD] },
+      { code: 'tear', name: '破れ補修', icon: '🩹', base_price: 1000, price_unit: 'per_item', lead_time_days: 7, fields: [BOTTOM_SIZE_FIELD] },
     ],
   },
   {
@@ -228,7 +241,7 @@ export const REPAIR_PRESET: PresetGarment[] = [
       {
         code: 'hem', name: '丈詰め', icon: '✂️', base_price: 1500, price_unit: 'per_item',
         fields: [
-          SIZE_FIELD,
+          BOTTOM_SIZE_FIELD,
           { key: 'skirt_len_cm',  label: '仕上がり丈', type: 'number', unit: 'cm', required: true, min: 35, max: 90, step: 1, default: 55 },
           { key: 'skirt_cut_cm',  label: '詰める量',   type: 'number', unit: 'cm', min: 1, max: 20, step: 1, default: 5 },
         ],
@@ -236,7 +249,7 @@ export const REPAIR_PRESET: PresetGarment[] = [
       },
       {
         code: 'waist', name: 'ウエスト調整', icon: '📏', base_price: 1500, price_unit: 'per_item',
-        fields: adjustFields('waist', 'ウエスト', 10, 3),
+        fields: adjustFields(BOTTOM_SIZE_FIELD, 'waist', 'ウエスト', 10, 3),
         lead_time_days: 5,
       },
     ],
@@ -246,11 +259,11 @@ export const REPAIR_PRESET: PresetGarment[] = [
     items: [
       {
         code: 'sleeve', name: '袖丈直し（詰め・出し）', icon: '👔', base_price: 2000, price_unit: 'per_item',
-        fields: adjustFields('sleeve', '袖丈', 10, 3),
+        fields: adjustFields(TOP_SIZE_FIELD, 'sleeve', '袖丈', 10, 3),
         lead_time_days: 7,
       },
-      { code: 'badge',  name: '校章付け',       icon: '🏅', base_price: 500, price_unit: 'per_item', lead_time_days: 3, fields: [SIZE_FIELD] },
-      { code: 'button', name: 'ボタン付け替え', icon: '🔘', base_price: 300, price_unit: 'per_item', lead_time_days: 3, fields: [SIZE_FIELD] },
+      { code: 'badge',  name: '校章付け',       icon: '🏅', base_price: 500, price_unit: 'per_item', lead_time_days: 3, fields: [TOP_SIZE_FIELD] },
+      { code: 'button', name: 'ボタン付け替え', icon: '🔘', base_price: 300, price_unit: 'per_item', lead_time_days: 3, fields: [TOP_SIZE_FIELD] },
       {
         // ネーム刺繍は「3文字まで固定 → 超過は1文字ごとに加算」の帯モデル。
         // 基本料金=3文字までの価格、文字数バンドで超過分を加算（受付はタップ選択）。
@@ -270,14 +283,14 @@ export const REPAIR_PRESET: PresetGarment[] = [
           { group_label: '色',   group_select: 'single', code: 'gold',   name: '金（+料金）', price_delta: 100 },
         ],
       },
-      { code: 'tear', name: '破れ補修', icon: '🩹', base_price: 1200, price_unit: 'per_item', lead_time_days: 7 },
+      { code: 'tear', name: '破れ補修', icon: '🩹', base_price: 1200, price_unit: 'per_item', lead_time_days: 7, fields: [TOP_SIZE_FIELD] },
     ],
   },
   {
     code: 'shirt', name: 'シャツ・ブラウス', icon: '👔',
     items: [
-      { code: 'tear',   name: '破れ補修',         icon: '🩹', base_price: 800, price_unit: 'per_item', lead_time_days: 5 },
-      { code: 'button', name: 'ボタン付け替え', icon: '🔘', base_price: 300, price_unit: 'per_item', lead_time_days: 3 },
+      { code: 'tear',   name: '破れ補修',       icon: '🩹', base_price: 800, price_unit: 'per_item', lead_time_days: 5, fields: [TOP_SIZE_FIELD] },
+      { code: 'button', name: 'ボタン付け替え', icon: '🔘', base_price: 300, price_unit: 'per_item', lead_time_days: 3, fields: [TOP_SIZE_FIELD] },
     ],
   },
   {

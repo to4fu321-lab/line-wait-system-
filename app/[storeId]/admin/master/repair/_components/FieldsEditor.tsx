@@ -77,7 +77,7 @@ export function FieldsEditor({ value, onChange }: {
     if (!d) return d
     const base: FieldDef = { key: d.key, label: d.label, type, required: d.required, show_if: d.show_if }
     if (type === 'number') return { ...base, unit: d.unit ?? 'cm', min: d.min ?? 1, max: d.max ?? 10, step: d.step ?? 1 }
-    if (type === 'select') return { ...base, choices: d.choices ?? [] }
+    if (type === 'select') return { ...base, choices: d.choices ?? [], allow_free: d.allow_free }
     if (type === 'text')   return { ...base, suggest_choices: d.suggest_choices }
     return base
   })
@@ -182,12 +182,18 @@ export function FieldsEditor({ value, onChange }: {
           )}
 
           {draft.type === 'select' && (
-            <label className="block">
-              <span className="block text-[11px] font-bold text-gray-600 mb-0.5">選択肢（1行に1つ）</span>
-              <textarea className={INPUT + ' h-24'} value={(draft.choices ?? []).map(c => c.label).join('\n')}
-                onChange={e => patch({ choices: parseChoices(e.target.value, draft.choices) })}
-                placeholder={'シングル\nダブル'} />
-            </label>
+            <>
+              <label className="block">
+                <span className="block text-[11px] font-bold text-gray-600 mb-0.5">選択肢（1行に1つ）</span>
+                <textarea className={INPUT + ' h-24'} value={(draft.choices ?? []).map(c => c.label).join('\n')}
+                  onChange={e => patch({ choices: parseChoices(e.target.value, draft.choices) })}
+                  placeholder={'シングル\nダブル'} />
+              </label>
+              <label className="flex items-center gap-2 text-xs font-bold text-gray-700">
+                <input type="checkbox" checked={!!draft.allow_free} onChange={e => patch({ allow_free: e.target.checked })} />
+                「その他」で手入力も許す
+              </label>
+            </>
           )}
 
           {draft.type === 'text' && (

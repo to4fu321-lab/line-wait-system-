@@ -28,6 +28,7 @@ import { SimplePurchaseCard } from './_components/SimplePurchaseCard'
 import { EditModal } from './_components/EditModal'
 import { ArrivalCard } from './_components/ArrivalCard'
 import { InquiryTabCard } from './_components/InquiryTabCard'
+import { notifyWorkChanged } from '@/lib/workBadge'
 import { INQ_TYPE_LABELS } from './_components/constants'
 import { SeasonDashboard } from '../_components/SeasonDashboard'
 
@@ -223,6 +224,8 @@ export default function RepairsPage() {
     ].sort((a, b) => (a.ready_date ?? a.received_date).localeCompare(b.ready_date ?? b.received_date))
     setWaiting(waitingItems)
     setLoading(false)
+    // このページで何か片付ければ必ずここを通る。バッジも同時に取り直す
+    notifyWorkChanged()
   }, [storeId])
 
   const fetchHistory = useCallback(async () => {

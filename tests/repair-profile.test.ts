@@ -208,3 +208,53 @@ describe('visibleFields（条件付きの入力欄）', () => {
     expect(visibleFields(plain, {})).toEqual(plain)
   })
 })
+
+describe('サイズ入力（上下でサイズ体系が違う）', () => {
+  const uniform = PRESETS_BY_KEY.uniform
+  const sizeOf = (gCode: string, iCode: string) =>
+    uniform.find(g => g.code === gCode)?.items.find(i => i.code === iCode)
+      ?.fields?.find(f => f.key === 'garment_size')
+
+  it('ボトム（スラックス）はウエストサイズ。身長サイズは出さない', () => {
+    const f = sizeOf('slacks', 'hem')
+    const vals = (f?.choices ?? []).map(c => c.value)
+    expect(vals).toContain('W70')
+    expect(vals).not.toContain('160')
+    expect(f?.label).toBe('サイズ（ウエスト）')
+  })
+
+  it('上着（ブレザー・学ラン）は身長サイズ。ウエストは出さない', () => {
+    const f = sizeOf('jacket', 'badge')
+    const vals = (f?.choices ?? []).map(c => c.value)
+    expect(vals).toContain('160')
+    expect(vals).not.toContain('W70')
+    expect(f?.label).toBe('サイズ（身長）')
+  })
+
+  it('上下ともS/M/Lが選べる', () => {
+    for (const f of [sizeOf('slacks', 'hem'), sizeOf('jacket', 'badge')]) {
+      const vals = (f?.choices ?? []).map(c => c.value)
+      expect(vals).toEqual(expect.arrayContaining(['S', 'M', 'L']))
+    }
+  })
+
+  it('規格外は手入力できる（allow_free）', () => {
+    expect(sizeOf('slacks', 'hem')?.allow_free).toBe(true)
+    expect(sizeOf('jacket', 'badge')?.allow_free).toBe(true)
+  })
+
+  it('スカートはボトム、シャツは上着として扱う', () => {
+    expect(sizeOf('skirt', 'hem')?.label).toBe('サイズ（ウエスト）')
+    expect(sizeOf('shirt', 'button')?.label).toBe('サイズ（身長）')
+  })
+
+  it('サイズ欄はキーが共通なので、取り込み直すと旧定義（自由入力）が置き換わる', () => {
+    const old: FieldDef[] = [{ key: 'garment_size', label: 'サイズ（タグ表示）', type: 'text' }]
+    const preset = PRESETS_BY_KEY.uniform.find(g => g.code === 'slacks')!
+      .items.find(i => i.code === 'hem')!.fields!
+    const merged = mergePresetFields(old, preset)
+    const size = merged.find(f => f.key === 'garment_size')
+    expect(size?.type).toBe('select')
+    expect(merged.filter(f => f.key === 'garment_size')).toHaveLength(1)
+  })
+})
