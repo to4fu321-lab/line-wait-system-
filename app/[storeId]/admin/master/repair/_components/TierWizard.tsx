@@ -15,9 +15,9 @@
 // ============================================================================
 
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight, Check, Loader2, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Check, Loader2, X, Plus, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { buildTiers } from '@/lib/repairPresets'
+import { buildTiers, buildBandTiers } from '@/lib/repairPresets'
 import { NumberSwipePicker } from '@/app/[storeId]/admin/repairs/_components/NumberSwipePicker'
 
 const INPUT = 'w-full border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:border-indigo-500 bg-white'
@@ -32,6 +32,17 @@ const KINDS = [
 type KindId = typeof KINDS[number]['id']
 
 const STEP_CHOICES = [1, 2, 5, 10]
+
+//  flat: どれも同じ / step: 1段ごとに加算 / band: 区切りで変わる
+//  band は「〜5cmまでは同じ料金、それ以上は加工が変わるので別料金」という、
+//  スカート・スラックスの詰めで実際に使われている決め方。
+type PriceMode = 'flat' | 'step' | 'band'
+
+const PRICE_MODES: { id: PriceMode; title: string; desc: string }[] = [
+  { id: 'flat', title: 'どれを選んでも同じ料金', desc: '記録だけ残したいとき' },
+  { id: 'band', title: 'ある幅を境に料金が変わる', desc: '〜5cmまでは同じ、それ以上は別料金' },
+  { id: 'step', title: '1段ふえるごとに上がる',   desc: '文字数のように少しずつ加算' },
+]
 
 export function TierWizard({ storeId, itemId, startSort, onClose, onDone, onError }: {
   storeId:   string
@@ -50,20 +61,54 @@ export function TierWizard({ storeId, itemId, startSort, onClose, onDone, onErro
   const [max, setMax]     = useState('10')
   const [gap, setGap]     = useState('1')
   const [labelStyle, setLabelStyle] = useState<'upto' | 'exact'>('upto')
-  const [varies, setVaries]   = useState(false)
+  const [priceMode, setPriceMode] = useState<PriceMode>('flat')
   const [baseAdd, setBaseAdd] = useState('0')
   const [stepAdd, setStepAdd] = useState('100')
+  // 区切り方式。breaks は途中の境目、最後の境目は常に「最大の数」。
+  // adds は breaks.length + 1 個（各帯の加算額）
+  const [breaks, setBreaks] = useState<string[]>([])
+  const [adds, setAdds]     = useState<string[]>(['0', '1000'])
+  const [bandOnly, setBandOnly] = useState(true)
   const [saving, setSaving]   = useState(false)
 
   const kindDef = KINDS.find(k => k.id === kind)!
   const nMin = Number(min), nMax = Number(max), nGap = Number(gap)
 
-  const tiers = buildTiers({
-    min: nMin, max: nMax, step: nGap, unit,
-    labelStyle,
-    baseAdd: varies ? Number(baseAdd) || 0 : 0,
-    stepAdd: varies ? Number(stepAdd) || 0 : 0,
-  })
+  // 帯の一覧（途中の境目 + 最後は最大の数）
+  const bands = [...breaks.map(Number), nMax].map((upto, i) => ({
+    upto, add: Number(adds[i]) || 0,
+  }))
+
+  const tiers =
+    priceMode === 'band'
+      ? buildBandTiers({ min: nMin, max: nMax, step: nGap, unit, labelStyle, bands, bandOnly })
+      : buildTiers({
+          min: nMin, max: nMax, step: nGap, unit, labelStyle,
+          baseAdd: priceMode === 'step' ? Number(baseAdd) || 0 : 0,
+          stepAdd: priceMode === 'step' ? Number(stepAdd) || 0 : 0,
+        })
+
+  // 区切り方式に切り替えたとき、範囲の真ん中に境目を1つ置いておく
+  const pickBand = () => {
+    setPriceMode('band')
+    if (breaks.length === 0) {
+      const mid = Math.round(((nMin + nMax) / 2) / (nGap || 1)) * (nGap || 1)
+      setBreaks([String(Math.min(Math.max(mid, nMin), nMax - (nGap || 1)) || nMin)])
+      setAdds(['0', '1000'])
+    }
+  }
+  const addBreak = () => {
+    // 最後の境目と最大の数のあいだに入れる（最大と同じにすると同名の選択肢ができる）
+    const from = breaks.length > 0 ? Number(breaks[breaks.length - 1]) : nMin
+    const next = Math.round((from + nMax) / 2)
+    if (!(next > from && next < nMax)) return
+    setBreaks([...breaks, String(next)])
+    setAdds([...adds, String(Number(adds[adds.length - 1]) + 1000)])
+  }
+  const removeBreak = (i: number) => {
+    setBreaks(breaks.filter((_, x) => x !== i))
+    setAdds(adds.filter((_, x) => x !== i))
+  }
 
   const pickKind = (k: typeof KINDS[number]) => {
     setKind(k.id); setUnit(k.unit); setGroup(k.group)
@@ -85,7 +130,8 @@ export function TierWizard({ storeId, itemId, startSort, onClose, onDone, onErro
       group_label: group.trim(), group_select: 'single' as const,
       code: `o_${Date.now().toString(36)}_${i}`,
       name: t.name, price_delta: t.delta, price_unit: 'per_item' as const,
-      default_selected: varies && i === 0,   // 増分方式は先頭＝基本料金内なので初期選択
+      // 先頭が加算0＝基本料金のまま、なら初期選択にしておく（択一なので既定が要る）
+      default_selected: priceMode !== 'flat' && i === 0 && t.delta === 0,
       requires_quote: false, manual: null,
       sort_order: (sort += 10),
     }))
@@ -204,8 +250,8 @@ export function TierWizard({ storeId, itemId, startSort, onClose, onDone, onErro
                   <span className="block text-[11px] text-gray-500 mb-1.5">{o.desc}</span>
                   <span className="flex flex-wrap gap-1">
                     {buildTiers({ min: nMin, max: nMax, step: nGap, unit, labelStyle: o.v, baseAdd: 0, stepAdd: 0 })
-                      .slice(0, 3).map(t => (
-                        <span key={t.name} className="rounded-md bg-white border border-gray-200 px-2 py-0.5 text-[11px] font-bold text-gray-700">{t.name}</span>
+                      .slice(0, 3).map((t, i) => (
+                        <span key={i} className="rounded-md bg-white border border-gray-200 px-2 py-0.5 text-[11px] font-bold text-gray-700">{t.name}</span>
                       ))}
                     <span className="text-[11px] text-gray-400 self-center">…</span>
                   </span>
@@ -218,23 +264,19 @@ export function TierWizard({ storeId, itemId, startSort, onClose, onDone, onErro
           {step === 4 && (
             <>
               <div className="space-y-2">
-                <button type="button" onClick={() => setVaries(false)}
-                  className={`w-full rounded-xl border-2 px-4 py-3 text-left transition ${
-                    !varies ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-white'
-                  }`}>
-                  <span className="block text-sm font-black text-gray-800">どれを選んでも同じ料金</span>
-                  <span className="block text-[11px] text-gray-500">記録だけ残したいとき</span>
-                </button>
-                <button type="button" onClick={() => setVaries(true)}
-                  className={`w-full rounded-xl border-2 px-4 py-3 text-left transition ${
-                    varies ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-white'
-                  }`}>
-                  <span className="block text-sm font-black text-gray-800">段階で料金が上がる</span>
-                  <span className="block text-[11px] text-gray-500">1段ふえるごとに加算する</span>
-                </button>
+                {PRICE_MODES.map(m => (
+                  <button key={m.id} type="button"
+                    onClick={() => m.id === 'band' ? pickBand() : setPriceMode(m.id)}
+                    className={`w-full rounded-xl border-2 px-4 py-3 text-left transition ${
+                      priceMode === m.id ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-white'
+                    }`}>
+                    <span className="block text-sm font-black text-gray-800">{m.title}</span>
+                    <span className="block text-[11px] text-gray-500">{m.desc}</span>
+                  </button>
+                ))}
               </div>
 
-              {varies && (
+              {priceMode === 'step' && (
                 <div className="rounded-xl border border-gray-200 p-3 space-y-3">
                   <label className="block">
                     <span className="block text-xs font-bold text-gray-600 mb-1">
@@ -254,20 +296,71 @@ export function TierWizard({ storeId, itemId, startSort, onClose, onDone, onErro
                 </div>
               )}
 
+              {priceMode === 'band' && (
+                <div className="rounded-xl border border-gray-200 p-3 space-y-2">
+                  <p className="text-xs font-bold text-gray-600">
+                    どこまでが同じ料金？
+                    <span className="ml-1 font-normal text-gray-400">加工が変わる幅で区切ります</span>
+                  </p>
+                  {bands.map((b, i) => {
+                    const last = i === bands.length - 1
+                    return (
+                      <div key={i} className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-gray-400 w-3">〜</span>
+                        {last ? (
+                          <span className="flex-1 rounded-xl bg-gray-100 px-3 py-2.5 text-sm font-bold text-gray-500">
+                            {nMax}{unit}（最後）
+                          </span>
+                        ) : (
+                          <input type="number" inputMode="numeric" className={INPUT + ' flex-1'}
+                            value={breaks[i]}
+                            onChange={e => setBreaks(breaks.map((x, n) => n === i ? e.target.value : x))} />
+                        )}
+                        <span className="text-xs font-bold text-gray-500 shrink-0">{unit}まで ＋</span>
+                        <input type="number" inputMode="numeric" className={INPUT + ' w-24'}
+                          value={adds[i] ?? '0'}
+                          onChange={e => setAdds(adds.map((x, n) => n === i ? e.target.value : x))} />
+                        <span className="text-xs font-bold text-gray-500 shrink-0">円</span>
+                        {!last && bands.length > 1 && (
+                          <button type="button" onClick={() => removeBreak(i)}
+                            className="p-1 text-gray-300 hover:text-red-500"><Trash2 size={14} /></button>
+                        )}
+                      </div>
+                    )
+                  })}
+                  <button type="button" onClick={addBreak}
+                    className="flex items-center gap-1 text-indigo-600 text-xs font-bold">
+                    <Plus size={13} />区切りを増やす
+                  </button>
+                  <label className="flex items-start gap-2 text-xs font-bold text-gray-700 pt-1 border-t">
+                    <input type="checkbox" className="mt-0.5" checked={bandOnly}
+                      onChange={e => setBandOnly(e.target.checked)} />
+                    <span>
+                      区切りだけを選択肢にする
+                      <span className="block font-normal text-gray-400">
+                        {bandOnly
+                          ? `${bands.length}つだけ作ります（受付は速いが、実寸は残らない）`
+                          : `${nGap}${unit}刻みで全部作ります（実寸が残る。料金は区切りどおり）`}
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              )}
+
               <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
                 <p className="text-xs font-bold text-gray-500 mb-2">
                   「{group.trim() || '（見出し）'}」— {tiers.length}件できます
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {tiers.map(t => (
-                    <span key={t.name} className="inline-flex items-center gap-1 bg-white border-2 border-indigo-200 rounded-lg px-2.5 py-1 text-xs font-bold text-indigo-700">
+                  {tiers.map((t, i) => (
+                    <span key={i} className="inline-flex items-center gap-1 bg-white border-2 border-indigo-200 rounded-lg px-2.5 py-1 text-xs font-bold text-indigo-700">
                       {t.name}
                       {t.delta !== 0 && <span className="text-gray-400">{t.delta > 0 ? '+' : ''}¥{t.delta.toLocaleString()}</span>}
                     </span>
                   ))}
                 </div>
                 <p className="text-[11px] text-gray-400 mt-2">
-                  受付時の金額 = 基本料金{varies ? ' + 選んだ段階の加算' : ''}。作成後も1つずつ直せます。
+                  受付時の金額 = 基本料金{priceMode !== 'flat' ? ' + 選んだ段階の加算' : ''}。作成後も1つずつ直せます。
                 </p>
               </div>
             </>

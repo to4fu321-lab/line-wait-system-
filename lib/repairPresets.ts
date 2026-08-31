@@ -121,6 +121,48 @@ export function buildTiers(o: {
   return out
 }
 
+/**
+ * 区切り（境目）で料金が変わる段階。
+ *
+ *  スカート・スラックスの詰めは「〜5cmまでは同じ料金、それ以上は加工が
+ *  変わるので別料金」という組み方をする。1段ふえるごとに一定額、では表せない。
+ *
+ *  bands は上限の昇順。「upto までは add 円」を意味し、最後の band が上限。
+ *  値がどの band にも収まらない（＝最後の upto を超える）ときは最後の band 扱い。
+ */
+export interface Band { upto: number; add: number }
+
+export function buildBandTiers(o: {
+  min: number; max: number; step: number
+  unit?:       string
+  labelStyle?: 'upto' | 'exact'
+  bands:       Band[]
+  /** true: 区切りそのものを選択肢にする（〜5cm / 〜10cm の2つだけ作る） */
+  bandOnly?:   boolean
+}): Tier[] {
+  const { min, max, step, unit = 'cm', labelStyle = 'upto', bands, bandOnly = true } = o
+  // 同じ上限が2つあると同名の選択肢ができてしまうので、先勝ちで畳む
+  const sorted = [...bands]
+    .filter(b => Number.isFinite(b.upto))
+    .sort((a, b) => a.upto - b.upto)
+    .filter((b, i, arr) => i === 0 || Math.abs(b.upto - arr[i - 1].upto) > 1e-9)
+  if (sorted.length === 0) return []
+  const label = (v: number) => labelStyle === 'upto' ? `〜${v}${unit}` : `${v}${unit}`
+
+  if (bandOnly) {
+    return sorted.map(b => ({ name: label(Math.round(b.upto * 100) / 100), delta: Math.round(b.add) }))
+  }
+  // 刻みごとに並べて、それぞれが属する band の料金を付ける
+  const out: Tier[] = []
+  if (!(step > 0) || !(max >= min)) return out
+  for (let v = min; v <= max + 1e-9 && out.length < 60; v += step) {
+    const val  = Math.round(v * 100) / 100
+    const band = sorted.find(b => val <= b.upto + 1e-9) ?? sorted[sorted.length - 1]
+    out.push({ name: label(val), delta: Math.round(band.add) })
+  }
+  return out
+}
+
 /** buildTiers をプリセットの択一オプションの形にする */
 export function buildSizeTier(opts: {
   groupCode:   string                // code のユニーク化に使う英数キー（例: tsume）
