@@ -27,6 +27,7 @@ import { seedRepairPresets, SIZE_RANGE_PRESETS } from '@/lib/repairPresets'
 import {
   REPAIR_LABELS as labels, PRESET_KEYS, PRESET_SET_LABELS, type PresetKey,
 } from '@/lib/repairProfile'
+import { useLongPressReorder, renumber, type Sortable } from '@/lib/useLongPressReorder'
 import { Toast } from '@/app/_components/Toast'
 import { Field } from '@/app/_components/Field'
 
@@ -432,6 +433,36 @@ export default function RepairMasterPage() {
     if (!optionsByItem[itemId]) fetchOptions(itemId)
   }
 
+  // ── 並べ替え（長押し→ドラッグ）──────────────────────────────
+  //  変わった行だけ update する。全件 upsert にすると、他の列まで
+  //  こちらの持っている古い値で上書きしてしまう。
+  const persistOrder = async (table: string, next: Sortable[]) => {
+    const changes = renumber(next)
+    if (changes.length === 0) return true
+    const res = await Promise.all(changes.map(c =>
+      (supabase as any).from(table).update({ sort_order: c.sort_order }).eq('id', c.id)))
+    return !res.some(r => r.error)
+  }
+
+  const reorderGarments = useCallback(async (next: RepairGarmentType[]) => {
+    const prev = garments
+    setGarments(next.map((g, i) => ({ ...g, sort_order: (i + 1) * 10 })))
+    if (!(await persistOrder('repair_garment_types', next))) {
+      setGarments(prev); showToast('err', '並び順を保存できませんでした')
+    }
+  }, [garments])
+
+  const reorderItems = useCallback(async (next: RepairItem[]) => {
+    const prev = items
+    setItems(next.map((it, i) => ({ ...it, sort_order: (i + 1) * 10 })))
+    if (!(await persistOrder('repair_items', next))) {
+      setItems(prev); showToast('err', '並び順を保存できませんでした')
+    }
+  }, [items])
+
+  const gDrag = useLongPressReorder(garments, reorderGarments)
+  const iDrag = useLongPressReorder(items, reorderItems)
+
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       {toast && <Toast {...toast} onClose={() => setToast(null)} />}
@@ -497,7 +528,10 @@ export default function RepairMasterPage() {
           {/* 大分類チップ */}
           <div className="bg-white rounded-2xl p-3 shadow-sm">
             <div className="flex items-center justify-between gap-2 mb-2">
-              <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider">{labels.garment}（大項目）</p>
+              <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider">
+                {labels.garment}（大項目）
+                <span className="ml-1.5 normal-case tracking-normal text-[10px] font-bold text-gray-300">長押しで並べ替え</span>
+              </p>
               <div className="flex items-center gap-1.5">
                 <button onClick={() => setImportData({ title: 'プリセットから一括追加', initial: bulkFromParsed(REPAIR_PRESETS) })}
                   className="flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-1 text-xs font-bold text-amber-700 active:scale-95">
@@ -512,46 +546,62 @@ export default function RepairMasterPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              {garments.map(g => (
-                <div key={g.id} className={`group flex items-center rounded-full border ${selectedGarment === g.id ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-gray-200 text-gray-700'}`}>
-                  <button onClick={() => { setSelectedGarment(g.id); setExpandedItem(null) }} className="pl-3 pr-1 py-1.5 text-sm font-bold flex items-center gap-1">
+              {gDrag.order.map(g => (
+                <div key={g.id} {...gDrag.bind(g.id)}
+                  style={{ WebkitTouchCallout: 'none' }}
+                  className={`group flex items-center rounded-full border select-none touch-manipulation transition-all
+                    ${gDrag.dragId === g.id ? 'ring-2 ring-amber-400 shadow-lg scale-105 z-10' : ''}
+                    ${gDrag.dragging && gDrag.dragId !== g.id ? 'opacity-60' : ''}
+                    ${selectedGarment === g.id ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-gray-200 text-gray-700'}`}>
+                  <button onClick={() => { if (gDrag.ignoreClick()) return; setSelectedGarment(g.id); setExpandedItem(null) }} className="pl-3 pr-1 py-1.5 text-sm font-bold flex items-center gap-1">
                     <RepairIcon icon={g.icon} /> {g.name}
                   </button>
-                  <button onClick={() => openG(g)} className="p-1 opacity-60 hover:opacity-100"><Pencil size={12} /></button>
-                  <button onClick={() => delG(g)} className="pr-2 pl-0.5 py-1 opacity-60 hover:opacity-100"><Trash2 size={12} /></button>
+                  <button onClick={() => { if (gDrag.ignoreClick()) return; openG(g) }} className="p-1 opacity-60 hover:opacity-100"><Pencil size={12} /></button>
+                  <button onClick={() => { if (gDrag.ignoreClick()) return; delG(g) }} className="pr-2 pl-0.5 py-1 opacity-60 hover:opacity-100"><Trash2 size={12} /></button>
                 </div>
               ))}
               <button onClick={() => openG()} className="flex items-center gap-1 rounded-full border-2 border-dashed border-gray-300 px-3 py-1.5 text-sm font-bold text-gray-400 hover:border-amber-400 hover:text-amber-500">
                 <Plus size={14} /> {labels.garment}を追加
               </button>
             </div>
+            {gDrag.dragging && (
+              <p className="mt-2 text-[11px] font-bold text-amber-600">指を動かして位置を決め、離すと確定します</p>
+            )}
           </div>
 
           {/* 項目一覧 */}
           {selectedGarment && (
             <div className="space-y-2">
               <div className="flex items-center justify-between px-1">
-                <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider">項目（基本料金）</p>
+                <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider">
+                  {labels.item}（基本料金）
+                  <span className="ml-1.5 normal-case tracking-normal text-[10px] font-bold text-gray-300">長押しで並べ替え</span>
+                </p>
                 <button onClick={() => openI()} className="flex items-center gap-1 text-amber-600 text-sm font-bold">
-                  <Plus size={15} /> 項目を追加
+                  <Plus size={15} /> {labels.item}を追加
                 </button>
               </div>
 
               {items.length === 0 ? (
                 <div className="bg-white rounded-2xl py-12 text-center text-gray-400">
                   <Scissors size={36} className="mx-auto mb-2 opacity-30" />
-                  <p className="text-sm font-bold">項目がありません</p>
+                  <p className="text-sm font-bold">{labels.item}がありません</p>
                 </div>
-              ) : items.map(it => {
+              ) : iDrag.order.map(it => {
                 const opts = optionsByItem[it.id] ?? []
                 const open = expandedItem === it.id
                 return (
-                  <div key={it.id} className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                    <div className="flex items-center gap-2 p-3.5">
-                      <button onClick={() => toggleItem(it.id)} className="text-gray-400">
+                  <div key={it.id} {...iDrag.bindTarget(it.id)}
+                    className={`bg-white rounded-2xl shadow-sm overflow-hidden transition-all
+                      ${iDrag.dragId === it.id ? 'ring-2 ring-amber-400 shadow-lg scale-[1.02]' : ''}
+                      ${iDrag.dragging && iDrag.dragId !== it.id ? 'opacity-60' : ''}`}>
+                    {/* 掴むのは見出し行だけ。展開したオプション欄の操作を邪魔しない */}
+                    <div {...iDrag.bindHandle(it.id)} style={{ WebkitTouchCallout: 'none' }}
+                      className="flex items-center gap-2 p-3.5 select-none touch-manipulation">
+                      <button onClick={() => { if (iDrag.ignoreClick()) return; toggleItem(it.id) }} className="text-gray-400">
                         {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                       </button>
-                      <div className="flex-1 min-w-0" onClick={() => toggleItem(it.id)} role="button">
+                      <div className="flex-1 min-w-0" onClick={() => { if (iDrag.ignoreClick()) return; toggleItem(it.id) }} role="button">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-black text-gray-900 inline-flex items-center gap-1"><RepairIcon icon={it.icon} /> {it.name}</span>
                           <span className="text-indigo-600 font-black">¥{it.base_price.toLocaleString()}</span>
@@ -565,8 +615,8 @@ export default function RepairMasterPage() {
                           <span>オプション{opts.length || (optionsByItem[it.id] ? 0 : '…')}</span>
                         </div>
                       </div>
-                      <button onClick={() => openI(it)} className="p-1.5 text-gray-400 hover:text-indigo-600"><Pencil size={15} /></button>
-                      <button onClick={() => delI(it)} className="p-1.5 text-gray-400 hover:text-red-600"><Trash2 size={15} /></button>
+                      <button onClick={() => { if (iDrag.ignoreClick()) return; openI(it) }} className="p-1.5 text-gray-400 hover:text-indigo-600"><Pencil size={15} /></button>
+                      <button onClick={() => { if (iDrag.ignoreClick()) return; delI(it) }} className="p-1.5 text-gray-400 hover:text-red-600"><Trash2 size={15} /></button>
                     </div>
 
                     {open && (
