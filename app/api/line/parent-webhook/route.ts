@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyLineSignature } from '@/lib/lineSignature'
 import { createAdminClient } from '@/lib/supabaseAdmin'
+import { resolveFeature } from '@/lib/features'
 
 export const dynamic = 'force-dynamic'
 
@@ -85,6 +86,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const school = schools[0]
 
+    // 保護者情報投稿・クーポン配布の可否を店舗の機能設定から判定する。
+    // 以前は features['line_coupon'] を直接見ており、プラン既定（未設定なら
+    // プランに従う）が効かず、明示的にONにしないと動かなかった。
+    const { data: storeData } = await supabase
+      .from('stores')
+      .select('features')
+      .eq('id', school.store_id)
+      .single()
+    const features = (storeData?.features as Record<string, unknown>) ?? {}
+
+    if (!resolveFeature('line_parent_info', features)) {
+      await sendLineReply(replyToken, '情報のご投稿は現在受け付けておりません。')
+      continue
+    }
+
     // Save the tip
     await supabase.from('school_parent_tips').insert({
       school_id: school.id,
@@ -96,17 +112,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       updated_by: `line:${lineUid}`,
     })
 
-    // Check if line_coupon feature is enabled for this store
-    const { data: storeData } = await supabase
-      .from('stores')
-      .select('features, plan')
-      .eq('id', school.store_id)
-      .single()
-
-    const features = (storeData?.features as Record<string, boolean>) ?? {}
-    const lineCouponEnabled = features['line_coupon'] === true
-
-    if (lineCouponEnabled) {
+    if (resolveFeature('line_coupon', features)) {
       // Issue a coupon
       const code = generateCouponCode()
       const validUntil = new Date()

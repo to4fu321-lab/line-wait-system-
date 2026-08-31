@@ -13,6 +13,12 @@ import type { Store, BusinessType } from '@/types/database'
 import { PLAN_DEFS, ADDON_DEFAULT_OFF, AREA_DEFS, type Plan, type FeatureKey, type AreaCode } from '@/lib/features'
 
 // ── 細粒度フラグ（プランに加えて個別 on/off できる項目） ────────
+//  ここに並べたキーは、必ずアプリのどこかで判定に使われていること。
+//  （tests/feature-gates.test.ts が機械的に確認する）
+//  重複していたので外したもの:
+//    orders        … 発注は repairs_tab_purchase が制御している
+//    school_master … 学校マスタ画面は products が制御している
+//    line_parent_rsv … 採寸予約は reservation が制御している
 const GRANULAR_FEATURES: { key: FeatureKey; label: string; icon: string }[] = [
   { key: 'tab_queue',            label: '受付・順番待ちタブ', icon: '🔢' },
   { key: 'tab_repairs',          label: 'お仕事タブ',       icon: '✂️' },
@@ -27,16 +33,13 @@ const GRANULAR_FEATURES: { key: FeatureKey; label: string; icon: string }[] = [
   { key: 'kantan_line',          label: 'かんたんLINE運用', icon: '🍀' },
   { key: 'tray_scan',            label: '置くだけスキャン', icon: '📥' },
   { key: 'reservation',         label: '採寸予約',         icon: '📅' },
-  { key: 'orders',              label: '注文管理',         icon: '🛒' },
   { key: 'takeout',             label: 'テイクアウト',     icon: '🥡' },
-  { key: 'school_master',      label: '学校マスター管理',        icon: '🏫' },
   { key: 'school_ocr',         label: '学校規定OCR取込',         icon: '📄' },
   { key: 'school_crm_card',    label: 'CRM学校規定カード',        icon: '👤' },
   { key: 'school_measurement', label: '採寸パネル（アイテム別）', icon: '📐' },
   { key: 'school_waiting',     label: '顧客待機サイネージ',       icon: '🖥' },
   { key: 'line_parent_info',   label: 'LINE保護者情報投稿',       icon: '💚' },
   { key: 'line_coupon',        label: 'クーポン自動配布',         icon: '🎫' },
-  { key: 'line_parent_rsv',    label: 'LINE採寸予約（保護者）',   icon: '📅' },
   { key: 'customer_self_intake', label: 'お客様セルフ依頼入力',   icon: '📱' },
   { key: 'customer_self_order',  label: 'お客様セルフ制服注文',   icon: '🛍️' },
   { key: 'sms_notify',           label: 'SMS完了通知（アドオン）', icon: '📩' },
@@ -69,12 +72,12 @@ const GRANULAR_FEATURE_GROUPS: { label: string; keys: FeatureKey[] }[] = [
   },
   {
     label: 'LINE・スキャン',
-    keys: ['kantan_line', 'tray_scan', 'reservation', 'orders', 'takeout', 'customer_self_intake', 'customer_self_order'],
+    keys: ['kantan_line', 'tray_scan', 'reservation', 'takeout', 'customer_self_intake', 'customer_self_order'],
   },
   {
     label: '🏫 学校規定・採寸連携',
-    keys: ['school_master', 'school_ocr', 'school_crm_card', 'school_measurement',
-           'school_waiting', 'line_parent_info', 'line_coupon', 'line_parent_rsv'],
+    keys: ['school_ocr', 'school_crm_card', 'school_measurement',
+           'school_waiting', 'line_parent_info', 'line_coupon'],
   },
   {
     label: '📆 シフト管理',

@@ -127,7 +127,10 @@ export default function CustomerPage() {
       // 顧客向け機能の可否（プラン/個別フラグ）。OFFの機能には action でも遷移させない
       const canQueue    = !isSimple
       const canReserve  = resolveFeature('reservation', featuresData)
-      const canRepair   = resolveFeature('repairs',     featuresData)
+      // お直しのセルフ依頼入力。お直し機能そのものと、セルフ入力の可否は別物
+      //（店頭だけで受ける運用なら customer_self_intake を切る）
+      const canRepair   = resolveFeature('repairs', featuresData)
+                       && resolveFeature('customer_self_intake', featuresData)
       const canPurchase = resolveFeature('products',    featuresData)
       setReserveEnabled(canReserve)
       setRepairEnabled(canRepair)

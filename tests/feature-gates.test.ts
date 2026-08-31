@@ -45,9 +45,9 @@ const TOGGLES: FeatureKey[] = [
   'tab_queue', 'tab_repairs', 'tab_inquiries', 'tab_crm',
   'repairs_tab_purchase', 'repairs_tab_arrival', 'repairs_tab_delivery',
   'repairs_ocr', 'repairs_master', 'repairs_dummy',
-  'kantan_line', 'tray_scan', 'reservation', 'orders', 'takeout',
-  'school_master', 'school_ocr', 'school_crm_card', 'school_measurement',
-  'school_waiting', 'line_parent_info', 'line_coupon', 'line_parent_rsv',
+  'kantan_line', 'tray_scan', 'reservation', 'takeout',
+  'school_ocr', 'school_crm_card', 'school_measurement',
+  'school_waiting', 'line_parent_info', 'line_coupon',
   'customer_self_intake', 'customer_self_order',
   'sms_notify', 'today_tasks_ui', 'pos',
   'shift_management', 'shift_inter_store', 'shift_attendance', 'shift_leave',
@@ -55,17 +55,11 @@ const TOGGLES: FeatureKey[] = [
 ]
 
 /**
- * トグルはあるが中身が無い（未実装）。
- * 実装したらこの配列から消すこと。増やすときは本当に未実装かを確認する。
+ * トグルはあるが、まだどこも見ていないもの。
+ * 実装（配線）したらこの配列から消すこと。
+ * 空であることが正常。増やすなら「なぜ今は配線できないか」を必ず書く。
  */
-const UNWIRED: FeatureKey[] = [
-  'orders',                // 注文管理: 専用画面が無い
-  'school_master',         // 学校マスター管理: 画面は products で出しており、このキーは未使用
-  'school_ocr',            // 学校規定OCR取込: 未実装
-  'line_parent_info',      // LINE保護者情報投稿: 未実装
-  'line_parent_rsv',       // LINE採寸予約（保護者）: 未実装
-  'customer_self_intake',  // お客様セルフ依頼入力: 未実装
-]
+const UNWIRED: FeatureKey[] = []
 
 describe('機能トグルと画面の対応', () => {
   it('未実装リストに載っていないトグルは、必ずどこかで判定に使われている', () => {

@@ -151,6 +151,7 @@ export const PLAN_DEFS: Record<Plan, {
       tab_crm: true,            // 顧客管理
       pos: true,                // レジ
       repairs: true, crm: true,
+      customer_self_intake: true, // LINEからのお直し依頼（従来 repairs だけで出ていた）
     },
   },
 
@@ -167,6 +168,7 @@ export const PLAN_DEFS: Record<Plan, {
       repairs_tab_delivery: true,// お渡し
       pos: true,                 // レジ
       repairs: true,
+      customer_self_intake: true, // LINEからのお直し依頼（従来 repairs だけで出ていた）
     },
   },
 

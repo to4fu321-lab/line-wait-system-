@@ -26,6 +26,7 @@ import {
   WASHABLE_OPTIONS, SIZE_SET_CATEGORY_OPTIONS, BODY_TYPE_OPTIONS,
 } from '@/types/master'
 import ManualImportWizard from './_components/ManualImportWizard'
+import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { LabelPrintModal } from './_components/LabelPrintModal'
 import { Toast } from '@/app/_components/Toast'
 import { Field } from '@/app/_components/Field'
@@ -60,6 +61,7 @@ type Tab = 'regulations' | 'products' | 'sizesets'
 export default function MasterManagePage() {
   const params = useParams<{ storeId: string }>()
   const storeId = params?.storeId ?? ''
+  const { hasFeature } = useStoreFeatures(storeId)
   const router = useRouter()
 
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
@@ -122,9 +124,12 @@ export default function MasterManagePage() {
         </header>
 
         <div className="p-4 space-y-3 max-w-2xl mx-auto">
-          <button onClick={() => setWizardOpen(true)} className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-sm font-bold shadow-sm hover:opacity-95">
-            <Sparkles size={18} /> マニュアルから取込（OCR）
-          </button>
+          {/* 学校規定OCR取込。トグルOFFの店には出さない */}
+          {hasFeature('school_ocr') && (
+            <button onClick={() => setWizardOpen(true)} className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-sm font-bold shadow-sm hover:opacity-95">
+              <Sparkles size={18} /> マニュアルから取込（OCR）
+            </button>
+          )}
           <p className="text-xs text-gray-500">
             学校を選ぶと「規定品・価格・商品・サイズセット」を管理できます。
           </p>
