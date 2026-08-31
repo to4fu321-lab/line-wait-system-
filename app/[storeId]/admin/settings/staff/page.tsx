@@ -253,17 +253,19 @@ export default function StaffSettingsPage() {
           />
 
           {/* ✂️ お直し項目・料金 */}
-          <Link href={`/${storeId}/admin/master/repair`}
-            className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-indigo-200 hover:border-indigo-400 active:scale-[0.98] transition-all shadow-sm">
-            <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center shrink-0">
-              <Scissors size={28} className="text-indigo-600" />
-            </div>
-            <div className="flex-1 text-left">
-              <p className="font-black text-lg text-indigo-700">お直し項目・料金</p>
-              <p className="text-sm text-gray-500 mt-0.5">お直しの種類・料金プリセットを管理</p>
-            </div>
-            <ChevronRight size={20} className="text-indigo-400 shrink-0" />
-          </Link>
+          {hasFeature('repairs_master') && (
+            <Link href={`/${storeId}/admin/master/repair`}
+              className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-indigo-200 hover:border-indigo-400 active:scale-[0.98] transition-all shadow-sm">
+              <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center shrink-0">
+                <Scissors size={28} className="text-indigo-600" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-black text-lg text-indigo-700">お直し項目・料金</p>
+                <p className="text-sm text-gray-500 mt-0.5">お直しの種類・料金プリセットを管理</p>
+              </div>
+              <ChevronRight size={20} className="text-indigo-400 shrink-0" />
+            </Link>
+          )}
 
           {/* 👥 スタッフ（PIN確認・追加） */}
           <Link href={`/${storeId}/admin/master?tab=staff`}
@@ -279,30 +281,34 @@ export default function StaffSettingsPage() {
           </Link>
 
           {/* 🧵 お直し加工業者 */}
-          <Link href={`/${storeId}/admin/master/repair-vendors`}
-            className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-rose-200 hover:border-rose-400 active:scale-[0.98] transition-all shadow-sm">
-            <div className="w-14 h-14 rounded-2xl bg-rose-100 flex items-center justify-center shrink-0 text-3xl">
-              🧵
-            </div>
-            <div className="flex-1 text-left">
-              <p className="font-black text-lg text-rose-700">お直し加工業者</p>
-              <p className="text-sm text-gray-500 mt-0.5">外注先の登録（受付でワンタップ選択）</p>
-            </div>
-            <ChevronRight size={20} className="text-rose-400 shrink-0" />
-          </Link>
+          {hasFeature('repairs_master') && (
+            <Link href={`/${storeId}/admin/master/repair-vendors`}
+              className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-rose-200 hover:border-rose-400 active:scale-[0.98] transition-all shadow-sm">
+              <div className="w-14 h-14 rounded-2xl bg-rose-100 flex items-center justify-center shrink-0 text-3xl">
+                🧵
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-black text-lg text-rose-700">お直し加工業者</p>
+                <p className="text-sm text-gray-500 mt-0.5">外注先の登録（受付でワンタップ選択）</p>
+              </div>
+              <ChevronRight size={20} className="text-rose-400 shrink-0" />
+            </Link>
+          )}
 
           {/* 🧾 伝票OCRテンプレート */}
-          <Link href={`/${storeId}/admin/master/ocr-templates`}
-            className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-violet-200 hover:border-violet-400 active:scale-[0.98] transition-all shadow-sm">
-            <div className="w-14 h-14 rounded-2xl bg-violet-100 flex items-center justify-center shrink-0 text-3xl">
-              🧾
-            </div>
-            <div className="flex-1 text-left">
-              <p className="font-black text-lg text-violet-700">伝票OCRテンプレート</p>
-              <p className="text-sm text-gray-500 mt-0.5">伝票種別ごとの読み取り項目・サンプル撮影でAI提案</p>
-            </div>
-            <ChevronRight size={20} className="text-violet-400 shrink-0" />
-          </Link>
+          {hasFeature('repairs_ocr') && (
+            <Link href={`/${storeId}/admin/master/ocr-templates`}
+              className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-violet-200 hover:border-violet-400 active:scale-[0.98] transition-all shadow-sm">
+              <div className="w-14 h-14 rounded-2xl bg-violet-100 flex items-center justify-center shrink-0 text-3xl">
+                🧾
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-black text-lg text-violet-700">伝票OCRテンプレート</p>
+                <p className="text-sm text-gray-500 mt-0.5">伝票種別ごとの読み取り項目・サンプル撮影でAI提案</p>
+              </div>
+              <ChevronRight size={20} className="text-violet-400 shrink-0" />
+            </Link>
+          )}
 
           {/* 📅 シフト管理 */}
           {hasFeature('shift_management') && (
@@ -374,17 +380,19 @@ export default function StaffSettingsPage() {
           </Link>
 
           {/* 📋 順番待ちQR POP */}
-          <Link href={`/${storeId}/admin/settings/queue-pop`}
-            className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-indigo-200 hover:border-indigo-400 active:scale-[0.98] transition-all shadow-sm">
-            <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center shrink-0 text-3xl">
-              📋
-            </div>
-            <div className="flex-1 text-left">
-              <p className="font-black text-lg text-indigo-700">順番待ちQR POP</p>
-              <p className="text-sm text-gray-500 mt-0.5">チラシ・店頭・GoogleマップやHP掲載用。未登録でも即並べるQR</p>
-            </div>
-            <ChevronRight size={20} className="text-indigo-400 shrink-0" />
-          </Link>
+          {hasFeature('tab_queue') && (
+            <Link href={`/${storeId}/admin/settings/queue-pop`}
+              className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-indigo-200 hover:border-indigo-400 active:scale-[0.98] transition-all shadow-sm">
+              <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center shrink-0 text-3xl">
+                📋
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-black text-lg text-indigo-700">順番待ちQR POP</p>
+                <p className="text-sm text-gray-500 mt-0.5">チラシ・店頭・GoogleマップやHP掲載用。未登録でも即並べるQR</p>
+              </div>
+              <ChevronRight size={20} className="text-indigo-400 shrink-0" />
+            </Link>
+          )}
 
           {/* 💻 PCモード */}
           <button
@@ -505,45 +513,51 @@ export default function StaffSettingsPage() {
                 <p className="text-xs text-violet-500 mt-0.5 leading-relaxed">スタッフ情報・役職・カラー</p>
               </div>
             </Link>
-            <Link href={`/${storeId}/admin/master/repair`}
-              className="flex flex-col gap-3 px-4 py-4 rounded-2xl bg-rose-50 border border-rose-200 hover:bg-rose-100 active:scale-[0.98] transition-all">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-xl bg-rose-100 border border-rose-200 flex items-center justify-center">
-                  <Scissors size={20} className="text-rose-600" />
+            {hasFeature('repairs_master') && (
+              <Link href={`/${storeId}/admin/master/repair`}
+                className="flex flex-col gap-3 px-4 py-4 rounded-2xl bg-rose-50 border border-rose-200 hover:bg-rose-100 active:scale-[0.98] transition-all">
+                <div className="flex items-center justify-between">
+                  <div className="w-10 h-10 rounded-xl bg-rose-100 border border-rose-200 flex items-center justify-center">
+                    <Scissors size={20} className="text-rose-600" />
+                  </div>
+                  <ChevronRight size={14} className="text-rose-400" />
                 </div>
-                <ChevronRight size={14} className="text-rose-400" />
-              </div>
-              <div>
-                <p className="text-sm font-black text-rose-700">お直しマスタ</p>
-                <p className="text-xs text-rose-500 mt-0.5 leading-relaxed">お直しの種類・料金・サイズ段階</p>
-              </div>
-            </Link>
-            <Link href={`/${storeId}/admin/master/repair-vendors`}
-              className="flex flex-col gap-3 px-4 py-4 rounded-2xl bg-pink-50 border border-pink-200 hover:bg-pink-100 active:scale-[0.98] transition-all">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-xl bg-pink-100 border border-pink-200 flex items-center justify-center text-xl">
-                  🧵
+                <div>
+                  <p className="text-sm font-black text-rose-700">お直しマスタ</p>
+                  <p className="text-xs text-rose-500 mt-0.5 leading-relaxed">お直しの種類・料金・サイズ段階</p>
                 </div>
-                <ChevronRight size={14} className="text-pink-400" />
-              </div>
-              <div>
-                <p className="text-sm font-black text-pink-700">お直し加工業者</p>
-                <p className="text-xs text-pink-500 mt-0.5 leading-relaxed">外注先の登録（受付で選択）</p>
-              </div>
-            </Link>
-            <Link href={`/${storeId}/admin/master/ocr-templates`}
-              className="flex flex-col gap-3 px-4 py-4 rounded-2xl bg-violet-50 border border-violet-200 hover:bg-violet-100 active:scale-[0.98] transition-all">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-xl bg-violet-100 border border-violet-200 flex items-center justify-center text-xl">
-                  🧾
+              </Link>
+            )}
+            {hasFeature('repairs_master') && (
+              <Link href={`/${storeId}/admin/master/repair-vendors`}
+                className="flex flex-col gap-3 px-4 py-4 rounded-2xl bg-pink-50 border border-pink-200 hover:bg-pink-100 active:scale-[0.98] transition-all">
+                <div className="flex items-center justify-between">
+                  <div className="w-10 h-10 rounded-xl bg-pink-100 border border-pink-200 flex items-center justify-center text-xl">
+                    🧵
+                  </div>
+                  <ChevronRight size={14} className="text-pink-400" />
                 </div>
-                <ChevronRight size={14} className="text-violet-400" />
-              </div>
-              <div>
-                <p className="text-sm font-black text-violet-700">伝票OCRテンプレート</p>
-                <p className="text-xs text-violet-500 mt-0.5 leading-relaxed">伝票種別ごとの読み取り項目・サンプル撮影でAI提案</p>
-              </div>
-            </Link>
+                <div>
+                  <p className="text-sm font-black text-pink-700">お直し加工業者</p>
+                  <p className="text-xs text-pink-500 mt-0.5 leading-relaxed">外注先の登録（受付で選択）</p>
+                </div>
+              </Link>
+            )}
+            {hasFeature('repairs_ocr') && (
+              <Link href={`/${storeId}/admin/master/ocr-templates`}
+                className="flex flex-col gap-3 px-4 py-4 rounded-2xl bg-violet-50 border border-violet-200 hover:bg-violet-100 active:scale-[0.98] transition-all">
+                <div className="flex items-center justify-between">
+                  <div className="w-10 h-10 rounded-xl bg-violet-100 border border-violet-200 flex items-center justify-center text-xl">
+                    🧾
+                  </div>
+                  <ChevronRight size={14} className="text-violet-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-violet-700">伝票OCRテンプレート</p>
+                  <p className="text-xs text-violet-500 mt-0.5 leading-relaxed">伝票種別ごとの読み取り項目・サンプル撮影でAI提案</p>
+                </div>
+              </Link>
+            )}
             <Link href={`/${storeId}/admin/reception-slip`}
               className="flex flex-col gap-3 px-4 py-4 rounded-2xl bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 active:scale-[0.98] transition-all">
               <div className="flex items-center justify-between">
@@ -646,17 +660,19 @@ export default function StaffSettingsPage() {
             <ChevronRight size={18} className="text-green-400 shrink-0" />
           </Link>
 
-          <Link href={`/${storeId}/admin/settings/queue-pop`}
-            className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 active:scale-[0.98] transition-all">
-            <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center shrink-0 text-2xl">
-              📋
-            </div>
-            <div className="text-left flex-1">
-              <p className="font-black text-lg text-indigo-700">順番待ちQR POP</p>
-              <p className="text-indigo-500 text-sm mt-0.5">チラシ・店頭・マップ/HP掲載用を自動作成・印刷</p>
-            </div>
-            <ChevronRight size={18} className="text-indigo-400 shrink-0" />
-          </Link>
+          {hasFeature('tab_queue') && (
+            <Link href={`/${storeId}/admin/settings/queue-pop`}
+              className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 active:scale-[0.98] transition-all">
+              <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center shrink-0 text-2xl">
+                📋
+              </div>
+              <div className="text-left flex-1">
+                <p className="font-black text-lg text-indigo-700">順番待ちQR POP</p>
+                <p className="text-indigo-500 text-sm mt-0.5">チラシ・店頭・マップ/HP掲載用を自動作成・印刷</p>
+              </div>
+              <ChevronRight size={18} className="text-indigo-400 shrink-0" />
+            </Link>
+          )}
           <Link href={`/${storeId}/admin/guide`}
             className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 active:scale-[0.98] transition-all">
             <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center shrink-0">

@@ -58,9 +58,14 @@ describe('fetchWorkBadgeCount', () => {
     expect(await fetchWorkBadgeCount('s1', () => false)).toBe(0)
   })
 
-  it('未対応の問合せは常に数える（タブ設定に関係なく画面に出る）', async () => {
+  it('問合せタブOFFなら未対応の問合せも数えない（画面に出ないため）', async () => {
     counts['inquiries:status=pending'] = 2
-    expect(await fetchWorkBadgeCount('s1', () => false)).toBe(2)
+    expect(await fetchWorkBadgeCount('s1', () => false)).toBe(0)
+  })
+
+  it('問合せタブONなら未対応の問合せを数える', async () => {
+    counts['inquiries:status=pending'] = 2
+    expect(await fetchWorkBadgeCount('s1', featuresOn)).toBe(2)
   })
 
   it('完了した問合せは数えない', async () => {

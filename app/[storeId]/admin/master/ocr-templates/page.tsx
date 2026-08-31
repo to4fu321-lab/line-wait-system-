@@ -13,6 +13,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { useStoreFeatures } from '@/lib/useStoreFeatures'
+import { FeatureLocked } from '@/app/_components/FeatureGuard'
 import {
   ArrowLeft, Plus, Pencil, Trash2, Camera, Loader2, X,
   GripVertical, ChevronUp, ChevronDown, Sparkles, Save,
@@ -80,6 +82,7 @@ function emptyRow(scope: FieldScope = 'item'): FieldRow {
 export default function OcrTemplatesPage() {
   const params = useParams<{ storeId: string }>()
   const storeId = params?.storeId ?? ''
+  const { hasFeature, loaded: featLoaded } = useStoreFeatures(storeId)
   const router = useRouter()
 
   const [templates, setTemplates] = useState<TemplateWithFields[]>([])
@@ -271,6 +274,9 @@ export default function OcrTemplatesPage() {
       setScanning(false)
     }
   }
+
+  // 伝票OCROFFの店に、URL直打ちで入らせない
+  if (featLoaded && !hasFeature('repairs_ocr')) return <FeatureLocked />
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">

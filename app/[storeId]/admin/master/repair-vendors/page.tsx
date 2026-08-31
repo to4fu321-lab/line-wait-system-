@@ -1,10 +1,14 @@
 'use client'
 
+import { useParams } from 'next/navigation'
 import SimpleMaster from '../_components/SimpleMaster'
+import { FeatureGuard } from '@/app/_components/FeatureGuard'
 
 // お直し加工業者（外注先）マスタ。受付モーダルでワンタップ選択できる。
 export default function RepairVendorsMasterPage() {
+  const storeId = useParams<{ storeId: string }>()?.storeId ?? ''
   return (
+    <FeatureGuard storeId={storeId} feature="repairs_master">
     <SimpleMaster
       table="repair_vendors"
       title="お直し加工業者"
@@ -21,5 +25,6 @@ export default function RepairVendorsMasterPage() {
         { key: 'note', label: 'メモ',     type: 'textarea', placeholder: '対応内容・納期の目安など' },
       ]}
     />
+    </FeatureGuard>
   )
 }

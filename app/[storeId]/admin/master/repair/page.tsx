@@ -14,6 +14,7 @@ import {
   Ruler, ImagePlus, AlertTriangle, Sparkles, Camera, ChevronUp,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { REPAIR_PRESETS } from '@/lib/repairPresets'
 import { RepairIcon, GarmentIconPicker } from '@/lib/garmentIcons'
 import { BulkImportModal, bulkFromParsed, type ImportGarment } from './_components/BulkImportModal'
@@ -31,6 +32,7 @@ import {
 } from '@/lib/repairProfile'
 import { useLongPressReorder, renumber, type Sortable } from '@/lib/useLongPressReorder'
 import { Toast } from '@/app/_components/Toast'
+import { FeatureLocked } from '@/app/_components/FeatureGuard'
 import { Field } from '@/app/_components/Field'
 
 const INPUT = 'w-full border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:border-indigo-500 bg-white'
@@ -123,6 +125,8 @@ function ManualEditor({ value, onChange, storeId, onToast }: {
 export default function RepairMasterPage() {
   const params = useParams<{ storeId: string }>()
   const storeId = params?.storeId ?? ''
+
+  const { hasFeature, loaded: featLoaded } = useStoreFeatures(storeId)
 
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
   const showToast = (type: 'ok' | 'err', msg: string) => setToast({ msg, type })
@@ -382,6 +386,9 @@ export default function RepairMasterPage() {
   const gDrag = useLongPressReorder(garments, reorderGarments)
   const iDrag = useLongPressReorder(items, reorderItems)
 
+  // 料金マスタOFFの店に、URL直打ちで入らせない
+  if (featLoaded && !hasFeature('repairs_master')) return <FeatureLocked />
+
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       {toast && <Toast {...toast} onClose={() => setToast(null)} />}
@@ -456,12 +463,17 @@ export default function RepairMasterPage() {
                   className="flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-1 text-xs font-bold text-amber-700 active:scale-95">
                   <Sparkles size={13} />プリセット
                 </button>
-                <button onClick={() => fileRef.current?.click()} disabled={ocrLoading}
-                  className="flex items-center gap-1 rounded-full bg-indigo-50 border border-indigo-200 px-2.5 py-1 text-xs font-bold text-indigo-700 active:scale-95 disabled:opacity-50">
-                  {ocrLoading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}写真で取込
-                </button>
-                <input ref={fileRef} type="file" accept="image/*" className="hidden"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) handleOcr(f); e.target.value = '' }} />
+                {/* 写真で取込は伝票OCRの機能。OFFの店には出さない */}
+                {hasFeature('repairs_ocr') && (
+                  <>
+                    <button onClick={() => fileRef.current?.click()} disabled={ocrLoading}
+                      className="flex items-center gap-1 rounded-full bg-indigo-50 border border-indigo-200 px-2.5 py-1 text-xs font-bold text-indigo-700 active:scale-95 disabled:opacity-50">
+                      {ocrLoading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}写真で取込
+                    </button>
+                    <input ref={fileRef} type="file" accept="image/*" className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleOcr(f); e.target.value = '' }} />
+                  </>
+                )}
               </div>
             </div>
             <div className="flex flex-wrap gap-2">

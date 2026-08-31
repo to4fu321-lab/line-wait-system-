@@ -20,7 +20,7 @@
 //    入荷待ち purchase_orders  status in (on_order,stocked) repairs_tab_arrival
 //    お渡し   repair_histories status=completed
 //             + purchase_orders status=arrived              repairs_tab_delivery
-//    問合せ   inquiries        status=pending               常時
+//    問合せ   inquiries        status=pending               tab_inquiries
 // ============================================================================
 
 import { useCallback, useEffect, useState } from 'react'
@@ -52,7 +52,8 @@ export async function fetchWorkBadgeCount(storeId: string, hasFeature: HasFeatur
       ? countOf('repair_histories', storeId).eq('status', 'completed') : zero,
     hasFeature('repairs_tab_delivery')
       ? countOf('purchase_orders', storeId).eq('status', 'arrived') : zero,
-    countOf('inquiries', storeId).eq('status', 'pending'),
+    hasFeature('tab_inquiries')
+      ? countOf('inquiries', storeId).eq('status', 'pending') : zero,
   ])
   return [repairs, uniforms, toOrder, toArrive, doneRepairs, arrived, inquiries]
     .reduce((sum, r) => sum + (r.count ?? 0), 0)

@@ -579,8 +579,11 @@ export default function RepairsPage() {
     i.ready_date && (Date.now() - new Date(i.ready_date).getTime()) / 86400000 > alertDays
   )
 
-  const pendingInquiriesCount = inquiries.filter(i => i.status === 'pending').length
-  const urgentInquiriesCount  = inquiries.filter(i => i.is_urgent && i.status !== 'completed').length
+  // 問合せタブOFFの店では画面に出ないので、件数にも数えない
+  //（見えないものでバッジや未着手数が増えると、消しようがなくなる）
+  const inqOn = hasFeature('tab_inquiries')
+  const pendingInquiriesCount = inqOn ? inquiries.filter(i => i.status === 'pending').length : 0
+  const urgentInquiriesCount  = inqOn ? inquiries.filter(i => i.is_urgent && i.status !== 'completed').length : 0
 
   // 未着手数（未着手お直し + 相談 + 未対応問合せ + 入金待ち + お渡しアラート + 問合せ未対応）
   const pendingCount =
@@ -668,14 +671,14 @@ export default function RepairsPage() {
                   const tiles = ((isSimpleMode ? [
                     { id: 'repair'    as const, emoji: '✂️', label: 'お直し',   count: repairs.length,         urgent: 0 },
                     { id: 'purchase'  as const, emoji: '📦', label: '追加購入', count: uniformOrders.length,   urgent: 0 },
-                    { id: 'inquiries' as const, emoji: '💬', label: '問合せ',   count: pendingInquiriesCount,  urgent: urgentInquiriesCount },
+                    hasFeature('tab_inquiries') && { id: 'inquiries' as const, emoji: '💬', label: '問合せ',   count: pendingInquiriesCount,  urgent: urgentInquiriesCount },
                     hasFeature('repairs_tab_delivery') && { id: 'delivery' as const, emoji: '🎁', label: 'お渡し', count: waiting.length, urgent: 0 },
                   ] : [
                     { id: 'repair'    as const, emoji: '✂️', label: 'お直し',   count: repairs.length,         urgent: 0 },
                     hasFeature('repairs_tab_purchase') && { id: 'purchase' as const, emoji: '📦', label: '発注', count: purchaseUnordered.length + uniformOrders.length, urgent: 0 },
                     hasFeature('repairs_tab_arrival')  && { id: 'arrival'  as const, emoji: '🚚', label: '入荷待ち', count: purchaseOnOrder.length + purchaseStocked.length, urgent: 0 },
                     hasFeature('repairs_tab_delivery') && { id: 'delivery' as const, emoji: '🎁', label: 'お渡し', count: waiting.length, urgent: 0 },
-                    { id: 'inquiries' as const, emoji: '💬', label: '問合せ',   count: pendingInquiriesCount,  urgent: urgentInquiriesCount },
+                    hasFeature('tab_inquiries') && { id: 'inquiries' as const, emoji: '💬', label: '問合せ',   count: pendingInquiriesCount,  urgent: urgentInquiriesCount },
                   ]).filter(Boolean)) as { id: ActiveTab; emoji: string; label: string; count: number; urgent: number }[]
                   return (
                     <>
@@ -746,12 +749,14 @@ export default function RepairsPage() {
                       <ShoppingCart size={18} />
                       <span className="text-[11px] font-black">追加購入</span>
                     </button>
-                    <button onClick={() => { setEditInquiry(null); setShowInqModal(true) }}
-                      style={{ touchAction: 'manipulation' }}
-                      className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white active:scale-[0.97] transition-all shadow-sm">
-                      <MessageSquarePlus size={18} />
-                      <span className="text-[11px] font-black">問合せ受付</span>
-                    </button>
+                    {hasFeature('tab_inquiries') && (
+                      <button onClick={() => { setEditInquiry(null); setShowInqModal(true) }}
+                        style={{ touchAction: 'manipulation' }}
+                        className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white active:scale-[0.97] transition-all shadow-sm">
+                        <MessageSquarePlus size={18} />
+                        <span className="text-[11px] font-black">問合せ受付</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
