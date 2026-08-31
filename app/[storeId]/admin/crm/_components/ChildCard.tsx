@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import {
   Loader2, Plus, GraduationCap, Scissors, ShoppingBag,
   ChevronDown, ChevronUp, Pencil, X, Check, Package,
-  Ruler, RotateCcw, Trash2,
+  Ruler, RotateCcw, Trash2, User,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { checkNewStudentConflicts } from '@/lib/uniformAllocation'
@@ -252,14 +252,17 @@ function EditUniformOrderModal({
 // お子様カード（展開可能）
 // ============================================================
 export function ChildCard({
-  child, customerId, storeId,
+  child, customerName, customerId, storeId,
   onRepairComplete, onRepairDeliver, onRepairRevert,
   onPurchaseStock, onPurchaseBackOrder,
   onPurchaseArrive, onPurchaseDeliver, onPurchaseRevert,
   onRefreshStats,
   showToast, defaultIntakeType, reservationUrl,
 }: {
-  child: Child
+  /** null = お子様に紐づかない、お客様ご本人ぶんの履歴 */
+  child: Child | null
+  /** child が null のときに見出しへ出す顧客名 */
+  customerName?: string
   customerId: string
   storeId: string
   defaultIntakeType?: IntakeFormType
@@ -286,19 +289,28 @@ export function ChildCard({
   const [showNewIntake, setShowNewIntake] = useState(false)
   const [editOrder,     setEditOrder]     = useState<UniformOrderLocal | null>(null)
 
+  //  お子様カードは child_id で、ご本人カードは「この顧客で child_id が空」で引く。
+  //  ラケット店のように子供の概念が無い店では全件が child_id 空になるため、
+  //  ご本人ぶんを引けないと履歴がどこにも出なくなる。
+  const scope = <T,>(q: T): T => child
+    ? (q as any).eq('child_id', child.id)
+    : (q as any).eq('customer_id', customerId).is('child_id', null)
+
   const fetchData = useCallback(async () => {
     setLoading(true)
     const [{ data: r }, { data: p }, { data: u }, { data: m }] = await Promise.all([
-      supabase.from('repair_histories').select('*').eq('child_id', child.id).order('received_date', { ascending: false }),
-      supabase.from('purchase_orders').select('*').eq('child_id', child.id).order('ordered_date', { ascending: false }),
-      (supabase as any).from('uniform_orders')
-        .select('*, items:uniform_order_items(id,item_name,size_label,quantity,unit_price), priority')
-        .eq('child_id', child.id)
+      scope(supabase.from('repair_histories').select('*')).order('received_date', { ascending: false }),
+      scope(supabase.from('purchase_orders').select('*')).order('ordered_date', { ascending: false }),
+      scope((supabase as any).from('uniform_orders')
+        .select('*, items:uniform_order_items(id,item_name,size_label,quantity,unit_price), priority'))
         .order('created_at', { ascending: false }),
-      (supabase as any).from('measurements')
-        .select('id,measured_date,height_cm,weight_kg,confirmed_sizes,staff_memo,status')
-        .eq('child_id', child.id)
-        .order('measured_date', { ascending: false }),
+      // 採寸はお子様にしか付かないので、ご本人カードでは引かない
+      child
+        ? (supabase as any).from('measurements')
+            .select('id,measured_date,height_cm,weight_kg,confirmed_sizes,staff_memo,status')
+            .eq('child_id', child.id)
+            .order('measured_date', { ascending: false })
+        : Promise.resolve({ data: [] }),
     ])
     // DB上のstatusはtext型のため、アプリのユニオン型(RepairStatus等)へは表明で絞る
     setRepairs((r ?? []) as RepairHistory[])
@@ -321,7 +333,8 @@ export function ChildCard({
       setProductNames(nameMap)
     }
     setLoading(false)
-  }, [child.id])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [child?.id, customerId])
 
   const handleExpand = () => {
     if (!expanded) fetchData()
@@ -362,18 +375,33 @@ export function ChildCard({
 
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
         <button onClick={handleExpand} className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-gray-50 transition-colors">
-          <div className="w-9 h-9 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0">
-            <GraduationCap size={16} className="text-indigo-700" />
+          <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${
+            child ? 'bg-indigo-100 border-indigo-200' : 'bg-gray-100 border-gray-200'
+          }`}>
+            {child
+              ? <GraduationCap size={16} className="text-indigo-700" />
+              : <User size={16} className="text-gray-600" />}
           </div>
           <div className="flex-1 min-w-0">
-            {child.school_name && (
-              <p className="font-black text-amber-600 text-xs leading-tight truncate">
-                {[child.school_name, child.grade].filter(Boolean).join(' ')}
-              </p>
-            )}
-            <p className="font-black text-gray-900 text-xl leading-tight truncate">{child.name}</p>
-            {!child.school_name && child.grade && (
-              <p className="text-gray-500 text-xs">{child.grade}</p>
+            {child ? (
+              <>
+                {child.school_name && (
+                  <p className="font-black text-amber-600 text-xs leading-tight truncate">
+                    {[child.school_name, child.grade].filter(Boolean).join(' ')}
+                  </p>
+                )}
+                <p className="font-black text-gray-900 text-xl leading-tight truncate">{child.name}</p>
+                {!child.school_name && child.grade && (
+                  <p className="text-gray-500 text-xs">{child.grade}</p>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="font-black text-gray-900 text-xl leading-tight truncate">
+                  {customerName ? `${customerName} 様` : 'ご本人'}
+                </p>
+                <p className="text-gray-500 text-xs">お子様に紐づかないぶん</p>
+              </>
             )}
           </div>
           {expanded ? <ChevronUp size={16} className="text-gray-500 shrink-0" /> : <ChevronDown size={16} className="text-gray-500 shrink-0" />}
@@ -388,7 +416,7 @@ export function ChildCard({
                 {/* 依頼受付ボタン */}
                 {showNewIntake ? (
                   <div>
-                    <NewIntakeForm storeId={storeId} customerId={customerId} childId={child.id}
+                    <NewIntakeForm storeId={storeId} customerId={customerId} childId={child?.id ?? null}
                       defaultType={defaultIntakeType ?? 'repair'}
                       reservationUrl={reservationUrl}
                       onSaved={() => { setShowNewIntake(false); fetchData(); onRefreshStats(); showToast('ok', '依頼を受け付けました') }}

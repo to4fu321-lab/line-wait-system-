@@ -1092,6 +1092,33 @@ export default function CRMPage() {
                           <SchoolInfoCard schoolId={selectedCustomer.school_id} storeId={storeId} />
                         )}
 
+                        {/* ご本人ぶん（お子様に紐づかない依頼）
+                            ラケット店のように子供の概念が無い店では全件がここに入る。
+                            以前はお子様カードしか無く、その履歴がどこにも出なかった */}
+                        {!editingCustomer && (
+                          <div className="space-y-2">
+                            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">お客様ご本人</p>
+                            <ChildCard
+                              child={null}
+                              customerName={selectedCustomer.name}
+                              customerId={selectedCustomer.id}
+                              storeId={storeId}
+                              defaultIntakeType={defaultIntakeType}
+                              reservationUrl={reservationUrl}
+                              onRepairComplete={handleRepairComplete}
+                              onRepairDeliver={handleRepairDeliver}
+                              onRepairRevert={handleRepairRevert}
+                              onPurchaseStock={handlePurchaseStock}
+                              onPurchaseBackOrder={handlePurchaseBackOrder}
+                              onPurchaseArrive={handlePurchaseArrive}
+                              onPurchaseDeliver={handlePurchaseDeliver}
+                              onPurchaseRevert={handlePurchaseRevert}
+                              onRefreshStats={fetchStats}
+                              showToast={showToast}
+                            />
+                          </div>
+                        )}
+
                         {/* お子様一覧 */}
                         {!editingCustomer && (
                           <div className="space-y-2">
