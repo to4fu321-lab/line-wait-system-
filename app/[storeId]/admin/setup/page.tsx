@@ -18,6 +18,8 @@ import {
   ChevronLeft, ChevronRight, Check, Loader2, Plus, Trash2, Sparkles, X,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { STAFF_COLOR_OPTIONS } from '@/types/master'
+import { withBack } from '@/lib/useBackHref'
 import { seedRepairPresets } from '@/lib/repairPresets'
 import { PRESET_SET_LABELS, type PresetKey } from '@/lib/repairProfile'
 import { Toast } from '@/app/_components/Toast'
@@ -66,7 +68,10 @@ const TRADES: {
   },
 ]
 
-interface StaffDraft { name: string; kana: string }
+interface StaffDraft { name: string; kana: string; color: string }
+
+/** 追加した順に色が散るようにする（全員同じ色だと一覧で見分けがつかない） */
+const nextStaffColor = (i: number) => STAFF_COLOR_OPTIONS[i % STAFF_COLOR_OPTIONS.length]
 
 export default function SetupWizardPage() {
   const router  = useRouter()
@@ -82,7 +87,7 @@ export default function SetupWizardPage() {
   const [trades, setTrades]       = useState<Trade[]>([])
   const [useVendor, setUseVendor] = useState<boolean | null>(null)
   const [vendors, setVendors]     = useState<string[]>([''])
-  const [staffDrafts, setStaff]   = useState<StaffDraft[]>([{ name: '', kana: '' }])
+  const [staffDrafts, setStaff]   = useState<StaffDraft[]>([{ name: '', kana: '', color: nextStaffColor(0) }])
   const [importPreset, setImportPreset] = useState(true)
 
   // 既に登録済みのもの（2回目以降は「登録済み」と出して重複を防ぐ）
@@ -106,6 +111,10 @@ export default function SetupWizardPage() {
       if (setup.done_at) setAlreadyDone(true)
       setExisting({ staff: st.count ?? 0, vendors: vd.count ?? 0, items: it.count ?? 0 })
       setImportPreset((it.count ?? 0) === 0)   // 既に作業があるなら取り込みは既定OFF
+      // ?step=done で戻ってきたら、最初からではなく完了画面（次にやること）を出す
+      try {
+        if (new URLSearchParams(window.location.search).get('step') === 'done') setStep(99)
+      } catch { /* URL が読めない環境は最初から */ }
       setLoading(false)
     })()
   }, [storeId])
@@ -147,12 +156,12 @@ export default function SetupWizardPage() {
     }
 
     const staffRows = staffDrafts
-      .map(s => ({ name: s.name.trim(), kana: s.kana.trim() }))
+      .map(s => ({ name: s.name.trim(), kana: s.kana.trim(), color: s.color }))
       .filter(s => s.name)
     if (staffRows.length > 0) {
       const { error } = await (supabase as any).from('staff')
         .insert(staffRows.map((s, i) => ({
-          store_id: storeId, name: s.name, kana: s.kana || null,
+          store_id: storeId, name: s.name, kana: s.kana || null, color: s.color,
           active: true, sort_order: (i + 1) * 10,
         })))
       if (error) problems.push(`スタッフ: ${error.message}`)
@@ -173,7 +182,10 @@ export default function SetupWizardPage() {
 
     setSaving(false)
     if (problems.length > 0) { showToast('err', `一部保存できませんでした — ${problems.join(' / ')}`); return }
-    setStep(total)   // 完了画面へ
+    // 完了画面はURLに残す。各マスタへ行って戻ってきたときに、
+    // ここ（次にやることの一覧）へ帰れるようにするため
+    setStep(total)
+    try { window.history.replaceState(null, '', `?step=done`) } catch { /* 履歴が触れない環境は無視 */ }
   }, [trades, presetKeys, useVendor, vendors, staffDrafts, importPreset, storeId, total])
 
   const skipForNow = async () => {
@@ -312,21 +324,42 @@ export default function SetupWizardPage() {
               受付・完了のときに「誰がやったか」を残すために使います。あとから設定 → スタッフでも追加できます。
               {existing.staff > 0 && <> 既に{existing.staff}名登録されています。</>}
             </p>
-            <div className="space-y-2">
-              {staffDrafts.map((s, i) => (
-                <div key={i} className="flex items-center gap-1.5">
-                  <input className={INPUT} value={s.name} placeholder="お名前"
-                    onChange={e => setStaff(staffDrafts.map((x, n) => n === i ? { ...x, name: e.target.value } : x))} />
-                  <input className={INPUT + ' w-32'} value={s.kana} placeholder="ふりがな"
-                    onChange={e => setStaff(staffDrafts.map((x, n) => n === i ? { ...x, kana: e.target.value } : x))} />
-                  {staffDrafts.length > 1 && (
-                    <button type="button" onClick={() => setStaff(staffDrafts.filter((_, n) => n !== i))}
-                      className="p-2 text-gray-300 hover:text-red-500"><Trash2 size={15} /></button>
-                  )}
-                </div>
-              ))}
+            <div className="space-y-2.5">
+              {staffDrafts.map((s, i) => {
+                const set = (patch: Partial<StaffDraft>) =>
+                  setStaff(staffDrafts.map((x, n) => n === i ? { ...x, ...patch } : x))
+                return (
+                  <div key={i} className="rounded-2xl border border-gray-200 bg-white p-3 space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-7 h-7 rounded-full shrink-0 border-2 border-white shadow"
+                        style={{ backgroundColor: s.color }} />
+                      <input className={INPUT} value={s.name} placeholder="お名前"
+                        onChange={e => set({ name: e.target.value })} />
+                      <input className={INPUT + ' w-28'} value={s.kana} placeholder="ふりがな"
+                        onChange={e => set({ kana: e.target.value })} />
+                      {staffDrafts.length > 1 && (
+                        <button type="button" onClick={() => setStaff(staffDrafts.filter((_, n) => n !== i))}
+                          className="p-1.5 text-gray-300 hover:text-red-500 shrink-0"><Trash2 size={15} /></button>
+                      )}
+                    </div>
+                    {/* 色は一覧・シフト表で見分けるために使う */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[11px] font-bold text-gray-400 mr-0.5">色</span>
+                      {STAFF_COLOR_OPTIONS.map(c => (
+                        <button key={c} type="button" onClick={() => set({ color: c })}
+                          aria-label={`色 ${c}`}
+                          className={`w-7 h-7 rounded-full transition ${
+                            s.color === c ? 'ring-2 ring-offset-2 ring-gray-800 scale-110' : 'hover:scale-105'
+                          }`}
+                          style={{ backgroundColor: c }} />
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-            <button type="button" onClick={() => setStaff([...staffDrafts, { name: '', kana: '' }])}
+            <button type="button"
+              onClick={() => setStaff([...staffDrafts, { name: '', kana: '', color: nextStaffColor(staffDrafts.length) }])}
               className="flex items-center gap-1 text-indigo-600 text-xs font-bold"><Plus size={13} />スタッフを増やす</button>
           </>
         )}
@@ -340,21 +373,52 @@ export default function SetupWizardPage() {
                   よくある作業と料金のひな形を入れておくと、ゼロから作らずに済みます。
                   <strong>金額は仮の値</strong>なので、取り込んだあと受付マスタで自店の価格に直してください。
                 </p>
-                <button type="button" onClick={() => setImportPreset(v => !v)}
-                  className={`w-full rounded-2xl border-2 px-4 py-3.5 text-left transition flex items-center gap-3 ${
-                    importPreset ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-white'
-                  }`}>
-                  <Sparkles size={20} className={importPreset ? 'text-indigo-600' : 'text-gray-300'} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-black text-gray-900">
-                      {presetKeys.map(k => PRESET_SET_LABELS[k]).join(' ・ ')} を取り込む
+                {/* ON/OFFのトグル1つだと、今どちらなのか読み取れなかった。
+                    「入れる」「入れない」を並べて、選んだ側だけを塗る */}
+                <div className="space-y-2">
+                  <button type="button" onClick={() => setImportPreset(true)}
+                    className={`w-full rounded-2xl border-2 px-4 py-3.5 text-left transition flex items-center gap-3 ${
+                      importPreset ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-white opacity-70'
+                    }`}>
+                    <Sparkles size={22} className={importPreset ? 'text-indigo-600' : 'text-gray-300'} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-black text-gray-900">ひな形を入れる</span>
+                      <span className="block text-[11px] text-gray-500">
+                        {presetKeys.map(k => PRESET_SET_LABELS[k]).join(' ・ ')}
+                      </span>
                     </span>
-                    <span className="block text-[11px] text-gray-500">
-                      {importPreset ? '取り込みます（重複は追加されません）' : '取り込みません'}
+                    <span className={`shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                      importPreset ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300 bg-white'
+                    }`}>
+                      {importPreset && <Check size={14} className="text-white" />}
                     </span>
-                  </span>
-                  {importPreset ? <Check size={18} className="text-indigo-600 shrink-0" /> : <X size={18} className="text-gray-300 shrink-0" />}
-                </button>
+                  </button>
+
+                  <button type="button" onClick={() => setImportPreset(false)}
+                    className={`w-full rounded-2xl border-2 px-4 py-3.5 text-left transition flex items-center gap-3 ${
+                      !importPreset ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-white opacity-70'
+                    }`}>
+                    <X size={22} className={!importPreset ? 'text-indigo-600' : 'text-gray-300'} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-black text-gray-900">入れない</span>
+                      <span className="block text-[11px] text-gray-500">自分で最初から作る</span>
+                    </span>
+                    <span className={`shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                      !importPreset ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300 bg-white'
+                    }`}>
+                      {!importPreset && <Check size={14} className="text-white" />}
+                    </span>
+                  </button>
+                </div>
+
+                {/* 決めた内容を文章でも出す（ボタンの塗り分けだけだと読み違える） */}
+                <p className={`rounded-xl px-3 py-2 text-xs font-bold ${
+                  importPreset ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {importPreset
+                    ? `「この内容で始める」を押すと ${presetKeys.map(k => PRESET_SET_LABELS[k]).join('・')} を取り込みます。金額は仮の値です。`
+                    : 'ひな形は取り込みません。受付マスタで作業と料金を1つずつ登録してください。'}
+                </p>
                 {existing.items > 0 && (
                   <p className="text-[11px] text-amber-600 font-bold">
                     既に{existing.items}件の作業が登録されています。取り込みは不足分だけ追加され、既存の金額は変わりません。
@@ -380,10 +444,16 @@ export default function SetupWizardPage() {
                 {chosen.map(t => t.label).join(' ・ ')} として設定しました{useVendor ? '（外注あり）' : ''}
               </p>
             </div>
-            <p className="text-xs font-bold text-gray-500">次はこちらを登録すると使い始められます</p>
+            <p className="text-xs font-bold text-gray-500">
+              次はこちらを登録すると使い始められます
+              <span className="block font-normal text-gray-400 mt-0.5">
+                登録したら「戻る」でこの画面に帰ってこられます。1つずつ進めてください。
+              </span>
+            </p>
             <div className="space-y-2">
               {nextSteps.map(n => (
-                <Link key={n.label} href={n.href(storeId)}
+                // ?back= を付けて、リンク先の「戻る」がこの一覧に帰るようにする
+                <Link key={n.label} href={withBack(n.href(storeId), `/${storeId}/admin/setup?step=done`)}
                   className="flex items-center gap-3 rounded-2xl border-2 border-indigo-200 bg-white px-4 py-3.5 active:scale-[0.98] transition">
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-black text-indigo-700">{n.label}</span>

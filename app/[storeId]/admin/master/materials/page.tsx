@@ -17,6 +17,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, Plus, Pencil, Trash2, Loader2, X, Package } from 'lucide-react'
+import { useBackHref } from '@/lib/useBackHref'
 import { supabase } from '@/lib/supabase'
 import { Toast } from '@/app/_components/Toast'
 
@@ -43,6 +44,7 @@ interface MaterialRow {
 export default function MaterialsMasterPage() {
   const params  = useParams<{ storeId: string }>()
   const storeId = params?.storeId ?? ''
+  const backHref = useBackHref(`/${storeId}/admin/master/repair`)
 
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
   const showToast = (type: 'ok' | 'err', msg: string) => setToast({ msg, type })
@@ -130,7 +132,7 @@ export default function MaterialsMasterPage() {
       {toast && <Toast {...toast} onClose={() => setToast(null)} />}
 
       <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-3.5 flex items-center gap-3 sticky top-0 z-30">
-        <Link href={`/${storeId}/admin/master/repair`} className="text-white/90"><ChevronLeft size={22} /></Link>
+        <Link href={backHref} className="text-white/90"><ChevronLeft size={22} /></Link>
         <Package size={18} className="text-white" />
         <h1 className="text-white font-black text-base">糸・部材マスタ</h1>
       </div>

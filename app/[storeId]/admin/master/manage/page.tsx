@@ -28,6 +28,7 @@ import {
 import ManualImportWizard from './_components/ManualImportWizard'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { useSchoolSuggest } from '@/lib/schoolDirectory'
+import { useBackHref } from '@/lib/useBackHref'
 import { LabelPrintModal } from './_components/LabelPrintModal'
 import { Toast } from '@/app/_components/Toast'
 import { Field } from '@/app/_components/Field'
@@ -63,6 +64,7 @@ export default function MasterManagePage() {
   const params = useParams<{ storeId: string }>()
   const storeId = params?.storeId ?? ''
   const { hasFeature } = useStoreFeatures(storeId)
+  const backHref = useBackHref(`/${storeId}/admin/settings/staff`)
   const router = useRouter()
 
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
@@ -120,7 +122,7 @@ export default function MasterManagePage() {
       <div className="min-h-screen bg-gray-50 pb-24">
         {toast && <Toast {...toast} onClose={() => setToast(null)} />}
         <header className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-4 py-4 flex items-center gap-2 sticky top-0 z-20">
-          <button onClick={() => router.push(`/${storeId}/admin/settings/staff`)} className="p-1"><ChevronLeft size={24} /></button>
+          <button onClick={() => router.push(backHref)} className="p-1"><ChevronLeft size={24} /></button>
           <h1 className="font-bold text-lg flex items-center gap-2"><GraduationCap size={22} /> マスタ管理</h1>
         </header>
 

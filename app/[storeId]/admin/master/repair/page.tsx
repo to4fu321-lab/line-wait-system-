@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
+import { useBackHref } from '@/lib/useBackHref'
 import { REPAIR_PRESETS } from '@/lib/repairPresets'
 import { RepairIcon, GarmentIconPicker } from '@/lib/garmentIcons'
 import { BulkImportModal, bulkFromParsed, type ImportGarment } from './_components/BulkImportModal'
@@ -127,6 +128,7 @@ export default function RepairMasterPage() {
   const storeId = params?.storeId ?? ''
 
   const { hasFeature, loaded: featLoaded } = useStoreFeatures(storeId)
+  const backHref = useBackHref(`/${storeId}/admin/settings/staff`)
 
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
   const showToast = (type: 'ok' | 'err', msg: string) => setToast({ msg, type })
@@ -395,7 +397,7 @@ export default function RepairMasterPage() {
 
       {/* ヘッダ */}
       <div className="bg-gradient-to-r from-amber-600 to-orange-600 px-4 py-3.5 flex items-center gap-3 sticky top-0 z-30">
-        <Link href={`/${storeId}/admin/settings/staff`} className="text-white/90"><ChevronLeft size={22} /></Link>
+        <Link href={backHref} className="text-white/90"><ChevronLeft size={22} /></Link>
         <Scissors size={18} className="text-white" />
         <h1 className="text-white font-black text-base">受付マスタ（{labels.garment}・{labels.item}・{labels.option}）</h1>
       </div>
