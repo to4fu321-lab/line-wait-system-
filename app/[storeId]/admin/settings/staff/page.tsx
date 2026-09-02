@@ -3,7 +3,7 @@
 import React from 'react'
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { Bell, BellOff, Store, Clock, Loader2, Check, GraduationCap, Users, ChevronRight, ChevronDown, Scissors, CalendarDays, Monitor, HelpCircle, BookOpen } from 'lucide-react'
+import { Bell, BellOff, Store, Clock, Loader2, Check, GraduationCap, Users, ChevronRight, ChevronDown, Scissors, CalendarDays, Monitor, HelpCircle, BookOpen, Wand2 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../../_components/BottomNav'
@@ -118,6 +118,8 @@ export default function StaffSettingsPage() {
   const [saveError,     setSaveError]     = useState<string | null>(null)
   const [pushStatus,    setPushStatus]    = useState<'idle' | 'granted' | 'denied' | 'unsupported'>('idle')
   const [openSections,  setOpenSections]  = useState<Set<string>>(new Set())
+  // 初期設定ウィザードを済ませたか。未了なら設定画面の先頭で目立たせる
+  const [setupDone, setSetupDone] = useState<boolean | null>(null)
 
   const toggleSection = (id: string) => {
     setOpenSections(prev => {
@@ -142,10 +144,11 @@ export default function StaffSettingsPage() {
     if (!storeId) return
     const { data } = await (supabase as any)
       .from('stores')
-      .select('name, allow_remote, is_test_mode, business_hours')
+      .select('name, allow_remote, is_test_mode, business_hours, setup')
       .eq('id', storeId).single()
     if (data) {
       setStoreName(data.name ?? '')
+      setSetupDone(!!(data.setup as { done_at?: string } | null)?.done_at)
       if (data.allow_remote != null) setAllowRemote(data.allow_remote)
       if (data.is_test_mode != null) setIsTestMode(data.is_test_mode)
       if (data.business_hours?.hours) setBusinessHours(data.business_hours)
@@ -251,6 +254,32 @@ export default function StaffSettingsPage() {
             emoji="🔍"
             color="indigo"
           />
+
+          {/* 🪄 かんたん初期設定 — 未了なら目立たせ、済んだら控えめに置いておく */}
+          <Link href={`/${storeId}/admin/setup`}
+            className={`flex items-center gap-4 px-5 py-5 rounded-2xl border-2 active:scale-[0.98] transition-all shadow-sm ${
+              setupDone === false
+                ? 'bg-gradient-to-r from-indigo-50 to-violet-50 border-indigo-400'
+                : 'bg-white border-gray-200 hover:border-indigo-300'
+            }`}>
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${
+              setupDone === false ? 'bg-indigo-600' : 'bg-gray-100'
+            }`}>
+              <Wand2 size={28} className={setupDone === false ? 'text-white' : 'text-gray-500'} />
+            </div>
+            <div className="flex-1 text-left">
+              <p className={`font-black text-lg ${setupDone === false ? 'text-indigo-700' : 'text-gray-700'}`}>
+                かんたん初期設定
+                {setupDone === false && <span className="ml-1.5 align-middle text-[10px] font-black text-white bg-red-500 rounded-full px-1.5 py-0.5">未設定</span>}
+              </p>
+              <p className="text-sm text-gray-500 mt-0.5">
+                {setupDone === false
+                  ? '質問に答えるだけで、必要なマスタが揃います'
+                  : '業種・外注の設定をやり直す'}
+              </p>
+            </div>
+            <ChevronRight size={20} className="text-gray-400 shrink-0" />
+          </Link>
 
           {/* ✂️ お直し項目・料金 */}
           {hasFeature('repairs_master') && (

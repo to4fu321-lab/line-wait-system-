@@ -27,6 +27,7 @@ import {
 } from '@/types/master'
 import ManualImportWizard from './_components/ManualImportWizard'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
+import { useSchoolSuggest } from '@/lib/schoolDirectory'
 import { LabelPrintModal } from './_components/LabelPrintModal'
 import { Toast } from '@/app/_components/Toast'
 import { Field } from '@/app/_components/Field'
@@ -256,6 +257,11 @@ function SchoolModal({ storeId, initial, nextOrder, onClose, onSaved, onError }:
   const [measurementEnd, setMeasurementEnd]       = useState(initial?.measurement_end ?? '')
   const [saving, setSaving] = useState(false)
 
+  // 学校名を打つと、システムに登録済みの同名校（他店ぶんを含む）を候補に出す。
+  // 住所・電話を毎回手で打たなくて済む。新規登録のときだけ出す。
+  const { hits, loading: hitsLoading } = useSchoolSuggest(initial ? '' : name, storeId)
+  const [picked, setPicked] = useState<string | null>(null)
+
   const save = async () => {
     if (!name.trim()) { onError('学校名を入力してください'); return }
     setSaving(true)
@@ -281,7 +287,39 @@ function SchoolModal({ storeId, initial, nextOrder, onClose, onSaved, onError }:
 
   return (
     <Modal title={initial ? '学校を編集' : '学校を追加'} onClose={onClose} wide>
-      <Field label="学校名" required><input className={INPUT} value={name} onChange={(e) => setName(e.target.value)} placeholder="桜ヶ丘中学校" /></Field>
+      <Field label="学校名" required><input className={INPUT} value={name} onChange={(e) => { setName(e.target.value); setPicked(null) }} placeholder="桜ヶ丘中学校" /></Field>
+
+      {/* 登録済みの学校から住所・電話を引く */}
+      {!initial && (hitsLoading || hits.length > 0) && (
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-2.5 -mt-1">
+          <p className="text-[11px] font-bold text-indigo-600 mb-1.5">
+            {hitsLoading ? '登録済みの学校を検索中…' : 'タップで住所・電話を入れる'}
+          </p>
+          <div className="space-y-1.5">
+            {hits.map(h => (
+              <button key={h.id} type="button"
+                onClick={() => {
+                  setName(h.name)
+                  if (h.address) setAddress(h.address)
+                  if (h.tel) setTel(h.tel)
+                  setPicked(h.id)
+                }}
+                className={`w-full text-left rounded-lg border px-2.5 py-2 transition ${
+                  picked === h.id ? 'border-indigo-400 bg-white' : 'border-gray-200 bg-white hover:border-indigo-300'
+                }`}>
+                <p className="text-sm font-black text-gray-900">{h.name}</p>
+                <p className="text-[11px] text-gray-500">
+                  {[h.address, h.tel].filter(Boolean).join('  ')}
+                  {h.own && <span className="ml-1 text-gray-400">（当店で登録済み）</span>}
+                </p>
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-gray-400 mt-1.5">
+            見つからない場合は、学校の資料を「マニュアルから取込（OCR）」で読ませると住所・電話も入ります。
+          </p>
+        </div>
+      )}
       <Field label="ふりがな"><input className={INPUT} value={kana} onChange={(e) => setKana(e.target.value)} placeholder="さくらがおかちゅうがっこう" /></Field>
       <Field label="略称"><input className={INPUT} value={shortName} onChange={(e) => setShortName(e.target.value)} placeholder="桜中" /></Field>
       <Field label="メモ"><textarea className={INPUT} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
