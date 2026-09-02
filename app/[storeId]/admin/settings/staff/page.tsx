@@ -100,6 +100,39 @@ function Section({ emoji, title, open, onToggle, children }: {
   )
 }
 
+// ── かんたん初期設定への入口 ────────────────────────────────
+//  かんたんモードと通常モードで設定画面が別レンダリングなので、
+//  片方にしか置かないと「初期設定が出てこない」ことになる。1つにまとめる。
+function SetupCard({ storeId, done }: { storeId: string; done: boolean | null }) {
+  const notYet = done === false
+  return (
+    <Link href={`/${storeId}/admin/setup`}
+      className={`flex items-center gap-4 px-5 py-5 rounded-2xl border-2 active:scale-[0.98] transition-all shadow-sm ${
+        notYet
+          ? 'bg-gradient-to-r from-indigo-50 to-violet-50 border-indigo-400'
+          : 'bg-white border-gray-200 hover:border-indigo-300'
+      }`}>
+      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${
+        notYet ? 'bg-indigo-600' : 'bg-gray-100'
+      }`}>
+        <Wand2 size={28} className={notYet ? 'text-white' : 'text-gray-500'} />
+      </div>
+      <div className="flex-1 text-left">
+        <p className={`font-black text-lg ${notYet ? 'text-indigo-700' : 'text-gray-700'}`}>
+          かんたん初期設定
+          {notYet && <span className="ml-1.5 align-middle text-[10px] font-black text-white bg-red-500 rounded-full px-1.5 py-0.5">未設定</span>}
+        </p>
+        <p className="text-sm text-gray-500 mt-0.5">
+          {notYet
+            ? '質問に答えるだけで、必要なマスタが揃います'
+            : '業種・外注の設定を見直す（いつでもやり直せます）'}
+        </p>
+      </div>
+      <ChevronRight size={20} className="text-gray-400 shrink-0" />
+    </Link>
+  )
+}
+
 export default function StaffSettingsPage() {
   const { storeId } = useParams<{ storeId: string }>()
 
@@ -255,31 +288,7 @@ export default function StaffSettingsPage() {
             color="indigo"
           />
 
-          {/* 🪄 かんたん初期設定 — 未了なら目立たせ、済んだら控えめに置いておく */}
-          <Link href={`/${storeId}/admin/setup`}
-            className={`flex items-center gap-4 px-5 py-5 rounded-2xl border-2 active:scale-[0.98] transition-all shadow-sm ${
-              setupDone === false
-                ? 'bg-gradient-to-r from-indigo-50 to-violet-50 border-indigo-400'
-                : 'bg-white border-gray-200 hover:border-indigo-300'
-            }`}>
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${
-              setupDone === false ? 'bg-indigo-600' : 'bg-gray-100'
-            }`}>
-              <Wand2 size={28} className={setupDone === false ? 'text-white' : 'text-gray-500'} />
-            </div>
-            <div className="flex-1 text-left">
-              <p className={`font-black text-lg ${setupDone === false ? 'text-indigo-700' : 'text-gray-700'}`}>
-                かんたん初期設定
-                {setupDone === false && <span className="ml-1.5 align-middle text-[10px] font-black text-white bg-red-500 rounded-full px-1.5 py-0.5">未設定</span>}
-              </p>
-              <p className="text-sm text-gray-500 mt-0.5">
-                {setupDone === false
-                  ? '質問に答えるだけで、必要なマスタが揃います'
-                  : '業種・外注の設定をやり直す'}
-              </p>
-            </div>
-            <ChevronRight size={20} className="text-gray-400 shrink-0" />
-          </Link>
+          <SetupCard storeId={storeId} done={setupDone} />
 
           {/* ✂️ お直し項目・料金 */}
           {hasFeature('repairs_master') && (
@@ -512,6 +521,8 @@ export default function StaffSettingsPage() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-5 space-y-4 pb-32">
+
+        <SetupCard storeId={storeId} done={setupDone} />
 
         {/* 📋 マスタ管理 */}
         <Section emoji="📋" title="マスタ管理" open={openSections.has('master')} onToggle={() => toggleSection('master')}>

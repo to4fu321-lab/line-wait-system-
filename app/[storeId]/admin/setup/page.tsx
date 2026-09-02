@@ -78,8 +78,8 @@ export default function SetupWizardPage() {
   const [toast, setToast]     = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
   const showToast = (type: 'ok' | 'err', msg: string) => setToast({ msg, type })
 
-  // 回答
-  const [trade, setTrade]         = useState<Trade | null>(null)
+  // 回答。1店舗で制服お直しとガット張りを両方やる、のような店が実在するので複数選択
+  const [trades, setTrades]       = useState<Trade[]>([])
   const [useVendor, setUseVendor] = useState<boolean | null>(null)
   const [vendors, setVendors]     = useState<string[]>([''])
   const [staffDrafts, setStaff]   = useState<StaffDraft[]>([{ name: '', kana: '' }])
@@ -98,8 +98,10 @@ export default function SetupWizardPage() {
         (supabase as any).from('repair_vendors').select('id', { count: 'exact', head: true }).eq('store_id', storeId),
         (supabase as any).from('repair_items').select('id', { count: 'exact', head: true }).eq('store_id', storeId),
       ])
-      const setup = (store.data?.setup ?? {}) as { trade?: Trade; use_vendor?: boolean; done_at?: string }
-      if (setup.trade) setTrade(setup.trade)
+      const setup = (store.data?.setup ?? {}) as { trade?: Trade; trades?: Trade[]; use_vendor?: boolean; done_at?: string }
+      // trade（単数）は旧形式。読むときだけ吸収する
+      const savedTrades = setup.trades ?? (setup.trade ? [setup.trade] : [])
+      if (savedTrades.length > 0) setTrades(savedTrades)
       if (typeof setup.use_vendor === 'boolean') setUseVendor(setup.use_vendor)
       if (setup.done_at) setAlreadyDone(true)
       setExisting({ staff: st.count ?? 0, vendors: vd.count ?? 0, items: it.count ?? 0 })
@@ -108,7 +110,11 @@ export default function SetupWizardPage() {
     })()
   }, [storeId])
 
-  const tradeDef = TRADES.find(t => t.id === trade) ?? null
+  const chosen = TRADES.filter(t => trades.includes(t.id))
+  // 選んだ業種ぶんのプリセットと次にやることを、重複なくまとめる
+  const presetKeys = Array.from(new Set(chosen.flatMap(t => t.presets)))
+  const nextSteps  = chosen.flatMap(t => t.next)
+    .filter((n, i, arr) => arr.findIndex(x => x.label === n.label) === i)
 
   // ステップ構成。外注を使わない店には外注先の入力を出さない
   const steps: { key: string; title: string }[] = [
@@ -123,13 +129,13 @@ export default function SetupWizardPage() {
   const current = steps[Math.min(step, total) - 1]
 
   const canNext =
-    current?.key === 'trade'  ? trade !== null :
+    current?.key === 'trade'  ? trades.length > 0 :
     current?.key === 'vendor' ? useVendor !== null :
     true
 
   // ── 保存 ──────────────────────────────────────────────────
   const finish = useCallback(async () => {
-    if (!trade) return
+    if (trades.length === 0) return
     setSaving(true)
     const problems: string[] = []
 
@@ -152,8 +158,8 @@ export default function SetupWizardPage() {
       if (error) problems.push(`スタッフ: ${error.message}`)
     }
 
-    if (importPreset && tradeDef) {
-      for (const key of tradeDef.presets) {
+    if (importPreset) {
+      for (const key of presetKeys) {
         const r = await seedRepairPresets(storeId, key)
         if (r.error) problems.push(`${PRESET_SET_LABELS[key]}: ${r.error}`)
       }
@@ -161,14 +167,14 @@ export default function SetupWizardPage() {
 
     // 回答は最後に保存する（途中で失敗したときに「完了」にしない）
     const { error: setupErr } = await (supabase as any).from('stores')
-      .update({ setup: { trade, use_vendor: !!useVendor, done_at: new Date().toISOString() } })
+      .update({ setup: { trades, use_vendor: !!useVendor, done_at: new Date().toISOString() } })
       .eq('id', storeId)
     if (setupErr) problems.push(`設定の保存: ${setupErr.message}`)
 
     setSaving(false)
     if (problems.length > 0) { showToast('err', `一部保存できませんでした — ${problems.join(' / ')}`); return }
     setStep(total)   // 完了画面へ
-  }, [trade, tradeDef, useVendor, vendors, staffDrafts, importPreset, storeId, total])
+  }, [trades, presetKeys, useVendor, vendors, staffDrafts, importPreset, storeId, total])
 
   const skipForNow = async () => {
     await (supabase as any).from('stores')
@@ -216,22 +222,38 @@ export default function SetupWizardPage() {
         {current?.key === 'trade' && (
           <>
             <p className="text-xs text-gray-500 leading-relaxed">
-              選んだ業種に合わせて、必要なマスタと料金のひな形だけをご案内します。あとから変更できます。
+              やっている業務を<strong>いくつでも</strong>選んでください。制服のお直しとガット張りを
+              両方やっている、のような店もそのまま設定できます。選んだぶんに合わせて、必要なマスタと
+              料金のひな形だけをご案内します。あとから変更できます。
             </p>
             <div className="space-y-2">
-              {TRADES.map(t => (
-                <button key={t.id} type="button" onClick={() => setTrade(t.id)}
-                  className={`w-full rounded-2xl border-2 px-4 py-3.5 text-left transition flex items-center gap-3 ${
-                    trade === t.id ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-white'
-                  }`}>
-                  <span className="text-2xl shrink-0">{t.emoji}</span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-black text-gray-900">{t.label}</span>
-                    <span className="block text-[11px] text-gray-500">{t.desc}</span>
-                  </span>
-                </button>
-              ))}
+              {TRADES.map(t => {
+                const on = trades.includes(t.id)
+                return (
+                  <button key={t.id} type="button"
+                    onClick={() => setTrades(on ? trades.filter(x => x !== t.id) : [...trades, t.id])}
+                    className={`w-full rounded-2xl border-2 px-4 py-3.5 text-left transition flex items-center gap-3 ${
+                      on ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-white'
+                    }`}>
+                    <span className="text-2xl shrink-0">{t.emoji}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-black text-gray-900">{t.label}</span>
+                      <span className="block text-[11px] text-gray-500">{t.desc}</span>
+                    </span>
+                    <span className={`shrink-0 w-6 h-6 rounded-md border-2 flex items-center justify-center transition ${
+                      on ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300 bg-white'
+                    }`}>
+                      {on && <Check size={14} className="text-white" />}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
+            {trades.length > 1 && (
+              <p className="text-[11px] font-bold text-indigo-600">
+                {trades.length}つの業務で設定します。料金のひな形もまとめて取り込めます。
+              </p>
+            )}
           </>
         )}
 
@@ -312,7 +334,7 @@ export default function SetupWizardPage() {
         {/* ── 5. プリセット ── */}
         {current?.key === 'preset' && (
           <>
-            {tradeDef && tradeDef.presets.length > 0 ? (
+            {presetKeys.length > 0 ? (
               <>
                 <p className="text-xs text-gray-500 leading-relaxed">
                   よくある作業と料金のひな形を入れておくと、ゼロから作らずに済みます。
@@ -325,7 +347,7 @@ export default function SetupWizardPage() {
                   <Sparkles size={20} className={importPreset ? 'text-indigo-600' : 'text-gray-300'} />
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-black text-gray-900">
-                      {tradeDef.presets.map(k => PRESET_SET_LABELS[k]).join(' ・ ')} を取り込む
+                      {presetKeys.map(k => PRESET_SET_LABELS[k]).join(' ・ ')} を取り込む
                     </span>
                     <span className="block text-[11px] text-gray-500">
                       {importPreset ? '取り込みます（重複は追加されません）' : '取り込みません'}
@@ -341,7 +363,7 @@ export default function SetupWizardPage() {
               </>
             ) : (
               <p className="text-xs text-gray-500 leading-relaxed">
-                この業種のひな形は用意がないので、受付マスタで実際の作業と料金を登録してください。
+                選んだ業務のひな形は用意がないので、受付マスタで実際の作業と料金を登録してください。
                 次の画面から進めます。
               </p>
             )}
@@ -355,12 +377,12 @@ export default function SetupWizardPage() {
               <div className="text-4xl mb-1">🎉</div>
               <p className="font-black text-emerald-800">設定を保存しました</p>
               <p className="text-[11px] text-emerald-600 mt-1">
-                {tradeDef?.label}として設定しました{useVendor ? '（外注あり）' : ''}
+                {chosen.map(t => t.label).join(' ・ ')} として設定しました{useVendor ? '（外注あり）' : ''}
               </p>
             </div>
             <p className="text-xs font-bold text-gray-500">次はこちらを登録すると使い始められます</p>
             <div className="space-y-2">
-              {(tradeDef?.next ?? []).map(n => (
+              {nextSteps.map(n => (
                 <Link key={n.label} href={n.href(storeId)}
                   className="flex items-center gap-3 rounded-2xl border-2 border-indigo-200 bg-white px-4 py-3.5 active:scale-[0.98] transition">
                   <span className="min-w-0 flex-1">
@@ -393,7 +415,7 @@ export default function SetupWizardPage() {
                 次へ<ChevronRight size={16} />
               </button>
             ) : (
-              <button type="button" onClick={finish} disabled={saving || !trade}
+              <button type="button" onClick={finish} disabled={saving || trades.length === 0}
                 className="flex-1 flex items-center justify-center gap-1 rounded-xl bg-indigo-600 py-3 text-sm font-black text-white disabled:opacity-40">
                 {saving ? <><Loader2 size={16} className="animate-spin" />保存中…</> : <><Check size={16} />この内容で始める</>}
               </button>
