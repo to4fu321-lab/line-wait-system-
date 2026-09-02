@@ -29,6 +29,16 @@ const CATEGORIES: { key: string; label: string; hint: string }[] = [
   { key: 'grip',   label: 'グリップ',     hint: '例: ウェットスーパーグリップ / ブラック' },
 ]
 
+// メーカー・色はタップで打てるとほぼ手入力が要らなくなる。自由記載も残す。
+const MAKER_PRESETS: Record<string, string[]> = {
+  string: ['ヨネックス', 'ゴーセン', 'バボラ', 'ウイルソン', 'プリンス', 'テクニファイバー', 'ルキシロン', 'ダンロップ'],
+  grip:   ['ヨネックス', 'トアルソン', 'ウイルソン', 'プリンス', 'ミズノ', 'ゴーセン'],
+}
+const COLOR_PRESETS: Record<string, string[]> = {
+  string: ['ホワイト', 'ブラック', 'イエロー', 'レッド', 'ブルー', 'グリーン', 'オレンジ', 'ピンク', 'ナチュラル'],
+  grip:   ['ホワイト', 'ブラック', 'ブルー', 'レッド', 'イエロー', 'ピンク', 'グリーン'],
+}
+
 interface MaterialRow {
   id:                string
   name:              string
@@ -85,6 +95,11 @@ export default function MaterialsMasterPage() {
     setStock(r?.stock != null ? String(r.stock) : '')
     setModal(true)
   }
+
+  // 自店で既に使っている銘柄名。同じ銘柄の色違いを追加するときに
+  // 表記ゆれ（全角半角・スペース）で別グループになるのを防ぐ
+  const knownBrands = Array.from(new Set(rows.map(r => r.group_name?.trim()).filter((v): v is string => !!v)))
+    .sort((a, b) => a.localeCompare(b, 'ja'))
 
   const save = async () => {
     if (!gName.trim()) return showToast('err', '銘柄は必須です')
@@ -206,14 +221,41 @@ export default function MaterialsMasterPage() {
                 <input className={INPUT} value={gName} onChange={e => setGName(e.target.value)}
                   placeholder="例: BG66アルティマックス" />
                 <p className="text-[11px] text-gray-400 mt-1">同じ銘柄の色違いは、この名前を揃えるとまとまります。</p>
+                {/* 自店で登録済みの銘柄。タップすれば表記ゆれなく色違いを追加できる */}
+                {knownBrands.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {knownBrands.map(b => (
+                      <button key={b} type="button" onClick={() => setGName(b)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-bold border-2 transition ${
+                          gName.trim() === b ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-200 text-gray-600'
+                        }`}>{b}</button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-600 block mb-1">色</label>
-                <input className={INPUT} value={color} onChange={e => setColor(e.target.value)} placeholder="例: イエロー" />
+                <input className={INPUT} value={color} onChange={e => setColor(e.target.value)} placeholder="例: イエロー（自由入力もOK）" />
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {COLOR_PRESETS[category]?.map(c => (
+                    <button key={c} type="button" onClick={() => setColor(c)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-bold border-2 transition ${
+                        color.trim() === c ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-200 text-gray-600'
+                      }`}>{c}</button>
+                  ))}
+                </div>
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-600 block mb-1">メーカー</label>
-                <input className={INPUT} value={maker} onChange={e => setMaker(e.target.value)} placeholder="例: ヨネックス" />
+                <input className={INPUT} value={maker} onChange={e => setMaker(e.target.value)} placeholder="例: ヨネックス（自由入力もOK）" />
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {MAKER_PRESETS[category]?.map(m => (
+                    <button key={m} type="button" onClick={() => setMaker(m)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-bold border-2 transition ${
+                        maker.trim() === m ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-200 text-gray-600'
+                      }`}>{m}</button>
+                  ))}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
