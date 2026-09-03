@@ -16,13 +16,20 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, CreditCard, Users, UserCircle, MessageCircle, Loader2 } from 'lucide-react'
+import { ChevronLeft, CreditCard, Users, UserCircle, MessageCircle, Loader2, Check } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { PLAN_DEFS, getPlanLimits, resolvePlan } from '@/lib/features'
+import type { TierInfo } from '@/app/api/billing/tiers/route'
 
 type SubStatus = 'none' | 'active' | 'trialing' | 'other'
 
 type UsageRow = { label: string; icon: ReactNode; used: number; limit: number | null }
+
+function formatPrice(t: TierInfo): string {
+  if (t.amount == null || !t.currency) return ''
+  const yen = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: t.currency, maximumFractionDigits: 0 }).format(t.amount)
+  return t.interval === 'month' ? `${yen} / 月` : t.interval === 'year' ? `${yen} / 年` : yen
+}
 
 function currentPeriodJst(): string {
   const parts = new Intl.DateTimeFormat('ja-JP', {
@@ -71,12 +78,21 @@ export default function BillingPage() {
   const [busy, setBusy] = useState(false)
   const [notConfigured, setNotConfigured] = useState(false)
   const [checkoutResult, setCheckoutResult] = useState<'success' | 'cancel' | null>(null)
+  const [tiers, setTiers] = useState<TierInfo[]>([])
+  const [busyTier, setBusyTier] = useState<string | null>(null)
 
   useEffect(() => {
     try {
       const v = new URLSearchParams(window.location.search).get('checkout')
       if (v === 'success' || v === 'cancel') setCheckoutResult(v)
     } catch {}
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/billing/tiers').then(r => r.json()).then(json => {
+      if (!json.configured) { setNotConfigured(true); return }
+      setTiers(json.tiers ?? [])
+    }).catch(() => setNotConfigured(true))
   }, [])
 
   useEffect(() => {
@@ -118,19 +134,19 @@ export default function BillingPage() {
   const hasAnyLimit = usage.some(u => u.limit != null)
   const isSubscribed = subStatus === 'active' || subStatus === 'trialing'
 
-  async function goCheckout() {
-    setBusy(true)
+  async function goCheckout(tier: string) {
+    setBusyTier(tier)
     try {
       const res = await fetch('/api/billing/checkout', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storeId }),
+        body: JSON.stringify({ storeId, tier }),
       })
       const json = await res.json().catch(() => ({}))
-      if (res.status === 501) { setNotConfigured(true); setBusy(false); return }
+      if (res.status === 501) { setNotConfigured(true); setBusyTier(null); return }
       if (!res.ok || !json.url) throw new Error(json.error ?? '不明なエラー')
       window.location.href = json.url
     } catch (e) {
-      setBusy(false)
+      setBusyTier(null)
       alert(`アップグレードページを開けませんでした: ${String(e)}`)
     }
   }
@@ -192,30 +208,17 @@ export default function BillingPage() {
               </div>
             )}
 
-            <div className="px-5 py-5 rounded-2xl bg-white border-2 border-indigo-200 shadow-sm">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
-                  <CreditCard size={20} className="text-indigo-600" />
+            {isSubscribed ? (
+              <div className="px-5 py-5 rounded-2xl bg-white border-2 border-indigo-200 shadow-sm">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+                    <CreditCard size={20} className="text-indigo-600" />
+                  </div>
+                  <p className="font-black text-lg text-indigo-700">ご契約中です</p>
                 </div>
-                <p className="font-black text-lg text-indigo-700">
-                  {isSubscribed ? 'ご契約中です' : '有料プランについて'}
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  お支払い方法の変更・プラン変更・解約は「ご契約を管理する」からいつでも行えます。
                 </p>
-              </div>
-              <p className="text-sm text-gray-600 leading-relaxed">
-                {isSubscribed
-                  ? 'お支払い方法の変更・解約は「ご契約を管理する」からいつでも行えます。'
-                  : hasAnyLimit
-                    ? '有料プランでは、上記の上限なくご利用いただけます。'
-                    : '現在のプランについてのご相談・変更のご希望はお気軽にどうぞ。'}
-              </p>
-
-              {notConfigured && (
-                <p className="mt-3 text-sm text-amber-600 font-bold">
-                  現在オンライン決済の準備中です。下記のお問い合わせよりご連絡ください。
-                </p>
-              )}
-
-              {isSubscribed ? (
                 <button
                   onClick={goPortal}
                   disabled={busy}
@@ -223,25 +226,43 @@ export default function BillingPage() {
                 >
                   {busy ? <Loader2 size={18} className="animate-spin" /> : 'ご契約を管理する'}
                 </button>
-              ) : (
-                !notConfigured && (
-                  <button
-                    onClick={goCheckout}
-                    disabled={busy}
-                    className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-indigo-600 text-white font-bold active:scale-[0.98] transition-all disabled:opacity-50"
-                  >
-                    {busy ? <Loader2 size={18} className="animate-spin" /> : '有料プランに切り替える'}
-                  </button>
-                )
-              )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm font-bold text-gray-500 px-1">有料プランに切り替える</p>
 
-              <a
-                href="mailto:to4fu321@gmail.com?subject=%E6%9C%89%E6%96%99%E3%83%97%E3%83%A9%E3%83%B3%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6%E3%81%AE%E7%9B%B8%E8%AB%87"
-                className="mt-2 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-gray-200 text-gray-600 font-bold active:scale-[0.98] transition-all"
-              >
-                プランについて相談する
-              </a>
-            </div>
+                {notConfigured ? (
+                  <div className="px-5 py-5 rounded-2xl bg-white border-2 border-amber-200 shadow-sm">
+                    <p className="text-sm text-amber-600 font-bold">
+                      現在オンライン決済の準備中です。下記のお問い合わせよりご連絡ください。
+                    </p>
+                  </div>
+                ) : (
+                  tiers.map(t => (
+                    <div key={t.tier} className="px-5 py-5 rounded-2xl bg-white border-2 border-gray-100 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <p className="font-black text-lg text-gray-800">{t.label}</p>
+                        <p className="font-black text-indigo-600">{formatPrice(t)}</p>
+                      </div>
+                      <button
+                        onClick={() => goCheckout(t.tier)}
+                        disabled={busyTier !== null}
+                        className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-indigo-600 text-white font-bold active:scale-[0.98] transition-all disabled:opacity-50"
+                      >
+                        {busyTier === t.tier ? <Loader2 size={18} className="animate-spin" /> : <><Check size={18} />このプランにする</>}
+                      </button>
+                    </div>
+                  ))
+                )}
+
+                <a
+                  href="mailto:to4fu321@gmail.com?subject=%E6%9C%89%E6%96%99%E3%83%97%E3%83%A9%E3%83%B3%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6%E3%81%AE%E7%9B%B8%E8%AB%87"
+                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-gray-200 text-gray-600 font-bold active:scale-[0.98] transition-all"
+                >
+                  プランについて相談する
+                </a>
+              </div>
+            )}
           </>
         )}
       </main>

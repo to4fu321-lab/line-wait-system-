@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import type Stripe from 'stripe'
 import { createAdminClient } from '@/lib/supabaseAdmin'
-import { getStripe, getWebhookSecret, paidPlanKey, fallbackPlanKey, isKnownPriceId } from '@/lib/stripe'
+import { getStripe, getWebhookSecret, fallbackPlanKey, tierForPriceId, tierPlanKey } from '@/lib/stripe'
 
 /**
  * POST /api/webhook/stripe
@@ -40,9 +40,18 @@ export async function POST(req: NextRequest) {
     await supabase.from('stores').update({ features }).eq('id', storeId)
   }
 
+  // プランキーの決定: checkout時にsubscription.metadataへ焼き込んだ plan を最優先。
+  // それが無い(=チェックアウト経由でない/古いsubscription)場合のみ、現在の
+  // env設定からPrice IDを逆引きする。どちらも無ければ最安ティア相当を仮に適用。
+  function resolvePlan(sub: Stripe.Subscription, priceId: string | null): string {
+    if (sub.metadata?.plan) return sub.metadata.plan
+    const tier = tierForPriceId(priceId)
+    return tier ? tierPlanKey(tier) : tierPlanKey('lite')
+  }
+
   async function upsertSubscription(storeId: string, sub: Stripe.Subscription) {
     const priceId = sub.items.data[0]?.price?.id ?? null
-    const plan = isKnownPriceId(priceId) ? paidPlanKey() : (sub.metadata?.plan ?? paidPlanKey())
+    const plan = resolvePlan(sub, priceId)
     const periodEndUnix = (sub as any).current_period_end as number | undefined
     await (supabase as any).from('store_subscriptions').upsert({
       store_id: storeId,
