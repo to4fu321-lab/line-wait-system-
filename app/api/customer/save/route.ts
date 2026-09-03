@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { verifyLineAccessToken } from '@/lib/auth/lineAuth'
+import { parsePlanLimitError, PLAN_LIMIT_CUSTOMER_MESSAGE } from '@/lib/planLimitError'
 
 /** customers への upsert で受け付けるフィールド(ホワイトリスト) */
 const CUSTOMER_FIELDS = ['name', 'kana', 'tel', 'school_name', 'school_id', 'notes'] as const
@@ -109,6 +110,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ customer, children: children ?? [], child })
   } catch (err) {
     console.error('[customer/save]', err)
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'サーバーエラー' }, { status: 500 })
+    const rawMessage = err instanceof Error ? err.message : 'サーバーエラー'
+    // 店舗の契約プラン上限は、登録しようとしたLINE利用客に見せる情報ではないため
+    // 中立な文言に差し替える（店舗側には console.error のログで伝わる）
+    const message = parsePlanLimitError(rawMessage) ? PLAN_LIMIT_CUSTOMER_MESSAGE : rawMessage
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

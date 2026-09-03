@@ -7,6 +7,7 @@ import { pushCard } from '@/lib/line-flex'
 import { canNotifyNow } from '@/lib/notifyWindow'
 import { buildRepairSms, smsSegments } from '@/lib/smsText'
 import type { BusinessHours } from '@/lib/pop'
+import { checkSmsLimit, incrementSmsUsage } from '@/lib/planUsage'
 
 const TOKEN      = getLineToken('uniform')
 const TWILIO_SID   = process.env.TWILIO_ACCOUNT_SID  ?? ''
@@ -61,24 +62,33 @@ export async function POST(req: NextRequest) {
   }
   const supabase = createAdminClient()
 
+  // store_id は呼び出し元が渡していないので repairId から引く（営業時間・上限チェック共通）
+  const { data: repairRow } = await (supabase as any)
+    .from('repair_histories').select('store_id').eq('id', repairId).maybeSingle()
+  const storeId = repairRow?.store_id as string | undefined
+
+  // 無料トライアルの月間SMS・LINE通知上限チェック（送信前に必ず通す）
+  if (storeId) {
+    const limitCheck = await checkSmsLimit(supabase, storeId)
+    if (!limitCheck.ok) {
+      console.log('[notify-repair] plan limit reached:', storeId)
+      return NextResponse.json({ ok: false, error: limitCheck.message, reason: 'plan_limit' }, { status: 200 })
+    }
+  }
+
   // 営業時間チェック（完了通知のみ）。閉店間際・定休日は現場に知らせる。
   //   ※ 定期実行の仕組みが無いため「保留して後で自動送信」はできない。
   //     黙って送らないと通知そのものが消えるので、送信は止めず outsideHours を
   //     返し、呼び出し側（完了操作のUI）が声かけを判断できるようにする。
-  //   store_id は呼び出し元が渡していないので repairId から引く。
   let outsideHours = false
   let nextOpenAt: string | null = null
-  if (kind === 'completed') {
-    const { data: row } = await (supabase as any)
-      .from('repair_histories').select('store_id').eq('id', repairId).maybeSingle()
-    if (row?.store_id) {
-      const { data: store } = await (supabase as any)
-        .from('stores').select('business_hours').eq('id', row.store_id).maybeSingle()
-      const w = canNotifyNow(store?.business_hours as BusinessHours | null)
-      if (!w.canSendNow) {
-        outsideHours = true
-        nextOpenAt = w.nextOpenAt ? w.nextOpenAt.toISOString() : null
-      }
+  if (kind === 'completed' && storeId) {
+    const { data: store } = await (supabase as any)
+      .from('stores').select('business_hours').eq('id', storeId).maybeSingle()
+    const w = canNotifyNow(store?.business_hours as BusinessHours | null)
+    if (!w.canSendNow) {
+      outsideHours = true
+      nextOpenAt = w.nextOpenAt ? w.nextOpenAt.toISOString() : null
     }
   }
 
@@ -104,6 +114,7 @@ export async function POST(req: NextRequest) {
     if (kind !== 'received') {
       await (supabase as any).from('repair_histories').update({ notified: true }).eq('id', repairId)
     }
+    if (storeId) await incrementSmsUsage(supabase, storeId)
     console.log('[notify-repair] LINE sent:', repairId, kind)
     return NextResponse.json({ ok: true, channel: 'line', outsideHours, nextOpenAt })
   }
@@ -125,6 +136,7 @@ export async function POST(req: NextRequest) {
       if (kind !== 'received') {
         await (supabase as any).from('repair_histories').update({ notified: true }).eq('id', repairId)
       }
+      if (storeId) await incrementSmsUsage(supabase, storeId)
       console.log('[notify-repair] SMS sent:', repairId, toE164Japan(tel), kind, `${smsText.length}文字/${smsSegments(smsText)}通分`)
       return NextResponse.json({ ok: true, channel: 'sms', outsideHours, nextOpenAt })
     } catch (e) {

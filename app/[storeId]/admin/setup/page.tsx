@@ -18,6 +18,7 @@ import {
   ChevronLeft, ChevronRight, Check, Loader2, Plus, Trash2, Sparkles, X,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { parsePlanLimitError, ownerPlanLimitMessage } from '@/lib/planLimitError'
 import { STAFF_COLOR_OPTIONS } from '@/types/master'
 import { withBack } from '@/lib/useBackHref'
 import { seedRepairPresets } from '@/lib/repairPresets'
@@ -164,7 +165,10 @@ export default function SetupWizardPage() {
           store_id: storeId, name: s.name, kana: s.kana || null, color: s.color,
           active: true, sort_order: (i + 1) * 10,
         })))
-      if (error) problems.push(`スタッフ: ${error.message}`)
+      if (error) {
+        const limitMetric = parsePlanLimitError(error.message)
+        problems.push(`スタッフ: ${limitMetric ? ownerPlanLimitMessage(limitMetric) : error.message}`)
+      }
     }
 
     if (importPreset) {

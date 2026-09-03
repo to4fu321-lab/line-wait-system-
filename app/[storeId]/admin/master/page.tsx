@@ -18,6 +18,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import type { Staff } from '@/types/master'
 import { STAFF_ROLE_OPTIONS, STAFF_COLOR_OPTIONS, EMPLOYMENT_TYPE_OPTIONS } from '@/types/master'
+import { parsePlanLimitError, ownerPlanLimitMessage } from '@/lib/planLimitError'
 import type { Availability } from '@/lib/availability'
 import { AvailabilityEditor } from './_components/AvailabilityEditor'
 import { Toast } from '@/app/_components/Toast'
@@ -128,7 +129,11 @@ function MasterPageInner() {
       const { data, error } = await (supabase as any).from('staff')
         .insert({ ...payload, store_id: storeId, sort_order: staffList.length }).select().single()
       setSfSaving(false)
-      if (error) { showToast('err', '追加失敗'); return }
+      if (error) {
+        const limitMetric = parsePlanLimitError(error.message)
+        showToast('err', limitMetric ? ownerPlanLimitMessage(limitMetric) : '追加失敗')
+        return
+      }
       setStaffList(prev => [...prev, data as Staff])
       showToast('ok', 'スタッフを追加しました')
     }

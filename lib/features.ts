@@ -262,6 +262,31 @@ export const ADDON_DEFAULT_OFF: FeatureKey[] = [
   'today_tasks_ui',
 ]
 
+// ── プランごとの数量上限（無料トライアルの「人数/件数限定」用）──────
+// ここに無い項目・ここに無いプランは無制限。
+// customers_max / staff_max は supabase/migrations/20260903_plan_limits.sql の
+// DBトリガと必ず同じ数字にすること（そちらが実際の強制箇所）。
+export type PlanLimits = {
+  sms_per_month?: number   // SMS・LINE通知（自動送信）の月間件数
+  customers_max?: number   // 顧客登録数の上限（削除済みは除く）
+  staff_max?: number       // スタッフ登録数の上限（active のみ）
+}
+
+export const PLAN_LIMITS: Partial<Record<Plan, PlanLimits>> = {
+  free_trial: { sms_per_month: 20, customers_max: 30, staff_max: 3 },
+}
+
+/** rawFeatures から現在有効なプランIDを取り出す（legacyエイリアス込み） */
+export function resolvePlan(rawFeatures: Record<string, unknown>): Plan {
+  const rawPlan = (rawFeatures._plan as string | undefined) ?? 'full'
+  return rawPlan === 'intro' ? 'free_trial' : rawPlan === 'kantan' ? 'simple' : rawPlan as Plan
+}
+
+/** 現在のプランの数量上限を返す（上限なしなら空オブジェクト）*/
+export function getPlanLimits(rawFeatures: Record<string, unknown>): PlanLimits {
+  return PLAN_LIMITS[resolvePlan(rawFeatures)] ?? {}
+}
+
 // ── エリア定義（AIシーズンメッセージ用）────────────────────────
 export type AreaCode = 'north' | 'central' | 'south' | 'okinawa'
 
