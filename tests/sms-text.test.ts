@@ -99,6 +99,15 @@ describe('buildRepairSms', () => {
     expect(t).toContain('仕上がりました')
   })
 
+  it('訂正・お詫びも1通に収まり、誤り・再連絡が伝わる', () => {
+    const t = buildRepairSms({ kind: 'correction', ...real })
+    expect(smsSegments(t)).toBe(1)
+    expect(t).toContain('田中太郎')
+    expect(t).toContain('R-0302')
+    expect(t).toContain('誤り')
+    expect(t).toContain('仕上がり次第ご連絡します')
+  })
+
   it('店名・番号が無くても壊れない', () => {
     const t = buildRepairSms({ kind: 'completed', customerName: '田中', itemName: null })
     expect(t).toContain('お預かり品')

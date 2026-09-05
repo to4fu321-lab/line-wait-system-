@@ -55,7 +55,7 @@ export function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRev
   alertDays: number
   onDeliver: (item: DeliveryItem, paid: boolean, deliveredBy: string) => Promise<void>
   onPaymentToggle: (item: DeliveryItem) => Promise<void>
-  onRevertWaiting: (item: DeliveryItem) => Promise<void>
+  onRevertWaiting: (item: DeliveryItem, sendCorrection: boolean) => Promise<void>
   onDelete: (item: DeliveryItem) => Promise<void>
   isSimpleMode?: boolean
 }) {
@@ -75,6 +75,16 @@ export function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRev
   const alertLevel = waitDays >= 14 ? 3 : waitDays >= 7 ? 2 : waitDays >= 3 ? 1 : 0
   const reqNo      = fmtReqNo(item.kind, item.request_no, item.id)
   const studentName = item.child?.name ?? item.customer?.name ?? '（名前なし）'
+
+  // 完了のお知らせを送った後にお直し中へ戻す場合、送信済み通知は取り消せないので
+  // 「誤送信のお詫び＋改めて連絡する」メッセージを送れるようにする
+  const canApologize = item.kind === 'repair' && item.notified
+  const doRevert = async (sendCorrection: boolean) => {
+    setLoading(sendCorrection ? 'revert_notice' : 'revert')
+    await onRevertWaiting(item, sendCorrection)
+    setLoading(null)
+    setConfirmRevert(false)
+  }
 
   // ── Simple mode card ──────────────────────────────────────────
   if (isSimpleMode) {
@@ -166,22 +176,36 @@ export function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRev
 
           {/* 戻すボタン */}
           {confirmRevert ? (
-            <div className="flex gap-2">
-              <button onClick={() => setConfirmRevert(false)}
-                className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-white border-2 border-gray-200 text-gray-600">
-                キャンセル
-              </button>
-              <button
-                onClick={async () => {
-                  setLoading('revert')
-                  await onRevertWaiting(item)
-                  setLoading(null)
-                  setConfirmRevert(false)
-                }}
-                disabled={loading === 'revert'}
-                className="flex-1 py-2.5 rounded-xl font-black text-sm bg-amber-500 text-white disabled:opacity-50 flex items-center justify-center gap-1.5">
-                {loading === 'revert' ? <Loader2 size={14} className="animate-spin" /> : <><RotateCcw size={14} />戻す</>}
-              </button>
+            <div className="space-y-2">
+              {canApologize && (
+                <>
+                  <p className="text-xs font-bold text-amber-800 text-center leading-snug">
+                    完了のお知らせを送信済みです。<br />誤ってお送りしたお詫びを送れます。
+                  </p>
+                  <button
+                    onClick={() => doRevert(true)}
+                    disabled={!!loading}
+                    className="w-full py-3 rounded-xl font-black text-sm bg-amber-500 text-white disabled:opacity-50 flex items-center justify-center gap-1.5">
+                    {loading === 'revert_notice' ? <Loader2 size={14} className="animate-spin" /> : '📩 お詫びを送って戻す'}
+                  </button>
+                </>
+              )}
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmRevert(false)}
+                  className="flex-1 py-2.5 rounded-xl font-bold text-sm bg-white border-2 border-gray-200 text-gray-600">
+                  キャンセル
+                </button>
+                <button
+                  onClick={() => doRevert(false)}
+                  disabled={!!loading}
+                  className={`flex-1 py-2.5 rounded-xl font-black text-sm disabled:opacity-50 flex items-center justify-center gap-1.5 ${
+                    canApologize ? 'bg-white border-2 border-amber-300 text-amber-700' : 'bg-amber-500 text-white'
+                  }`}>
+                  {loading === 'revert'
+                    ? <Loader2 size={14} className="animate-spin" />
+                    : <><RotateCcw size={14} />{canApologize ? '送らずに戻す' : '戻す'}</>}
+                </button>
+              </div>
             </div>
           ) : (
             <button
@@ -310,14 +334,27 @@ export function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRev
           ) : confirmRevert ? (
             <div className="px-3 pb-3 space-y-2">
               <p className="text-xs text-amber-700 font-bold text-center">前の状態（作業中/発注中）に戻しますか？</p>
+              {canApologize && (
+                <>
+                  <p className="text-[11px] text-amber-600 text-center leading-snug">
+                    完了のお知らせを送信済みです。お詫びと「仕上がり次第あらためてご連絡します」を送れます。
+                  </p>
+                  <button onClick={() => doRevert(true)} disabled={!!loading}
+                    className="w-full py-2.5 rounded-xl bg-amber-600 text-white text-sm font-black flex items-center justify-center gap-1 disabled:opacity-50">
+                    {loading === 'revert_notice' ? <Loader2 size={12} className="animate-spin" /> : '📩 お詫びを送って戻す'}
+                  </button>
+                </>
+              )}
               <div className="flex gap-2">
                 <button onClick={() => setConfirmRevert(false)}
                   className="flex-1 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-600 text-sm font-bold">戻る</button>
-                <button onClick={async () => {
-                  setLoading('revert'); await onRevertWaiting(item); setLoading(null); setConfirmRevert(false)
-                }} disabled={!!loading}
-                  className="flex-1 py-2.5 rounded-xl bg-amber-600 text-white text-sm font-black flex items-center justify-center gap-1 disabled:opacity-50">
-                  {loading === 'revert' ? <Loader2 size={12} className="animate-spin" /> : <><RotateCcw size={12} />戻す</>}
+                <button onClick={() => doRevert(false)} disabled={!!loading}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-black flex items-center justify-center gap-1 disabled:opacity-50 ${
+                    canApologize ? 'bg-white border border-amber-300 text-amber-700' : 'bg-amber-600 text-white'
+                  }`}>
+                  {loading === 'revert'
+                    ? <Loader2 size={12} className="animate-spin" />
+                    : <><RotateCcw size={12} />{canApologize ? '送らずに戻す' : '戻す'}</>}
                 </button>
               </div>
             </div>
