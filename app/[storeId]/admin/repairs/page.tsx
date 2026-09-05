@@ -321,7 +321,7 @@ export default function RepairsPage() {
   }, [showToast])
 
   // ── Revert waiting item to previous state ─────────────────
-  const handleRevertWaiting = useCallback(async (item: DeliveryItem) => {
+  const handleRevertWaiting = useCallback(async (item: DeliveryItem, sendCorrection = false) => {
     const table = item.kind === 'repair' ? 'repair_histories' : 'purchase_orders'
     const update: Record<string, unknown> = { status: item.kind === 'repair' ? 'received' : 'on_order', delivered_date: null }
     if (item.kind === 'repair') { update.completed_date = null; update.work_started = true }
@@ -330,7 +330,25 @@ export default function RepairsPage() {
     if (error) { showToast('err', `戻し失敗: ${error.message}`); return }
     setWaiting(prev => prev.filter(i => i.id !== item.id))
     await fetchAll()
-    showToast('ok', '前の状態に戻しました')
+    if (!sendCorrection) { showToast('ok', '前の状態に戻しました'); return }
+    // 完了のお知らせを誤って送ってしまった場合のフォロー。
+    // 送信済みのLINEは取り消せないので、お詫びと再連絡の予告を追いかけて送る。
+    try {
+      const res = await fetch('/api/notify-repair', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repairId: item.id, kind: 'correction' }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok || !j.ok) {
+        showToast('err', `お直し中に戻しました・お詫びの送信に失敗: ${j.error ?? '不明'}`)
+      } else if (j.skipped) {
+        showToast('ok', 'お直し中に戻しました（LINE・SMSが使えないため、お電話でお詫びをお願いします）')
+      } else {
+        showToast('ok', 'お直し中に戻し、お詫びのご連絡を送りました 📩')
+      }
+    } catch {
+      showToast('err', 'お直し中に戻しました・お詫びの送信に失敗しました')
+    }
   }, [showToast, fetchAll])
 
   const handleDeleteWaiting = useCallback(async (item: DeliveryItem) => {

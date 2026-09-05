@@ -51,7 +51,8 @@ export function fitToOneSegment(required: string[], optional: string[]): string 
 }
 
 export interface RepairSmsParts {
-  kind:          'received' | 'completed'
+  /** correction = 完了通知を誤送信した後の訂正・お詫び */
+  kind:          'received' | 'completed' | 'correction'
   storeName?:    string | null
   customerName?: string | null
   /** 品名・種目（例: バドミントン / スラックス裾上げ） */
@@ -81,6 +82,14 @@ export function buildRepairSms(p: RepairSmsParts): string {
         p.desiredDate ? `仕上がり予定 ${p.desiredDate}` : '',
         '仕上がり次第ご連絡します。',
       ],
+    )
+  }
+  if (p.kind === 'correction') {
+    // 送信済みの通知は取り消せないので、訂正を追いかけて送る。
+    // 「誤りだった」「まだ作業中」「改めて連絡する」の3点は落とさない。
+    return fitToOneSegment(
+      [`${store}先ほどの完了のお知らせは誤りです。`, `${name}様${no}`],
+      ['申し訳ありません。仕上がり次第ご連絡します。'],
     )
   }
   return fitToOneSegment(
