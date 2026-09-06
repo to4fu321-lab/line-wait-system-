@@ -3,7 +3,7 @@
 import React from 'react'
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { Bell, BellOff, Store, Clock, Loader2, Check, GraduationCap, Users, ChevronRight, ChevronDown, Scissors, CalendarDays, Monitor, HelpCircle, BookOpen, Wand2 } from 'lucide-react'
+import { Bell, BellOff, Store, Clock, Loader2, Check, GraduationCap, Users, ChevronRight, ChevronDown, Scissors, CalendarDays, Monitor, HelpCircle, BookOpen, Wand2, CreditCard } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { BottomNav } from '../../_components/BottomNav'
@@ -404,6 +404,19 @@ export default function StaffSettingsPage() {
             <ChevronRight size={20} className="text-violet-400 shrink-0" />
           </Link>
 
+          {/* 💳 契約プラン・ご利用状況 */}
+          <Link href={`/${storeId}/admin/billing`}
+            className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-indigo-200 hover:border-indigo-400 active:scale-[0.98] transition-all shadow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center shrink-0">
+              <CreditCard size={28} className="text-indigo-600" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-black text-lg text-indigo-700">契約プラン・ご利用状況</p>
+              <p className="text-sm text-gray-500 mt-0.5">現在のプランと利用状況を確認</p>
+            </div>
+            <ChevronRight size={20} className="text-indigo-400 shrink-0" />
+          </Link>
+
           {/* 🎁 友だち登録POP */}
           <Link href={`/${storeId}/admin/settings/pop`}
             className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-green-200 hover:border-green-400 active:scale-[0.98] transition-all shadow-sm">
@@ -688,6 +701,18 @@ export default function StaffSettingsPage() {
 
         {/* 🏪 店舗・アカウント */}
         <Section emoji="🏪" title="店舗・アカウント" open={openSections.has('store')} onToggle={() => toggleSection('store')}>
+          <Link href={`/${storeId}/admin/billing`}
+            className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 active:scale-[0.98] transition-all">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center shrink-0">
+              <CreditCard size={26} className="text-indigo-600" />
+            </div>
+            <div className="text-left flex-1">
+              <p className="font-black text-lg text-indigo-700">契約プラン・ご利用状況</p>
+              <p className="text-indigo-500 text-sm mt-0.5">現在のプランと利用状況を確認</p>
+            </div>
+            <ChevronRight size={18} className="text-indigo-400 shrink-0" />
+          </Link>
+
           <Link href={`/${storeId}/admin/settings/pop`}
             className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-green-200 bg-green-50 hover:bg-green-100 active:scale-[0.98] transition-all">
             <div className="w-14 h-14 rounded-2xl bg-green-100 flex items-center justify-center shrink-0 text-2xl">
