@@ -8,6 +8,14 @@ import {
   getIssueComments, postIssueComment, dispatchAutofixWorkflow, checkGithubAuth,
   type GithubPr, type GithubComment,
 } from '@/lib/githubApi'
+import { webpush, setupWebPush } from '@/lib/webPushSetup'
+
+// 秘密鍵はコードに埋め込まない（必ず env で設定する。漏洩時はローテーション）
+const vapidReady = setupWebPush(
+  'mailto:to4fu321@gmail.com',
+  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '',
+  process.env.VAPID_PRIVATE_KEY || '',
+)
 
 interface FeedbackRow {
   id: string
@@ -79,8 +87,9 @@ export async function PATCH(req: Request) {
   const denied = assertSuperAdmin(req)
   if (denied) return denied
   try {
-    const { id, status, approve, mergePr: shouldMergePr, prNumber, comment, promote } = await req.json() as {
+    const { id, status, approve, mergePr: shouldMergePr, prNumber, comment, promote, notifyFix } = await req.json() as {
       id?: string; status?: string; approve?: boolean; mergePr?: boolean; prNumber?: number; comment?: string; promote?: boolean
+      notifyFix?: { target?: 'store' | 'all'; message?: string }
     }
     if (!id) return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
 
@@ -90,6 +99,7 @@ export async function PATCH(req: Request) {
     if (shouldMergePr) return await mergeFeedbackPr(prNumber)
     if (comment) return await postCommentAndRerun(supabase, id, comment)
     if (promote) return await promoteFeedbackToMain(supabase, id)
+    if (notifyFix) return await notifyFeedbackFix(supabase, id, notifyFix)
 
     if (!status) return NextResponse.json({ error: 'status が必要です' }, { status: 400 })
     if (!['new', 'triaged', 'done', 'wontfix'].includes(status)) {
@@ -232,4 +242,74 @@ async function postCommentAndRerun(
   }
 
   return NextResponse.json({ ok: true })
+}
+
+// 修正完了のお知らせ: 運用者が任意のタイミングで、フィードバックを送ってきた店舗
+// （target: 'store'）または全店舗（target: 'all'）へ「直った」ことを知らせる。
+// feedback_notices に保存（店舗の管理画面はここを見て表示）した上で、
+// 該当店舗の管理者にブラウザ通知（Webプッシュ）も送る。
+async function notifyFeedbackFix(
+  supabase: ReturnType<typeof createAdminClient>,
+  id: string,
+  notifyFix: { target?: 'store' | 'all'; message?: string },
+): Promise<NextResponse> {
+  const message = (notifyFix.message ?? '').trim()
+  if (!message) return NextResponse.json({ error: 'メッセージが空です' }, { status: 400 })
+
+  const { data, error } = await supabase
+    .from('feedback')
+    .select('store_id')
+    .eq('id', id)
+    .single()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  const feedbackStoreId = (data as { store_id: string | null } | null)?.store_id ?? null
+  const target = notifyFix.target === 'all' ? 'all' : 'store'
+  if (target === 'store' && !feedbackStoreId) {
+    return NextResponse.json({ error: 'このフィードバックには投稿元の店舗が記録されていないため、店舗宛には送れません' }, { status: 400 })
+  }
+  const noticeStoreId = target === 'all' ? null : feedbackStoreId
+
+  const { error: insertError } = await supabase.from('feedback_notices').insert({
+    feedback_id: id,
+    store_id: noticeStoreId,
+    message,
+  })
+  if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 })
+
+  await pushFixNoticeToAdmins(supabase, noticeStoreId, message)
+
+  return NextResponse.json({ ok: true })
+}
+
+// 対象店舗（noticeStoreId が null なら全店舗）の管理者宛にWebプッシュを送る。
+// プッシュ未購読の店舗には届かないが、feedback_notices の保存自体は成立しているため
+// 管理画面を開けば後からでも表示される（プッシュはあくまで即時通知の補助）。
+async function pushFixNoticeToAdmins(
+  supabase: ReturnType<typeof createAdminClient>,
+  noticeStoreId: string | null,
+  message: string,
+): Promise<void> {
+  if (!vapidReady) return
+  let query = (supabase.from('push_subscriptions') as any)
+    .select('endpoint, p256dh, auth, store_id').eq('kind', 'admin')
+  if (noticeStoreId) query = query.eq('store_id', noticeStoreId)
+  const { data: subs } = await query
+  if (!subs?.length) return
+
+  const results = await Promise.allSettled(
+    (subs as any[]).map(s => webpush.sendNotification(
+      { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+      JSON.stringify({ title: '修正完了のお知らせ', body: message, url: `/${s.store_id}/admin` }),
+    ))
+  )
+
+  const expired = (subs as any[]).filter((_, i) => {
+    const r = results[i]
+    return r.status === 'rejected' && [410, 404].includes((r as any).reason?.statusCode)
+  })
+  if (expired.length) {
+    await Promise.all(expired.map(s =>
+      (supabase.from('push_subscriptions') as any).delete().eq('endpoint', s.endpoint)))
+  }
 }

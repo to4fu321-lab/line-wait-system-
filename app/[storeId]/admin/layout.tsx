@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { DeviceModeProvider } from './_components/DeviceModeProvider'
 import { SideNav } from './_components/SideNav'
 import { OrderReminderBanner } from './_components/OrderReminderBanner'
+import { FixNoticeBanner } from './_components/FixNoticeBanner'
 import { FeedbackButton } from './_components/FeedbackButton'
 import OfflineBanner from '@/app/_components/OfflineBanner'
 import { useDeviceMode } from '@/lib/useDeviceMode'
@@ -36,6 +37,7 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
       <div className="flex h-[100dvh] bg-gray-50">
         <OfflineBanner />
         <OrderReminderBanner />
+        <FixNoticeBanner />
         <SideNav />
         <main className="flex-1 min-w-0 overflow-y-auto">
           {children}
@@ -50,6 +52,7 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
     <>
       <OfflineBanner />
       <OrderReminderBanner />
+      <FixNoticeBanner />
       {children}
       <FeedbackButton />
     </>
