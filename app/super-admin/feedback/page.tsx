@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Loader2, RefreshCw, MessageSquare, ExternalLink, Sparkles, CheckCircle2, GitPullRequest, Rocket, Send, Bot, User } from 'lucide-react'
+import { Loader2, RefreshCw, MessageSquare, ExternalLink, Sparkles, CheckCircle2, GitPullRequest, Rocket, Send, Bot, User, Megaphone } from 'lucide-react'
 import { PinScreen, verifySuperAdminPin } from '@/app/_components/PinScreen'
 
 interface FeedbackPr {
@@ -75,6 +75,11 @@ export default function FeedbackAdminPage() {
   const [replyText, setReplyText] = useState<Record<string, string>>({})
   const [sendingReply, setSendingReply] = useState<string | null>(null)
   const [githubError, setGithubError] = useState<string | null>(null)
+  const [notifyOpenId, setNotifyOpenId] = useState<string | null>(null)
+  const [notifyTarget, setNotifyTarget] = useState<Record<string, 'store' | 'all'>>({})
+  const [notifyMessage, setNotifyMessage] = useState<Record<string, string>>({})
+  const [notifying, setNotifying] = useState<string | null>(null)
+  const [notifiedIds, setNotifiedIds] = useState<Set<string>>(new Set())
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -165,6 +170,34 @@ export default function FeedbackAdminPage() {
       alert(json.error ?? '送信に失敗しました')
     }
     setSendingReply(null)
+  }
+
+  const defaultNotifyMessage = (f: Feedback) =>
+    `ご報告いただいた「${f.body.split('\n')[0].slice(0, 40)}」の修正が完了しました。ご協力ありがとうございました。`
+
+  const openNotify = (f: Feedback) => {
+    setNotifyOpenId(id => id === f.id ? null : f.id)
+    setNotifyTarget(t => ({ ...t, [f.id]: t[f.id] ?? (f.store_id ? 'store' : 'all') }))
+    setNotifyMessage(m => ({ ...m, [f.id]: m[f.id] ?? defaultNotifyMessage(f) }))
+  }
+
+  const sendFixNotice = async (f: Feedback) => {
+    const message = (notifyMessage[f.id] ?? '').trim()
+    if (!message) return
+    const target = notifyTarget[f.id] ?? (f.store_id ? 'store' : 'all')
+    setNotifying(f.id)
+    const res = await fetch('/api/super-admin/feedback', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: f.id, notifyFix: { target, message } }),
+    })
+    if (res.ok) {
+      setNotifiedIds(s => new Set(s).add(f.id))
+      setNotifyOpenId(null)
+    } else {
+      const json = await res.json().catch(() => ({}))
+      alert(json.error ?? '通知の送信に失敗しました')
+    }
+    setNotifying(null)
   }
 
   if (!checked) {
@@ -385,6 +418,59 @@ export default function FeedbackAdminPage() {
                       }`}>{s.label}</button>
                   ))}
                 </div>
+
+                {f.status === 'done' && (
+                  <div className="pt-1">
+                    {notifiedIds.has(f.id) ? (
+                      <p className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-400">
+                        <CheckCircle2 size={12} /> 修正完了のお知らせを送信しました
+                      </p>
+                    ) : (
+                      <button onClick={() => openNotify(f)}
+                        className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-gray-900 border border-gray-700 hover:border-indigo-500 text-gray-300 hover:text-white flex items-center gap-1.5">
+                        <Megaphone size={12} /> 修正完了をお知らせ
+                      </button>
+                    )}
+
+                    {notifyOpenId === f.id && !notifiedIds.has(f.id) && (
+                      <div className="mt-2 bg-gray-900/60 border border-white/10 rounded-xl p-3 space-y-2">
+                        <div className="flex gap-1.5">
+                          <button onClick={() => setNotifyTarget(t => ({ ...t, [f.id]: 'store' }))}
+                            disabled={!f.store_id}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border disabled:opacity-30 ${
+                              (notifyTarget[f.id] ?? (f.store_id ? 'store' : 'all')) === 'store'
+                                ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-gray-900 text-gray-400 border-gray-700'
+                            }`}>
+                            この店舗のみ{f.store_name ? `（${f.store_name}）` : ''}
+                          </button>
+                          <button onClick={() => setNotifyTarget(t => ({ ...t, [f.id]: 'all' }))}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border ${
+                              (notifyTarget[f.id] ?? (f.store_id ? 'store' : 'all')) === 'all'
+                                ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-gray-900 text-gray-400 border-gray-700'
+                            }`}>
+                            全店舗
+                          </button>
+                        </div>
+                        <textarea
+                          value={notifyMessage[f.id] ?? ''}
+                          onChange={e => setNotifyMessage(m => ({ ...m, [f.id]: e.target.value }))}
+                          rows={3}
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-gray-600 resize-none focus:border-indigo-500 focus:outline-none" />
+                        <div className="flex justify-end gap-1.5">
+                          <button onClick={() => setNotifyOpenId(null)}
+                            className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-gray-400 hover:text-gray-200">
+                            キャンセル
+                          </button>
+                          <button onClick={() => sendFixNotice(f)} disabled={notifying === f.id || !(notifyMessage[f.id] ?? '').trim()}
+                            className="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40 flex items-center gap-1.5">
+                            {notifying === f.id ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                            送信
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })
