@@ -44,6 +44,8 @@ export interface RepairRow {
   input_details?: { label: string; value: string }[]
   received_by?: string | null
   strung_by?:   string | null
+  /** クイック受付（最小入力の受付モーダル）経由で登録されたか。一覧バッジの表示切り替え用 */
+  quick_receipt?: boolean | null
   /** FK埋め込みで引く担当スタッフ名 */
   received_by_staff?: { name: string } | null
   strung_by_staff?:   { name: string } | null

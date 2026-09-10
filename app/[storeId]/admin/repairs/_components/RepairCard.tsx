@@ -432,8 +432,10 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
           {/* バッジ + 受付番号 */}
           <div className="flex items-center justify-between gap-2">
             <div className={tx('text-xs', 'text-sm') + ' flex items-center gap-1.5 flex-wrap'}>
-              <span className={`font-black px-2.5 py-1 rounded-lg ${REQUEST_TYPE_COLORS[reqType]}`}>
-                {REQUEST_TYPE_LABELS[reqType]}
+              <span className={`font-black px-2.5 py-1 rounded-lg ${
+                item.quick_receipt ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : REQUEST_TYPE_COLORS[reqType]
+              }`}>
+                {item.quick_receipt ? 'クイック受付' : REQUEST_TYPE_LABELS[reqType]}
               </span>
               {item.sent_to_vendor_at ? (
                 <span className="font-black text-orange-600">🏭 業者さんに依頼中{detailOpen && item.vendor_name ? `（${item.vendor_name}）` : ''}</span>
@@ -493,14 +495,17 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             </div>
           )}
 
-          {/* 担当スタッフ（受付・作業） */}
-          {detailOpen && (item.received_by_staff?.name || item.strung_by_staff?.name) && (
+          {/* 担当スタッフ（受付・作業）＋伝票番号 */}
+          {detailOpen && (item.received_by_staff?.name || item.strung_by_staff?.name || item.slip_number) && (
             <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-xs">
               {item.received_by_staff?.name && (
                 <span className="text-gray-500">受付 <span className="font-black text-gray-800">{item.received_by_staff.name}</span></span>
               )}
               {item.strung_by_staff?.name && (
                 <span className="text-gray-500">作業・連絡 <span className="font-black text-gray-800">{item.strung_by_staff.name}</span></span>
+              )}
+              {item.slip_number && (
+                <span className="text-gray-500">伝票 <span className="font-black text-gray-800">{item.slip_number}</span></span>
               )}
             </div>
           )}
@@ -852,8 +857,10 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
         <div className="flex-1 min-w-0">
           {/* Row 1: badges + deadline */}
           <div className={tx('text-[9px]', 'text-xs') + ' flex items-center gap-1 mb-0.5 flex-wrap'}>
-            <span className={`px-1.5 py-0 rounded-full border font-bold leading-5 ${REQUEST_TYPE_COLORS[reqType]}`}>
-              {REQUEST_TYPE_LABELS[reqType]}
+            <span className={`px-1.5 py-0 rounded-full border font-bold leading-5 ${
+              item.quick_receipt ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : REQUEST_TYPE_COLORS[reqType]
+            }`}>
+              {item.quick_receipt ? 'クイック受付' : REQUEST_TYPE_LABELS[reqType]}
             </span>
             {item.repair_type && (
               <span className={`px-1.5 py-0 rounded-full border font-bold leading-5 ${REPAIR_TYPE_COLORS[item.repair_type]}`}>
@@ -954,14 +961,17 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
               <p className="text-sm text-gray-700 whitespace-pre-wrap">{item.content}</p>
             ) : null}
 
-            {/* 誰が受けて、誰が仕上げたか */}
-            {(item.received_by_staff?.name || item.strung_by_staff?.name) && (
+            {/* 誰が受けて、誰が仕上げたか＋伝票番号 */}
+            {(item.received_by_staff?.name || item.strung_by_staff?.name || item.slip_number) && (
               <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-xs pt-1.5 border-t border-gray-200/70">
                 {item.received_by_staff?.name && (
                   <span className="text-gray-500">受付 <span className="font-black text-gray-800">{item.received_by_staff.name}</span></span>
                 )}
                 {item.strung_by_staff?.name && (
                   <span className="text-gray-500">作業・完了 <span className="font-black text-gray-800">{item.strung_by_staff.name}</span></span>
+                )}
+                {item.slip_number && (
+                  <span className="text-gray-500">伝票 <span className="font-black text-gray-800">{item.slip_number}</span></span>
                 )}
               </div>
             )}
