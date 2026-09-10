@@ -144,6 +144,7 @@ export function QuickReceiveModal({ storeId, storeName = '', onClose, onSaved, o
       content,
       status:       'received',
       request_type: 'repair',
+      quick_receipt: true,
       received_date: new Date().toISOString().slice(0, 10),
       slip_number:  slipNo.trim(),
       garment_type_id: garment.id,
@@ -344,8 +345,8 @@ export function QuickReceiveModal({ storeId, storeName = '', onClose, onSaved, o
 
               <div className="space-y-2">
                 <p className="text-base font-black text-gray-800">④ 伝票番号・{labels.unit_count}数<span className="text-red-500">*</span></p>
-                <input className={INPUT} placeholder="伝票番号（紙の No. をそのまま）"
-                  inputMode="numeric" value={slipNo} onChange={e => setSlipNo(e.target.value)} autoFocus />
+                <input className={INPUT} placeholder="伝票番号（紙の No. をそのまま／伝票が無ければ「口頭受付」等でも可）"
+                  value={slipNo} onChange={e => setSlipNo(e.target.value)} autoFocus />
                 <div className="flex items-center gap-2 bg-gray-50 rounded-xl p-2">
                   <button type="button" onClick={() => setQty(Math.max(1, qty - 1))}
                     className="w-11 h-11 rounded-lg bg-white border font-black text-lg">−</button>
@@ -356,7 +357,7 @@ export function QuickReceiveModal({ storeId, storeName = '', onClose, onSaved, o
                     className="w-11 h-11 rounded-lg bg-white border font-black text-lg">＋</button>
                 </div>
                 <p className="text-[11px] text-gray-400">
-                  紙の受付表はこれまでどおりお使いください。ここは連絡用の控えです。伝票番号は紙と突き合わせるため必須です。
+                  紙の受付表はこれまでどおりお使いください。ここは連絡用の控えです。伝票を発行しない場合も、後で見分けが付くよう何か記載してください。
                 </p>
               </div>
             </div>
