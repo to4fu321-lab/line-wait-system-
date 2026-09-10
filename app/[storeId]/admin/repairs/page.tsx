@@ -1331,6 +1331,7 @@ export default function RepairsPage() {
       {showQuickReceive && (
         <QuickReceiveModal
           storeId={storeId}
+          storeName={storeName}
           onClose={() => setShowQuickReceive(false)}
           onSaved={fetchAll}
           onToast={showToast}
