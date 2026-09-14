@@ -48,7 +48,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           model: claude-sonnet-5
-          claude_args: "--allowed-tools Bash,Edit,Write,Read,Grep,Glob --max-turns 80"
+          claude_args: "--allowed-tools Bash,Edit,Write,Read,Grep,Glob --max-turns 20"
           show_full_output: true
           prompt: |
             あなたはこのリポジトリ（Next.js 14 / Supabase / Tailwind）の保守担当です。
