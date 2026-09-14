@@ -1,4 +1,4 @@
-const CACHE = 'takaya-v4'
+const CACHE = 'takaya-v5'
 const OFFLINE_URLS = ['/manifest.json', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png']
 
 // インストール時に静的アセットをキャッシュ
