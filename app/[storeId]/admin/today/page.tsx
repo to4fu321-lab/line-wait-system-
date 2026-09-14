@@ -62,7 +62,6 @@ export default function TodayPage() {
 
       {/* ヘッダ */}
       <header className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-5 pt-6 pb-5 sticky top-0 z-20">
-        <p className="text-white/70 text-xs font-bold">{storeName}</p>
         <h1 className="text-2xl font-black mt-0.5">今日やること</h1>
         <p className="text-white/90 text-sm font-bold mt-1">
           {loading ? '読み込み中…' : remaining === 0 ? 'すべて完了しています 🎉' : <>残り <span className="text-3xl font-black">{remaining}</span> 件</>}

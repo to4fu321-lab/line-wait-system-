@@ -474,7 +474,6 @@ export default function DeliveryPage() {
   const router      = useRouter()
 
   const [tab,          setTab]          = useState<TabType>('waiting')
-  const [storeName,    setStoreName]    = useState('')
   const [alertDays,    setAlertDays]    = useState(7)
   const [waiting,      setWaiting]      = useState<DeliveryItem[]>([])
   const [history,      setHistory]      = useState<DeliveryItem[]>([])
@@ -492,11 +491,10 @@ export default function DeliveryPage() {
 
   useEffect(() => {
     if (!storeId) return
-    ;(supabase as any).from('stores').select('name, alert_days_repair, alert_days_purchase')
+    ;(supabase as any).from('stores').select('alert_days_repair, alert_days_purchase')
       .eq('id', storeId).single()
-      .then(({ data }: { data: { name: string; alert_days_repair: number; alert_days_purchase: number } | null }) => {
+      .then(({ data }: { data: { alert_days_repair: number; alert_days_purchase: number } | null }) => {
         if (data) {
-          setStoreName(data.name ?? '')
           const days = Math.max(data.alert_days_repair ?? 7, data.alert_days_purchase ?? 7)
           setAlertDays(days)
         }
@@ -687,7 +685,6 @@ export default function DeliveryPage() {
           </button>
           <div className="flex-1">
             <h1 className="font-black text-gray-900 text-base">お渡し管理</h1>
-            {storeName && <p className="text-gray-500 text-xs">{storeName}</p>}
           </div>
           <button onClick={() => { fetchWaiting(); if (tab === 'history') setHistFetched(false) }}
             className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 active:scale-90 transition-all">

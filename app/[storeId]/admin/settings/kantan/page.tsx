@@ -18,7 +18,6 @@ export default function KantanSettingsPage() {
   const { storeId } = useParams<{ storeId: string }>()
   const router = useRouter()
 
-  const [storeName, setStoreName] = useState('')
   const [linkCode, setLinkCode] = useState<string | null>(null)
   const [staff, setStaff] = useState<StaffAccount[]>([])
   const [loading, setLoading] = useState(true)
@@ -33,10 +32,9 @@ export default function KantanSettingsPage() {
   const load = useCallback(async () => {
     if (!storeId) return
     const [{ data: store }, { data: accounts }] = await Promise.all([
-      (supabase as any).from('stores').select('name, staff_link_code').eq('id', storeId).single(),
+      (supabase as any).from('stores').select('staff_link_code').eq('id', storeId).single(),
       (supabase as any).from('staff_line_accounts').select('*').eq('store_id', storeId).order('created_at'),
     ])
-    setStoreName(store?.name ?? '')
     setLinkCode(store?.staff_link_code ?? null)
     setStaff((accounts ?? []) as StaffAccount[])
     setLoading(false)
@@ -84,7 +82,6 @@ export default function KantanSettingsPage() {
           className="text-gray-400 font-black text-xl active:scale-90 transition-all">←</button>
         <div>
           <h1 className="font-black text-gray-900">🍀 かんたんLINEモード</h1>
-          <p className="text-xs text-gray-400 font-bold">{storeName}</p>
         </div>
       </div>
 

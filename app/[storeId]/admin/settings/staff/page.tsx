@@ -141,7 +141,6 @@ export default function StaffSettingsPage() {
   const { setMode } = useDeviceMode()
   const { settings: uiSettings, save: saveUiSettings } = useUiSettings(storeId)
 
-  const [storeName,     setStoreName]     = useState('')
   const [loading,       setLoading]       = useState(true)
   const [allowRemote,   setAllowRemote]   = useState(false)
   const [isTestMode,    setIsTestMode]    = useState(false)
@@ -177,10 +176,9 @@ export default function StaffSettingsPage() {
     if (!storeId) return
     const { data } = await (supabase as any)
       .from('stores')
-      .select('name, allow_remote, is_test_mode, business_hours, setup')
+      .select('allow_remote, is_test_mode, business_hours, setup')
       .eq('id', storeId).single()
     if (data) {
-      setStoreName(data.name ?? '')
       setSetupDone(!!(data.setup as { done_at?: string } | null)?.done_at)
       if (data.allow_remote != null) setAllowRemote(data.allow_remote)
       if (data.is_test_mode != null) setIsTestMode(data.is_test_mode)
@@ -258,7 +256,6 @@ export default function StaffSettingsPage() {
         <div className="sticky top-0 z-40 bg-gray-50/90 backdrop-blur border-b border-gray-100">
           <div className="max-w-lg mx-auto px-4 py-4">
             <h1 className="text-xl font-black text-gray-900">設定</h1>
-            {storeName && <p className="text-sm text-gray-500 mt-0.5">{storeName}</p>}
           </div>
         </div>
 
@@ -529,7 +526,6 @@ export default function StaffSettingsPage() {
       <div className="sticky top-0 z-40 bg-gray-50/90 backdrop-blur border-b border-gray-100">
         <div className="max-w-lg mx-auto px-4 py-4">
           <h1 className="text-xl font-black text-gray-900">設定</h1>
-          {storeName && <p className="text-sm text-gray-500 mt-0.5">{storeName}</p>}
         </div>
       </div>
 

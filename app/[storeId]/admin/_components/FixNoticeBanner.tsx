@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Bell, X, Check, Loader2, MessageSquareWarning } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 
 interface FixNotice {
   id: string
@@ -41,14 +40,13 @@ export function FixNoticeBanner({ variant = 'floating' }: { variant?: 'floating'
     let cancelled = false
 
     const load = async () => {
-      const { data } = await (supabase as any)
-        .from('feedback_notices')
-        .select('id, feedback_id, message, created_at, store_id, acknowledged_at')
-        .or(`store_id.eq.${storeId},store_id.is.null`)
-        .is('acknowledged_at', null)
-        .order('created_at', { ascending: false })
-        .limit(30)
-      if (!cancelled) setNotices((data ?? []) as FixNotice[])
+      try {
+        const res = await fetch(`/api/feedback?storeId=${encodeURIComponent(storeId)}`)
+        const json = await res.json().catch(() => ({}))
+        if (!cancelled && res.ok && json.ok) setNotices((json.notices ?? []) as FixNotice[])
+      } catch {
+        /* ポーリング再試行で回復 */
+      }
     }
 
     load()
@@ -58,12 +56,15 @@ export function FixNoticeBanner({ variant = 'floating' }: { variant?: 'floating'
 
   const ack = async (id: string) => {
     setAcking(id)
-    const { error } = await (supabase as any)
-      .from('feedback_notices')
-      .update({ acknowledged_at: new Date().toISOString() })
-      .eq('id', id)
-    if (!error) setNotices(prev => prev.filter(n => n.id !== id))
-    setAcking(null)
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      if (res.ok) setNotices(prev => prev.filter(n => n.id !== id))
+    } finally {
+      setAcking(null)
+    }
   }
 
   const sendReply = async (notice: FixNotice) => {

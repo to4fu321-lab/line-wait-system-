@@ -49,7 +49,6 @@ export default function CRMPage() {
   const { hasFeature } = useStoreFeatures(storeId)
   const defaultIntakeType = (searchParams?.get('type') ?? 'repair') as IntakeFormType
 
-  const [storeName,        setStoreName]        = useState('')
   const [customers,        setCustomers]        = useState<Customer[]>([])
   const [searchQuery,      setSearchQuery]      = useState('')
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
@@ -234,7 +233,6 @@ export default function CRMPage() {
       .select('name, group_id, alert_days_repair, alert_days_purchase, school_names, reservation_url')
       .eq('id', storeId).single()
       .then(async ({ data }: { data: any }) => {
-        if (data?.name) setStoreName(data.name ?? '')
         if (data?.alert_days_repair   != null) setAlertDaysRepair(data.alert_days_repair)
         if (data?.alert_days_purchase != null) setAlertDaysPurchase(data.alert_days_purchase)
         if (Array.isArray(data?.school_names) && data.school_names.length > 0)
@@ -750,7 +748,6 @@ export default function CRMPage() {
             <h1 className="font-black text-gray-900 text-base flex items-center gap-2">
               顧客管理（CRM）
             </h1>
-            {storeName && <p className="text-gray-500 text-xs">{storeName}</p>}
           </div>
           <div className="flex items-center gap-2">
             <a href={`/${storeId}/admin/orders`}

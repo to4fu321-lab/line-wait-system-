@@ -268,7 +268,6 @@ export default function ReservationsPage() {
   const router      = useRouter()
   const { hasFeature, loaded: featLoaded } = useStoreFeatures(storeId)
 
-  const [storeName,    setStoreName]    = useState('')
   const [selectedDate, setSelectedDate] = useState(todayJst())
   const [timeline,     setTimeline]     = useState<TimelineItem[]>([])
   const [loading,      setLoading]      = useState(true)
@@ -281,12 +280,6 @@ export default function ReservationsPage() {
   const showToast = useCallback((type: 'ok' | 'err', msg: string, onUndo?: () => Promise<void>) => {
     setToast({ type, msg, onUndo })
   }, [])
-
-  useEffect(() => {
-    if (!storeId) return
-    (supabase as any).from('stores').select('name').eq('id', storeId).single()
-      .then(({ data }: { data: any }) => { if (data) setStoreName(data.name ?? '') })
-  }, [storeId])
 
   const fetchTimeline = useCallback(async () => {
     if (!storeId) return
@@ -368,7 +361,6 @@ export default function ReservationsPage() {
           </button>
           <div className="flex-1">
             <h1 className="font-black text-gray-900 text-base">予約管理</h1>
-            {storeName && <p className="text-gray-500 text-xs">{storeName}</p>}
           </div>
           <button onClick={() => setShowForm(v => !v)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 ${

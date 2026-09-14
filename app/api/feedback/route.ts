@@ -121,3 +121,49 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: msg }, { status: 500 })
   }
 }
+
+// 完了お知らせ(feedback_notices)のうち店舗が未確認のものを返す。
+// 店舗側(anon)から直接Supabaseを叩く実装だとブラウザによって不安定だったため、
+// サーバー側(admin client)で確実に取得してから返す。
+export async function GET(req: Request) {
+  try {
+    const storeId = new URL(req.url).searchParams.get('storeId')
+    const isUuid = !!storeId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(storeId)
+    if (!isUuid) return NextResponse.json({ ok: false, error: 'storeId が必要です' }, { status: 400 })
+
+    const supabase = createAdminClient({ noStore: true })
+    const { data, error } = await supabase
+      .from('feedback_notices')
+      .select('id, feedback_id, message, created_at')
+      .or(`store_id.eq.${storeId},store_id.is.null`)
+      .is('acknowledged_at', null)
+      .order('created_at', { ascending: false })
+      .limit(30)
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
+
+    return NextResponse.json({ ok: true, notices: data ?? [] })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 })
+  }
+}
+
+// 店舗側が「完了」を押した通知に既読日時を記録する。
+export async function PATCH(req: Request) {
+  try {
+    const { id } = await req.json() as { id?: string }
+    if (!id) return NextResponse.json({ ok: false, error: 'id が必要です' }, { status: 400 })
+
+    const supabase = createAdminClient({ noStore: true })
+    const { error } = await supabase
+      .from('feedback_notices')
+      .update({ acknowledged_at: new Date().toISOString() })
+      .eq('id', id)
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
+
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 })
+  }
+}
