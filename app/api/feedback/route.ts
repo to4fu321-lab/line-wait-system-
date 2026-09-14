@@ -116,3 +116,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: msg }, { status: 500 })
   }
 }
+
+// 修正完了のお知らせ(feedback_notices)を店舗の管理画面から読むための一覧取得。
+// 自店舗宛(store_id=storeId)と全店舗宛(store_id=null)の両方を返す。
+// 「確認済み」はサーバー側では管理しない（全店舗向けの行を消すと他店からも消えてしまうため）。
+// 既読管理は呼び出し側(店舗の端末のlocalStorage)に任せる想定。
+export async function GET(req: Request) {
+  try {
+    const storeId = new URL(req.url).searchParams.get('storeId')
+    const isUuid = !!storeId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(storeId)
+    if (!isUuid) return NextResponse.json({ ok: false, error: 'storeId が必要です' }, { status: 400 })
+
+    const supabase = createAdminClient({ noStore: true })
+    const { data, error } = await supabase
+      .from('feedback_notices')
+      .select('id, message, created_at')
+      .or(`store_id.eq.${storeId},store_id.is.null`)
+      .order('created_at', { ascending: false })
+      .limit(30)
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
+
+    return NextResponse.json({ ok: true, notices: data ?? [] })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 })
+  }
+}
