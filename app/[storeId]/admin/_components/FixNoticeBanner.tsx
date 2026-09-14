@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams } from 'next/navigation'
 import { Bell, X, Check, Loader2, MessageSquareWarning } from 'lucide-react'
 
@@ -34,6 +35,9 @@ export function FixNoticeBanner({ variant = 'floating' }: { variant?: 'floating'
   const [replyText, setReplyText]     = useState('')
   const [sendingReply, setSendingReply] = useState(false)
   const [sentReplyIds, setSentReplyIds] = useState<Set<string>>(new Set())
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
     if (!storeId) return
@@ -105,7 +109,7 @@ export function FixNoticeBanner({ variant = 'floating' }: { variant?: 'floating'
         <span className="text-xs font-black">{notices.length}</span>
       </button>
 
-      {open && (
+      {open && mounted && createPortal(
         <div className="fixed inset-0 z-[200] bg-black/50 flex items-end sm:items-center justify-center"
           onClick={() => setOpen(false)}>
           <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl max-h-[85dvh] flex flex-col"
@@ -160,7 +164,8 @@ export function FixNoticeBanner({ variant = 'floating' }: { variant?: 'floating'
               ))}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )
