@@ -209,6 +209,9 @@ export interface SelectedOptionSnapshot {
   group_label: string | null
   price_delta: number
   price_unit:  PriceUnit
+  // 外注依頼書に刷る仕様・注意点。受付時点のマスタ内容を凍結する
+  // （画像は依頼書に印刷しないので持たない。旧データには無いので optional）
+  manual?:     Pick<RepairManual, 'title' | 'body' | 'severity'> | null
 }
 
 // ── トランザクション：実績写真 ────────────────────────────────
