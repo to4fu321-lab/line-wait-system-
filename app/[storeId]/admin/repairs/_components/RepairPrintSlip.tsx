@@ -1,6 +1,7 @@
 'use client'
 
 import { Printer, X } from 'lucide-react'
+import type { SelectedOptionSnapshot } from '@/types/repair'
 import { fmtDate } from './utils'
 
 // 外注業者へそのまま渡せる依頼書。上代・金額は一切含めない。
@@ -22,6 +23,33 @@ export interface PrintableRepair {
   embroideryText: string | null
   embroideryColor: string | null
   embroideryPos: string | null
+  /** 受付時に選んだオプション（Vスリット仕様・パイピング仕様など）。価格は刷らない */
+  options: SelectedOptionSnapshot[]
+}
+
+// オプションの仕様と注意点。外注先はこれを見て作業するので、
+// 名前だけでなくマスタに登録された注意書き(manual)も一緒に刷る。
+function OptionLines({ options }: { options: SelectedOptionSnapshot[] }) {
+  if (options.length === 0) return null
+  return (
+    <div className="mt-2 border border-gray-300 rounded-lg px-3 py-2">
+      <p className="text-xs font-bold text-gray-400 mb-1">オプション・仕様</p>
+      <div className="space-y-1.5">
+        {options.map((o, i) => (
+          <div key={i}>
+            <p className="text-sm font-black text-gray-900">
+              ・{o.group_label ? `${o.group_label}: ` : ''}{o.name}
+            </p>
+            {o.manual?.body && (
+              <p className="ml-3 text-xs text-gray-700 whitespace-pre-wrap">
+                {o.manual.title && <span className="font-bold">【{o.manual.title}】</span>}{o.manual.body}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function DetailLines({ item }: { item: PrintableRepair }) {
@@ -61,6 +89,7 @@ function Slip({ item, storeName }: { item: PrintableRepair; storeName: string })
           <p className="text-xs font-bold text-gray-400">{item.garmentName}</p>
           <p className="text-xl font-black text-gray-900 leading-snug">{item.content || item.itemName}</p>
           <DetailLines item={item} />
+          <OptionLines options={item.options} />
         </div>
         {item.vendorName ? (
           <p className="text-sm font-bold text-orange-700">外注先: {item.vendorName}</p>

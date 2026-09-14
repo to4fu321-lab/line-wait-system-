@@ -77,6 +77,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
     embroideryText: item.embroidery_text,
     embroideryColor: item.embroidery_color,
     embroideryPos: item.embroidery_pos,
+    options: item.selected_options ?? [],
   }
 
   const { hasFeature } = useStoreFeatures(storeId)

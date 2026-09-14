@@ -83,6 +83,9 @@ export function toOptionSnapshot(o: RepairOption): SelectedOptionSnapshot {
     group_label: o.group_label,
     price_delta: o.price_delta,
     price_unit:  o.price_unit,
+    manual:      o.manual
+      ? { title: o.manual.title, body: o.manual.body, severity: o.manual.severity }
+      : null,
   }
 }
 
