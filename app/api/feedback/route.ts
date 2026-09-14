@@ -15,6 +15,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json() as {
       storeId?: string; kind?: string; body?: string; pageUrl?: string; userAgent?: string; imageUrls?: string[]
+      relatedFeedbackId?: string
     }
     const kind = ['request', 'bug', 'question'].includes(body.kind ?? '') ? body.kind! : 'request'
     const text = (body.body ?? '').trim()
@@ -23,6 +24,8 @@ export async function POST(req: Request) {
     const imageUrls = Array.isArray(body.imageUrls)
       ? body.imageUrls.filter(u => typeof u === 'string' && u.startsWith('https://')).slice(0, 4)
       : []
+    // related_feedback_id はDBの外部キー制約に任せる（不正なIDならinsertでエラーになる）
+    const relatedFeedbackId = typeof body.relatedFeedbackId === 'string' ? body.relatedFeedbackId : null
 
     const supabase = createAdminClient({ noStore: true })
 
@@ -45,6 +48,7 @@ export async function POST(req: Request) {
       page_url:   body.pageUrl ?? null,
       user_agent: body.userAgent ?? null,
       image_urls: imageUrls,
+      related_feedback_id: relatedFeedbackId,
       priority:            ai?.priority ?? null,
       ai_category:         ai?.category ?? null,
       ai_recommendation:   ai?.recommendation ?? null,
@@ -59,10 +63,11 @@ export async function POST(req: Request) {
     const repo  = process.env.GITHUB_REPO || 'to4fu321-lab/line-wait-system-'
     if (token) {
       try {
-        const title = `[${KIND_LABEL[kind] ?? kind}] ${text.split('\n')[0].slice(0, 60)}${storeName ? `（${storeName}）` : ''}`
+        const title = `${relatedFeedbackId ? '[再報告]' : ''}[${KIND_LABEL[kind] ?? kind}] ${text.split('\n')[0].slice(0, 60)}${storeName ? `（${storeName}）` : ''}`
         const issueBody = [
           `**種別**: ${KIND_LABEL[kind] ?? kind}`,
           storeName ? `**店舗**: ${storeName}` : null,
+          relatedFeedbackId ? `**再報告元 feedback id**: ${relatedFeedbackId}（対応完了のお知らせに「まだ直っていない」と回答）` : null,
           body.pageUrl ? `**画面**: \`${body.pageUrl}\`` : null,
           body.userAgent ? `**端末**: ${body.userAgent}` : null,
           `**feedback id**: ${feedbackId}`,

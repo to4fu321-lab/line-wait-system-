@@ -361,6 +361,7 @@ export type Database = {
           kind: string
           page_url: string | null
           priority: string | null
+          related_feedback_id: string | null
           status: string
           store_id: string | null
           store_name: string | null
@@ -382,6 +383,7 @@ export type Database = {
           kind?: string
           page_url?: string | null
           priority?: string | null
+          related_feedback_id?: string | null
           status?: string
           store_id?: string | null
           store_name?: string | null
@@ -403,16 +405,26 @@ export type Database = {
           kind?: string
           page_url?: string | null
           priority?: string | null
+          related_feedback_id?: string | null
           status?: string
           store_id?: string | null
           store_name?: string | null
           updated_at?: string
           user_agent?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "feedback_related_feedback_id_fkey"
+            columns: ["related_feedback_id"]
+            isOneToOne: false
+            referencedRelation: "feedback"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       feedback_notices: {
         Row: {
+          acknowledged_at: string | null
           created_at: string
           feedback_id: string | null
           id: string
@@ -420,6 +432,7 @@ export type Database = {
           store_id: string | null
         }
         Insert: {
+          acknowledged_at?: string | null
           created_at?: string
           feedback_id?: string | null
           id?: string
@@ -427,6 +440,7 @@ export type Database = {
           store_id?: string | null
         }
         Update: {
+          acknowledged_at?: string | null
           created_at?: string
           feedback_id?: string | null
           id?: string

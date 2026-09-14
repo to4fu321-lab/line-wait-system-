@@ -23,6 +23,19 @@ interface FeedbackRow {
   approved_at: string | null
 }
 
+interface NoticeRow {
+  id: string
+  feedback_id: string | null
+  acknowledged_at: string | null
+}
+
+interface FollowupRow {
+  id: string
+  issue_number: number | null
+  related_feedback_id: string | null
+  created_at: string
+}
+
 // 運用側のみ閲覧・更新可（assertSuperAdmin）。現場フィードバックの一覧/ステータス更新。
 // 承認済み（approved_at あり）の行は、ブランチ名 auto/feedback-<issue番号> でPRを検索し、
 // PR状況（未作成・レビュー中・マージ済み）を pr フィールドに載せて返す。
@@ -70,12 +83,42 @@ export async function GET(req: Request) {
       githubError = 'GITHUB_TOKEN が未設定です'
     }
 
-    const feedback = rows.map(r => ({
-      ...r,
-      pr: prByFeedbackId.get(r.id) ?? null,
-      prMain: prMainByFeedbackId.get(r.id) ?? null,
-      comments: commentsByFeedbackId.get(r.id) ?? [],
-    }))
+    // お知らせの既読状況と、「まだ直っていない」からの再報告を、元のフィードバックに紐づけて返す。
+    const ids = rows.map(r => r.id)
+    const [{ data: notices }, { data: followups }] = ids.length > 0
+      ? await Promise.all([
+          supabase.from('feedback_notices').select('id, feedback_id, acknowledged_at').in('feedback_id', ids),
+          supabase.from('feedback').select('id, issue_number, related_feedback_id, created_at').in('related_feedback_id', ids),
+        ])
+      : [{ data: [] }, { data: [] }]
+
+    const noticesByFeedbackId = new Map<string, NoticeRow[]>()
+    for (const n of (notices ?? []) as NoticeRow[]) {
+      if (!n.feedback_id) continue
+      const list = noticesByFeedbackId.get(n.feedback_id) ?? []
+      list.push(n)
+      noticesByFeedbackId.set(n.feedback_id, list)
+    }
+    const followupsByFeedbackId = new Map<string, FollowupRow[]>()
+    for (const f of (followups ?? []) as FollowupRow[]) {
+      if (!f.related_feedback_id) continue
+      const list = followupsByFeedbackId.get(f.related_feedback_id) ?? []
+      list.push(f)
+      followupsByFeedbackId.set(f.related_feedback_id, list)
+    }
+
+    const feedback = rows.map(r => {
+      const rowNotices = noticesByFeedbackId.get(r.id) ?? []
+      return {
+        ...r,
+        pr: prByFeedbackId.get(r.id) ?? null,
+        prMain: prMainByFeedbackId.get(r.id) ?? null,
+        comments: commentsByFeedbackId.get(r.id) ?? [],
+        noticeAcknowledgedAt: rowNotices.find(n => n.acknowledged_at)?.acknowledged_at ?? null,
+        noticeSentCount: rowNotices.length,
+        followups: followupsByFeedbackId.get(r.id) ?? [],
+      }
+    })
     return NextResponse.json({ feedback, githubError })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

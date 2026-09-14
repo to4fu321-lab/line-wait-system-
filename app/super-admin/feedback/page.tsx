@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Loader2, RefreshCw, MessageSquare, ExternalLink, Sparkles, CheckCircle2, GitPullRequest, Rocket, Send, Bot, User, Megaphone } from 'lucide-react'
+import { Loader2, RefreshCw, MessageSquare, ExternalLink, Sparkles, CheckCircle2, GitPullRequest, Rocket, Send, Bot, User, Megaphone, MessageSquareWarning } from 'lucide-react'
 import { PinScreen, verifySuperAdminPin } from '@/app/_components/PinScreen'
 
 interface FeedbackPr {
@@ -42,6 +42,9 @@ interface Feedback {
   pr: FeedbackPr | null
   prMain: FeedbackPr | null
   comments: FeedbackComment[]
+  noticeAcknowledgedAt: string | null
+  noticeSentCount: number
+  followups: { id: string; issue_number: number | null; created_at: string }[]
 }
 
 const KIND_META: Record<string, { label: string; cls: string }> = {
@@ -421,11 +424,27 @@ export default function FeedbackAdminPage() {
 
                 {f.status === 'done' && (
                   <div className="pt-1">
-                    {notifiedIds.has(f.id) ? (
-                      <p className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-400">
-                        <CheckCircle2 size={12} /> 修正完了のお知らせを送信しました
+                    {(f.noticeSentCount > 0 || notifiedIds.has(f.id)) && (
+                      <p className={`flex items-center gap-1.5 text-[11px] font-bold ${f.noticeAcknowledgedAt ? 'text-emerald-400' : 'text-gray-400'}`}>
+                        <CheckCircle2 size={12} />
+                        {f.noticeAcknowledgedAt
+                          ? `店舗が確認済み（${new Date(f.noticeAcknowledgedAt).toLocaleString('ja-JP')}）`
+                          : 'お知らせ送信済み・店舗はまだ未確認'}
                       </p>
-                    ) : (
+                    )}
+                    {f.followups.length > 0 && (
+                      <p className="flex items-center gap-1.5 text-[11px] font-bold text-red-400 mt-1">
+                        <MessageSquareWarning size={12} />
+                        店舗から「まだ直っていない」の再報告あり
+                        {f.followups[0].issue_number && (
+                          <a href={`https://github.com/to4fu321-lab/line-wait-system-/issues/${f.followups[0].issue_number}`}
+                            target="_blank" rel="noopener noreferrer" className="underline">
+                            #{f.followups[0].issue_number}
+                          </a>
+                        )}
+                      </p>
+                    )}
+                    {!notifiedIds.has(f.id) && f.noticeSentCount === 0 && (
                       <button onClick={() => openNotify(f)}
                         className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-gray-900 border border-gray-700 hover:border-indigo-500 text-gray-300 hover:text-white flex items-center gap-1.5">
                         <Megaphone size={12} /> 修正完了をお知らせ
