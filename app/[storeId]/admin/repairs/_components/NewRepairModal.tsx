@@ -515,6 +515,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
       embroideryText: (payload.embroidery_text as string | undefined) ?? null,
       embroideryColor: null,
       embroideryPos: null,
+      options: snapshots,
     }))
     setPrintQueue(prev => [...prev, ...printables])
     onSave() // 都度リストを更新（保存済み分をすぐ反映）
