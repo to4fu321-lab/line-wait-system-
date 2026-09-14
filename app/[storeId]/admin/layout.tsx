@@ -7,7 +7,7 @@ import { SideNav } from './_components/SideNav'
 import { OrderReminderBanner } from './_components/OrderReminderBanner'
 import { FixNoticeBanner } from './_components/FixNoticeBanner'
 import { FeedbackButton } from './_components/FeedbackButton'
-import { StoreNameBadge } from './_components/StoreNameBadge'
+import { AdminTopBar } from './_components/AdminTopBar'
 import OfflineBanner from '@/app/_components/OfflineBanner'
 import { useDeviceMode } from '@/lib/useDeviceMode'
 import { useUiSettings } from '@/lib/useSimpleMode'
@@ -53,8 +53,7 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
     <>
       <OfflineBanner />
       <OrderReminderBanner />
-      <FixNoticeBanner />
-      <StoreNameBadge />
+      <AdminTopBar />
       {children}
       <FeedbackButton />
     </>

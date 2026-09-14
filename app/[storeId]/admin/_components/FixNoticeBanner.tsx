@@ -19,7 +19,12 @@ const POLL_MS = 2 * 60 * 1000
 // (acknowledged_at IS NULL) の件数をバッジ表示し、タップで一覧を開く。
 // 「完了」を押すとDBに既読を書き込む（運営側の画面でも確認済みが分かるように）。
 // 「まだ直っていない」を押すと、その場で追加のフィードバックを送れる。
-export function FixNoticeBanner() {
+//
+// variant='floating'（タブレット用）は自前で右上に固定表示する。
+// variant='inline'（電話モード用）は位置指定を持たず、呼び出し側の
+// AdminTopBar 内に並べる（position:fixedだと各ページ独自のヘッダーと
+// 重なっていたため）。
+export function FixNoticeBanner({ variant = 'floating' }: { variant?: 'floating' | 'inline' }) {
   const params  = useParams<{ storeId: string }>()
   const storeId = params?.storeId ?? ''
 
@@ -92,7 +97,9 @@ export function FixNoticeBanner() {
         onClick={() => setOpen(true)}
         title="対応完了のお知らせ"
         style={{ touchAction: 'manipulation' }}
-        className="fixed top-3 right-3 z-[150] flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full pl-2.5 pr-3 py-2 shadow-lg active:scale-95 transition-all">
+        className={`flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full pl-2.5 pr-3 py-2 shadow-lg active:scale-95 transition-all ${
+          variant === 'floating' ? 'fixed top-3 right-3 z-[150]' : ''
+        }`}>
         <Bell size={16} />
         <span className="text-xs font-black">{notices.length}</span>
       </button>
