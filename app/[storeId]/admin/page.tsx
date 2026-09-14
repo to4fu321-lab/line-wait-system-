@@ -786,7 +786,9 @@ export default function StoreAdminPage() {
   const router = useRouter()
   const [view,          setView]          = useState<AdminView>('loading')
   const [groupStores,   setGroupStores]   = useState<StoreInfo[]>([])
-  const [groupCode,     setGroupCode]     = useState<string | null>(() => sessionStorage.getItem('admin_group_code'))
+  const [groupCode,     setGroupCode]     = useState<string | null>(
+    () => typeof window !== 'undefined' ? sessionStorage.getItem('admin_group_code') : null
+  )
   const [selectedStore, setSelectedStore] = useState<StoreInfo | null>(null)
   const [fetchError,    setFetchError]    = useState<string | null>(null)
 
