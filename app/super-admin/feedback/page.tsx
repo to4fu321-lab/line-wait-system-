@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Loader2, RefreshCw, MessageSquare, ExternalLink, Sparkles, CheckCircle2, GitPullRequest, Rocket, Send, Bot, User, Megaphone, MessageSquareWarning } from 'lucide-react'
+import { Loader2, RefreshCw, MessageSquare, ExternalLink, Sparkles, CheckCircle2, GitPullRequest, Rocket, Send, Bot, User, Megaphone, MessageSquareWarning, Terminal, Copy, Check } from 'lucide-react'
 import { PinScreen, verifySuperAdminPin } from '@/app/_components/PinScreen'
 
 interface FeedbackPr {
@@ -65,6 +65,8 @@ const PRIORITY_META: Record<string, { label: string; cls: string; order: number 
   low:    { label: '低',   cls: 'bg-gray-600/20 text-gray-400 border-gray-600/30',       order: 3 },
 }
 const priorityOrder = (p: string | null) => (p && PRIORITY_META[p] ? PRIORITY_META[p].order : 99)
+const KIND_LABEL: Record<string, string> = { request: '要望', bug: '不具合', question: '質問' }
+const PRIORITY_LABEL: Record<string, string> = { urgent: '緊急', high: '高', medium: '中', low: '低' }
 
 export default function FeedbackAdminPage() {
   const [authed, setAuthed]   = useState(false)
@@ -83,6 +85,8 @@ export default function FeedbackAdminPage() {
   const [notifyMessage, setNotifyMessage] = useState<Record<string, string>>({})
   const [notifying, setNotifying] = useState<string | null>(null)
   const [notifiedIds, setNotifiedIds] = useState<Set<string>>(new Set())
+  const [promptOpenId, setPromptOpenId] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -173,6 +177,60 @@ export default function FeedbackAdminPage() {
       alert(json.error ?? '送信に失敗しました')
     }
     setSendingReply(null)
+  }
+
+  // PCなどの別セッションのClaude Codeにそのまま渡せる、自己完結したプロンプトを組み立てる。
+  // GitHub Actions側の自動実装（承認ボタン）とは独立した、もう一つの実装経路。
+  const buildLocalPrompt = (f: Feedback) => {
+    const lines = [
+      'このリポジトリ（to4fu321-lab/line-wait-system-, Next.js 14 / Supabase / Tailwind）の保守を担当してください。',
+      '作業前に必ず CLAUDE.md を読み、開発ルール（dev ブランチで作業する、WORKING.md に触るファイルを記載する等）に従ってください。',
+      '',
+      '## 現場からの報告',
+      `種別: ${KIND_LABEL[f.kind] ?? f.kind}`,
+      f.store_name ? `店舗: ${f.store_name}` : null,
+      f.page_url ? `画面: ${f.page_url}` : null,
+      '',
+      f.body,
+      '',
+    ]
+    if (f.ai_recommendation) {
+      lines.push(
+        '## AIによる分析（参考。鵜呑みにせず自分でコードを確認して判断すること）',
+        f.priority ? `優先度: ${PRIORITY_LABEL[f.priority] ?? f.priority}` : null,
+        f.ai_category ? `分類: ${f.ai_category}` : null,
+        f.ai_recommendation,
+        '',
+      )
+    }
+    if (f.issue_url) {
+      lines.push(`関連 GitHub Issue: ${f.issue_url}（コメント欄に経緯が残っていれば読んでください）`, '')
+    }
+    if (f.followups.length > 0) {
+      lines.push(
+        '## 店舗からの追加報告あり',
+        '対応完了として案内した後、店舗から「まだ直っていない」という再報告が来ています。' +
+          '既に何か直っているならその内容を踏まえ、根本原因を見直してください。',
+        '',
+      )
+    }
+    lines.push(
+      '## 手順',
+      '1. 上記の内容をもとに、原因を調査し必要な修正を実装する',
+      '2. `npx tsc --noEmit` と `npm run build` で確認する',
+      '3. 問題なければ dev ブランチにコミット・push する',
+    )
+    return lines.filter((l): l is string => l !== null).join('\n')
+  }
+
+  const copyPrompt = async (f: Feedback) => {
+    try {
+      await navigator.clipboard.writeText(buildLocalPrompt(f))
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      alert('コピーに失敗しました。手動で選択してコピーしてください')
+    }
   }
 
   const defaultNotifyMessage = (f: Feedback) =>
@@ -289,6 +347,30 @@ export default function FeedbackAdminPage() {
                     <ExternalLink size={11} /> GitHub Issue #{f.issue_number}
                   </a>
                 )}
+
+                <div>
+                  <button onClick={() => setPromptOpenId(id => id === f.id ? null : f.id)}
+                    className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-gray-900 border border-gray-700 hover:border-indigo-500 text-gray-300 hover:text-white flex items-center gap-1.5">
+                    <Terminal size={12} /> PCのClaude Code用プロンプトを生成
+                  </button>
+                  {promptOpenId === f.id && (
+                    <div className="mt-2 bg-gray-900/60 border border-white/10 rounded-xl p-3 space-y-2">
+                      <p className="text-[11px] text-gray-400 leading-relaxed">
+                        コピーして、このリポジトリを開いた別のClaude Codeセッション（PC等）に貼り付けてください。
+                        GitHub Actionsの自動実装とは別の経路で、あなたの操作の範囲内で実行されます。
+                      </p>
+                      <textarea readOnly value={buildLocalPrompt(f)} rows={10}
+                        className="w-full bg-gray-950 border border-gray-700 rounded-lg px-2.5 py-1.5 text-[11px] text-gray-300 font-mono resize-none focus:outline-none" />
+                      <div className="flex justify-end">
+                        <button onClick={() => copyPrompt(f)}
+                          className="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5">
+                          {copied ? <Check size={12} /> : <Copy size={12} />}
+                          {copied ? 'コピーしました' : 'コピー'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {f.ai_recommendation && (
                   <div className="bg-gray-900/60 border border-indigo-500/20 rounded-xl p-3 space-y-1.5">
