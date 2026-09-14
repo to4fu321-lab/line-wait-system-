@@ -1,13 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useParams, usePathname } from 'next/navigation'
-import { MessageSquarePlus, X, Loader2, Check, ImagePlus, PartyPopper } from 'lucide-react'
+import { MessageSquarePlus, X, Loader2, Check, ImagePlus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
 const FEEDBACK_IMAGES_BUCKET = 'feedback-images'
 const MAX_IMAGES = 4
-const NOTICE_POLL_MS = 2 * 60 * 1000
 
 type Kind = 'request' | 'bug' | 'question'
 
@@ -16,27 +15,6 @@ const KINDS: { value: Kind; label: string; emoji: string }[] = [
   { value: 'bug',      label: '不具合', emoji: '🐞' },
   { value: 'question', label: '質問',   emoji: '❓' },
 ]
-
-interface FeedbackNotice {
-  id: string
-  message: string
-  created_at: string
-}
-
-// 既読状態は端末ローカルで管理する（全店舗向けのお知らせはサーバー側で削除すると
-// 他店の未読も消えてしまうため、サーバーでは既読を管理しない設計）。
-const seenKey = (storeId: string) => `feedback_notice_seen_${storeId}`
-const loadSeen = (storeId: string): Set<string> => {
-  try {
-    const raw = localStorage.getItem(seenKey(storeId))
-    return new Set(raw ? JSON.parse(raw) as string[] : [])
-  } catch {
-    return new Set()
-  }
-}
-const saveSeen = (storeId: string, ids: Set<string>) => {
-  try { localStorage.setItem(seenKey(storeId), JSON.stringify(Array.from(ids))) } catch { /* ストレージ不可時は既読が保存されないだけ */ }
-}
 
 // 現場からの要望・不具合・質問をその場で投稿するフローティングボタン。
 // 管理画面レイアウトに常設し、思った瞬間に送れるようにする。
@@ -57,39 +35,6 @@ export function FeedbackButton() {
   const [images, setImages] = useState<{ file: File; url: string }[]>([])
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
-
-  const [notices, setNotices]   = useState<FeedbackNotice[]>([])
-  const [noticeOpen, setNoticeOpen] = useState(false)
-
-  // 送った要望・不具合が対応完了すると運営が feedback_notices にお知らせを書く
-  // （Webプッシュも飛ぶが、LINEアプリ内ブラウザ等プッシュが届かない環境の受け皿として
-  // ここでもポーリングして未読をバッジ表示する）。
-  useEffect(() => {
-    if (!storeId) return
-    let cancelled = false
-    const fetchNotices = async () => {
-      try {
-        const res = await fetch(`/api/feedback?storeId=${encodeURIComponent(storeId)}`)
-        const json = await res.json().catch(() => ({}))
-        if (!cancelled && res.ok && json.ok) {
-          const seen = loadSeen(storeId)
-          setNotices((json.notices ?? []).filter((n: FeedbackNotice) => !seen.has(n.id)))
-        }
-      } catch {
-        /* ポーリング再試行で回復 */
-      }
-    }
-    fetchNotices()
-    const timer = setInterval(fetchNotices, NOTICE_POLL_MS)
-    return () => { cancelled = true; clearInterval(timer) }
-  }, [storeId])
-
-  const ackNotice = (id: string) => {
-    const seen = loadSeen(storeId)
-    seen.add(id)
-    saveSeen(storeId, seen)
-    setNotices(prev => prev.filter(n => n.id !== id))
-  }
 
   const reset = () => {
     setKind('request'); setBody(''); setError(null); setDone(false)
@@ -152,18 +97,6 @@ export function FeedbackButton() {
 
   return (
     <>
-      {/* 対応完了バッジ */}
-      {notices.length > 0 && (
-        <button
-          onClick={() => setNoticeOpen(true)}
-          title="対応完了のお知らせ"
-          style={{ touchAction: 'manipulation' }}
-          className={`fixed ${onRegister ? 'bottom-[calc(13.5rem+env(safe-area-inset-bottom))]' : 'bottom-[9.5rem]'} right-4 z-40 flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg active:scale-95 transition-all animate-pulse`}>
-          <PartyPopper size={16} />
-          <span className="text-xs font-bold">対応完了 {notices.length}件</span>
-        </button>
-      )}
-
       {/* フローティングボタン */}
       <button
         onClick={() => { reset(); setOpen(true) }}
@@ -173,37 +106,6 @@ export function FeedbackButton() {
         <MessageSquarePlus size={18} />
         <span className="text-xs font-bold">要望・不具合</span>
       </button>
-
-      {/* 対応完了一覧モーダル */}
-      {noticeOpen && (
-        <div className="fixed inset-0 z-[70] bg-black/50 flex items-end sm:items-center justify-center"
-          onClick={() => setNoticeOpen(false)}>
-          <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl max-h-[90dvh] flex flex-col"
-            style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-            onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
-              <h2 className="text-base font-black text-gray-900 flex items-center gap-1.5">
-                <PartyPopper size={18} className="text-emerald-600" /> 対応完了のお知らせ
-              </h2>
-              <button onClick={() => setNoticeOpen(false)} className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="px-5 py-4 space-y-3 overflow-y-auto">
-              {notices.map(n => (
-                <div key={n.id} className="border-2 border-emerald-100 bg-emerald-50/50 rounded-2xl px-4 py-3">
-                  <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{n.message}</p>
-                  <button onClick={() => ackNotice(n.id)}
-                    style={{ touchAction: 'manipulation' }}
-                    className="mt-2 text-xs font-bold text-emerald-700 bg-white border border-emerald-300 rounded-full px-3 py-1.5 active:scale-95 transition-all">
-                    確認しました
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* モーダル */}
       {open && (
