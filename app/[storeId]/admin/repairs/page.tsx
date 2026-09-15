@@ -14,7 +14,8 @@ import { BottomNav } from '../_components/BottomNav'
 import { InquiryModal, type InquiryRow, type InquiryType, type InquiryStatus } from '../_components/InquiryModal'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { useDeviceMode } from '@/lib/useDeviceMode'
-import { rawToItem, todayJst, fmtReqNo } from './_components/utils'
+import { rawToItem, todayJst, fmtReqNo, groupRepairsForList } from './_components/utils'
+import { PhysicalItemGroupCard } from './_components/PhysicalItemGroupCard'
 import { useSimpleMode } from '@/lib/useSimpleMode'
 import type { RepairRow, PurchaseRow, UniformOrderRow, DeliveryItem } from './_components/types'
 import { Toast } from '@/app/_components/Toast'
@@ -869,8 +870,13 @@ export default function RepairsPage() {
               <>
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">✂️ お直し・案件 ({filteredRepairs.length})</p>
                 <div className={isTablet ? 'grid grid-cols-2 gap-2' : 'space-y-1.5'}>
-                  {filteredRepairs.map(r => (
-                    <RepairCard key={r.id} item={r} storeId={storeId} storeName={storeName} onRefresh={fetchAll} onToast={showToast}
+                  {groupRepairsForList(filteredRepairs).map(node => node.kind === 'group' ? (
+                    <PhysicalItemGroupCard key={node.physicalItemId} rows={node.rows} storeId={storeId} storeName={storeName}
+                      onRefresh={fetchAll} onToast={showToast}
+                      onEdit={item => { setEditItem(item); setEditKind('repair') }}
+                      isSimpleMode={isSimpleMode} isTablet={isTablet} />
+                  ) : (
+                    <RepairCard key={node.row.id} item={node.row} storeId={storeId} storeName={storeName} onRefresh={fetchAll} onToast={showToast}
                       onEdit={item => { setEditItem(item); setEditKind('repair') }}
                       selected={false} onToggle={() => {}} isSimpleMode={isSimpleMode} isTablet={isTablet} />
                   ))}
@@ -982,17 +988,26 @@ export default function RepairsPage() {
                   )}
                 </div>
                 <div className={isTablet ? 'grid grid-cols-2 gap-2' : 'space-y-1.5'}>
-                  {filteredRepairs.map(r => (
-                    <RepairCard key={r.id} item={r} storeId={storeId} storeName={storeName} onRefresh={fetchAll} onToast={showToast}
-                      onEdit={item => { setEditItem(item); setEditKind('repair') }}
-                      selected={batchSelected.has(r.id)}
-                      isSimpleMode={isSimpleMode}
-                      isTablet={isTablet}
-                      onToggle={() => setBatchSelected(prev => {
-                        const n = new Set(prev); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n
-                      })}
-                    />
-                  ))}
+                  {groupRepairsForList(filteredRepairs).map(node => {
+                    const toggleSelect = (id: string) => setBatchSelected(prev => {
+                      const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n
+                    })
+                    return node.kind === 'group' ? (
+                      <PhysicalItemGroupCard key={node.physicalItemId} rows={node.rows} storeId={storeId} storeName={storeName}
+                        onRefresh={fetchAll} onToast={showToast}
+                        onEdit={item => { setEditItem(item); setEditKind('repair') }}
+                        isSelected={id => batchSelected.has(id)} onToggleSelect={toggleSelect}
+                        isSimpleMode={isSimpleMode} isTablet={isTablet} />
+                    ) : (
+                      <RepairCard key={node.row.id} item={node.row} storeId={storeId} storeName={storeName} onRefresh={fetchAll} onToast={showToast}
+                        onEdit={item => { setEditItem(item); setEditKind('repair') }}
+                        selected={batchSelected.has(node.row.id)}
+                        isSimpleMode={isSimpleMode}
+                        isTablet={isTablet}
+                        onToggle={() => toggleSelect(node.row.id)}
+                      />
+                    )
+                  })}
                 </div>
                 {/* Floating batch action bar */}
                 {batchSelected.size > 0 && (

@@ -11,7 +11,10 @@ import { REPAIR_PHOTOS_BUCKET } from '@/types/repair'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { REPAIR_LABELS as labels } from '@/lib/repairProfile'
 import { StaffPicker, lastStaffId, useStaffList } from './StaffPicker'
-import { resolveGroupCompletionNotify } from '@/lib/repairGroupNotify'
+import {
+  resolveGroupCompletionNotify, fetchPhysicalItemRows, findOtherOpenPhysicalItems, setGroupNotifyMode,
+  type NotifyRow, type OpenPhysicalItem, type GroupNotifyResolution,
+} from '@/lib/repairGroupNotify'
 import {
   REPAIR_STATUS_LABELS, REPAIR_STATUS_COLORS,
   REQUEST_TYPE_LABELS, REQUEST_TYPE_COLORS,
@@ -21,6 +24,34 @@ import type { RequestType } from '@/types/crm'
 import { fmtDate, fmtReqNo } from './utils'
 import type { RepairRow } from './types'
 import { RepairPrintModal, type PrintableRepair } from './RepairPrintSlip'
+
+// 物理アイテムが完了した際、同じ受付セッションに未完了の別商品が残っていれば表示する確認
+function BundleConfirmDialog({ openOthers, onYes, onNo, loading }: {
+  openOthers: OpenPhysicalItem[]; onYes: () => void; onNo: () => void; loading: boolean
+}) {
+  return (
+    <div className="fixed inset-0 z-[70] bg-black/50 flex items-end sm:items-center justify-center" onClick={e => e.stopPropagation()}>
+      <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5 space-y-3"
+        style={{ paddingBottom: 'max(20px, env(safe-area-inset-bottom))' }}>
+        <p className="text-base font-black text-gray-800 text-center">まとめて通知しますか？</p>
+        <p className="text-xs text-gray-500 text-center leading-relaxed">
+          同じお客様の受付に、まだ完了していない商品があります。<br />
+          {openOthers.map(o => o.label).join('、')}
+        </p>
+        <div className="space-y-2 pt-1">
+          <button onClick={onYes} disabled={loading}
+            className="w-full py-3.5 rounded-2xl bg-indigo-600 text-white font-black text-sm disabled:opacity-50 flex items-center justify-center gap-2">
+            {loading ? <Loader2 size={16} className="animate-spin" /> : null}まとめて通知を待つ
+          </button>
+          <button onClick={onNo} disabled={loading}
+            className="w-full py-3.5 rounded-2xl border-2 border-gray-200 text-gray-600 font-black text-sm disabled:opacity-50">
+            この商品だけ今通知する
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, onEdit, selected, onToggle, isSimpleMode = false, isTablet = false }: {
   item: RepairRow; storeId: string; storeName?: string; onRefresh: () => void
@@ -187,39 +218,60 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
   const fullNotifyMode: 'line' | 'sms' | 'phone_manual' | 'none' =
     item.customer?.line_user_id ? 'line' : item.customer?.tel ? (smsEnabled ? 'sms' : 'phone_manual') : 'none'
 
-  async function handleRepairComplete() {
-    setLoading(true)
-    const today = new Date().toISOString().slice(0, 10)
-    const { error } = await (supabase as any).from('repair_histories')
-      .update({ status: 'completed', completed_date: today,
-                ...(item.strung_by ? {} : { strung_by: doneBy }),
-                updated_at: new Date().toISOString() })
-      .eq('id', item.id)
-    if (error) { setLoading(false); onToast('err', '更新に失敗しました'); return }
+  // ── 同じ商品の複数加工・同じ受付の複数商品をまたいだ完了通知の判定 ──────
+  //   1) 同じ物理アイテム（physical_item_id）の加工が他にも残っていれば、通知はまだ送らない
+  //      （揃った時点で自動的にまとめて1通になる）。
+  //   2) 物理アイテムとしては完了。同じ受付セッションに他の未完了商品があれば、
+  //      「まとめて通知するか」をスタッフに確認する（bundleConfirm）。
+  //   3) 確認不要、または確認の結果に応じて実際に通知を送る。
+  const [bundleConfirm, setBundleConfirm] = useState<{
+    physicalItemRows: NotifyRow[]; openOthers: OpenPhysicalItem[]; channel: 'line' | 'sms' | 'phone_manual' | 'none'
+  } | null>(null)
 
-    // このお直しが「まとめて1通」グループに属する場合、グループ全点が完了するまで通知を待つ
+  async function decidePostComplete(): Promise<
+    | { kind: 'waiting_same_item' }
+    | { kind: 'need_confirm'; physicalItemRows: NotifyRow[]; openOthers: OpenPhysicalItem[] }
+    | { kind: 'proceed'; group: GroupNotifyResolution }
+  > {
+    let physicalItemRows: NotifyRow[]
+    if (item.physical_item_id) {
+      const rows = await fetchPhysicalItemRows(item.physical_item_id)
+      const allDone = rows.length > 0 && rows.every(r => ['completed', 'delivered'].includes(r.status))
+      if (!allDone) return { kind: 'waiting_same_item' }
+      physicalItemRows = rows
+    } else {
+      physicalItemRows = [{ id: item.id, status: 'completed', item_name: item.item_name, garment_name: item.garment_name ?? null, request_no: item.request_no }]
+    }
+    if (item.repair_group_id && item.group_notify_mode !== 'combined') {
+      const openOthers = await findOtherOpenPhysicalItems(item.repair_group_id, item.physical_item_id ?? null)
+      if (openOthers.length > 0) return { kind: 'need_confirm', physicalItemRows, openOthers }
+    }
     const group = await resolveGroupCompletionNotify(
-      { id: item.id, item_name: item.item_name, garment_name: item.garment_name, request_no: item.request_no },
-      item.repair_group_id ?? null, item.group_notify_mode ?? null,
+      physicalItemRows, item.repair_group_id ?? null, item.group_notify_mode ?? null,
       (no, id) => fmtReqNo('repair', no, id),
     )
+    return { kind: 'proceed', group }
+  }
+
+  // 実際に通知APIを叩いて送信する（bundleConfirmで「今すぐ通知」を選んだ場合もここを通る）
+  async function sendNotify(group: GroupNotifyResolution, channel: 'line' | 'sms' | 'phone_manual' | 'none', actionLabel: string) {
     if (group.waitingForGroup) {
-      setLoading(false); onRefresh()
-      onToast('ok', '完了にしました（他のお直しの完了を待ってまとめて通知します）')
+      onRefresh()
+      onToast('ok', `${actionLabel}にしました（他の商品の完了を待ってまとめて通知します）`)
       return
     }
-    const markNotifiedNow = fullNotifyMode !== 'line' && fullNotifyMode !== 'sms'
+    const markNotifiedNow = channel !== 'line' && channel !== 'sms'
     if (markNotifiedNow) {
       await (supabase as any).from('repair_histories').update({ notified: true }).in('id', group.notifyTargetIds)
     }
     let outsideHours = false
-    if (fullNotifyMode === 'line' || fullNotifyMode === 'sms') {
+    if (channel === 'line' || channel === 'sms') {
       try {
         const res = await fetch('/api/notify-repair', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            repairId: item.id,
+            repairId: group.notifyTargetIds[0],
             lineUserId: item.customer?.line_user_id ?? null,
             tel: item.customer?.tel ?? null,
             customerName: item.customer?.name ?? '',
@@ -230,7 +282,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
         })
         const json = await res.json().catch(() => ({}))
         if (!res.ok || !json.ok) {
-          setLoading(false); onRefresh()
+          onRefresh()
           onToast('err', `通知送信に失敗しました: ${(json as any).error ?? '不明なエラー'}`)
           return
         }
@@ -240,17 +292,65 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
           await (supabase as any).from('repair_histories').update({ notified: true }).in('id', group.notifyTargetIds)
         }
       } catch (e) {
-        setLoading(false); onRefresh()
+        onRefresh()
         onToast('err', `通知エラー: ${String(e)}`)
         return
       }
     }
-    setLoading(false); onRefresh()
+    onRefresh()
     if (outsideHours) {
-      onToast('ok', '完了・通知しました（営業時間外のため、ご来店は次の営業日になります）')
+      onToast('ok', `${actionLabel}・通知しました（営業時間外のため、ご来店は次の営業日になります）`)
       return
     }
-    onToast('ok', fullNotifyMode === 'line' ? '完了・LINEで通知しました' : fullNotifyMode === 'sms' ? '完了・SMSで通知しました' : '完了にしました')
+    onToast('ok', channel === 'line' ? `${actionLabel}・LINEで通知しました` : channel === 'sms' ? `${actionLabel}・SMSで通知しました` : `${actionLabel}にしました`)
+  }
+
+  async function handleBundleConfirm(bundle: boolean) {
+    if (!bundleConfirm || !item.repair_group_id) return
+    const { physicalItemRows, channel } = bundleConfirm
+    setBundleConfirm(null)
+    if (bundle) {
+      setLoading(true)
+      await setGroupNotifyMode(item.repair_group_id, 'combined')
+      setLoading(false); onRefresh()
+      onToast('ok', 'まとめて通知を待ちます（他の商品が完了次第、1通でご連絡します）')
+      return
+    }
+    setLoading(true)
+    const group: GroupNotifyResolution = {
+      shouldNotify: true,
+      itemNames: physicalItemRows.map(r => `${r.garment_name ?? ''} ${r.item_name}`.trim()).join('＋'),
+      reqNos: physicalItemRows.map(r => fmtReqNo('repair', r.request_no, r.id)).join('、'),
+      notifyTargetIds: physicalItemRows.map(r => r.id),
+      waitingForGroup: false,
+    }
+    await sendNotify(group, channel, '完了')
+    setLoading(false)
+  }
+
+  async function handleRepairComplete() {
+    setLoading(true)
+    const today = new Date().toISOString().slice(0, 10)
+    const { error } = await (supabase as any).from('repair_histories')
+      .update({ status: 'completed', completed_date: today,
+                ...(item.strung_by ? {} : { strung_by: doneBy }),
+                updated_at: new Date().toISOString() })
+      .eq('id', item.id)
+    if (error) { setLoading(false); onToast('err', '更新に失敗しました'); return }
+
+    const post = await decidePostComplete()
+    if (post.kind === 'waiting_same_item') {
+      setLoading(false); onRefresh()
+      onToast('ok', '完了にしました（同じ商品の他の加工が残っています。揃い次第まとめて通知します）')
+      return
+    }
+    if (post.kind === 'need_confirm') {
+      setLoading(false); onRefresh()
+      setBundleConfirm({ physicalItemRows: post.physicalItemRows, openOthers: post.openOthers, channel: fullNotifyMode })
+      return
+    }
+    await sendNotify(post.group, fullNotifyMode, '完了')
+    setLoading(false)
   }
 
   // Primary action config
@@ -347,10 +447,6 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       notifyMode === 'line' ? 'LINEで通知して完了にしますか？' :
       notifyMode === 'sms'  ? 'SMSで通知して完了にしますか？' :
                               '完了にしますか？（通知なし）'
-    const completeToast =
-      notifyMode === 'line'         ? '✅ 完了・LINEで通知しました' :
-      notifyMode === 'sms'          ? '✅ 完了・SMSで通知しました' :
-                                      '✅ 完了にしました'
 
     const handlePaymentToggle = async () => {
       const newPrepaid = !item.prepaid
@@ -386,56 +482,19 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
         .eq('id', item.id)
       if (error) { setLoading(false); onToast('err', '更新に失敗しました'); return }
 
-      // このお直しが「まとめて1通」グループに属する場合、グループ全点が完了するまで通知を待つ
-      const group = await resolveGroupCompletionNotify(
-        { id: item.id, item_name: item.item_name, garment_name: item.garment_name, request_no: item.request_no },
-        item.repair_group_id ?? null, item.group_notify_mode ?? null,
-        (no, id) => fmtReqNo('repair', no, id),
-      )
-      if (group.waitingForGroup) {
+      const post = await decidePostComplete()
+      if (post.kind === 'waiting_same_item') {
         setLoading(false); onRefresh()
-        onToast('ok', '完了にしました（他のお直しの完了を待ってまとめて通知します）')
+        onToast('ok', '完了にしました（同じ商品の他の加工が残っています。揃い次第まとめて通知します）')
         return
       }
-      // 電話連絡運用は手動連絡済みなので notified:true で確定（SMS送信はしない）
-      if (notifyMode === 'phone_manual') {
-        await (supabase as any).from('repair_histories').update({ notified: true }).in('id', group.notifyTargetIds)
+      if (post.kind === 'need_confirm') {
+        setLoading(false); onRefresh()
+        setBundleConfirm({ physicalItemRows: post.physicalItemRows, openOthers: post.openOthers, channel: notifyMode })
+        return
       }
-      if (notifyMode === 'line' || notifyMode === 'sms') {
-        try {
-          const res = await fetch('/api/notify-repair', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              repairId:     item.id,
-              lineUserId:   item.customer?.line_user_id ?? null,
-              tel:          item.customer?.tel ?? null,
-              customerName: item.customer?.name ?? '',
-              itemName:     group.itemNames,
-              storeName,
-              reqNo: group.reqNos,
-            }),
-          })
-          const json = await res.json().catch(() => ({}))
-          if (!res.ok || !json.ok) {
-            setLoading(false)
-            onRefresh()
-            onToast('err', `通知送信に失敗しました: ${(json as any).error ?? '不明なエラー'}`)
-            return
-          }
-          if (group.notifyTargetIds.length > 1) {
-            await (supabase as any).from('repair_histories').update({ notified: true }).in('id', group.notifyTargetIds)
-          }
-        } catch (e) {
-          setLoading(false)
-          onRefresh()
-          onToast('err', `通知エラー: ${String(e)}`)
-          return
-        }
-      }
+      await sendNotify(post.group, notifyMode, '完了')
       setLoading(false)
-      onRefresh()
-      onToast('ok', completeToast)
     }
 
     const handleSendToVendor = async () => {
@@ -488,6 +547,11 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       item.work_started    ? 'border-l-emerald-400' : 'border-l-indigo-400'
 
     return (
+      <>
+      {bundleConfirm && (
+        <BundleConfirmDialog openOthers={bundleConfirm.openOthers} loading={loading}
+          onYes={() => handleBundleConfirm(true)} onNo={() => handleBundleConfirm(false)} />
+      )}
       <div
         className={`bg-white rounded-2xl shadow-sm border border-gray-100 border-l-4 ${leftBorderColor} cursor-pointer`}
         onClick={e => {
@@ -910,10 +974,16 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
         </div>
         {printOpen && <RepairPrintModal items={[printableItem]} storeName={storeName} onClose={() => setPrintOpen(false)} />}
       </div>
+      </>
     )
   }
 
   return (
+    <>
+    {bundleConfirm && (
+      <BundleConfirmDialog openOthers={bundleConfirm.openOthers} loading={loading}
+        onYes={() => handleBundleConfirm(true)} onNo={() => handleBundleConfirm(false)} />
+    )}
     <div className={`rounded-2xl overflow-hidden shadow-sm transition-all ${cardBg}${selected ? ' ring-2 ring-indigo-500/50 ring-offset-1' : ''}`}>
       {/* Urgency accent strip */}
       {(isOverdue || isDueSoon) && (
@@ -1313,6 +1383,7 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       </div>
       {printOpen && <RepairPrintModal items={[printableItem]} storeName={storeName} onClose={() => setPrintOpen(false)} />}
     </div>
+    </>
   )
 }
 

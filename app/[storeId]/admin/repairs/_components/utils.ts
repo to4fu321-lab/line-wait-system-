@@ -1,10 +1,36 @@
-import type { DeliveryItem } from './types'
+import type { DeliveryItem, RepairRow } from './types'
 export { fmtDate, compressImage, todayJst } from '@/lib/adminUtils'
 
 export function fmtReqNo(kind: 'repair' | 'purchase' | 'inquiry', no: number | null, id: string): string {
   const prefix = kind === 'repair' ? 'R' : kind === 'inquiry' ? 'I' : 'P'
   if (no != null) return `${prefix}-${String(no).padStart(4, '0')}`
   return `${prefix}-${id.replace(/-/g, '').substring(0, 4).toUpperCase()}`
+}
+
+export type RepairListNode =
+  | { kind: 'single'; row: RepairRow }
+  | { kind: 'group'; physicalItemId: string; rows: RepairRow[] }
+
+/** 同じ物理アイテム（physical_item_id）にかかる複数の加工行を、一覧表示用に1枠へまとめる */
+export function groupRepairsForList(rows: RepairRow[]): RepairListNode[] {
+  const counts = new Map<string, number>()
+  for (const r of rows) {
+    if (!r.physical_item_id) continue
+    counts.set(r.physical_item_id, (counts.get(r.physical_item_id) ?? 0) + 1)
+  }
+  const seen = new Set<string>()
+  const out: RepairListNode[] = []
+  for (const r of rows) {
+    const pid = r.physical_item_id
+    if (pid && (counts.get(pid) ?? 0) > 1) {
+      if (seen.has(pid)) continue
+      seen.add(pid)
+      out.push({ kind: 'group', physicalItemId: pid, rows: rows.filter(x => x.physical_item_id === pid) })
+      continue
+    }
+    out.push({ kind: 'single', row: r })
+  }
+  return out
 }
 
 export function rawToItem(row: Record<string, unknown>, kind: 'repair' | 'purchase'): DeliveryItem {
