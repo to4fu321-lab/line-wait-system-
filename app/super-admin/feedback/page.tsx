@@ -54,8 +54,8 @@ const KIND_META: Record<string, { label: string; cls: string }> = {
 }
 const STATUSES: { value: string; label: string }[] = [
   { value: 'new',     label: '未対応' },
-  { value: 'triaged', label: '確認済' },
-  { value: 'done',    label: '対応済' },
+  { value: 'triaged', label: '対応中' },
+  { value: 'done',    label: '対応完了' },
   { value: 'wontfix', label: '見送り' },
 ]
 const PRIORITY_META: Record<string, { label: string; cls: string; order: number }> = {
@@ -100,11 +100,16 @@ export default function FeedbackAdminPage() {
   useEffect(() => { load() }, [load])
 
   const setStatus = async (id: string, status: string) => {
+    const prev = rows.find(r => r.id === id)
     setRows(rs => rs.map(r => r.id === id ? { ...r, status } : r))
     await fetch('/api/super-admin/feedback', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status }),
     })
+    // 対応中→対応完了に変えた瞬間、店舗へお知らせを送るか（誰に・何を）その場で確認する
+    if (status === 'done' && prev && prev.status !== 'done' && prev.noticeSentCount === 0 && !notifiedIds.has(id)) {
+      openNotify(prev)
+    }
   }
 
   const approve = async (id: string) => {
@@ -294,18 +299,18 @@ export default function FeedbackAdminPage() {
             {githubError}
           </div>
         )}
-        {/* フィルタ */}
+        {/* フィルタ（未対応→対応中→対応完了→見送り→すべて の順） */}
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => setFilter('all')}
-            className={`px-3 py-1.5 rounded-full text-xs font-bold border ${filter === 'all' ? 'bg-white text-gray-900 border-white' : 'bg-gray-800 text-gray-300 border-gray-700'}`}>
-            すべて {rows.length}
-          </button>
           {STATUSES.map(s => (
             <button key={s.value} onClick={() => setFilter(s.value)}
               className={`px-3 py-1.5 rounded-full text-xs font-bold border ${filter === s.value ? 'bg-white text-gray-900 border-white' : 'bg-gray-800 text-gray-300 border-gray-700'}`}>
               {s.label} {counts[s.value] ?? 0}
             </button>
           ))}
+          <button onClick={() => setFilter('all')}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold border ${filter === 'all' ? 'bg-white text-gray-900 border-white' : 'bg-gray-800 text-gray-300 border-gray-700'}`}>
+            すべて {rows.length}
+          </button>
         </div>
 
         {filtered.length === 0 ? (
