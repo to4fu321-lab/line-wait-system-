@@ -268,22 +268,44 @@ export default function RepairsPage() {
   }, [isSimpleMode, repairSubTab])
 
   // ── Delivery actions ───────────────────────────────────────
-  const handleDeliver = useCallback(async (item: DeliveryItem, paid: boolean, deliveredBy: string) => {
+  // payScope='group': 同じ受付グループ（複数点受付）のうち、まだ支払われていない
+  // 他の点（まだお渡し前のものも含む）の payment_status もまとめて'paid'にする。
+  // それらの status（受渡状態）自体は変えない＝実際にお渡しするのは今回の1点のみ。
+  const handleDeliver = useCallback(async (
+    item: DeliveryItem, paid: boolean, deliveredBy: string, payScope: 'item' | 'group' = 'item',
+  ) => {
     const table = item.kind === 'repair' ? 'repair_histories' : 'purchase_orders'
     const update: Record<string, unknown> = { status: 'delivered', delivered_date: todayJst() }
     if (paid) update.payment_status = 'paid'
     if (deliveredBy.trim()) update.delivered_by = deliveredBy.trim()
+
+    let siblingSnapshot: { id: string; payment_status: string | null }[] = []
+    if (paid && payScope === 'group' && item.kind === 'repair' && item.repair_group_id) {
+      const { data: siblings } = await (supabase as any).from('repair_histories')
+        .select('id, payment_status').eq('repair_group_id', item.repair_group_id).neq('id', item.id)
+      siblingSnapshot = (siblings ?? []).filter((s: { payment_status: string | null }) => s.payment_status !== 'paid')
+    }
+
     const { error } = await (supabase as any).from(table).update(update).eq('id', item.id)
     if (error) { showToast('err', `受渡処理失敗: ${error.message}`); return }
+    if (siblingSnapshot.length > 0) {
+      await (supabase as any).from('repair_histories')
+        .update({ payment_status: 'paid' })
+        .in('id', siblingSnapshot.map(s => s.id))
+    }
+
     setWaiting(prev => prev.filter(i => i.id !== item.id))
     const snapshot = { ...item }
-    showToast('ok', '📦 お渡し済みにしました', async () => {
+    showToast('ok', siblingSnapshot.length > 0 ? '📦 お渡し済み・グループ全額を精算しました' : '📦 お渡し済みにしました', async () => {
       const revert: Record<string, unknown> = {
         status: snapshot.prev_status, delivered_date: null, payment_status: snapshot.payment_status,
       }
       if (item.kind === 'repair') revert.completed_date = snapshot.ready_date
       else                        revert.arrived_date   = snapshot.ready_date
       await (supabase as any).from(table).update(revert).eq('id', snapshot.id)
+      for (const s of siblingSnapshot) {
+        await (supabase as any).from('repair_histories').update({ payment_status: s.payment_status }).eq('id', s.id)
+      }
       await fetchAll()
     })
     setHistFetched(false)

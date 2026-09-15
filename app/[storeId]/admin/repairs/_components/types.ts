@@ -104,6 +104,8 @@ export interface DeliveryItem {
   delivered_by:   string | null
   customer:       { name: string; tel: string | null } | null
   child:          { name: string; school_name: string | null } | null
+  /** 同じ受付で登録した複数点を束ねるグループID（repair のみ）。お渡し時の「まとめて支払い」判定に使う */
+  repair_group_id?: string | null
 }
 
 export interface CustResult {

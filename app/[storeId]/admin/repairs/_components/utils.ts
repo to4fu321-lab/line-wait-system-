@@ -30,6 +30,7 @@ export function rawToItem(row: Record<string, unknown>, kind: 'repair' | 'purcha
     delivered_by:   row.delivered_by as string | null ?? null,
     customer:       row.customer as { name: string; tel: string | null } | null,
     child:          row.child as { name: string; school_name: string | null } | null,
+    repair_group_id: kind === 'repair' ? (row.repair_group_id as string | null ?? null) : null,
   }
 }
 

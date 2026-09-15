@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Loader2, CreditCard, Package, RotateCcw, Trash2, Phone,
   User, Check, CheckCheck, AlertCircle, CalendarDays, ChevronDown, ChevronUp,
 } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 import { fmtDate, fmtReqNo } from './utils'
 import type { DeliveryItem } from './types'
 
@@ -53,7 +54,7 @@ function PaymentBadge({ status, onToggle, loading }: {
 export function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRevertWaiting, onDelete, isSimpleMode }: {
   item: DeliveryItem
   alertDays: number
-  onDeliver: (item: DeliveryItem, paid: boolean, deliveredBy: string) => Promise<void>
+  onDeliver: (item: DeliveryItem, paid: boolean, deliveredBy: string, payScope?: 'item' | 'group') => Promise<void>
   onPaymentToggle: (item: DeliveryItem) => Promise<void>
   onRevertWaiting: (item: DeliveryItem, sendCorrection: boolean) => Promise<void>
   onDelete: (item: DeliveryItem) => Promise<void>
@@ -62,12 +63,31 @@ export function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRev
   const [open,          setOpen]          = useState(false)
   const [confirmOpen,   setConfirmOpen]   = useState(false)
   const [payAtDeliver,  setPayAtDeliver]  = useState(item.payment_status === 'paid')
+  const [payScope,      setPayScope]      = useState<'item' | 'group'>('item')
   const [unpaidConfirm, setUnpaidConfirm] = useState(false)
   const [confirmRevert, setConfirmRevert] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [loading,       setLoading]       = useState<string | null>(null)
   const [staffName,     setStaffName]     = useState('')
   const [simpleConfirm, setSimpleConfirm] = useState(false)
+
+  // 同じ受付で登録した複数点（repair_group_id）のうち、まだ未払いの他の点がある場合、
+  // 「この商品のみ」か「グループ全額をまとめて」精算するか選べるようにする
+  const [groupInfo, setGroupInfo] = useState<{ total: number; unpaidOthers: number } | null>(null)
+  useEffect(() => {
+    if (item.kind !== 'repair' || !item.repair_group_id) { setGroupInfo(null); return }
+    let cancelled = false
+    ;(supabase as any).from('repair_histories')
+      .select('id, price, final_price, payment_status')
+      .eq('repair_group_id', item.repair_group_id)
+      .then(({ data }: { data: { id: string; price: number | null; final_price: number | null; payment_status: string | null }[] | null }) => {
+        if (cancelled || !data || data.length <= 1) return
+        const total = data.reduce((sum, r) => sum + (r.final_price ?? r.price ?? 0), 0)
+        const unpaidOthers = data.filter(r => r.id !== item.id && r.payment_status !== 'paid').length
+        setGroupInfo({ total, unpaidOthers })
+      })
+    return () => { cancelled = true }
+  }, [item.kind, item.repair_group_id, item.id])
 
   const waitDays   = item.ready_date
     ? Math.floor((Date.now() - new Date(item.ready_date).getTime()) / 86400000)
@@ -142,9 +162,21 @@ export function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRev
                   {payAtDeliver && <CheckCheck size={10} className="text-white" />}
                 </div>
                 <p className={`font-bold text-sm ${payAtDeliver ? 'text-emerald-700' : 'text-gray-500'}`}>
-                  代金を受け取った{item.price != null ? `（¥${item.price.toLocaleString()}）` : ''}
+                  代金を受け取った{item.price != null ? `（¥${(payScope === 'group' && groupInfo ? groupInfo.total : item.price).toLocaleString()}）` : ''}
                 </p>
               </button>
+              {payAtDeliver && groupInfo && groupInfo.unpaidOthers > 0 && (
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => setPayScope('item')}
+                    className={`py-2 rounded-xl text-xs font-black border-2 ${payScope === 'item' ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-500'}`}>
+                    この商品のみ ¥{item.price?.toLocaleString() ?? '-'}
+                  </button>
+                  <button onClick={() => setPayScope('group')}
+                    className={`py-2 rounded-xl text-xs font-black border-2 ${payScope === 'group' ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-500'}`}>
+                    グループ全額 ¥{groupInfo.total.toLocaleString()}
+                  </button>
+                </div>
+              )}
               <div className="flex gap-2">
                 <button onClick={() => setSimpleConfirm(false)}
                   className="flex-1 py-3 rounded-xl font-bold text-sm bg-white border-2 border-gray-200 text-gray-600">
@@ -153,7 +185,7 @@ export function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRev
                 <button
                   onClick={async () => {
                     setLoading('deliver')
-                    await onDeliver(item, payAtDeliver, '')
+                    await onDeliver(item, payAtDeliver, '', payScope)
                     setLoading(null)
                     setSimpleConfirm(false)
                   }}
@@ -394,9 +426,23 @@ export function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRev
                 </div>
                 <div className="text-left flex-1">
                   <p className={`text-sm font-bold ${payAtDeliver ? 'text-emerald-700' : 'text-gray-500'}`}>代金を受け取った</p>
-                  <p className="text-xs text-gray-400">{item.price != null ? `¥${item.price.toLocaleString()}` : '金額未設定'}</p>
+                  <p className="text-xs text-gray-400">
+                    {(payScope === 'group' && groupInfo) ? `¥${groupInfo.total.toLocaleString()}` : (item.price != null ? `¥${item.price.toLocaleString()}` : '金額未設定')}
+                  </p>
                 </div>
               </button>
+              {payAtDeliver && groupInfo && groupInfo.unpaidOthers > 0 && (
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => setPayScope('item')}
+                    className={`py-2 rounded-xl text-xs font-black border-2 ${payScope === 'item' ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-500'}`}>
+                    この商品のみ ¥{item.price?.toLocaleString() ?? '-'}
+                  </button>
+                  <button onClick={() => setPayScope('group')}
+                    className={`py-2 rounded-xl text-xs font-black border-2 ${payScope === 'group' ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-500'}`}>
+                    グループ全額 ¥{groupInfo.total.toLocaleString()}
+                  </button>
+                </div>
+              )}
               {unpaidConfirm && (
                 <div className="rounded-2xl border-2 border-red-400 bg-red-50 px-4 py-3 space-y-2">
                   <p className="text-sm font-black text-red-700 text-center flex items-center justify-center gap-1.5">
@@ -421,7 +467,7 @@ export function WaitingCard({ item, alertDays, onDeliver, onPaymentToggle, onRev
                 <button onClick={async () => {
                   if (!payAtDeliver && item.payment_status !== 'paid') { setUnpaidConfirm(true); return }
                   setLoading('deliver')
-                  await onDeliver(item, payAtDeliver, staffName)
+                  await onDeliver(item, payAtDeliver, staffName, payScope)
                   setLoading(null); setConfirmOpen(false)
                 }} disabled={!!loading || unpaidConfirm}
                   className="py-2.5 rounded-xl font-black text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-sm">
