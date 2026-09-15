@@ -177,8 +177,24 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
   const [photos, setPhotos] = useState<{ file: File; url: string }[]>([])
   const [saving, setSaving] = useState(false)
 
-  // ── 1人が複数点持ち込んだ場合、続けて登録できるようにする ──────────
-  const [savedItems, setSavedItems] = useState<string[]>([])
+  // ── 1人が複数点、または内容の違う複数箇所を持ち込んだ場合、続けて登録できるようにする ──
+  //   例: ズボン1本でも「ウエスト直し」＋「裾上げ」のように内容が違えば2点として登録する。
+  //   同じ受付セッション内の全行を repair_group_id で束ね、合算金額の表示と
+  //   出来上がり通知の方式（まとめて/個別）をこのグループ単位で扱えるようにする。
+  const [savedItems, setSavedItems] = useState<{ label: string; price: number | null }[]>([])
+  const [groupId] = useState(() => crypto.randomUUID())
+  // 出来上がり通知の方式。2点目以降を登録するとき選べる（後から変更すると登録済み分にも反映）
+  const [groupNotifyMode, setGroupNotifyMode] = useState<'individual' | 'combined'>('combined')
+  const changeGroupNotifyMode = async (mode: 'individual' | 'combined') => {
+    setGroupNotifyMode(mode)
+    if (savedItems.length > 0) {
+      await (supabase as any).from('repair_histories')
+        .update({ group_notify_mode: mode }).eq('repair_group_id', groupId)
+    }
+  }
+  const savedTotal = savedItems.reduce((sum, s) => sum + (s.price ?? 0), 0)
+  const [grandTotal, setGrandTotal] = useState(0)
+  const [hasPending, setHasPending] = useState(false)
   // 受付完了後の印刷・連絡（このセッションで登録した全点分）
   const [printQueue, setPrintQueue] = useState<PrintableRepair[]>([])
   const [showPrint,  setShowPrint]  = useState(false)
@@ -451,6 +467,8 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
       pricing_mode: pricingMode, quote_status,
       manual_reason: pricingMode === 'master' ? null : (manualReason || null),
       selected_options: snapshots, inputs,
+      // ▼ 複数点受付（同一セッションの行を束ねる）
+      repair_group_id: groupId, group_notify_mode: groupNotifyMode,
     }
     // 既存カラムへ採寸の代表値を反映（カード/編集画面の互換）
     for (const f of toFieldDefs(item.fields, item.measurements)) {
@@ -522,10 +540,14 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
 
     if (closeAfter) {
       const total = savedItems.length + insertedRows.length
+      const lastPrice = finalPrice == null ? null : finalPrice * insertedRows.length
+      setGrandTotal(savedTotal + (lastPrice ?? 0))
+      setHasPending(savedItems.some(s => s.price == null) || lastPrice == null)
       onToast('ok', total > 1 ? `✂️ ${total}${labels.unit_count}を受付しました` : (finalPrice == null ? '✂️ 見積もり待ちで受付しました' : '✂️ 受付しました'))
       setStep('done')
     } else {
-      setSavedItems(prev => [...prev, label])
+      const linePrice = finalPrice == null ? null : finalPrice * insertedRows.length
+      setSavedItems(prev => [...prev, { label, price: linePrice }])
       onToast('ok', `✂️ ${label} を登録しました。続けて次の項目を選択してください`)
       resetForNextItem()
     }
@@ -958,6 +980,12 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
           <div>
             <p className="text-xl font-black text-gray-800">受付が完了しました</p>
             <p className="text-sm text-gray-500 mt-1">{printQueue.length}点登録：{printQueue.map(p => `${p.garmentName} ${p.itemName}`.trim()).join('、')}</p>
+            {printQueue.length > 1 && (
+              <p className="text-sm font-black text-gray-700 mt-1">
+                合算金額 ¥{grandTotal.toLocaleString()}{hasPending && '〜（見積もり含む）'}
+                {groupNotifyMode === 'combined' ? '（出来上がり通知：まとめて1通）' : '（出来上がり通知：個別）'}
+              </p>
+            )}
           </div>
           <div className="space-y-2 pt-2">
             <button onClick={() => setShowPrint(true)}
@@ -1147,9 +1175,27 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
           {step === 'build' && (
             <div>
               {savedItems.length > 0 && (
-                <div className="mb-4 rounded-xl bg-indigo-50 border border-indigo-200 px-3 py-2.5">
-                  <p className="text-xs font-black text-indigo-700">✅ 登録済み {savedItems.length}点</p>
-                  <p className="text-[11px] text-indigo-500 mt-0.5">{savedItems.join('、')}</p>
+                <div className="mb-4 rounded-xl bg-indigo-50 border border-indigo-200 px-3 py-2.5 space-y-2">
+                  <div className="flex items-baseline justify-between">
+                    <p className="text-xs font-black text-indigo-700">✅ 登録済み {savedItems.length}点</p>
+                    <p className="text-sm font-black text-indigo-700">
+                      合算 {savedItems.some(s => s.price == null) ? '¥' + savedTotal.toLocaleString() + '〜（見積もり含む）' : `¥${savedTotal.toLocaleString()}`}
+                    </p>
+                  </div>
+                  <p className="text-[11px] text-indigo-500">{savedItems.map(s => s.label).join('、')}</p>
+                  <div>
+                    <p className="text-[11px] font-bold text-indigo-600 mb-1">出来上がり通知</p>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => changeGroupNotifyMode('combined')}
+                        className={`flex-1 py-1.5 rounded-lg text-[11px] font-black border ${groupNotifyMode === 'combined' ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-indigo-200 text-indigo-500'}`}>
+                        まとめて1通
+                      </button>
+                      <button type="button" onClick={() => changeGroupNotifyMode('individual')}
+                        className={`flex-1 py-1.5 rounded-lg text-[11px] font-black border ${groupNotifyMode === 'individual' ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-indigo-200 text-indigo-500'}`}>
+                        それぞれ個別に
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
               {/* 大分類 */}

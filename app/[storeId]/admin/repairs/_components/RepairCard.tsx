@@ -11,6 +11,7 @@ import { REPAIR_PHOTOS_BUCKET } from '@/types/repair'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { REPAIR_LABELS as labels } from '@/lib/repairProfile'
 import { StaffPicker, lastStaffId, useStaffList } from './StaffPicker'
+import { resolveGroupCompletionNotify } from '@/lib/repairGroupNotify'
 import {
   REPAIR_STATUS_LABELS, REPAIR_STATUS_COLORS,
   REQUEST_TYPE_LABELS, REQUEST_TYPE_COLORS,
@@ -113,6 +114,22 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
     setRepairPhotos(null)
   }
 
+  // 同じ受付で登録した複数点（repair_group_id）の合算金額・点数を、展開時だけ引く
+  const [groupSummary, setGroupSummary] = useState<{ count: number; total: number; hasPending: boolean } | null>(null)
+  useEffect(() => {
+    if (!detailOpen || !item.repair_group_id) { setGroupSummary(null); return }
+    let cancelled = false
+    ;(supabase as any).from('repair_histories')
+      .select('final_price, price, quote_status')
+      .eq('repair_group_id', item.repair_group_id)
+      .then(({ data }: { data: { final_price: number | null; price: number | null; quote_status: string | null }[] | null }) => {
+        if (cancelled || !data || data.length <= 1) return
+        const total = data.reduce((sum, r) => sum + (r.final_price ?? r.price ?? 0), 0)
+        setGroupSummary({ count: data.length, total, hasPending: data.some(r => r.quote_status === 'pending') })
+      })
+    return () => { cancelled = true }
+  }, [detailOpen, item.repair_group_id])
+
   // 外注確認パネルが開いたときに業者マスタを読み込む
   useEffect(() => {
     if (!confirmVendor || vendors.length > 0) return
@@ -158,13 +175,28 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
   async function handleRepairComplete() {
     setLoading(true)
     const today = new Date().toISOString().slice(0, 10)
-    const markNotifiedNow = fullNotifyMode !== 'line' && fullNotifyMode !== 'sms'
     const { error } = await (supabase as any).from('repair_histories')
-      .update({ status: 'completed', completed_date: today, ...(markNotifiedNow ? { notified: true } : {}),
+      .update({ status: 'completed', completed_date: today,
                 ...(item.strung_by ? {} : { strung_by: doneBy }),
                 updated_at: new Date().toISOString() })
       .eq('id', item.id)
     if (error) { setLoading(false); onToast('err', '更新に失敗しました'); return }
+
+    // このお直しが「まとめて1通」グループに属する場合、グループ全点が完了するまで通知を待つ
+    const group = await resolveGroupCompletionNotify(
+      { id: item.id, item_name: item.item_name, garment_name: item.garment_name, request_no: item.request_no },
+      item.repair_group_id ?? null, item.group_notify_mode ?? null,
+      (no, id) => fmtReqNo('repair', no, id),
+    )
+    if (group.waitingForGroup) {
+      setLoading(false); onRefresh()
+      onToast('ok', '完了にしました（他のお直しの完了を待ってまとめて通知します）')
+      return
+    }
+    const markNotifiedNow = fullNotifyMode !== 'line' && fullNotifyMode !== 'sms'
+    if (markNotifiedNow) {
+      await (supabase as any).from('repair_histories').update({ notified: true }).in('id', group.notifyTargetIds)
+    }
     let outsideHours = false
     if (fullNotifyMode === 'line' || fullNotifyMode === 'sms') {
       try {
@@ -176,9 +208,9 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             lineUserId: item.customer?.line_user_id ?? null,
             tel: item.customer?.tel ?? null,
             customerName: item.customer?.name ?? '',
-            itemName: item.item_name,
+            itemName: group.itemNames,
             storeName,
-            reqNo: fmtReqNo('repair', item.request_no, item.id),
+            reqNo: group.reqNos,
           }),
         })
         const json = await res.json().catch(() => ({}))
@@ -189,6 +221,9 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
         }
         // 閉店間際・定休日に送った場合は現場に知らせる（送信自体は済んでいる）
         outsideHours = (json as any).outsideHours === true
+        if (group.notifyTargetIds.length > 1) {
+          await (supabase as any).from('repair_histories').update({ notified: true }).in('id', group.notifyTargetIds)
+        }
       } catch (e) {
         setLoading(false); onRefresh()
         onToast('err', `通知エラー: ${String(e)}`)
@@ -327,17 +362,30 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
       setLoading(true)
       if (completionPhotos.length > 0) await uploadCompletionPhotos()
       const today = new Date().toISOString().slice(0, 10)
-      // 電話連絡運用は手動連絡済みなので notified:true で確定（SMS送信はしない）
-      const markNotified = notifyMode === 'phone_manual'
       const { error } = await (supabase as any).from('repair_histories')
         // 担当者を必須で選ばせているのに保存していなかったため、誰が仕上げたか
         // が一切残っていなかった（画面には「作業・連絡」欄が出ない）
         .update({ status: 'completed', completed_date: today, work_started: true,
-                  ...(markNotified ? { notified: true } : {}),
                   ...(item.strung_by ? {} : { strung_by: doneBy }),
                   updated_at: new Date().toISOString() })
         .eq('id', item.id)
       if (error) { setLoading(false); onToast('err', '更新に失敗しました'); return }
+
+      // このお直しが「まとめて1通」グループに属する場合、グループ全点が完了するまで通知を待つ
+      const group = await resolveGroupCompletionNotify(
+        { id: item.id, item_name: item.item_name, garment_name: item.garment_name, request_no: item.request_no },
+        item.repair_group_id ?? null, item.group_notify_mode ?? null,
+        (no, id) => fmtReqNo('repair', no, id),
+      )
+      if (group.waitingForGroup) {
+        setLoading(false); onRefresh()
+        onToast('ok', '完了にしました（他のお直しの完了を待ってまとめて通知します）')
+        return
+      }
+      // 電話連絡運用は手動連絡済みなので notified:true で確定（SMS送信はしない）
+      if (notifyMode === 'phone_manual') {
+        await (supabase as any).from('repair_histories').update({ notified: true }).in('id', group.notifyTargetIds)
+      }
       if (notifyMode === 'line' || notifyMode === 'sms') {
         try {
           const res = await fetch('/api/notify-repair', {
@@ -348,9 +396,9 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
               lineUserId:   item.customer?.line_user_id ?? null,
               tel:          item.customer?.tel ?? null,
               customerName: item.customer?.name ?? '',
-              itemName:     item.item_name,
+              itemName:     group.itemNames,
               storeName,
-              reqNo,
+              reqNo: group.reqNos,
             }),
           })
           const json = await res.json().catch(() => ({}))
@@ -359,6 +407,9 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
             onRefresh()
             onToast('err', `通知送信に失敗しました: ${(json as any).error ?? '不明なエラー'}`)
             return
+          }
+          if (group.notifyTargetIds.length > 1) {
+            await (supabase as any).from('repair_histories').update({ notified: true }).in('id', group.notifyTargetIds)
           }
         } catch (e) {
           setLoading(false)
@@ -508,6 +559,16 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
               {item.slip_number && (
                 <span className="text-gray-500">伝票 <span className="font-black text-gray-800">{item.slip_number}</span></span>
               )}
+            </div>
+          )}
+          {groupSummary && (
+            <div className="text-xs bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1.5">
+              <span className="font-black text-indigo-700">
+                同時受付{groupSummary.count}点の合算 ¥{groupSummary.total.toLocaleString()}{groupSummary.hasPending && '〜（見積もり含む）'}
+              </span>
+              <span className="text-indigo-500 ml-1.5">
+                （通知：{item.group_notify_mode === 'combined' ? '全点完了後まとめて1通' : '個別'}）
+              </span>
             </div>
           )}
 
@@ -974,6 +1035,16 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                 {item.slip_number && (
                   <span className="text-gray-500">伝票 <span className="font-black text-gray-800">{item.slip_number}</span></span>
                 )}
+              </div>
+            )}
+            {groupSummary && (
+              <div className="text-xs bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1.5">
+                <span className="font-black text-indigo-700">
+                  同時受付{groupSummary.count}点の合算 ¥{groupSummary.total.toLocaleString()}{groupSummary.hasPending && '〜（見積もり含む）'}
+                </span>
+                <span className="text-indigo-500 ml-1.5">
+                  （通知：{item.group_notify_mode === 'combined' ? '全点完了後まとめて1通' : '個別'}）
+                </span>
               </div>
             )}
           </div>

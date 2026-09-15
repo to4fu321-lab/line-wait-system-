@@ -46,6 +46,10 @@ export interface RepairRow {
   strung_by?:   string | null
   /** クイック受付（最小入力の受付モーダル）経由で登録されたか。一覧バッジの表示切り替え用 */
   quick_receipt?: boolean | null
+  /** 同じ受付セッションで登録した複数点を束ねるグループID。単独受付はnull */
+  repair_group_id?: string | null
+  /** グループの完了通知方式。individual=各点ごとに通知 / combined=グループ全点完了後に1通 */
+  group_notify_mode?: 'individual' | 'combined' | null
   /** FK埋め込みで引く担当スタッフ名 */
   received_by_staff?: { name: string } | null
   strung_by_staff?:   { name: string } | null

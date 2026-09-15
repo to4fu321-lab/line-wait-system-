@@ -1739,6 +1739,7 @@ export type Database = {
           final_price: number | null
           garment_name: string | null
           garment_type_id: string | null
+          group_notify_mode: string
           hem_length_mm: number | null
           id: string
           input_details: Json
@@ -1760,6 +1761,7 @@ export type Database = {
           quote_status: string
           received_by: string | null
           received_date: string
+          repair_group_id: string | null
           repair_type: string | null
           request_no: number | null
           request_type: string | null
@@ -1795,6 +1797,7 @@ export type Database = {
           final_price?: number | null
           garment_name?: string | null
           garment_type_id?: string | null
+          group_notify_mode?: string
           hem_length_mm?: number | null
           id?: string
           input_details?: Json
@@ -1816,6 +1819,7 @@ export type Database = {
           quote_status?: string
           received_by?: string | null
           received_date?: string
+          repair_group_id?: string | null
           repair_type?: string | null
           request_no?: number | null
           request_type?: string | null
@@ -1851,6 +1855,7 @@ export type Database = {
           final_price?: number | null
           garment_name?: string | null
           garment_type_id?: string | null
+          group_notify_mode?: string
           hem_length_mm?: number | null
           id?: string
           input_details?: Json
@@ -1872,6 +1877,7 @@ export type Database = {
           quote_status?: string
           received_by?: string | null
           received_date?: string
+          repair_group_id?: string | null
           repair_type?: string | null
           request_no?: number | null
           request_type?: string | null
