@@ -64,7 +64,6 @@ const PRIORITY_META: Record<string, { label: string; cls: string; order: number 
   medium: { label: '中',   cls: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30', order: 2 },
   low:    { label: '低',   cls: 'bg-gray-600/20 text-gray-400 border-gray-600/30',       order: 3 },
 }
-const priorityOrder = (p: string | null) => (p && PRIORITY_META[p] ? PRIORITY_META[p].order : 99)
 const KIND_LABEL: Record<string, string> = { request: '要望', bug: '不具合', question: '質問' }
 const PRIORITY_LABEL: Record<string, string> = { urgent: '緊急', high: '高', medium: '中', low: '低' }
 
@@ -73,7 +72,7 @@ export default function FeedbackAdminPage() {
   const [checked, setChecked] = useState(false)
   const [rows, setRows]       = useState<Feedback[]>([])
   const [loading, setLoading] = useState(false)
-  const [filter, setFilter]   = useState<string>('all')
+  const [filter, setFilter]   = useState<string>('new')
   const [approving, setApproving] = useState<string | null>(null)
   const [mergingPr, setMergingPr] = useState<number | null>(null)
   const [promoting, setPromoting] = useState<string | null>(null)
@@ -276,7 +275,7 @@ export default function FeedbackAdminPage() {
 
   const filtered = (filter === 'all' ? rows : rows.filter(r => r.status === filter))
     .slice()
-    .sort((a, b) => priorityOrder(a.priority) - priorityOrder(b.priority))
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   const counts = STATUSES.reduce((a, s) => ({ ...a, [s.value]: rows.filter(r => r.status === s.value).length }), {} as Record<string, number>)
 
   return (
