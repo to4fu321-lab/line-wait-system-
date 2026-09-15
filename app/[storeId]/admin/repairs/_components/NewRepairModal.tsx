@@ -419,15 +419,19 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
 
   // 服種・項目選択に戻り、次の1点を続けて登録できるようにビルド状態をリセット
   // （顧客紐付けはそのまま維持。加工業者/納期/メモは項目ごとに異なりうるため初期化）
+  //
+  // 服種は直前に選んでいたものを引き継ぐ（同じスラックスに「ウエスト出し」
+  // →「裾上げ」のように複数加工を続けて登録するケースが多いため、毎回
+  // 選び直させない。別の服種に切り替えたいときは「戻る」で服種選択に戻れる）
   function resetForNextItem() {
-    setGarmentId(garments[0]?.id ?? null)
     setItem(null)
     setOptSel({}); setInputs({}); setQty(1)
     setPricingMode('master'); setOverridePrice(''); setManualReason('')
     setManualItemName(''); setManualContent(''); setManualConfirmed(false)
     setDeadline(''); setVendorId(null); setVendorName('')
     setMemo(''); setPhotos([])
-    setBuildStep(0)
+    // 服種はすでに決まっているので、項目選択から再開する
+    setBuildStep(garmentId ? 1 : 0)
   }
 
   async function handleSave(closeAfter: boolean) {
@@ -1221,7 +1225,13 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
               {curBuildKey === 'item' && (
                 <div>
                   <p className="text-xl font-black text-gray-800 mb-1">{labels.item}を選んでください</p>
-                  <p className="text-sm text-gray-500 mb-5">項目をタップして選んでください</p>
+                  <p className="text-sm text-gray-500 mb-1">項目をタップして選んでください</p>
+                  {savedItems.length > 0 && (
+                    <p className="text-xs text-indigo-500 mb-4">
+                      同じ{garments.find(g => g.id === garmentId)?.name ?? labels.garment}に別の加工（例: ウエスト出し・裾上げ）を続けて登録できます。違う{labels.garment}なら「戻る」から選び直してください
+                    </p>
+                  )}
+                  {savedItems.length === 0 && <div className="mb-5" />}
                   <div className="grid grid-cols-2 gap-3">
                     {items.map(it => (
                       <button key={it.id} onClick={() => selectItem(it)}
