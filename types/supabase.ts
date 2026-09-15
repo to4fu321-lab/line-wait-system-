@@ -1754,6 +1754,7 @@ export type Database = {
           notes: string | null
           notified: boolean
           payment_status: string
+          physical_item_id: string | null
           prepaid: boolean
           price: number | null
           pricing_mode: string
@@ -1812,6 +1813,7 @@ export type Database = {
           notes?: string | null
           notified?: boolean
           payment_status?: string
+          physical_item_id?: string | null
           prepaid?: boolean
           price?: number | null
           pricing_mode?: string
@@ -1870,6 +1872,7 @@ export type Database = {
           notes?: string | null
           notified?: boolean
           payment_status?: string
+          physical_item_id?: string | null
           prepaid?: boolean
           price?: number | null
           pricing_mode?: string

@@ -195,6 +195,15 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
   const savedTotal = savedItems.reduce((sum, s) => sum + (s.price ?? 0), 0)
   const [grandTotal, setGrandTotal] = useState(0)
   const [hasPending, setHasPending] = useState(false)
+
+  // ── 同じ物理的な1点（例: スラックス1本）に複数の加工をかける場合の束ね ──
+  //   repair_group_id（受付セッション全体）とは別に、物理的に同じ品には
+  //   physical_item_id を共通させる。同じ物理アイテムに対する2つ目以降の
+  //   加工では、服種と仕上がり希望日を勝手に変えられると「同じ品なのに
+  //   納期が2つ」になっておかしくなるため、両方とも引き継いで固定する。
+  const [physicalItemId, setPhysicalItemId] = useState(() => crypto.randomUUID())
+  const [lockedDeadline, setLockedDeadline] = useState<string | null>(null)
+  const sameItemContinuation = lockedDeadline != null
   // 受付完了後の印刷・連絡（このセッションで登録した全点分）
   const [printQueue, setPrintQueue] = useState<PrintableRepair[]>([])
   const [showPrint,  setShowPrint]  = useState(false)
@@ -418,23 +427,36 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
   }
 
   // 服種・項目選択に戻り、次の1点を続けて登録できるようにビルド状態をリセット
-  // （顧客紐付けはそのまま維持。加工業者/納期/メモは項目ごとに異なりうるため初期化）
+  // （顧客紐付けはそのまま維持。加工業者/メモは項目ごとに異なりうるため初期化）
   //
-  // 服種は直前に選んでいたものを引き継ぐ（同じスラックスに「ウエスト出し」
-  // →「裾上げ」のように複数加工を続けて登録するケースが多いため、毎回
-  // 選び直させない。別の服種に切り替えたいときは「戻る」で服種選択に戻れる）
-  function resetForNextItem() {
+  // sameItem=true: 「同じ商品に加工を追加」— 物理的に同じ1点への2つ目以降の加工。
+  //   服種・仕上がり希望日は直前の値のまま固定する（同じ品なのに納期が2つに
+  //   なる/違う服種になる、という不整合を防ぐ）。
+  // sameItem=false: 「別の商品を受け付ける」— 新しい物理アイテムとして最初から
+  //   （服種選び直し・納期も新規入力）。
+  function resetForNextItem(sameItem: boolean) {
     setItem(null)
     setOptSel({}); setInputs({}); setQty(1)
     setPricingMode('master'); setOverridePrice(''); setManualReason('')
     setManualItemName(''); setManualContent(''); setManualConfirmed(false)
-    setDeadline(''); setVendorId(null); setVendorName('')
+    setVendorId(null); setVendorName('')
     setMemo(''); setPhotos([])
-    // 服種はすでに決まっているので、項目選択から再開する
-    setBuildStep(garmentId ? 1 : 0)
+    if (sameItem) {
+      const fixedDeadline = deadline || defaultDeadline() || ''
+      setLockedDeadline(fixedDeadline)
+      setDeadline(fixedDeadline)
+      // 服種はすでに決まっているので、項目選択から再開する
+      setBuildStep(1)
+    } else {
+      setPhysicalItemId(crypto.randomUUID())
+      setLockedDeadline(null)
+      setDeadline('')
+      setGarmentId(garments[0]?.id ?? null)
+      setBuildStep(0)
+    }
   }
 
-  async function handleSave(closeAfter: boolean) {
+  async function handleSave(closeAfter: boolean, continueMode: 'same' | 'new' = 'new') {
     if (!item) return
     if (!selectedCust) { onToast('err', 'お客様を紐付けてください（上部の「顧客」から登録できます）'); setStep('customer'); return }
     if (hasDanger && !manualConfirmed) { onToast('err', '特殊ケースの確認にチェックしてください'); return }
@@ -473,6 +495,8 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
       selected_options: snapshots, inputs,
       // ▼ 複数点受付（同一セッションの行を束ねる）
       repair_group_id: groupId, group_notify_mode: groupNotifyMode,
+      // ▼ 同じ物理的な1点への複数加工（服種・納期を束ねる単位）
+      physical_item_id: physicalItemId,
     }
     // 既存カラムへ採寸の代表値を反映（カード/編集画面の互換）
     for (const f of toFieldDefs(item.fields, item.measurements)) {
@@ -553,7 +577,7 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
       const linePrice = finalPrice == null ? null : finalPrice * insertedRows.length
       setSavedItems(prev => [...prev, { label, price: linePrice }])
       onToast('ok', `✂️ ${label} を登録しました。続けて次の項目を選択してください`)
-      resetForNextItem()
+      resetForNextItem(continueMode === 'same')
     }
   }
 
@@ -1228,7 +1252,9 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
                   <p className="text-sm text-gray-500 mb-1">項目をタップして選んでください</p>
                   {savedItems.length > 0 && (
                     <p className="text-xs text-indigo-500 mb-4">
-                      同じ{garments.find(g => g.id === garmentId)?.name ?? labels.garment}に別の加工（例: ウエスト出し・裾上げ）を続けて登録できます。違う{labels.garment}なら「戻る」から選び直してください
+                      {sameItemContinuation
+                        ? `同じ${garments.find(g => g.id === garmentId)?.name ?? labels.garment}への追加加工です（仕上がり希望日は最初の加工と同じになります）`
+                        : `同じ${garments.find(g => g.id === garmentId)?.name ?? labels.garment}に別の加工（例: ウエスト出し・裾上げ）を続けて登録できます。違う${labels.garment}なら「戻る」から選び直してください`}
                     </p>
                   )}
                   {savedItems.length === 0 && <div className="mb-5" />}
@@ -1398,12 +1424,17 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
                   {curBuildKey === 'memo' && (
                     <div>
                       <p className="text-xl font-black text-gray-800 mb-1">仕上がり日・メモ</p>
-                      <p className="text-sm text-gray-500 mb-5">希望日と外注先・メモを入力してください</p>
+                      <p className="text-sm text-gray-500 mb-5">
+                        {sameItemContinuation
+                          ? '同じ商品への追加加工のため、仕上がり希望日は最初の加工と揃えています（変更不可）'
+                          : '希望日と外注先・メモを入力してください'}
+                      </p>
                       <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label className="text-xs font-bold text-gray-600 block mb-1.5">仕上がり希望日</label>
-                            <input type="date" className={INPUT} value={deadline} onChange={e => setDeadline(e.target.value)} />
+                            <input type="date" className={INPUT + (sameItemContinuation ? ' bg-gray-100 text-gray-500' : '')}
+                              value={deadline} onChange={e => setDeadline(e.target.value)} disabled={sameItemContinuation} />
                           </div>
                           <div>
                             <label className="text-xs font-bold text-gray-600 block mb-1.5">加工業者（外注先・任意）</label>
@@ -1486,12 +1517,20 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
                 {saving ? <Loader2 size={22} className="animate-spin" /> : <Check size={22} />}
                 {savedItems.length > 0 || qty > 1 ? `受付する（合計${savedItems.length + qty}点）` : '受付する'}
               </button>
-              <button onClick={() => handleSave(false)} disabled={saving}
-                style={{ touchAction: 'manipulation' }}
-                className="w-full py-3.5 rounded-2xl border-2 border-indigo-300 text-indigo-600 text-sm font-black disabled:opacity-50 flex items-center justify-center gap-1.5 active:scale-[0.98]">
-                {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-                この内容を登録して、続けてもう1点受け付ける
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => handleSave(false, 'same')} disabled={saving}
+                  style={{ touchAction: 'manipulation' }}
+                  className="py-3.5 rounded-2xl border-2 border-indigo-300 text-indigo-600 text-xs font-black disabled:opacity-50 flex flex-col items-center justify-center gap-0.5 active:scale-[0.98] leading-tight">
+                  {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                  同じ商品に加工を追加
+                </button>
+                <button onClick={() => handleSave(false, 'new')} disabled={saving}
+                  style={{ touchAction: 'manipulation' }}
+                  className="py-3.5 rounded-2xl border-2 border-gray-300 text-gray-600 text-xs font-black disabled:opacity-50 flex flex-col items-center justify-center gap-0.5 active:scale-[0.98] leading-tight">
+                  {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                  別の商品を受け付ける
+                </button>
+              </div>
             </div>
           ) : (
             <div className="flex gap-3">

@@ -50,6 +50,8 @@ export interface RepairRow {
   repair_group_id?: string | null
   /** グループの完了通知方式。individual=各点ごとに通知 / combined=グループ全点完了後に1通 */
   group_notify_mode?: 'individual' | 'combined' | null
+  /** 同じ物理的な1点（例: スラックス1本）にかける複数加工を束ねるID。repair_group_idより細かい粒度 */
+  physical_item_id?: string | null
   /** FK埋め込みで引く担当スタッフ名 */
   received_by_staff?: { name: string } | null
   strung_by_staff?:   { name: string } | null

@@ -130,6 +130,21 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
     return () => { cancelled = true }
   }, [detailOpen, item.repair_group_id])
 
+  // 同じ物理的な1点（例: スラックス1本）にかけている他の加工名を、展開時だけ引く
+  const [sameItemOthers, setSameItemOthers] = useState<string[] | null>(null)
+  useEffect(() => {
+    if (!detailOpen || !item.physical_item_id) { setSameItemOthers(null); return }
+    let cancelled = false
+    ;(supabase as any).from('repair_histories')
+      .select('id, item_name')
+      .eq('physical_item_id', item.physical_item_id)
+      .then(({ data }: { data: { id: string; item_name: string }[] | null }) => {
+        if (cancelled || !data || data.length <= 1) return
+        setSameItemOthers(data.filter(r => r.id !== item.id).map(r => r.item_name))
+      })
+    return () => { cancelled = true }
+  }, [detailOpen, item.physical_item_id, item.id])
+
   // 外注確認パネルが開いたときに業者マスタを読み込む
   useEffect(() => {
     if (!confirmVendor || vendors.length > 0) return
@@ -559,6 +574,11 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
               {item.slip_number && (
                 <span className="text-gray-500">伝票 <span className="font-black text-gray-800">{item.slip_number}</span></span>
               )}
+            </div>
+          )}
+          {sameItemOthers && sameItemOthers.length > 0 && (
+            <div className="text-xs bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+              <span className="font-black text-amber-700">同じ商品の他の加工：{sameItemOthers.join('、')}</span>
             </div>
           )}
           {groupSummary && (
@@ -1035,6 +1055,11 @@ export function RepairCard({ item, storeId, storeName = '', onRefresh, onToast, 
                 {item.slip_number && (
                   <span className="text-gray-500">伝票 <span className="font-black text-gray-800">{item.slip_number}</span></span>
                 )}
+              </div>
+            )}
+            {sameItemOthers && sameItemOthers.length > 0 && (
+              <div className="text-xs bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                <span className="font-black text-amber-700">同じ商品の他の加工：{sameItemOthers.join('、')}</span>
               </div>
             )}
             {groupSummary && (
