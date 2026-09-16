@@ -18,7 +18,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, Plus, Pencil, Trash2, Loader2, X, Package } from 'lucide-react'
 import { useBackHref } from '@/lib/useBackHref'
-import { supabase } from '@/lib/supabase'
+import { masterCrud } from '@/lib/masterApi'
 import { Toast } from '@/app/_components/Toast'
 
 const INPUT = 'w-full border border-gray-300 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:border-indigo-500 bg-white'
@@ -66,12 +66,13 @@ export default function MaterialsMasterPage() {
   const fetchRows = useCallback(async () => {
     if (!storeId) return
     setLoading(true)
-    const { data, error } = await (supabase as any).from('products')
-      .select('id, name, group_name, color_code, maker, base_price_tax_in, stock, category, active')
-      .eq('store_id', storeId).eq('category', category)
-      .order('group_name').order('sort_order')
-    if (error) { showToast('err', '読み込みに失敗しました: ' + error.message); setLoading(false); return }
-    setRows((data ?? []) as MaterialRow[])
+    try {
+      const { rows } = await masterCrud<{ rows: MaterialRow[] }>(storeId, 'products', 'list',
+        { plain: true, category, orderByGroup: true })
+      setRows(rows ?? [])
+    } catch (e) {
+      showToast('err', '読み込みに失敗しました: ' + (e instanceof Error ? e.message : ''))
+    }
     setLoading(false)
   }, [storeId, category])
 
@@ -116,19 +117,25 @@ export default function MaterialsMasterPage() {
       category,
       active:            true,
     }
-    const db = supabase as any
-    const { error } = editing
-      ? await db.from('products').update(payload).eq('id', editing.id)
-      : await db.from('products').insert({ ...payload, store_id: storeId })
+    try {
+      await masterCrud(storeId, 'products', 'upsert',
+        { row: editing ? { ...payload, id: editing.id } : payload })
+    } catch (e) {
+      setSaving(false)
+      showToast('err', '保存に失敗しました: ' + (e instanceof Error ? e.message : ''))
+      return
+    }
     setSaving(false)
-    if (error) { showToast('err', '保存に失敗しました: ' + error.message); return }
     setModal(false); showToast('ok', '保存しました'); fetchRows()
   }
 
   const remove = async (r: MaterialRow) => {
     if (!confirm(`「${r.name}」を削除します。よろしいですか？`)) return
-    const { error } = await (supabase as any).from('products').delete().eq('id', r.id)
-    if (error) { showToast('err', '削除に失敗しました: ' + error.message); return }
+    try {
+      await masterCrud(storeId, 'products', 'delete', { id: r.id })
+    } catch (e) {
+      showToast('err', '削除に失敗しました: ' + (e instanceof Error ? e.message : '')); return
+    }
     showToast('ok', '削除しました'); fetchRows()
   }
 

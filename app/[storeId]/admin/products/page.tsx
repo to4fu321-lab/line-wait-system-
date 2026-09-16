@@ -1,5 +1,20 @@
 'use client'
 
+// ============================================================================
+//  ⚠️ この画面は動作しません（旧スキーマ専用の残骸）
+//
+//  products テーブルには code / sizes / price / is_active 列が無いため、
+//  現行DBに対しては読み込みも保存も失敗します。ナビゲーションからも
+//  リンクされていません。現行の商品マスタは次を使ってください:
+//    制服・学用品 … /[storeId]/admin/master/manage
+//    糸・部材     … /[storeId]/admin/master/materials
+//
+//  また、商品マスタは 20260916_master_tenant_isolation.sql 以降
+//  ブラウザから直接読み書きできません（/api/master/* 経由に統一）。
+//  この画面だけ supabase を直接呼んだままなのは、移植しても動かないためです。
+//  削除してよい画面ですが、影響範囲の確認が要るため判断を保留しています。
+// ============================================================================
+
 import { useParams } from 'next/navigation'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'

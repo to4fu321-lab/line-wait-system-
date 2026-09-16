@@ -9,6 +9,7 @@ import {
   Phone, RotateCcw, CalendarClock, Send, Hash,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fetchSchools, fetchSchoolProducts, fetchVariants } from '@/lib/masterApi'
 import { BottomNav } from '../_components/BottomNav'
 import { RecentCustomers, type RecentCust } from '../_components/RecentCustomers'
 import { GRADE_OPTIONS } from '@/types/crm'
@@ -198,9 +199,7 @@ function FittingPageInner() {
   // 学校マスター読み込み
   useEffect(() => {
     if (!storeId) return
-    (supabase as any).from('schools').select('id, name, short_name, sort_order')
-      .eq('store_id', storeId).eq('active', true).order('sort_order')
-      .then(({ data }: { data: any }) => setSchools(data ?? []))
+    fetchSchools(storeId).then(setSchools).catch(() => setSchools([]))
   }, [storeId])
 
   // 今日の予約を読み込む
@@ -402,17 +401,12 @@ function FittingPageInner() {
     if (!schoolId) { showToast('err', '学校が設定されていません'); return }
 
     setLoadingProd(true)
-    const { data: prods } = await (supabase as any).from('school_products')
-      .select('id, item_name, category, gender, maker_code, sort_order')
-      .eq('school_id', schoolId).eq('active', true)
-      .order('sort_order').order('item_name')
+    const prods = await fetchSchoolProducts(storeId, schoolId).catch(() => [])
 
     const allProds = (prods ?? []) as ProductRow[]
     if (allProds.length) {
       const ids = allProds.map((p: ProductRow) => p.id)
-      const { data: vars } = await (supabase as any).from('school_product_variants')
-        .select('id, product_id, size_label, price, sort_order')
-        .in('product_id', ids).eq('active', true).order('sort_order')
+      const vars = await fetchVariants(storeId, ids).catch(() => [])
       const map: Record<string, VariantRow[]> = {}
       for (const v of (vars ?? []) as VariantRow[]) {
         if (!map[v.product_id]) map[v.product_id] = []
@@ -450,17 +444,12 @@ function FittingPageInner() {
     if (!schoolId) { showToast('err', '学校が設定されていません。お子様情報を編集してください'); return }
 
     setLoadingProd(true)
-    const { data: prods } = await (supabase as any).from('school_products')
-      .select('id, item_name, category, gender, maker_code, sort_order')
-      .eq('school_id', schoolId).eq('active', true)
-      .order('sort_order').order('item_name')
+    const prods = await fetchSchoolProducts(storeId, schoolId).catch(() => [])
 
     const allProds = (prods ?? []) as ProductRow[]
     if (allProds.length) {
       const ids = allProds.map((p: ProductRow) => p.id)
-      const { data: vars } = await (supabase as any).from('school_product_variants')
-        .select('id, product_id, size_label, price, sort_order')
-        .in('product_id', ids).eq('active', true).order('sort_order')
+      const vars = await fetchVariants(storeId, ids).catch(() => [])
       const map: Record<string, VariantRow[]> = {}
       for (const v of (vars ?? []) as VariantRow[]) {
         if (!map[v.product_id]) map[v.product_id] = []

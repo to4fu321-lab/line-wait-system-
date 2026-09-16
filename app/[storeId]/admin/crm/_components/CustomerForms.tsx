@@ -6,6 +6,7 @@ import {
   Pencil, AlertCircle, X,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fetchSchools } from '@/lib/masterApi'
 import type { Customer, Child } from '@/types/crm'
 import { GRADE_OPTIONS } from '@/types/crm'
 import type { CustomerInfoData } from './types'
@@ -16,8 +17,9 @@ function useSchools(storeId: string) {
   const [schools, setSchools] = useState<SchoolOption[]>([])
   useEffect(() => {
     if (!storeId) return
-    supabase.from('schools').select('id, name').eq('store_id', storeId).eq('active', true)
-      .order('sort_order').then(({ data }) => setSchools((data as SchoolOption[] | null) ?? []))
+    fetchSchools(storeId)
+      .then(rows => setSchools(rows as SchoolOption[]))
+      .catch(() => setSchools([]))
   }, [storeId])
   return schools
 }

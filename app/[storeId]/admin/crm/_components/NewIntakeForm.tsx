@@ -5,6 +5,7 @@ import {
   Loader2, X, AlertCircle, ScanLine,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fetchByBarcode } from '@/lib/masterApi'
 import type { IntakeFormType } from './types'
 import { INTAKE_OPTIONS } from './types'
 import { Field } from '@/app/_components/Field'
@@ -69,13 +70,10 @@ export function NewIntakeForm({ customerId, childId, storeId, reservationUrl, on
         }
       }
       if (barcode) {
-        const { data: prods } = await (supabase as any).from('school_products')
-          .select('item_name, school_product_variants(price, sort_order)')
-          .eq('store_id', storeId).eq('barcode', barcode).eq('active', true).limit(1)
-        if (prods?.[0]) {
-          const p = prods[0]
-          setItemName(p.item_name); setError(null)
-          const v = ((p.school_product_variants ?? []) as any[]).sort((a: any, b: any) => a.sort_order - b.sort_order)
+        const { product, variants } = await fetchByBarcode(storeId, barcode)
+        if (product) {
+          setItemName(product.item_name); setError(null)
+          const v = variants.slice().sort((a, b) => a.sort_order - b.sort_order)
           if (v[0]?.price) setPrice(String(v[0].price))
         } else {
           setError(`バーコード「${barcode}」に一致する商品がマスタに登録されていません`)

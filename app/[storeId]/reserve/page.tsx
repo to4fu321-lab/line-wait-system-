@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { resolveFeature } from '@/lib/features'
 import { initLiff, getLineProfile } from '@/lib/liff'
 import { fetchCustomerSession, saveCustomer, createReservation, fetchReservationsOfDay } from '@/lib/customerApi'
+import { fetchSchools } from '@/lib/masterApi'
 import { todayJst, toJstTimeString } from '@/lib/date'
 import {
   CalendarDays, Clock, User, FileText, Check,
@@ -311,9 +312,7 @@ export default function ReservePage() {
       setChildren((kids ?? []) as ChildRow[])
     }
     // 学校マスターを取得
-    const { data: sc } = await (supabase as any).from('schools').select('id, name')
-      .eq('store_id', storeId).eq('active', true).order('sort_order')
-    setSchools((sc ?? []) as SchoolRow[])
+    setSchools(await fetchSchools(storeId).catch(() => []))
     setLoadingChildren(false)
   }, [storeId])
 

@@ -13,6 +13,7 @@ import {
   Plus, Trash2, CalendarDays, Clock, AlertCircle
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { masterCrud } from '@/lib/masterApi'
 import { BottomNav } from '../_components/BottomNav'
 
 interface CheckItem {
@@ -152,10 +153,9 @@ export default function MeasurementEventPage() {
       let deadlineMap: Record<string, { orderDeadline: string | null; pickupDeadline: string | null }> = {}
       const upcoming: UpcomingDeadline[] = []
       try {
-        const { data: schoolsData } = await (supabase as any)
-          .from('schools')
-          .select('name, order_deadline, pickup_deadline')
-          .eq('store_id', storeId)
+        const { rows: schoolsData } = await masterCrud<{ rows: {
+          name: string; order_deadline: string | null; pickup_deadline: string | null
+        }[] }>(storeId, 'schools', 'list')
         if (Array.isArray(schoolsData)) {
           const today = new Date(); today.setHours(0, 0, 0, 0)
           const in30  = new Date(today.getTime() + 30 * 86400000)

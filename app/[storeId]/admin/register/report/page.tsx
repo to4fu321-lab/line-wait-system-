@@ -10,6 +10,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, ChevronRight, Loader2, Download, BarChart3 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { masterCrud } from '@/lib/masterApi'
 import { BottomNav } from '../../_components/BottomNav'
 import {
   PAYMENT_METHODS, PAYMENT_METHOD_LABELS, SOURCE_TYPE_LABELS,
@@ -55,7 +56,8 @@ export default function SalesReportPage() {
         .eq('store_id', storeId)
         .gte('created_at', range.from.toISOString()).lt('created_at', range.to.toISOString())
         .order('created_at', { ascending: true }),
-      db.from('products').select('id, category').eq('store_id', storeId),
+      masterCrud<{ rows: { id: string; category: string | null }[] }>(
+        storeId, 'products', 'list', { plain: true }).then(r => ({ data: r.rows })),
     ])
     const list = (rows ?? []) as SaleRow[]
     setSales(list)

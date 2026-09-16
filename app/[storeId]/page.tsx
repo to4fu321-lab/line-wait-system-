@@ -9,6 +9,7 @@ import {
 import ECShopView from './ECShopView'
 import { supabase } from '@/lib/supabase'
 import { fetchCustomerSession, saveCustomer, fetchQueueState, issueTicket, ticketAction } from '@/lib/customerApi'
+import { fetchSchools } from '@/lib/masterApi'
 import type { Queue, WaitThreshold } from '@/types/database'
 import { DEFAULT_THRESHOLDS, getWaitMessage } from '@/types/database'
 import type { Customer, Child } from '@/types/crm'
@@ -143,12 +144,11 @@ export default function CustomerPage() {
       if (sd?.allow_remote != null) { allowRemoteRef.current = !!sd.allow_remote; setAllowRemote(!!sd.allow_remote) }
       if (Array.isArray(sd?.school_names) && sd.school_names.length > 0) setStoreSchoolOptions(sd.school_names)
 
-      // schoolsテーブルから学校マスターを取得（UIドロップダウン用）
-      const { data: schoolRows } = await (supabase as any).from('schools')
-        .select('id, name').eq('store_id', storeId).eq('active', true).order('sort_order')
-      if (schoolRows && schoolRows.length > 0) {
-        setSchools(schoolRows as { id: string; name: string }[])
-        setStoreSchoolOptions(schoolRows.map((s: { name: string }) => s.name))
+      // 学校マスターを取得（UIドロップダウン用）
+      const schoolRows = await fetchSchools(storeId).catch(() => [])
+      if (schoolRows.length > 0) {
+        setSchools(schoolRows)
+        setStoreSchoolOptions(schoolRows.map(s => s.name))
       }
 
       // 体験モード（サンプル店舗限定）: LINEアプリ内判定を飛ばして画面を見てもらう。

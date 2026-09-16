@@ -94,7 +94,7 @@ export default function MasterManagePage() {
   const reloadSchoolData = useCallback(async (school: SchoolMaster) => {
     try {
       const [reqs, prods] = await Promise.all([
-        listRequirements(school.id),
+        listRequirements(storeId, school.id),
         listProducts(storeId, { schoolId: school.id }),
       ])
       setRequirements(reqs); setProducts(prods)
@@ -149,7 +149,7 @@ export default function MasterManagePage() {
               <button
                 onClick={async () => {
                   if (!confirm(`「${s.name}」を削除しますか？\n関連する規程・別注品も削除されます。`)) return
-                  try { await deleteSchool(s.id); show('ok', '削除しました'); reloadBase() }
+                  try { await deleteSchool(storeId, s.id); show('ok', '削除しました'); reloadBase() }
                   catch (e: any) { show('err', e.message) }
                 }}
                 className="p-2 text-gray-400 hover:text-red-600"><Trash2 size={18} /></button>
@@ -268,7 +268,7 @@ function SchoolModal({ storeId, initial, nextOrder, onClose, onSaved, onError }:
     if (!name.trim()) { onError('学校名を入力してください'); return }
     setSaving(true)
     try {
-      await upsertSchool({
+      await upsertSchool(storeId, {
         id: initial?.id, store_id: storeId, name: name.trim(), kana: kana.trim(),
         short_name: shortName.trim(), notes: notes.trim(),
         sort_order: initial?.sort_order ?? nextOrder, active: initial?.active ?? true,
@@ -377,7 +377,7 @@ function RegulationsPanel({ storeId, school, requirements, products, onChange, s
   const assignable = products.filter((p) => !assignedIds.has(p.id))
 
   const patchReq = async (req: SchoolRequirement, patch: Partial<SchoolRequirement>) => {
-    try { await upsertRequirement({ id: req.id, ...patch }); onChange() }
+    try { await upsertRequirement(storeId, { id: req.id, ...patch }); onChange() }
     catch (e: any) { show('err', e.message) }
   }
 
@@ -407,7 +407,7 @@ function RegulationsPanel({ storeId, school, requirements, products, onChange, s
               <button
                 onClick={async () => {
                   if (!confirm('この学校の規定品から外しますか？')) return
-                  try { await deleteRequirement(req.id); onChange() } catch (e: any) { show('err', e.message) }
+                  try { await deleteRequirement(storeId, req.id); onChange() } catch (e: any) { show('err', e.message) }
                 }}
                 className="p-1.5 text-gray-300 hover:text-red-600 shrink-0"><Trash2 size={16} /></button>
             </div>
@@ -500,7 +500,7 @@ function PriceModal({ storeId, schoolId, req, onClose, onSaved, onError }: {
   useEffect(() => {
     (async () => {
       try {
-        const rows = await listPrices(schoolId, product.id)
+        const rows = await listPrices(storeId, schoolId, product.id)
         const map: Record<string, string> = {}
         let base = '', eo = ''
         for (const r of rows) {
@@ -616,7 +616,7 @@ function ProductsPanel({ storeId, school, products, sizeSets, onChange, show }: 
       <button onClick={() => setModal(p)} className="p-2 text-gray-400 hover:text-indigo-600"><Pencil size={18} /></button>
       <button onClick={async () => {
         if (!confirm(`「${p.name}」を削除しますか？`)) return
-        try { await deleteProduct(p.id); show('ok', '削除しました'); onChange() } catch (e: any) { show('err', e.message) }
+        try { await deleteProduct(storeId, p.id); show('ok', '削除しました'); onChange() } catch (e: any) { show('err', e.message) }
       }} className="p-2 text-gray-400 hover:text-red-600"><Trash2 size={18} /></button>
     </div>
   )
@@ -685,7 +685,7 @@ function ProductModal({ storeId, school, sizeSets, initial, nextOrder, onClose, 
     if (!name.trim()) { onError('商品名を入力してください'); return }
     setSaving(true)
     try {
-      await upsertProduct({
+      await upsertProduct(storeId, {
         id: initial?.id, store_id: storeId,
         school_id: isFree ? null : (initial?.school_id ?? school.id),
         name: name.trim(), category: category || null, gender: gender || null,
@@ -811,7 +811,7 @@ function SizeSetsPanel({ storeId, sizeSets, onChange, show }: {
             <button onClick={() => setModal(s)} className="p-2 text-gray-400 hover:text-indigo-600"><Pencil size={18} /></button>
             <button onClick={async () => {
               if (!confirm(`「${s.name}」を削除しますか？`)) return
-              try { await deleteSizeSet(s.id); show('ok', '削除しました'); onChange() } catch (e: any) { show('err', e.message) }
+              try { await deleteSizeSet(storeId, s.id); show('ok', '削除しました'); onChange() } catch (e: any) { show('err', e.message) }
             }} className="p-2 text-gray-400 hover:text-red-600"><Trash2 size={18} /></button>
           </div>
           {(s.items ?? []).length > 0 && (
@@ -852,12 +852,12 @@ function SizeSetModal({ storeId, initial, nextOrder, onClose, onSaved, onError }
     if (!name.trim()) { onError('名称を入力してください'); return }
     setSaving(true)
     try {
-      const saved = await upsertSizeSet({
+      const saved = await upsertSizeSet(storeId, {
         id: initial?.id, store_id: storeId, name: name.trim(),
         category: category || null, sort_order: initial?.sort_order ?? nextOrder, active: true,
       })
       const list = labels.split(/[\n,、]/).map((l) => l.trim()).filter(Boolean)
-      await replaceSizeSetItems(saved.id, list)
+      await replaceSizeSetItems(storeId, saved.id, list)
       onSaved()
     } catch (e: any) { onError(e.message ?? '保存失敗'); setSaving(false) }
   }

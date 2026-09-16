@@ -6,6 +6,7 @@ import {
   User, Check, X, Search, Camera, ScanLine, Plus, ShoppingCart,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fetchSchools, fetchSchoolProducts, fetchVariants } from '@/lib/masterApi'
 import { resolveFeature } from '@/lib/features'
 import { compressImage } from './utils'
 import type { CustResult, CartItem } from './types'
@@ -109,9 +110,7 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
         .from('stores').select('features').eq('id', storeId).single()
       const featuresData = (storeRow?.features ?? {}) as Record<string, unknown>
       if (!resolveFeature('products', featuresData)) { setPlanGated(true); return }
-      const { data } = await (supabase as any).from('schools')
-        .select('id, name').eq('store_id', storeId).eq('active', true).order('sort_order')
-      setSchools(data ?? [])
+      setSchools(await fetchSchools(storeId).catch(() => []))
     })()
   }, [storeId])
 
@@ -124,17 +123,14 @@ export function NewOrderModal({ storeId, onClose, onSave, onToast }: {
   useEffect(() => {
     if (!schoolId) return
     setProducts([]); setExpanded(null)
-    ;(supabase as any).from('school_products').select('id, item_name, category, gender, maker_code')
-      .eq('store_id', storeId).eq('school_id', schoolId).eq('active', true).order('sort_order')
-      .then(({ data }: { data: typeof products }) => setProducts(data ?? []))
+    fetchSchoolProducts(storeId, schoolId).then(setProducts).catch(() => setProducts([]))
   }, [storeId, schoolId])
 
   const loadVariants = async (productId: string) => {
     if (variants[productId]) { setExpanded(expanded === productId ? null : productId); return }
     setLoadingVar(productId)
-    const { data } = await (supabase as any).from('school_product_variants')
-      .select('id, size_label, price').eq('product_id', productId).eq('active', true).order('sort_order')
-    setVariants(prev => ({ ...prev, [productId]: data ?? [] }))
+    const rows = await fetchVariants(storeId, [productId]).catch(() => [])
+    setVariants(prev => ({ ...prev, [productId]: rows }))
     setExpanded(productId)
     setLoadingVar(null)
   }

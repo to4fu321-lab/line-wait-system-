@@ -1,169 +1,143 @@
 // ============================================================
 // マスタデータ アクセス層 (再設計スキーマ)
 //   対象: schools / size_sets / size_set_items / products /
-//         school_requirements / prices
+//         school_requirements / prices / processing_options
 //   設計: docs/master-data-redesign.md
 //
 //   方針: 画面側は「フラットな型」ではなく正規化型をそのまま扱う。
-//         supabase の埋め込み select でリレーションを一括取得する。
+//
+//   通信は必ず /api/master/crud 経由（店舗PIN認証 + サーバー側で store_id 固定）。
+//   supabase クライアントを直接使わないのは、anon キーが公開キーであり、
+//   テーブルを直接開放すると他店の商品・価格を読み書きできてしまうため。
+//   （リレーションの埋め込み取得はサーバー側の同じクエリで行っている）
 // ============================================================
-import { supabase } from '@/lib/supabase'
+import { masterCrud } from '@/lib/masterApi'
 import type {
   SchoolMaster, SizeSet, SizeSetItem, ProductMaster,
   SchoolRequirement, Price, MeasurementRow, ProcessingOption,
 } from '@/types/master'
 
-const sb = supabase as any
+/** 一覧取得の共通形 */
+async function list<T>(
+  storeId: string, resource: Parameters<typeof masterCrud>[1],
+  payload: Record<string, unknown> = {},
+): Promise<T[]> {
+  const { rows } = await masterCrud<{ rows: T[] }>(storeId, resource, 'list', payload)
+  return rows ?? []
+}
+
+/** 追加・更新の共通形 */
+async function upsert<T>(
+  storeId: string, resource: Parameters<typeof masterCrud>[1], row: Record<string, unknown>,
+): Promise<T> {
+  const { row: saved } = await masterCrud<{ row: T }>(storeId, resource, 'upsert', { row })
+  return saved
+}
+
+function remove(storeId: string, resource: Parameters<typeof masterCrud>[1], id: string) {
+  return masterCrud<{ ok: true }>(storeId, resource, 'delete', { id })
+}
 
 // ── 学校マスタ ────────────────────────────────────────────────
-export async function listSchools(storeId: string): Promise<SchoolMaster[]> {
-  const { data } = await sb.from('schools')
-    .select('*').eq('store_id', storeId).order('sort_order').order('name')
-  return data ?? []
+export function listSchools(storeId: string): Promise<SchoolMaster[]> {
+  return list<SchoolMaster>(storeId, 'schools')
 }
 
-export async function upsertSchool(row: Partial<SchoolMaster>): Promise<SchoolMaster> {
-  const { data, error } = row.id
-    ? await sb.from('schools').update(row).eq('id', row.id).select().single()
-    : await sb.from('schools').insert(row).select().single()
-  if (error) throw error
-  return data
+export function upsertSchool(storeId: string, row: Partial<SchoolMaster>): Promise<SchoolMaster> {
+  return upsert<SchoolMaster>(storeId, 'schools', row as Record<string, unknown>)
 }
 
-export async function deleteSchool(id: string) {
-  const { error } = await sb.from('schools').delete().eq('id', id)
-  if (error) throw error
+export function deleteSchool(storeId: string, id: string) {
+  return remove(storeId, 'schools', id)
 }
 
 // ── サイズセットマスタ ────────────────────────────────────────
 export async function listSizeSets(storeId: string): Promise<SizeSet[]> {
-  const { data } = await sb.from('size_sets')
-    .select('*, items:size_set_items(*)')
-    .eq('store_id', storeId).order('sort_order')
-  // items を sort
-  return (data ?? []).map((s: SizeSet) => ({
+  const rows = await list<SizeSet>(storeId, 'size_sets')
+  return rows.map((s) => ({
     ...s,
     items: (s.items ?? []).slice().sort((a, b) => a.sort_order - b.sort_order),
   }))
 }
 
-export async function upsertSizeSet(row: Partial<SizeSet>): Promise<SizeSet> {
-  const { items, ...rest } = row as any
-  const { data, error } = rest.id
-    ? await sb.from('size_sets').update(rest).eq('id', rest.id).select().single()
-    : await sb.from('size_sets').insert(rest).select().single()
-  if (error) throw error
-  return data
+export function upsertSizeSet(storeId: string, row: Partial<SizeSet>): Promise<SizeSet> {
+  const { items, ...rest } = row as Partial<SizeSet> & { items?: SizeSetItem[] }
+  return upsert<SizeSet>(storeId, 'size_sets', rest as Record<string, unknown>)
 }
 
-export async function deleteSizeSet(id: string) {
-  const { error } = await sb.from('size_sets').delete().eq('id', id)
-  if (error) throw error
+export function deleteSizeSet(storeId: string, id: string) {
+  return remove(storeId, 'size_sets', id)
 }
 
 // サイズ項目をまとめて置き換え(削除→再投入)
 export async function replaceSizeSetItems(
-  sizeSetId: string,
-  labels: string[],
+  storeId: string, sizeSetId: string, labels: string[],
 ): Promise<SizeSetItem[]> {
-  await sb.from('size_set_items').delete().eq('size_set_id', sizeSetId)
-  const rows = labels
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((label, i) => ({ size_set_id: sizeSetId, label, sort_order: i }))
-  if (rows.length === 0) return []
-  const { data, error } = await sb.from('size_set_items').insert(rows).select()
-  if (error) throw error
-  return data ?? []
+  const { rows } = await masterCrud<{ rows: SizeSetItem[] }>(
+    storeId, 'size_sets', 'replaceItems', { sizeSetId, labels })
+  return rows ?? []
 }
 
 // ── 商品マスタ(自由商品 / 学校別注品) ────────────────────────
 // schoolId 指定時: その学校の別注品 + 自由商品(全校共通) を返す
-export async function listProducts(
+export function listProducts(
   storeId: string,
   opts: { schoolId?: string | null; freeOnly?: boolean } = {},
 ): Promise<ProductMaster[]> {
-  let q = sb.from('products')
-    .select('*, size_set:size_sets(id,name,category)')
-    .eq('store_id', storeId)
-  if (opts.freeOnly) {
-    q = q.is('school_id', null)
-  } else if (opts.schoolId) {
-    // 自由商品(null) または 当該校の別注品
-    q = q.or(`school_id.is.null,school_id.eq.${opts.schoolId}`)
+  return list<ProductMaster>(storeId, 'products', {
+    schoolId: opts.schoolId ?? undefined, freeOnly: !!opts.freeOnly,
+  })
+}
+
+export function upsertProduct(storeId: string, row: Partial<ProductMaster>): Promise<ProductMaster> {
+  const { size_set, school, ...rest } = row as Partial<ProductMaster> & {
+    size_set?: unknown; school?: unknown
   }
-  const { data } = await q.order('sort_order').order('name')
-  return data ?? []
+  return upsert<ProductMaster>(storeId, 'products', rest as Record<string, unknown>)
 }
 
-export async function upsertProduct(row: Partial<ProductMaster>): Promise<ProductMaster> {
-  const { size_set, school, ...rest } = row as any
-  const { data, error } = rest.id
-    ? await sb.from('products').update(rest).eq('id', rest.id).select().single()
-    : await sb.from('products').insert(rest).select().single()
-  if (error) throw error
-  return data
-}
-
-export async function deleteProduct(id: string) {
-  const { error } = await sb.from('products').delete().eq('id', id)
-  if (error) throw error
+export function deleteProduct(storeId: string, id: string) {
+  return remove(storeId, 'products', id)
 }
 
 // ── 学校別規程マスタ ──────────────────────────────────────────
 // その学校の規程一覧(商品実体を埋め込み)
-export async function listRequirements(schoolId: string): Promise<SchoolRequirement[]> {
-  const { data } = await sb.from('school_requirements')
-    .select('*, product:products(*, size_set:size_sets(id,name,category,items:size_set_items(id,label,sort_order)))')
-    .eq('school_id', schoolId)
-    .order('sort_order')
-  return data ?? []
+export function listRequirements(storeId: string, schoolId: string): Promise<SchoolRequirement[]> {
+  return list<SchoolRequirement>(storeId, 'school_requirements', { schoolId })
 }
 
-export async function upsertRequirement(row: Partial<SchoolRequirement>): Promise<SchoolRequirement> {
-  const { product, ...rest } = row as any
-  const { data, error } = rest.id
-    ? await sb.from('school_requirements').update(rest).eq('id', rest.id).select().single()
-    : await sb.from('school_requirements').insert(rest).select().single()
-  if (error) throw error
-  return data
+export function upsertRequirement(
+  storeId: string, row: Partial<SchoolRequirement>,
+): Promise<SchoolRequirement> {
+  const { product, ...rest } = row as Partial<SchoolRequirement> & { product?: unknown }
+  return upsert<SchoolRequirement>(storeId, 'school_requirements', rest as Record<string, unknown>)
 }
 
-export async function deleteRequirement(id: string) {
-  const { error } = await sb.from('school_requirements').delete().eq('id', id)
-  if (error) throw error
+export function deleteRequirement(storeId: string, id: string) {
+  return remove(storeId, 'school_requirements', id)
 }
 
 // 商品を学校に割り当て(規程を作成。既存ならスキップ)
-export async function assignProductToSchool(
+export function assignProductToSchool(
   storeId: string, schoolId: string, productId: string,
   attrs: Partial<SchoolRequirement> = {},
 ): Promise<SchoolRequirement> {
-  return upsertRequirement({
-    store_id: storeId, school_id: schoolId, product_id: productId,
-    required: true, ...attrs,
+  return upsertRequirement(storeId, {
+    school_id: schoolId, product_id: productId, required: true, ...attrs,
   })
 }
 
 // ── 価格マスタ ────────────────────────────────────────────────
-export async function listPrices(schoolId: string, productId: string): Promise<Price[]> {
-  const { data } = await sb.from('prices')
-    .select('*').eq('school_id', schoolId).eq('product_id', productId)
-    .order('is_eo').order('sort_order')
-  return data ?? []
+export function listPrices(storeId: string, schoolId: string, productId: string): Promise<Price[]> {
+  return list<Price>(storeId, 'prices', { schoolId, productId })
 }
 
-export async function upsertPrice(row: Partial<Price>): Promise<Price> {
-  const { data, error } = row.id
-    ? await sb.from('prices').update(row).eq('id', row.id).select().single()
-    : await sb.from('prices').insert(row).select().single()
-  if (error) throw error
-  return data
+export function upsertPrice(storeId: string, row: Partial<Price>): Promise<Price> {
+  return upsert<Price>(storeId, 'prices', row as Record<string, unknown>)
 }
 
-export async function deletePrice(id: string) {
-  const { error } = await sb.from('prices').delete().eq('id', id)
-  if (error) throw error
+export function deletePrice(storeId: string, id: string) {
+  return remove(storeId, 'prices', id)
 }
 
 // その学校・商品の価格を一括置き換え(サイズ別価格の保存に使用)
@@ -171,35 +145,22 @@ export async function replacePrices(
   storeId: string, schoolId: string, productId: string,
   rows: Array<Partial<Price>>,
 ) {
-  await sb.from('prices').delete()
-    .eq('school_id', schoolId).eq('product_id', productId)
-  if (rows.length === 0) return
-  const payload = rows.map((r, i) => ({
-    store_id: storeId, school_id: schoolId, product_id: productId,
-    sort_order: i, ...r,
-  }))
-  const { error } = await sb.from('prices').insert(payload)
-  if (error) throw error
+  await masterCrud(storeId, 'prices', 'replace', { schoolId, productId, rows })
 }
 
 // ── 新品加工オプションマスタ ──────────────────────────────────
-export async function listProcessingOptions(storeId: string): Promise<ProcessingOption[]> {
-  const { data } = await sb.from('processing_options')
-    .select('*').eq('store_id', storeId).order('sort_order').order('name')
-  return data ?? []
+export function listProcessingOptions(storeId: string): Promise<ProcessingOption[]> {
+  return list<ProcessingOption>(storeId, 'processing_options')
 }
 
-export async function upsertProcessingOption(row: Partial<ProcessingOption>): Promise<ProcessingOption> {
-  const { data, error } = row.id
-    ? await sb.from('processing_options').update(row).eq('id', row.id).select().single()
-    : await sb.from('processing_options').insert(row).select().single()
-  if (error) throw error
-  return data
+export function upsertProcessingOption(
+  storeId: string, row: Partial<ProcessingOption>,
+): Promise<ProcessingOption> {
+  return upsert<ProcessingOption>(storeId, 'processing_options', row as Record<string, unknown>)
 }
 
-export async function deleteProcessingOption(id: string) {
-  const { error } = await sb.from('processing_options').delete().eq('id', id)
-  if (error) throw error
+export function deleteProcessingOption(storeId: string, id: string) {
+  return remove(storeId, 'processing_options', id)
 }
 
 // カテゴリに連動する加工オプションを抽出(applies_to_category 空=全商品に適用)
@@ -214,11 +175,10 @@ export function processingOptionsForCategory(
 
 // ── 学年色マスタ ──────────────────────────────────────────────
 // 標準学年(1〜n年 + 既定色)を自動生成。既存があればスキップ(DB関数が冪等)。
-export async function seedDefaultGrades(schoolId: string, gradeCount = 3): Promise<void> {
-  const { error } = await sb.rpc('seed_default_grades', {
-    p_school_id: schoolId, p_grade_count: gradeCount,
-  })
-  if (error) throw error
+export async function seedDefaultGrades(
+  storeId: string, schoolId: string, gradeCount = 3,
+): Promise<void> {
+  await masterCrud(storeId, 'schools', 'seedGrades', { schoolId, gradeCount })
 }
 
 // ============================================================
@@ -226,28 +186,17 @@ export async function seedDefaultGrades(schoolId: string, gradeCount = 3): Promi
 //   docs §3 のクエリ。required=false も含めたい場合は requiredOnly=false
 // ============================================================
 export async function getMeasurementSheet(
-  schoolId: string,
+  storeId: string, schoolId: string,
   opts: { requiredOnly?: boolean } = {},
 ): Promise<MeasurementRow[]> {
-  let q = sb.from('school_requirements')
-    .select(`
-      *,
-      product:products(
-        *,
-        size_set:size_sets( id, name, category, items:size_set_items(id,label,sort_order) )
-      )
-    `)
-    .eq('school_id', schoolId)
-  if (opts.requiredOnly !== false) q = q.eq('required', true)
-  const { data: reqs } = await q.order('sort_order')
-  const requirements = (reqs ?? []) as SchoolRequirement[]
+  const requirements = await list<SchoolRequirement>(storeId, 'school_requirements', {
+    schoolId, requiredOnly: opts.requiredOnly !== false,
+  })
   if (requirements.length === 0) return []
 
   // この学校の価格をまとめて取得し product_id でマップ化
   const productIds = requirements.map((r) => r.product_id)
-  const { data: priceRows } = await sb.from('prices')
-    .select('*').eq('school_id', schoolId).in('product_id', productIds)
-  const prices = (priceRows ?? []) as Price[]
+  const prices = await list<Price>(storeId, 'prices', { schoolId, productIds })
 
   return requirements.map((req): MeasurementRow => {
     const product = (req.product ?? {}) as MeasurementRow['product']

@@ -7,6 +7,7 @@ import {
   Ruler, RotateCcw, Trash2, User,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fetchProductNames } from '@/lib/masterApi'
 import { checkNewStudentConflicts } from '@/lib/uniformAllocation'
 import type { ConflictItem } from '@/lib/uniformAllocation'
 import { AllocationWarningModal } from '../../repairs/_components/AllocationWarningModal'
@@ -326,11 +327,7 @@ export function ChildCard({
       }
     }
     if (productIds.size > 0) {
-      const { data: prods } = await (supabase as any).from('school_products')
-        .select('id,item_name').in('id', Array.from(productIds))
-      const nameMap: Record<string, string> = {}
-      for (const p of (prods ?? []) as { id: string; item_name: string }[]) nameMap[p.id] = p.item_name
-      setProductNames(nameMap)
+      setProductNames(await fetchProductNames(storeId, Array.from(productIds)).catch(() => ({})))
     }
     setLoading(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps

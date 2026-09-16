@@ -17,6 +17,7 @@ import {
 import { BarcodeScannerSheet } from '../_components/BarcodeScannerSheet'
 import { ReceiptView, ReceiptPrintStyle } from './_components/ReceiptView'
 import { supabase } from '@/lib/supabase'
+import { masterCrud } from '@/lib/masterApi'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
 import { fetchOpenSession } from '@/lib/registerSession'
 import type { RegisterSession } from '@/types/register'
@@ -111,9 +112,8 @@ export default function RegisterPage() {
       const db = supabase as any
       const [{ data: store }, { data: prods }, { data: custs }, { data: stf }] = await Promise.all([
         db.from('stores').select('name, tax_rate, tax_inclusive, invoice_number').eq('id', storeId).single(),
-        db.from('products')
-          .select('id, name, base_price_tax_in, base_price_tax_out, category, barcode, stock, active')
-          .eq('store_id', storeId).eq('active', true).order('category').order('name'),
+        masterCrud<{ rows: unknown[] }>(storeId, 'products', 'list', { plain: true, activeOnly: true, orderByCategory: true })
+          .then(r => ({ data: r.rows })),
         db.from('customers').select('id, name, tel, school_name').eq('store_id', storeId).order('name'),
         db.from('staff').select('id, name, color').eq('store_id', storeId).eq('active', true).order('sort_order'),
       ])
@@ -262,13 +262,14 @@ export default function RegisterPage() {
   const linkCodeToProduct = async (p: ProductRow) => {
     if (!linkCode) return
     setLinkSaving(true)
-    const { data, error } = await (supabase as any)
-      .from('products').update({ barcode: linkCode }).eq('id', p.id).select('id')
-    setLinkSaving(false)
-    if (error || !data || data.length === 0) {
-      showToast(false, error?.message ?? '紐付けに失敗しました（スタッフ認証をご確認ください）')
+    try {
+      await masterCrud(storeId, 'products', 'upsert', { row: { id: p.id, barcode: linkCode } })
+    } catch (e) {
+      setLinkSaving(false)
+      showToast(false, e instanceof Error ? e.message : '紐付けに失敗しました（スタッフ認証をご確認ください）')
       return
     }
+    setLinkSaving(false)
     setProducts(prev => prev.map(x => x.id === p.id ? { ...x, barcode: linkCode } : x))
     addLine({ source_type: 'product', source_id: p.id, name: p.name, unit_price: p.price, qty: 1 })
     showToast(true, `「${p.name}」にコードを登録し、カートに追加しました`)

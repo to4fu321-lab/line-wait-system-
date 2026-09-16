@@ -12,6 +12,7 @@ import {
   Loader2, ChevronLeft, ChevronRight, User, Check, X, Search, Camera, AlertTriangle, Plus, Printer, Send,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { masterCrud } from '@/lib/masterApi'
 import type { RepairType } from '@/types/crm'
 import {
   PRICE_UNIT_LABELS, PRICING_MODE_LABELS, REPAIR_PHOTOS_BUCKET, toFieldDefs, visibleFields,
@@ -916,11 +917,10 @@ export function NewRepairModal({ storeId, storeName = '', onClose, onSave, onToa
     if (materialCats.length === 0) { setMaterials([]); return }
     let cancelled = false
     ;(async () => {
-      const { data } = await (supabase as any).from('products')
-        .select('id, name, group_name, color_code, maker, base_price_tax_in, stock, category')
-        .eq('store_id', storeId).in('category', materialCats).eq('active', true)
-        .order('group_name').order('sort_order')
-      if (!cancelled) setMaterials((data ?? []) as MaterialProduct[])
+      const { rows } = await masterCrud<{ rows: MaterialProduct[] }>(storeId, 'products', 'list',
+        { plain: true, categories: materialCats, activeOnly: true, orderByGroup: true })
+        .catch(() => ({ rows: [] as MaterialProduct[] }))
+      if (!cancelled) setMaterials(rows)
     })()
     return () => { cancelled = true }
   }, [materialCats, storeId])

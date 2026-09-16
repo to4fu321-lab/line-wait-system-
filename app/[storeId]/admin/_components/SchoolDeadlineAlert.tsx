@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Clock, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { masterCrud } from '@/lib/masterApi'
 
 interface DeadlineSchool {
   id: string
@@ -50,37 +51,22 @@ export function SchoolDeadlineAlert({ storeId }: { storeId: string }) {
     if (!storeId) return
     ;(async () => {
       try {
-        const sevenDaysLater = new Date()
-        sevenDaysLater.setDate(sevenDaysLater.getDate() + 7)
+        // 期間の絞り込みは下の filter で行う（昨日〜7日後。DB側の or 条件と同じ範囲）
+        type Row = { id: string; name: string; active: boolean
+          order_deadline: string | null; pickup_deadline: string | null }
+        const { rows } = await masterCrud<{ rows: Row[] }>(storeId, 'schools', 'list')
 
-        const yesterday = new Date()
-        yesterday.setDate(yesterday.getDate() - 1)
-
-        const { data, error } = await (supabase as any)
-          .from('schools')
-          .select('id, name, order_deadline, pickup_deadline')
-          .eq('store_id', storeId)
-          .eq('active', true)
-          .or([
-            `order_deadline.gte.${yesterday.toISOString().split('T')[0]},order_deadline.lte.${sevenDaysLater.toISOString().split('T')[0]}`,
-            `pickup_deadline.gte.${yesterday.toISOString().split('T')[0]},pickup_deadline.lte.${sevenDaysLater.toISOString().split('T')[0]}`,
-          ].join(','))
-          .order('order_deadline', { ascending: true })
-
-        if (error || !data) {
-          setLoading(false)
-          return
-        }
-
-        const enriched: DeadlineSchool[] = data
-          .map((s: { id: string; name: string; order_deadline: string | null; pickup_deadline: string | null }) => ({
-            ...s,
+        const inRange = (d: number | null) => d !== null && d >= -1 && d <= 7
+        const enriched: DeadlineSchool[] = (rows ?? [])
+          .filter(s => s.active)
+          .map(s => ({
+            id: s.id, name: s.name,
+            order_deadline: s.order_deadline, pickup_deadline: s.pickup_deadline,
             daysUntilOrder: daysUntil(s.order_deadline),
             daysUntilPickup: daysUntil(s.pickup_deadline),
           }))
           .filter((s: DeadlineSchool) =>
-            (s.daysUntilOrder !== null && s.daysUntilOrder <= 7) ||
-            (s.daysUntilPickup !== null && s.daysUntilPickup <= 7)
+            inRange(s.daysUntilOrder) || inRange(s.daysUntilPickup)
           )
           .sort((a: DeadlineSchool, b: DeadlineSchool) => {
             const aMin = Math.min(

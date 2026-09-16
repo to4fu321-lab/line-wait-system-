@@ -9,7 +9,8 @@ import {
 import { useStoreTheme } from '@/lib/theme-context'
 import { supabase } from '@/lib/supabase'
 import { saveCustomer, placeEcOrder } from '@/lib/customerApi'
-import type { School, SchoolProduct, SchoolProductVariant } from '@/types/master'
+import { fetchSchools, fetchSchoolProducts, fetchVariants } from '@/lib/masterApi'
+import type { CatalogSchool, CatalogProduct, CatalogVariant } from '@/lib/masterApi'
 import type { LiffProfile } from '@/lib/liff'
 import { GRADE_OPTIONS } from '@/types/crm'
 import { resolveFeature } from '@/lib/features'
@@ -50,9 +51,9 @@ export default function ECShopView({
   const theme = useStoreTheme()
 
   // 学校・商品データ
-  const [schools,      setSchools]      = useState<School[]>([])
-  const [products,     setProducts]     = useState<SchoolProduct[]>([])
-  const [variants,     setVariants]     = useState<Record<string, SchoolProductVariant[]>>({})
+  const [schools,      setSchools]      = useState<CatalogSchool[]>([])
+  const [products,     setProducts]     = useState<CatalogProduct[]>([])
+  const [variants,     setVariants]     = useState<Record<string, CatalogVariant[]>>({})
   const [expanded,     setExpanded]     = useState<string | null>(null)
   const [loadingVar,   setLoadingVar]   = useState<string | null>(null)
   const [dataLoading,  setDataLoading]  = useState(true)
@@ -82,10 +83,7 @@ export default function ECShopView({
   const [ordered,     setOrdered]     = useState(false)
 
   const fetchProducts = useCallback(async (schoolId: string) => {
-    const { data } = await (supabase as any)
-      .from('school_products').select('*')
-      .eq('store_id', storeId).eq('school_id', schoolId).eq('active', true).order('sort_order')
-    setProducts(data ?? [])
+    setProducts(await fetchSchoolProducts(storeId, schoolId).catch(() => []))
     setVariants({})
     setExpanded(null)
   }, [storeId])
@@ -105,9 +103,7 @@ export default function ECShopView({
         return
       }
 
-      const { data: schoolData } = await (supabase as any)
-        .from('schools').select('*').eq('store_id', storeId).eq('active', true).order('sort_order')
-      const schoolList: School[] = schoolData ?? []
+      const schoolList = await fetchSchools(storeId).catch(() => [])
       setSchools(schoolList)
 
       // 在籍校の解決は school_id を優先し、未設定の古いレコードのみ学校名で照合する
@@ -129,10 +125,8 @@ export default function ECShopView({
   const loadVariants = async (productId: string) => {
     if (variants[productId]) { setExpanded(expanded === productId ? null : productId); return }
     setLoadingVar(productId)
-    const { data } = await (supabase as any)
-      .from('school_product_variants').select('*')
-      .eq('product_id', productId).eq('active', true).order('sort_order')
-    setVariants(prev => ({ ...prev, [productId]: data ?? [] }))
+    const rows = await fetchVariants(storeId, [productId]).catch(() => [])
+    setVariants(prev => ({ ...prev, [productId]: rows }))
     setExpanded(productId)
     setLoadingVar(null)
   }
@@ -170,7 +164,7 @@ export default function ECShopView({
     setShowSchoolEdit(false)
   }
 
-  const addToCart = (p: SchoolProduct, v: SchoolProductVariant) => {
+  const addToCart = (p: CatalogProduct, v: CatalogVariant) => {
     setCart(prev => {
       const idx = prev.findIndex(i => i.variantId === v.id)
       if (idx >= 0) return prev.map((i, n) => n === idx ? { ...i, qty: i.qty + 1 } : i)

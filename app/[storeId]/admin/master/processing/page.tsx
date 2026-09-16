@@ -83,7 +83,7 @@ export default function ProcessingOptionsMasterPage() {
     setSaving(true)
     try {
       const base = editing && editing !== 'new' ? editing : undefined
-      await upsertProcessingOption({
+      await upsertProcessingOption(storeId, {
         id: base?.id,
         store_id: storeId,
         name: name.trim(),
@@ -107,7 +107,7 @@ export default function ProcessingOptionsMasterPage() {
 
   const handleDelete = async (o: ProcessingOption) => {
     if (!confirm(`「${o.name}」を削除しますか？`)) return
-    try { await deleteProcessingOption(o.id); showToast('ok', '削除しました'); fetchRows() }
+    try { await deleteProcessingOption(storeId, o.id); showToast('ok', '削除しました'); fetchRows() }
     catch (e: any) { showToast('err', `削除失敗: ${e.message}`) }
   }
 

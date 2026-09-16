@@ -6,6 +6,7 @@ import { Loader2, CheckCircle2, MessageCircle, ChevronRight } from 'lucide-react
 import { supabase } from '@/lib/supabase'
 import { initLiff, getLineProfile, openAddFriend } from '@/lib/liff'
 import { fetchCustomerSession, saveCustomer } from '@/lib/customerApi'
+import { fetchSchools } from '@/lib/masterApi'
 import { resolveFeature } from '@/lib/features'
 import { useStoreTheme } from '@/lib/theme-context'
 import { InitialRegistrationForm, SimpleRegistrationForm } from '@/app/_components/RegistrationForms'
@@ -55,11 +56,10 @@ export default function CrmRegisterPage() {
       if (Array.isArray(sd?.school_names) && sd.school_names.length > 0) setStoreSchoolOptions(sd.school_names)
 
       // 学校マスタ（ドロップダウン用）
-      const { data: schoolRows } = await (supabase as any).from('schools')
-        .select('id, name').eq('store_id', storeId).eq('active', true).order('sort_order')
-      if (schoolRows && schoolRows.length > 0) {
-        setSchools(schoolRows as { id: string; name: string }[])
-        setStoreSchoolOptions(schoolRows.map((s: { name: string }) => s.name))
+      const schoolRows = await fetchSchools(storeId).catch(() => [])
+      if (schoolRows.length > 0) {
+        setSchools(schoolRows)
+        setStoreSchoolOptions(schoolRows.map(s => s.name))
       }
 
       const liff = await initLiff()
