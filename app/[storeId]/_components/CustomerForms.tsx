@@ -262,11 +262,12 @@ export function ChildEditInline({ child, schools, gradeOptions, onSaved, onClose
   const [grade,    setGrade]    = useState(child.grade ?? '')
   const [gender,   setGender]   = useState(child.gender && child.gender !== 'other' ? child.gender : '')
   const [saving,   setSaving]   = useState(false)
+  const [error,    setError]    = useState('')
   const base = 'w-full text-sm text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:outline-none transition-all'
 
   const handleSave = async () => {
     if (!name.trim()) return
-    setSaving(true)
+    setSaving(true); setError('')
     const school = schools.find(s => s.id === schoolId)
     try {
       const { child: updated } = await saveCustomer(storeId, {
@@ -278,7 +279,10 @@ export function ChildEditInline({ child, schools, gradeOptions, onSaved, onClose
       })
       setSaving(false)
       if (updated) { onSaved(updated as Child); onClose() }
-    } catch {
+      else setError('保存できませんでした。もう一度お試しください')
+    } catch (e) {
+      // 保存できていないことを必ず知らせる（黙って閉じると未保存に気づけない）
+      setError(e instanceof Error ? e.message : '保存に失敗しました')
       setSaving(false)
     }
   }
@@ -315,6 +319,7 @@ export function ChildEditInline({ child, schools, gradeOptions, onSaved, onClose
           </select>
         </div>
       </div>
+      {error && <p className="text-red-500 text-xs text-center">{error}</p>}
       <div className="flex gap-2">
         <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-zinc-200 text-zinc-500 text-sm font-bold active:scale-95 transition-transform">キャンセル</button>
         <button onClick={handleSave} disabled={saving || !name.trim()}

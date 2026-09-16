@@ -31,15 +31,20 @@ interface Props {
   customerId?:       string | null
   childId?:          string | null
   childName?:        string | null
+  childSchoolId?:    string | null
   childSchoolName?:  string | null
   childGrade?:       string | null
+  /** 学校・学年を変更したとき、呼び出し元の children / selectedChild を更新するため */
+  onChildUpdated?:   (child: Record<string, unknown>) => void
   onBack: () => void
 }
 
 export default function ECShopView({
   lineProfile, storeId, storeName,
   customerId, childId,
-  childName, childSchoolName: initialSchoolName, childGrade: initialGrade,
+  childName, childSchoolId: initialSchoolId, childSchoolName: initialSchoolName,
+  childGrade: initialGrade,
+  onChildUpdated,
   onBack,
 }: Props) {
   const theme = useStoreTheme()
@@ -54,16 +59,19 @@ export default function ECShopView({
   const [noSchool,     setNoSchool]     = useState(false)
   const [planGated,    setPlanGated]    = useState(false)
 
-  // 選択中の学校
+  // 表示中の学校 = 登録されている在籍校。
+  // 他校の商品は注文できない（サーバー側でも弾く）ので、ここを勝手に切り替えさせない。
+  // 進学・転校の場合は「学校・学年を変更」で登録そのものを更新する。
   const [activeSchoolId,   setActiveSchoolId]   = useState<string | null>(null)
 
   // 学校・学年（変更可能）
   const [childSchoolName, setChildSchoolName] = useState(initialSchoolName ?? null)
   const [childGrade,      setChildGrade]      = useState(initialGrade ?? null)
   const [showSchoolEdit,  setShowSchoolEdit]  = useState(false)
-  const [editSchool,      setEditSchool]      = useState(initialSchoolName ?? '')
+  const [editSchoolId,    setEditSchoolId]    = useState('')
   const [editGrade,       setEditGrade]       = useState(initialGrade ?? '')
   const [savingSchool,    setSavingSchool]    = useState(false)
+  const [schoolError,     setSchoolError]     = useState('')
 
   // カート
   const [cart,        setCart]        = useState<CartItem[]>([])
@@ -102,11 +110,13 @@ export default function ECShopView({
       const schoolList: School[] = schoolData ?? []
       setSchools(schoolList)
 
-      const matched = initialSchoolName
-        ? schoolList.find(s => s.name === initialSchoolName)
-        : null
+      // 在籍校の解決は school_id を優先し、未設定の古いレコードのみ学校名で照合する
+      const matched =
+        (initialSchoolId ? schoolList.find(s => s.id === initialSchoolId) : null)
+        ?? (initialSchoolName ? schoolList.find(s => s.name === initialSchoolName) : null)
       if (matched) {
         setActiveSchoolId(matched.id)
+        setChildSchoolName(matched.name)
         await fetchProducts(matched.id)
       } else if (initialSchoolName) {
         setNoSchool(true)
@@ -115,15 +125,6 @@ export default function ECShopView({
     })()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  const handleSchoolTab = async (school: School) => {
-    if (activeSchoolId === school.id) return
-    setActiveSchoolId(school.id)
-    setNoSchool(false)
-    setDataLoading(true)
-    await fetchProducts(school.id)
-    setDataLoading(false)
-  }
 
   const loadVariants = async (productId: string) => {
     if (variants[productId]) { setExpanded(expanded === productId ? null : productId); return }
@@ -136,27 +137,35 @@ export default function ECShopView({
     setLoadingVar(null)
   }
 
+  /**
+   * 進学・転校時の学校変更。
+   * 注文できるのは「登録されている学校」の商品だけ（サーバー側でも検証）なので、
+   * 登録の更新に失敗したら画面上の学校も切り替えてはいけない。
+   * 保存できていないのに商品だけ差し替わると、注文時に必ず弾かれてしまう。
+   */
   const handleSaveSchool = async () => {
-    setSavingSchool(true)
-    if (childId) {
-      try {
-        await saveCustomer(storeId, {
-          childUpdate: { id: childId, school_name: editSchool.trim() || null, grade: editGrade || null },
-        })
-      } catch { /* 保存失敗でも画面上の選択は反映する */ }
+    const school = schools.find(s => s.id === editSchoolId)
+    if (!school) { setSchoolError('学校を選択してください'); return }
+    setSavingSchool(true); setSchoolError('')
+    try {
+      const { child } = await saveCustomer(storeId, childId
+        ? { childUpdate: { id: childId, school_id: school.id, school_name: school.name, grade: editGrade || null } }
+        // お子様未登録の場合は顧客本人のレコードに学校を持たせる
+        : { customer: { school_id: school.id, school_name: school.name } })
+      if (childId && child) onChildUpdated?.(child as Record<string, unknown>)
+    } catch (e) {
+      setSchoolError(e instanceof Error ? e.message : '保存に失敗しました')
+      setSavingSchool(false)
+      return
     }
-    setChildSchoolName(editSchool.trim() || null)
+    setChildSchoolName(school.name)
     setChildGrade(editGrade || null)
-    const matched = schools.find(s => s.name === editSchool.trim())
-    if (matched) {
-      setActiveSchoolId(matched.id)
-      setNoSchool(false)
-      setDataLoading(true)
-      await fetchProducts(matched.id)
-      setDataLoading(false)
-    } else {
-      setNoSchool(!!editSchool.trim())
-    }
+    setCart([])          // 学校が変われば商品も変わるのでカートは破棄する
+    setActiveSchoolId(school.id)
+    setNoSchool(false)
+    setDataLoading(true)
+    await fetchProducts(school.id)
+    setDataLoading(false)
     setSavingSchool(false)
     setShowSchoolEdit(false)
   }
@@ -300,7 +309,12 @@ export default function ECShopView({
       {/* お子様情報バナー（タップで学校変更） */}
       <div className="px-4 mb-3 max-w-md mx-auto">
         <button
-          onClick={() => { setEditSchool(childSchoolName ?? ''); setEditGrade(childGrade ?? ''); setShowSchoolEdit(true) }}
+          onClick={() => {
+            setEditSchoolId(activeSchoolId ?? '')
+            setEditGrade(childGrade ?? '')
+            setSchoolError('')
+            setShowSchoolEdit(true)
+          }}
           className="w-full bg-white border border-zinc-100 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-sm active:scale-[0.99] transition-transform text-left"
         >
           <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
@@ -318,23 +332,6 @@ export default function ECShopView({
           <span className="text-xs text-zinc-400 shrink-0">変更 ›</span>
         </button>
       </div>
-
-      {/* 学校タブ（複数校対応・進学時の切り替え） */}
-      {schools.length > 1 && (
-        <div className="px-4 mb-3 max-w-md mx-auto">
-          <div className="flex gap-1.5 overflow-x-auto pb-1">
-            {schools.map(s => (
-              <button key={s.id} onClick={() => handleSchoolTab(s)}
-                className={`flex-none px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  activeSchoolId === s.id ? 'text-white shadow-sm' : 'bg-white border border-zinc-200 text-zinc-500'
-                }`}
-                style={activeSchoolId === s.id ? { background: theme.colors.primary } : {}}>
-                {s.short_name ?? s.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* 商品エリア */}
       <div className="px-4 max-w-md mx-auto space-y-3">
@@ -415,9 +412,6 @@ export default function ECShopView({
                           <span className="ml-2 font-black text-sm" style={{ color: theme.colors.primary }}>
                             ¥{v.price.toLocaleString()}
                           </span>
-                          {v.stock > 0 && (
-                            <span className="ml-2 text-[10px] text-emerald-600 font-bold">在庫{v.stock}</span>
-                          )}
                         </div>
                         {cartItem ? (
                           <div className="flex items-center gap-2">
@@ -560,16 +554,17 @@ export default function ECShopView({
             <div className="px-5 py-4 space-y-4 pb-8">
               <div>
                 <label className="block text-xs font-bold text-zinc-500 mb-1.5">学校名</label>
+                {/* 取扱いのある学校のみ選択可能（自由入力だと商品と紐づかず注文できない） */}
                 {schools.length > 0 ? (
-                  <select value={editSchool} onChange={e => setEditSchool(e.target.value)}
+                  <select value={editSchoolId} onChange={e => setEditSchoolId(e.target.value)}
                     className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all">
                     <option value="">選択してください</option>
-                    {schools.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                    {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 ) : (
-                  <input type="text" value={editSchool} onChange={e => setEditSchool(e.target.value)}
-                    placeholder="例：○○高等学校"
-                    className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all" />
+                  <p className="text-zinc-500 text-sm">
+                    取扱学校が登録されていません。<br />店頭スタッフにお問い合わせください。
+                  </p>
                 )}
               </div>
               <div>
@@ -580,7 +575,8 @@ export default function ECShopView({
                   {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
                 </select>
               </div>
-              <button onClick={handleSaveSchool} disabled={savingSchool}
+              {schoolError && <p className="text-red-500 text-xs text-center">{schoolError}</p>}
+              <button onClick={handleSaveSchool} disabled={savingSchool || schools.length === 0}
                 className="w-full py-4 rounded-2xl text-white font-black text-base flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
                 style={{ background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.primaryDark})` }}>
                 {savingSchool ? <><Loader2 size={18} className="animate-spin" />保存中...</> : '保存する'}

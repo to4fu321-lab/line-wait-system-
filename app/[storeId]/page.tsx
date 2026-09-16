@@ -1371,8 +1371,14 @@ export default function CustomerPage() {
       customerId={customer?.id ?? null}
       childId={selectedChild?.id ?? null}
       childName={selectedChild?.name ?? null}
+      childSchoolId={selectedChild?.school_id ?? null}
       childSchoolName={selectedChild?.school_name ?? null}
       childGrade={selectedChild?.grade ?? null}
+      onChildUpdated={c => {
+        const updated = c as unknown as Child
+        setSelectedChild(updated)
+        setChildren(prev => prev.map(x => x.id === updated.id ? updated : x))
+      }}
       onBack={() => setView('purpose')}
     />
   )
