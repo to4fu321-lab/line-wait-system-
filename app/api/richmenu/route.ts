@@ -4,6 +4,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { ImageResponse } from 'next/og'
 import { createElement as h } from 'react'
 import { getLiffBaseUrl, getLineToken } from '@/lib/line-config'
+import { createAdminClient } from '@/lib/supabaseAdmin'
+import { resolveFeature } from '@/lib/features'
+import { canCustomerOrder, canCustomerRepair } from '@/lib/customerFeatures'
 
 const LINE_API  = 'https://api.line.me/v2/bot'
 
@@ -14,11 +17,33 @@ function getConfig() {
   return { liffId, token, liffBase, authHeader: { Authorization: `Bearer ${token}` } }
 }
 
-// ── ユニバーサルリッチメニュー画像（4パネル・全業種共通）────────
-async function makeMenuPng(): Promise<Buffer> {
+const MENU_W = 2500
+const MENU_H = 843
+
+// リッチメニューの1パネル。絵と、そこをタップしたときの遷移先を1つにまとめる。
+// 画像とタップ領域を同じ配列から作ることで、「押した場所と表示が違う」を防ぐ。
+interface Panel {
+  lines: string[]
+  emoji: string
+  bg: string
+  label: string
+  /** /line-home?action=... に渡す値。line-home 側の checkAvailability と対応する */
+  action: string
+}
+
+/** パネル数に合わせて 2500px を割り振る（合計が必ず 2500 になるように丸める）*/
+function panelBounds(count: number): { x: number; width: number }[] {
+  return Array.from({ length: count }, (_, i) => {
+    const x    = Math.round((MENU_W * i) / count)
+    const next = Math.round((MENU_W * (i + 1)) / count)
+    return { x, width: next - x }
+  })
+}
+
+async function makeMenuPng(panels: Panel[]): Promise<Buffer> {
   let fontData: ArrayBuffer | null = null
   try {
-    const chars = encodeURIComponent('テイクアウト注文採寸受付来店予約お直し依頼')
+    const chars = encodeURIComponent(panels.flatMap(p => p.lines).join(''))
     const css = await fetch(
       `https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@700&text=${chars}`,
       { headers: { 'User-Agent': 'Mozilla/5.0 (compatible)' } }
@@ -27,25 +52,19 @@ async function makeMenuPng(): Promise<Buffer> {
     if (m) fontData = await fetch(m[1]).then(r => r.arrayBuffer())
   } catch { /* フォント取得失敗時は続行 */ }
 
-  const sections = [
-    { lines: ['テイクアウト', '注文'],  emoji: '🥡', bg: '#ea580c' },
-    { lines: ['採寸・受付'],           emoji: '📋', bg: '#4f46e5' },
-    { lines: ['来店予約'],             emoji: '📅', bg: '#0d9488' },
-    { lines: ['お直し依頼'],           emoji: '✂️', bg: '#7c3aed' },
-  ]
-
   const fontFamily = fontData ? '"Noto Sans JP", sans-serif' : 'sans-serif'
+  const bounds = panelBounds(panels.length)
 
   const img = new ImageResponse(
-    h('div', { style: { display: 'flex', width: 2500, height: 843, fontFamily } },
-      ...sections.map((s, i) =>
+    h('div', { style: { display: 'flex', width: MENU_W, height: MENU_H, fontFamily } },
+      ...panels.map((s, i) =>
         h('div', {
           key: i,
           style: {
-            width: 625, display: 'flex', flexDirection: 'column',
+            width: bounds[i].width, display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center', gap: 12,
             background: `linear-gradient(160deg, ${s.bg} 0%, ${s.bg}cc 100%)`,
-            borderRight: i < 3 ? '4px solid rgba(255,255,255,0.3)' : 'none',
+            borderRight: i < panels.length - 1 ? '4px solid rgba(255,255,255,0.3)' : 'none',
           },
         },
           h('div', { style: { fontSize: 120, lineHeight: 1 } }, s.emoji),
@@ -53,7 +72,10 @@ async function makeMenuPng(): Promise<Buffer> {
             ...s.lines.map((line, j) =>
               h('div', {
                 key: j,
-                style: { fontSize: 85, fontWeight: 700, color: '#fff', letterSpacing: '-1px', lineHeight: 1.15 },
+                style: {
+                  fontSize: panels.length >= 4 ? 85 : 96, fontWeight: 700, color: '#fff',
+                  letterSpacing: '-1px', lineHeight: 1.15,
+                },
               }, line)
             )
           )
@@ -61,7 +83,7 @@ async function makeMenuPng(): Promise<Buffer> {
       )
     ),
     {
-      width: 2500, height: 843,
+      width: MENU_W, height: MENU_H,
       fonts: fontData
         ? [{ name: 'Noto Sans JP', data: fontData, weight: 700, style: 'normal' as const }]
         : [],
@@ -71,52 +93,38 @@ async function makeMenuPng(): Promise<Buffer> {
   return Buffer.from(await img.arrayBuffer())
 }
 
-// ── テイクアウト用リッチメニュー画像（2パネル）──────────────
-async function makeMenuPngTakeout(storeName: string): Promise<Buffer> {
-  let fontData: ArrayBuffer | null = null
-  try {
-    const chars = encodeURIComponent('注文する状況を確認' + storeName)
-    const css = await fetch(
-      `https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@700&text=${chars}`,
-      { headers: { 'User-Agent': 'Mozilla/5.0 (compatible)' } }
-    ).then(r => r.text())
-    const m = css.match(/src: url\((.+?)\) format/)
-    if (m) fontData = await fetch(m[1]).then(r => r.arrayBuffer())
-  } catch { /* フォント取得失敗時は続行 */ }
+const PANEL_QUEUE:    Panel = { lines: ['採寸・受付'],            emoji: '📋', bg: '#4f46e5', label: '採寸・受付',       action: 'queue' }
+const PANEL_RESERVE:  Panel = { lines: ['来店予約'],              emoji: '📅', bg: '#0d9488', label: '来店予約',         action: 'reserve' }
+const PANEL_REPAIR:   Panel = { lines: ['お直し依頼'],            emoji: '✂️', bg: '#7c3aed', label: 'お直し依頼',       action: 'repair' }
+const PANEL_PURCHASE: Panel = { lines: ['ネット注文'],            emoji: '🛍️', bg: '#db2777', label: 'ネット注文',       action: 'purchase' }
+const PANEL_ORDER:    Panel = { lines: ['テイクアウト', '注文'],  emoji: '🥡', bg: '#ea580c', label: 'テイクアウト注文', action: 'order' }
+// 提供機能が1つも無い場合でもメニューを空にはできないので、店舗ページへ送る
+const PANEL_STORE:    Panel = { lines: ['店舗ページ'],            emoji: '🏠', bg: '#4f46e5', label: '店舗ページ',       action: '' }
 
-  const fontFamily = fontData ? '"Noto Sans JP", sans-serif' : 'sans-serif'
-  const sections = [
-    { lines: ['注文する'],      emoji: '🛍️', bg: '#ea580c' },
-    { lines: ['注文状況を確認'], emoji: '📋', bg: '#0d9488' },
-  ]
+/**
+ * 店舗の業種と機能フラグから、実際に押せるパネルだけを組み立てる。
+ * 判定は line-home 側の checkAvailability と揃えること（ここだけ緩いと
+ * 「押せるのに “お取り扱いはありません” になる」ボタンが生まれる）。
+ */
+async function resolvePanels(storeId: string, storeTypeHint?: string): Promise<Panel[]> {
+  const supabase = createAdminClient()
+  const { data } = await supabase
+    .from('stores').select('business_type, features').eq('id', storeId).single()
 
-  const img = new ImageResponse(
-    h('div', { style: { display: 'flex', width: 2500, height: 843, fontFamily } },
-      ...sections.map((s, i) =>
-        h('div', {
-          key: i,
-          style: {
-            width: 1250, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', gap: 16,
-            background: `linear-gradient(160deg, ${s.bg} 0%, ${s.bg}cc 100%)`,
-            borderRight: i < 1 ? '4px solid rgba(255,255,255,0.3)' : 'none',
-          },
-        },
-          h('div', { style: { fontSize: 150, lineHeight: 1 } }, s.emoji),
-          h('div', { style: { fontSize: 96, fontWeight: 700, color: '#fff', letterSpacing: '-1px' } }, s.lines[0])
-        )
-      )
-    ),
-    {
-      width: 2500, height: 843,
-      fonts: fontData
-        ? [{ name: 'Noto Sans JP', data: fontData, weight: 700, style: 'normal' as const }]
-        : [],
-    }
-  )
-  return Buffer.from(await img.arrayBuffer())
+  const bizType  = (data?.business_type as string | undefined) ?? storeTypeHint ?? 'uniform'
+  const features = ((data?.features as Record<string, unknown> | null) ?? {})
+
+  if (bizType === 'takeout') return [PANEL_ORDER, PANEL_QUEUE, PANEL_RESERVE, PANEL_REPAIR]
+
+  const panels = [
+    resolveFeature('tab_queue', features)   ? PANEL_QUEUE    : null,
+    resolveFeature('reservation', features) ? PANEL_RESERVE  : null,
+    canCustomerRepair(features)             ? PANEL_REPAIR   : null,
+    canCustomerOrder(features)              ? PANEL_PURCHASE : null,
+  ].filter((p): p is Panel => p !== null)
+
+  return panels.length > 0 ? panels : [PANEL_STORE]
 }
-
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -126,10 +134,11 @@ export async function GET(req: NextRequest) {
     const { liffBase, token, authHeader } = getConfig()
     const base = `${liffBase}/line-home`
     const previewUrls = {
-      order:   `${base}?action=order`,
-      queue:   `${base}?action=queue`,
-      reserve: `${base}?action=reserve`,
-      repair:  `${base}?action=repair`,
+      order:    `${base}?action=order`,
+      queue:    `${base}?action=queue`,
+      reserve:  `${base}?action=reserve`,
+      repair:   `${base}?action=repair`,
+      purchase: `${base}?action=purchase`,
     }
     const listRes = await fetch(`${LINE_API}/richmenu/list`, { headers: authHeader })
     const currentMenus = listRes.ok ? await listRes.json() : { error: await listRes.text() }
@@ -176,15 +185,18 @@ export async function POST(req: NextRequest) {
       ))
     }
 
-    // 2. 全業種共通 4パネル（すべて line-home 経由でルーティング）
-    const base = `${liffBase}/line-home`
-    const areas = [
-      { bounds: { x:    0, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=order`,   label: 'テイクアウト注文' } },
-      { bounds: { x:  625, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=queue`,   label: '採寸・受付' } },
-      { bounds: { x: 1250, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=reserve`, label: '来店予約' } },
-      { bounds: { x: 1875, y: 0, width: 625, height: 843 }, action: { type: 'uri', uri: `${base}?action=repair`,  label: 'お直し依頼' } },
-    ]
-    const png = await makeMenuPng()
+    // 2. その店舗が実際に提供している機能だけでパネルを組む。
+    //    以前は全業種共通の固定4枚で、制服店にも「テイクアウト注文」が
+    //    並んでいた（押すと必ず「お取り扱いはありません」）うえ、
+    //    ネット注文のパネルがどこにも無く辿り着けなかった。
+    const panels = await resolvePanels(storeId, storeType)
+    const base   = `${liffBase}/line-home`
+    const bounds = panelBounds(panels.length)
+    const areas  = panels.map((p, i) => ({
+      bounds: { x: bounds[i].x, y: 0, width: bounds[i].width, height: MENU_H },
+      action: { type: 'uri', uri: `${base}?action=${p.action}`, label: p.label },
+    }))
+    const png = await makeMenuPng(panels)
 
     // 3. 新規メニュー作成
     const createRes = await fetch(`${LINE_API}/richmenu`, {
