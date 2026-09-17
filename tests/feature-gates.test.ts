@@ -107,6 +107,7 @@ describe('機能トグルと画面の対応', () => {
       ['app/[storeId]/admin/master/repair/page.tsx',           'repairs_master'],
       ['app/[storeId]/admin/master/repair-vendors/page.tsx',   'repairs_master'],
       ['app/[storeId]/admin/master/ocr-templates/page.tsx',    'repairs_ocr'],
+      ['app/[storeId]/admin/settings/reservation/page.tsx',    'reservation'],
     ]
     for (const [rel, key] of pages) {
       expect(readFileSync(join(ROOT, rel), 'utf8'), rel).toContain(key)

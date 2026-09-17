@@ -442,6 +442,21 @@ export default function StaffSettingsPage() {
             </Link>
           )}
 
+          {/* 📅 採寸予約設定 */}
+          {hasFeature('reservation') && (
+            <Link href={`/${storeId}/admin/settings/reservation`}
+              className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-teal-200 hover:border-teal-400 active:scale-[0.98] transition-all shadow-sm">
+              <div className="w-14 h-14 rounded-2xl bg-teal-100 flex items-center justify-center shrink-0 text-3xl">
+                📅
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-black text-lg text-teal-700">採寸予約設定</p>
+                <p className="text-sm text-gray-500 mt-0.5">曜日ごとの受付枠数・受付時間帯を設定</p>
+              </div>
+              <ChevronRight size={20} className="text-teal-400 shrink-0" />
+            </Link>
+          )}
+
           {/* 💻 PCモード */}
           <button
             onClick={() => setMode('tablet')}
@@ -732,6 +747,19 @@ export default function StaffSettingsPage() {
                 <p className="text-indigo-500 text-sm mt-0.5">チラシ・店頭・マップ/HP掲載用を自動作成・印刷</p>
               </div>
               <ChevronRight size={18} className="text-indigo-400 shrink-0" />
+            </Link>
+          )}
+          {hasFeature('reservation') && (
+            <Link href={`/${storeId}/admin/settings/reservation`}
+              className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-teal-200 bg-teal-50 hover:bg-teal-100 active:scale-[0.98] transition-all">
+              <div className="w-14 h-14 rounded-2xl bg-teal-100 flex items-center justify-center shrink-0 text-2xl">
+                📅
+              </div>
+              <div className="text-left flex-1">
+                <p className="font-black text-lg text-teal-700">採寸予約設定</p>
+                <p className="text-teal-500 text-sm mt-0.5">曜日ごとの受付枠数・受付時間帯を設定</p>
+              </div>
+              <ChevronRight size={18} className="text-teal-400 shrink-0" />
             </Link>
           )}
           <Link href={`/${storeId}/admin/guide`}
