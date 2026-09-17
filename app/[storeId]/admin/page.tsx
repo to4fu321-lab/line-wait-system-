@@ -37,6 +37,20 @@ function urlBase64ToUint8Array(base64: string) {
   return Uint8Array.from(Array.from(raw).map(c => c.charCodeAt(0)))
 }
 
+// Supabase Auth のセッション確認・復元は内部で navigator.locks を使うため、
+// PWA(ホーム画面から起動)のように複数コンテキストがロックを奪い合う環境では
+// 解決しないまま返ってこないことがある。fetch 側のタイムアウトはここには効かず、
+// 固まると view='loading' のままスピナーが回り続ける(=タブを押しても画面が変わらない)。
+// 応答しなければ「未認証」として扱い、必ず次の画面へ進ませる。
+const AUTH_TIMEOUT_MS = 8000
+function withAuthTimeout<T>(p: Promise<T>, fallback: T): Promise<T> {
+  return new Promise<T>(resolve => {
+    const t = setTimeout(() => resolve(fallback), AUTH_TIMEOUT_MS)
+    p.then(v => { clearTimeout(t); resolve(v) })
+     .catch(() => { clearTimeout(t); resolve(fallback) })
+  })
+}
+
 type AdminView       = 'loading' | 'not_found' | 'load_error' | 'select_store' | 'pin' | 'dashboard'
 type FocusedSection  = 'calling' | 'waiting' | 'completed' | 'cancelled' | null
 
@@ -834,7 +848,7 @@ export default function StoreAdminPage() {
         // Supabase Auth セッション(RLS通過に必須)が生きている場合のみ復元
         const saved = sessionStorage.getItem('admin_store_id')
         if (saved && saved === storeId && sessionStorage.getItem('admin_auth') === '1'
-            && await hasStaffSession(saved)) {
+            && await withAuthTimeout(hasStaffSession(saved), false)) {
           const gc = sessionStorage.getItem('admin_group_code')
           if (gc) setGroupCode(gc); else loadGroupCode(match)
           loadGroupStores(match) // ログアウト後の店舗切替UI用に事前取得
@@ -843,7 +857,7 @@ export default function StoreAdminPage() {
         }
         // トライアル店舗など features.pin_skip === true の場合はPIN入力を省略する
         if ((match.features as Record<string, unknown> | undefined)?.pin_skip === true) {
-          const role = await tryPinSkipAuth(storeId)
+          const role = await withAuthTimeout(tryPinSkipAuth(storeId), null)
           if (role) {
             sessionStorage.setItem('admin_store_id', storeId)
             sessionStorage.setItem('admin_role', role)
@@ -865,6 +879,17 @@ export default function StoreAdminPage() {
       .finally(() => clearTimeout(timer))
     return () => { cancelled = true; clearTimeout(timer); ac.abort() }
   }, [storeId, loadGroupCode, loadGroupStores])
+
+  // 想定外の経路で詰まってもスピナーのまま放置しないための最後の保険。
+  // load_error には再試行ボタンがあるので、そこまで必ず到達させる。
+  useEffect(() => {
+    if (view !== 'loading') return
+    const t = setTimeout(() => {
+      setFetchError('読み込みに時間がかかっています。通信状況をご確認のうえ、再試行してください。')
+      setView('load_error')
+    }, 25000)
+    return () => clearTimeout(t)
+  }, [view])
 
   const handleSelectStore = (s: StoreInfo) => { setSelectedStore(s); setView('pin') }
   const handleAuth = (role: 'owner' | 'staff') => {
