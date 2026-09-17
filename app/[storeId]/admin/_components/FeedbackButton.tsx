@@ -102,7 +102,7 @@ export function FeedbackButton() {
         onClick={() => { reset(); setOpen(true) }}
         title="要望・不具合を送る"
         style={{ touchAction: 'manipulation' }}
-        className={`fixed ${onRegister ? 'bottom-[calc(10rem+env(safe-area-inset-bottom))]' : 'bottom-24'} right-4 z-40 flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-gray-900/90 hover:bg-gray-900 text-white shadow-lg backdrop-blur active:scale-95 transition-all`}>
+        className={`fixed ${onRegister ? 'bottom-[calc(10rem+env(safe-area-inset-bottom))]' : 'bottom-[calc(6rem+env(safe-area-inset-bottom))]'} right-4 z-40 flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-gray-900/90 hover:bg-gray-900 text-white shadow-lg backdrop-blur active:scale-95 transition-all`}>
         <MessageSquarePlus size={18} />
         <span className="text-xs font-bold">要望・不具合</span>
       </button>
