@@ -322,7 +322,19 @@ export default function ReservationsPage() {
         .update({ status: prevStatus, updated_at: new Date().toISOString() }).eq('id', id)
       fetchTimeline()
     })
-  }, [fetchTimeline, showToast])
+    // 呼出中に変えたときだけLINEへ通知する（順番待ちの「呼出す」と同じ扱い）
+    if (status === 'called') {
+      fetch('/api/notify-reservation', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId, reservationId: id }),
+      }).then(async r => {
+        const j = await r.json()
+        if (j.ok && !j.skipped) showToast('ok', '📱 LINE通知を送信しました')
+        else if (j.ok && j.skipped && j.reason === 'no_line_user_id') showToast('err', '📵 LINE未連携のため通知できません')
+        else if (!j.ok) showToast('err', `LINE通知失敗: ${j.error ?? '不明'}`)
+      }).catch(e => showToast('err', `LINE通知エラー: ${e}`))
+    }
+  }, [fetchTimeline, showToast, storeId])
 
   const handleDelete = useCallback(async (id: string) => {
     const { error } = await ((supabase as any).from('reservations') as any).delete().eq('id', id)
