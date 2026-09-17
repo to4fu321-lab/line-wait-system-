@@ -1011,7 +1011,7 @@ export default function RepairsPage() {
                 </div>
                 {/* Floating batch action bar */}
                 {batchSelected.size > 0 && (
-                  <div className="fixed bottom-20 left-0 right-0 z-30 flex justify-center px-4 pointer-events-none">
+                  <div className="fixed left-0 right-0 z-30 flex justify-center px-4 pointer-events-none" style={{ bottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
                     <div className="max-w-lg w-full bg-indigo-700 text-white rounded-2xl shadow-2xl shadow-indigo-900/30 p-3.5 flex items-center gap-3 pointer-events-auto border border-indigo-500/30">
                       <div className="flex-1 min-w-0">
                         <p className="text-[10px] font-bold opacity-60 uppercase tracking-wider">選択中</p>
@@ -1198,7 +1198,7 @@ export default function RepairsPage() {
 
                 {/* Floating batch action bar */}
                 {batchSelected.size > 0 && (
-                  <div className="fixed bottom-20 left-0 right-0 z-30 flex justify-center px-4 pointer-events-none">
+                  <div className="fixed left-0 right-0 z-30 flex justify-center px-4 pointer-events-none" style={{ bottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
                     <div className="max-w-lg w-full bg-blue-700 text-white rounded-2xl shadow-2xl shadow-blue-900/30 p-3.5 flex items-center gap-3 pointer-events-auto border border-blue-500/30">
                       <div className="flex-1 min-w-0">
                         <p className="text-[10px] font-bold opacity-60 uppercase tracking-wider">選択中</p>
