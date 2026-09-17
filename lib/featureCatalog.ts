@@ -122,10 +122,10 @@ export const FEATURE_CATALOG: FeatureDef[] = [
   // ── 🗂️ マスタ登録 ───────────────────────────────────────
   {
     key: 'products', group: 'master', icon: '🏫',
-    label: '学校・商品・価格マスタ／LINE追加購入',
+    label: '学校・商品・価格マスタ',
     desc: '学校・商品・サイズ・価格の登録画面を開けるようにする。'
-        + 'あわせてお客様LINEの「追加購入」と、店頭での追加購入入力もこのキーで有効になる',
-    where: '設定→学校・商品マスタ／お客様LINEの「追加購入」／店頭の追加購入入力',
+        + '店頭での追加購入入力もこれ。お客様LINEのネット注文には下の「お客様セルフ制服注文」も必要',
+    where: '設定→学校・商品マスタ／店頭の追加購入入力',
   },
   {
     key: 'repairs_master', group: 'master', icon: '📐',
@@ -150,9 +150,10 @@ export const FEATURE_CATALOG: FeatureDef[] = [
   },
   {
     key: 'customer_self_order', group: 'customer', icon: '🛍️',
-    label: 'お客様セルフ制服注文',
-    desc: 'お客様がLINEから制服を注文できる。上の「学校・商品・価格マスタ」もONが必要',
-    where: 'お客様LINEのネット注文',
+    label: 'お客様セルフ制服注文（ネット注文）',
+    desc: 'お客様がLINEから制服を注文・追加購入できる。'
+        + '「学校・商品・価格マスタ」と両方ONで初めてLINEに出る（片方だけではボタンが出ない）',
+    where: 'お客様LINEの「ネット注文」',
   },
   {
     key: 'reservation', group: 'customer', icon: '📅',

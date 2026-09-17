@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { verifyLineAccessToken } from '@/lib/auth/lineAuth'
-import { resolveFeature } from '@/lib/features'
+import { canCustomerOrder } from '@/lib/customerFeatures'
 
 interface CartItem { variantId: string; qty: number }
 
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
       .from('stores').select('features').eq('id', storeId).maybeSingle()
     if (!storeRow) return NextResponse.json({ error: '店舗が見つかりません' }, { status: 404 })
     const features = (storeRow.features ?? {}) as Record<string, unknown>
-    if (!resolveFeature('products', features) || !resolveFeature('customer_self_order', features)) {
+    if (!canCustomerOrder(features)) {
       return NextResponse.json({ error: 'この店舗ではネット注文をご利用いただけません' }, { status: 403 })
     }
 

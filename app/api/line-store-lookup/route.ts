@@ -5,14 +5,17 @@ export const revalidate = 0
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { resolveFeature } from '@/lib/features'
+import { canCustomerOrder, canCustomerRepair } from '@/lib/customerFeatures'
 
 // 顧客向けに公開する機能可否（リッチメニュー action の遷移先判定に使う）
+// 判定は店舗トップの入口ボタンと必ず同じにする。ここだけ緩いと
+// リッチメニューからは進めるのに、開いた先で使えない状態になる。
 function customerCaps(rawFeatures: Record<string, unknown>) {
   return {
     queue:    resolveFeature('tab_queue',   rawFeatures),
     reserve:  resolveFeature('reservation', rawFeatures),
-    repair:   resolveFeature('repairs',     rawFeatures),
-    purchase: resolveFeature('products',    rawFeatures),
+    repair:   canCustomerRepair(rawFeatures),
+    purchase: canCustomerOrder(rawFeatures),
   }
 }
 

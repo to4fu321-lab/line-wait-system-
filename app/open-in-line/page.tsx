@@ -2,13 +2,17 @@
 
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
-
-const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID || ''
+import { getLiffBaseUrl } from '@/lib/line-config'
 
 function OpenInLineContent() {
   const params = useSearchParams()
   const to = params.get('to') ?? ''
-  const liffUrl = `https://liff.line.me/${LIFF_ID}${to}`
+  // LIFF IDは業種ごとに分かれている(NEXT_PUBLIC_LIFF_ID_UNIFORM / _TAKEOUT)。
+  // ここで旧名の NEXT_PUBLIC_LIFF_ID だけを直接読むと、未設定の環境では
+  // https://liff.line.me//<storeId> という壊れたURLになり「LINEで開く」が
+  // 何も起きないボタンになる。解決は lib/line-config に一本化する。
+  const liffBase = getLiffBaseUrl('uniform')
+  const liffUrl = liffBase ? `${liffBase}${to}` : ''
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-500 to-green-600 flex flex-col items-center justify-center px-6">
@@ -38,16 +42,26 @@ function OpenInLineContent() {
         </ul>
       </div>
 
-      <a
-        href={liffUrl}
-        className="w-full max-w-xs bg-white text-green-600 text-2xl font-black py-6 rounded-2xl shadow-2xl text-center active:scale-95 transition-transform block"
-      >
-        LINEで開く →
-      </a>
-
-      <p className="text-green-200 text-sm mt-6 text-center">
-        LINEがインストールされていない場合は<br />App Store / Google Play からインストールしてください
-      </p>
+      {liffUrl ? (
+        <>
+          <a
+            href={liffUrl}
+            className="w-full max-w-xs bg-white text-green-600 text-2xl font-black py-6 rounded-2xl shadow-2xl text-center active:scale-95 transition-transform block"
+          >
+            LINEで開く →
+          </a>
+          <p className="text-green-200 text-sm mt-6 text-center">
+            LINEがインストールされていない場合は<br />App Store / Google Play からインストールしてください
+          </p>
+        </>
+      ) : (
+        <div className="w-full max-w-xs bg-white/15 backdrop-blur-sm rounded-2xl px-5 py-4 text-center">
+          <p className="text-white font-bold">ただいま準備中です</p>
+          <p className="text-green-100 text-sm mt-1 leading-relaxed">
+            お手数ですが、お店から届いたLINEのメッセージまたはQRコードからお進みください。
+          </p>
+        </div>
+      )}
     </div>
   )
 }

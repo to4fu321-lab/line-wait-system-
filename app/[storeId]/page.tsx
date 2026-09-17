@@ -18,6 +18,7 @@ import { initLiff, getLineProfile, openAddFriend, isInLineApp, checkFriendshipLi
 import { useStoreTheme } from '@/lib/theme-context'
 import { useKanaAutoFill } from '@/lib/useKanaAutoFill'
 import { resolveFeature } from '@/lib/features'
+import { canCustomerOrder, canCustomerRepair } from '@/lib/customerFeatures'
 import { InitialRegistrationForm, SimpleRegistrationForm } from '@/app/_components/RegistrationForms'
 import { AddChildForm, WaitingCustomerEditForm, ChildEditInline, WaitingFirstChildForm } from './_components/CustomerForms'
 import { playAlertSound } from './_lib/alertSound'
@@ -128,11 +129,9 @@ export default function CustomerPage() {
       // 顧客向け機能の可否（プラン/個別フラグ）。OFFの機能には action でも遷移させない
       const canQueue    = !isSimple
       const canReserve  = resolveFeature('reservation', featuresData)
-      // お直しのセルフ依頼入力。お直し機能そのものと、セルフ入力の可否は別物
-      //（店頭だけで受ける運用なら customer_self_intake を切る）
-      const canRepair   = resolveFeature('repairs', featuresData)
-                       && resolveFeature('customer_self_intake', featuresData)
-      const canPurchase = resolveFeature('products',    featuresData)
+      // 入口と遷移先で条件がずれないよう、可否は lib/customerFeatures に集約
+      const canRepair   = canCustomerRepair(featuresData)
+      const canPurchase = canCustomerOrder(featuresData)
       setReserveEnabled(canReserve)
       setRepairEnabled(canRepair)
       setPurchaseEnabled(canPurchase)

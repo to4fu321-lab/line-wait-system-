@@ -13,7 +13,7 @@ import { fetchSchools, fetchSchoolProducts, fetchVariants } from '@/lib/masterAp
 import type { CatalogSchool, CatalogProduct, CatalogVariant } from '@/lib/masterApi'
 import type { LiffProfile } from '@/lib/liff'
 import { GRADE_OPTIONS } from '@/types/crm'
-import { resolveFeature } from '@/lib/features'
+import { canCustomerOrder } from '@/lib/customerFeatures'
 
 interface CartItem {
   variantId:   string
@@ -93,11 +93,11 @@ export default function ECShopView({
     ;(async () => {
       setDataLoading(true)
 
-      // プランチェック: products・customer_self_order が両方 ON の場合のみ利用可能
+      // プランチェック（入口のボタン側と同じ判定を使う）
       const { data: storeRow } = await (supabase as any)
         .from('stores').select('features').eq('id', storeId).single()
       const featuresData = (storeRow?.features ?? {}) as Record<string, unknown>
-      if (!resolveFeature('products', featuresData) || !resolveFeature('customer_self_order', featuresData)) {
+      if (!canCustomerOrder(featuresData)) {
         setPlanGated(true)
         setDataLoading(false)
         return
