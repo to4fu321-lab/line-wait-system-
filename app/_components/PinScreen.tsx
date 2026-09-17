@@ -143,6 +143,34 @@ export async function verifySuperAdminPin(pin: string): Promise<true | null> {
   return true
 }
 
+/**
+ * トライアル店舗など stores.features.pin_skip === true の店舗向け。
+ * サーバー側でフラグを確認できた場合のみセッションが発行されるため、
+ * 失敗時(フラグ無し等)は null を返して通常のPIN画面にフォールバックさせる。
+ */
+export async function tryPinSkipAuth(storeId: string): Promise<'owner' | 'staff' | null> {
+  let res: Response
+  try {
+    res = await fetch('/api/admin/pin-skip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storeId }),
+    })
+  } catch {
+    return null
+  }
+  if (!res.ok) return null
+  const json = await res.json().catch(() => null) as
+    { ok?: boolean; role?: string; session?: StaffSessionTokens } | null
+  if (!json?.ok) return null
+  if (json.session) {
+    const ok = await applyStaffSession(json.session)
+    if (!ok) return null
+  }
+  sessionStorage.setItem('admin_auth', '1')
+  return json.role === 'owner' ? 'owner' : 'staff'
+}
+
 export async function verifyStorePinApi(storeId: string, pin: string): Promise<'owner' | 'staff' | null> {
   let res: Response
   try {

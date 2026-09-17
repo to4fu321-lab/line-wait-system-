@@ -14,7 +14,7 @@ import { StoreSelectScreen } from './_components/StoreSelectScreen'
 import type { StoreInfo } from './_components/StoreSelectScreen'
 import { resolveFeature } from '@/lib/features'
 import { SchoolDeadlineAlert } from './_components/SchoolDeadlineAlert'
-import { PinScreen, verifyStorePinApi } from '@/app/_components/PinScreen'
+import { PinScreen, verifyStorePinApi, tryPinSkipAuth } from '@/app/_components/PinScreen'
 import { hasStaffSession, clearStaffSession } from '@/lib/staffSessionClient'
 import { WaitingCard, CallingCard, HistoryCard } from './_components/QueueCards'
 import { supabase, getTodayStart } from '@/lib/supabase'
@@ -836,6 +836,18 @@ export default function StoreAdminPage() {
           loadGroupStores(match) // ログアウト後の店舗切替UI用に事前取得
           if (!resolveFeature('tab_queue', match.features ?? {})) { router.replace(`/${match.id}/admin/repairs`); return }
           setView('dashboard'); return
+        }
+        // トライアル店舗など features.pin_skip === true の場合はPIN入力を省略する
+        if ((match.features as Record<string, unknown> | undefined)?.pin_skip === true) {
+          const role = await tryPinSkipAuth(storeId)
+          if (role) {
+            sessionStorage.setItem('admin_store_id', storeId)
+            sessionStorage.setItem('admin_role', role)
+            loadGroupCode(match)
+            loadGroupStores(match)
+            if (!resolveFeature('tab_queue', match.features ?? {})) { router.replace(`/${match.id}/admin/repairs`); return }
+            setView('dashboard'); return
+          }
         }
         setView('pin')
       })
