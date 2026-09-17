@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import SwRegister from './sw-register'
+import ChunkReloader from './_components/ChunkReloader'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ja">
       <body className="bg-zinc-950">
         {children}
+        <ChunkReloader />
         <SwRegister />
         <Analytics />
         <SpeedInsights />

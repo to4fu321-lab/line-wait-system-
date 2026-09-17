@@ -38,6 +38,12 @@ export interface FeatureDef {
   desc: string
   /** どの画面に現れるか。「探しても見つからない」を無くすための道案内 */
   where: string
+  /**
+   * その業種でしか意味を持たない機能。制服店の一覧にテイクアウトが
+   * 並んでいると何のための項目か分からないため、UI側で注意を出す。
+   * （消さずに残すのは、誤ってONにした値をOFFに戻せなくなるのを防ぐため）
+   */
+  onlyFor?: 'uniform' | 'takeout'
 }
 
 export const FEATURE_CATALOG: FeatureDef[] = [
@@ -176,8 +182,9 @@ export const FEATURE_CATALOG: FeatureDef[] = [
   {
     key: 'takeout', group: 'customer', icon: '🥡',
     label: 'テイクアウト注文',
-    desc: '飲食店向けのテイクアウト受付。制服店では使わない',
+    desc: '飲食店向けのテイクアウト受付。制服店では使わないのでOFFのまま',
     where: '業種「テイクアウト」の店舗のみ',
+    onlyFor: 'takeout',
   },
 
   // ── 🏫 学校規定・採寸の連携 ───────────────────────────────

@@ -312,6 +312,8 @@ function StoreCard({
                       : PLAN_DEFS[currentPlan]?.features[f.key] !== false
                     const state = toggleStateOf((features as Record<string, unknown>)[f.key])
                     const effective = state === 'default' ? planDefault : state === 'on'
+                    // この店の業種では意味を持たない機能（制服店にテイクアウト等）
+                    const wrongBiz = f.onlyFor !== undefined && f.onlyFor !== bizType
                     return (
                       <button key={f.key}
                         onClick={() => setFeatures(prev => {
@@ -322,17 +324,28 @@ function StoreCard({
                           return next
                         })}
                         className={`w-full flex items-start gap-2 px-2.5 py-2 rounded-xl border text-left transition-all ${
-                          effective
-                            ? 'border-indigo-500/50 bg-indigo-500/10'
-                            : 'border-gray-700 bg-gray-800/60'
+                          wrongBiz && effective ? 'border-amber-500/60 bg-amber-500/10'
+                            : wrongBiz          ? 'border-gray-800 bg-gray-800/30 opacity-50'
+                            : effective         ? 'border-indigo-500/50 bg-indigo-500/10'
+                                                : 'border-gray-700 bg-gray-800/60'
                         }`}>
                         <span className="text-[13px] leading-none mt-0.5">{f.icon}</span>
                         <span className="flex-1 min-w-0">
                           <span className={`block text-[11px] font-black leading-tight ${effective ? 'text-indigo-200' : 'text-gray-400'}`}>
                             {f.label}
+                            {wrongBiz && (
+                              <span className="ml-1 px-1 py-0.5 rounded bg-amber-500/25 text-amber-300 text-[8px] align-middle">
+                                {f.onlyFor === 'takeout' ? '飲食店専用' : '制服店専用'}
+                              </span>
+                            )}
                           </span>
                           <span className="block text-[9px] leading-snug text-gray-500 mt-0.5">{f.desc}</span>
                           <span className="block text-[9px] leading-snug text-gray-600 mt-0.5">📍 {f.where}</span>
+                          {wrongBiz && effective && (
+                            <span className="block text-[9px] leading-snug text-amber-300 font-bold mt-0.5">
+                              ⚠️ この店舗の業種では使いません。OFFにしてください
+                            </span>
+                          )}
                         </span>
                         <span className={`shrink-0 px-1.5 py-0.5 rounded-lg text-[9px] font-black ${
                           state === 'default' ? 'bg-gray-700 text-gray-400'
