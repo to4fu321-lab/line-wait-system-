@@ -63,9 +63,9 @@ function gatedKeysInSource(): string[] {
     /feature="([a-z_]+)"/g,
   ]
   for (const re of patterns) {
-    for (const m of SOURCE.matchAll(re)) found.add(m[1])
+    Array.from(SOURCE.matchAll(re)).forEach(m => found.add(m[1]))
   }
-  return [...found]
+  return Array.from(found)
 }
 
 describe('機能トグルと画面の対応', () => {
