@@ -77,6 +77,8 @@ function StoreCard({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [csvExporting,  setCsvExporting]  = useState(false)
   const [welcomeMsg,       setWelcomeMsg]       = useState<string>((store as any).welcome_message ?? '')
+  // 在籍校の変更に必要な合言葉。お客様には店舗から口頭で伝える
+  const [schoolKey,        setSchoolKey]        = useState<string>((store as any).school_change_key ?? '')
   const [isTestMode,       setIsTestMode]       = useState<boolean>((store as any).is_test_mode ?? false)
   const [richmenuApplying, setRichmenuApplying] = useState(false)
   const [richmenuMsg,      setRichmenuMsg]      = useState<{ ok: boolean; text: string } | null>(null)
@@ -92,6 +94,7 @@ function StoreCard({
       setBizType((store.business_type as 'uniform' | 'takeout') ?? 'uniform')
       setFeatures(store.features ?? {})
       setWelcomeMsg((store as any).welcome_message ?? '')
+      setSchoolKey((store as any).school_change_key ?? '')
       setMsg(null); setConfirmDelete(false)
     }
   }, [isEditing, store])
@@ -139,7 +142,7 @@ function StoreCard({
     setSaving(true); setMsg(null)
     const res = await fetch(`/api/super-admin/stores/${store.id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, pin, group_id: groupId || null, features, business_type: bizType, welcome_message: welcomeMsg }),
+      body: JSON.stringify({ name, pin, group_id: groupId || null, features, business_type: bizType, welcome_message: welcomeMsg, school_change_key: schoolKey }),
     })
     const j = await res.json()
     setSaving(false)
@@ -203,6 +206,16 @@ function StoreCard({
               <textarea value={welcomeMsg} onChange={e => setWelcomeMsg(e.target.value)} rows={2}
                 placeholder="例: ご来店ありがとうございます。受付番号をお取りください。"
                 className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none resize-none" />
+            </div>
+            <div className="col-span-2">
+              <label className="text-[10px] text-gray-400 mb-1 block">学校変更パスキー（お客様には店舗から口頭で伝える）</label>
+              <input value={schoolKey} onChange={e => setSchoolKey(e.target.value)}
+                placeholder="例: sakura2026"
+                className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none" />
+              <p className="text-[9px] text-gray-500 mt-1 leading-snug">
+                ネット注文画面でお客様が在籍校を変更するときに必要。
+                空欄にすると学校の変更を一切受け付けません（お客様には「店舗へお問い合わせください」と表示）。
+              </p>
             </div>
             <div>
               <label className="text-[10px] text-gray-400 mb-1 block">PIN（変更する場合のみ入力）</label>

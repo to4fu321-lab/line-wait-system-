@@ -21,7 +21,9 @@ export async function GET(req: Request) {
 
     const [{ data: stores, error }, { data: groups }] = await Promise.all([
       supabase.from('stores')
-        .select('id, name, group_id, business_type, features, is_open')
+        // school_change_key は anon に公開していない列。super-admin だけが
+        // 現在値を確認して、店舗スタッフに伝えられるようにする
+        .select('id, name, group_id, business_type, features, is_open, school_change_key')
         .order('name', { ascending: true }),
       supabase.from('groups').select('*').order('name', { ascending: true }),
     ])

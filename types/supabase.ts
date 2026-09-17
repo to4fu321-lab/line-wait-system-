@@ -3583,6 +3583,7 @@ export type Database = {
           ui_settings: Json | null
           wait_thresholds: Json
           welcome_message: string | null
+          school_change_key: string | null
         }
         Insert: {
           active_fittings?: number
@@ -3625,6 +3626,7 @@ export type Database = {
           ui_settings?: Json | null
           wait_thresholds?: Json
           welcome_message?: string | null
+          school_change_key?: string | null
         }
         Update: {
           active_fittings?: number
@@ -3667,6 +3669,7 @@ export type Database = {
           ui_settings?: Json | null
           wait_thresholds?: Json
           welcome_message?: string | null
+          school_change_key?: string | null
         }
         Relationships: [
           {

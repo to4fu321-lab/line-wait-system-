@@ -28,6 +28,10 @@ export async function PUT(req: Request, { params }: { params: { storeId: string 
     }
     if (body.business_type   !== undefined) update.business_type   = body.business_type
     if (body.welcome_message !== undefined) update.welcome_message = body.welcome_message || null
+    // 在籍校の変更に必要な合言葉。空にすると学校変更を一切受け付けなくなる
+    if (body.school_change_key !== undefined) {
+      update.school_change_key = String(body.school_change_key).trim() || null
+    }
 
     if (Object.keys(update).length === 0) {
       return NextResponse.json({ error: '更新項目がありません' }, { status: 400 })

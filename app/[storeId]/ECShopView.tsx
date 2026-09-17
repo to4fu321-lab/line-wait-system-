@@ -73,6 +73,10 @@ export default function ECShopView({
   const [editGrade,       setEditGrade]       = useState(initialGrade ?? '')
   const [savingSchool,    setSavingSchool]    = useState(false)
   const [schoolError,     setSchoolError]     = useState('')
+  // 学校変更は店舗だけが知っている合言葉を入れたときだけ許可する。
+  // お客様が自由に在籍校を切り替えると、取扱いのない学校の商品を見に行ったり、
+  // 進学していないのに学年・学校が書き換わる事故が起きるため。
+  const [schoolKey,       setSchoolKey]       = useState('')
 
   // カート
   const [cart,        setCart]        = useState<CartItem[]>([])
@@ -140,7 +144,29 @@ export default function ECShopView({
   const handleSaveSchool = async () => {
     const school = schools.find(s => s.id === editSchoolId)
     if (!school) { setSchoolError('学校を選択してください'); return }
+    if (!schoolKey.trim()) { setSchoolError('パスキーを入力してください'); return }
     setSavingSchool(true); setSchoolError('')
+
+    // 合言葉の照合はサーバーで行う（鍵をお客様の端末に置かないため）
+    try {
+      const res = await fetch('/api/school-change-key/verify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId, key: schoolKey }),
+      })
+      const json = await res.json().catch(() => ({ ok: false }))
+      if (!json.ok) {
+        setSchoolError(json.configured === false
+          ? 'この店舗では学校の変更を受け付けていません。店舗へお問い合わせください'
+          : 'パスキーが違います。店舗へお問い合わせください')
+        setSavingSchool(false)
+        return
+      }
+    } catch {
+      setSchoolError('通信に失敗しました。電波の良い場所でお試しください')
+      setSavingSchool(false)
+      return
+    }
+
     try {
       const { child } = await saveCustomer(storeId, childId
         ? { childUpdate: { id: childId, school_id: school.id, school_name: school.name, grade: editGrade || null } }
@@ -161,6 +187,7 @@ export default function ECShopView({
     await fetchProducts(school.id)
     setDataLoading(false)
     setSavingSchool(false)
+    setSchoolKey('')
     setShowSchoolEdit(false)
   }
 
@@ -307,6 +334,7 @@ export default function ECShopView({
             setEditSchoolId(activeSchoolId ?? '')
             setEditGrade(childGrade ?? '')
             setSchoolError('')
+            setSchoolKey('')
             setShowSchoolEdit(true)
           }}
           className="w-full bg-white border border-zinc-100 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-sm active:scale-[0.99] transition-transform text-left"
@@ -568,6 +596,19 @@ export default function ECShopView({
                   <option value="">選択してください</option>
                   {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 mb-1.5">パスキー</label>
+                <input
+                  type="text" inputMode="text" autoComplete="off"
+                  value={schoolKey} onChange={e => { setSchoolKey(e.target.value); setSchoolError('') }}
+                  placeholder="店舗からお伝えした合言葉"
+                  className="w-full text-base text-zinc-900 border-2 border-zinc-100 bg-zinc-50 rounded-xl px-3 py-2.5 focus:bg-white focus:outline-none transition-all"
+                />
+                <p className="text-zinc-500 text-xs mt-1.5 leading-relaxed">
+                  学校の変更にはパスキーが必要です。<br />
+                  パスキーをお伝えしますので、店舗までお問い合わせください。
+                </p>
               </div>
               {schoolError && <p className="text-red-500 text-xs text-center">{schoolError}</p>}
               <button onClick={handleSaveSchool} disabled={savingSchool || schools.length === 0}
