@@ -50,21 +50,49 @@ function ReservationSettingsPage() {
   const [saving,  setSaving]  = useState<number | null>(null)
   const [toast,   setToast]   = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
 
+  // 試着室の実数（stores.active_fittings）。シフト管理の「人員設計」タブと
+  // 同じ値を共有する。曜日別の同時受付枠は「試着室が何室あるか」で決まるのが
+  // 自然なので、新規メニュー追加時の初期値のヒントとしてここでも使う
+  // （あくまで初期値。曜日ごとの個別調整は引き続き手動で可能）。
+  const [rooms,       setRooms]       = useState('')
+  const [roomsSaving,  setRoomsSaving] = useState(false)
+
   const load = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await sb.from('reservation_settings')
-      .select('*').eq('store_id', storeId).order('duration_min', { ascending: false })
+    const [{ data, error }, { data: store }] = await Promise.all([
+      sb.from('reservation_settings').select('*').eq('store_id', storeId).order('duration_min', { ascending: false }),
+      sb.from('stores').select('active_fittings').eq('id', storeId).maybeSingle(),
+    ])
     if (error) setToast({ type: 'err', msg: `読み込みに失敗しました: ${error.message}` })
     setRows((data ?? []) as ResvSetting[])
+    if (store?.active_fittings) setRooms(String(store.active_fittings))
     setLoading(false)
   }, [storeId])
 
   useEffect(() => { if (storeId) load() }, [storeId, load])
 
+  const saveRooms = async () => {
+    const n = Number(rooms)
+    if (!Number.isFinite(n) || n <= 0) { setToast({ type: 'err', msg: '1以上の数値を入力してください' }); return }
+    setRoomsSaving(true)
+    const { error } = await sb.from('stores').update({ active_fittings: n }).eq('id', storeId)
+    setRoomsSaving(false)
+    if (error) { setToast({ type: 'err', msg: `保存に失敗しました: ${error.message}` }); return }
+    setToast({ type: 'ok', msg: '試着室数を保存しました' })
+  }
+
   const update = (i: number, patch: Partial<ResvSetting>) =>
     setRows(prev => prev.map((r, idx) => idx === i ? { ...r, ...patch } : r))
 
-  const addRow = () => setRows(prev => [...prev, { ...EMPTY }])
+  const addRow = () => {
+    const hint = Number(rooms)
+    const base = Number.isFinite(hint) && hint > 0 ? hint : EMPTY.slots_mon
+    setRows(prev => [...prev, {
+      ...EMPTY,
+      slots_sun: 0, slots_mon: base, slots_tue: base, slots_wed: base,
+      slots_thu: base, slots_fri: base, slots_sat: base,
+    }])
+  }
 
   const save = async (i: number) => {
     const row = rows[i]
@@ -115,6 +143,24 @@ function ReservationSettingsPage() {
           採寸メニューごとに、曜日別の受付可能枠数・受付時間帯・所要時間を設定します。<br />
           この設定が1件もない場合は、平日2枠・土曜3枠の仮設定で動作します。
         </p>
+
+        <div className="bg-white rounded-2xl border border-gray-200 p-4">
+          <label className="block text-[11px] font-bold text-gray-500 mb-1">試着室の実数</label>
+          <div className="flex items-center gap-2">
+            <input type="text" inputMode="numeric" value={rooms}
+              onChange={e => setRooms(e.target.value.replace(/[^0-9]/g, ''))}
+              placeholder="例: 3"
+              className="w-20 border border-gray-300 rounded-xl px-3 py-2 text-sm text-center" />
+            <button onClick={saveRooms} disabled={roomsSaving}
+              className="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-sm disabled:opacity-60">
+              {roomsSaving ? '保存中…' : '保存'}
+            </button>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-1.5 leading-relaxed">
+            設定→シフト管理の人員設計や、お客様LINEの混雑表示にも使われます。<br />
+            下の「採寸メニューを追加」を押したとき、曜日別枠数の初期値としても使われます（あとから曜日ごとに調整できます）。
+          </p>
+        </div>
 
         {loading ? (
           <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-400" /></div>

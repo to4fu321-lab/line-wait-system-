@@ -49,10 +49,22 @@ export function StaffingPlanTab({ storeId, useAi, onToast, onShiftsChanged }: {
 
   useEffect(() => { fetch() }, [fetch])
   useEffect(() => { loadStaffingSettings(storeId).then(setSettings) }, [storeId])
+  // 実際の試着室数（stores.active_fittings）。この画面と、お客様LINEの
+  // 混雑表示・順番待ちAPIが同じ値を見ている。書き込むUIが無く、
+  // 未設定の店舗は既定値の1のまま=人員計算が実態と合っていなかった。
+  const [roomsSaving, setRoomsSaving] = useState(false)
   useEffect(() => {
     sb.from('stores').select('active_fittings').eq('id', storeId).maybeSingle()
       .then(({ data }: any) => { if (data?.active_fittings) setSimRooms(String(data.active_fittings)) })
   }, [storeId])
+
+  const saveActiveFittings = async (rooms: number) => {
+    if (rooms <= 0) return
+    setRoomsSaving(true)
+    await sb.from('stores').update({ active_fittings: rooms }).eq('id', storeId)
+    setRoomsSaving(false)
+    onToast('試着室数を保存しました')
+  }
 
   // 日付を変えたら、その曜日区分(平日/土日)の保存済みプリセットを読み込む
   useEffect(() => {
@@ -144,13 +156,30 @@ export function StaffingPlanTab({ storeId, useAi, onToast, onShiftsChanged }: {
       </div>
 
       {showSettings && settings && (
-        <div className="mb-3 p-3 rounded-xl border border-gray-200 bg-gray-50 grid grid-cols-2 gap-2 text-xs">
-          <NumField label="ブロック(分)" v={settings.time_block_min} onChange={v => saveSettings({ time_block_min: v })} />
-          <NumField label="試着時間(分)" v={settings.fitting_minutes} onChange={v => saveSettings({ fitting_minutes: v })} />
-          <NumField label="1人が捌く室数" v={settings.per_person_rooms} step={0.1} onChange={v => saveSettings({ per_person_rooms: v })} />
-          <NumField label="来店係数" v={settings.visit_factor} step={0.1} onChange={v => saveSettings({ visit_factor: v })} />
-          <NumField label="成約率" v={settings.conversion_rate} step={0.05} onChange={v => saveSettings({ conversion_rate: v })} />
-          <NumField label="最大人数" v={settings.max_staff} onChange={v => saveSettings({ max_staff: v })} />
+        <div className="mb-3 p-3 rounded-xl border border-gray-200 bg-gray-50 space-y-2">
+          <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+            <label className="flex-1 flex items-center gap-2 text-xs">
+              <span className="text-gray-500 font-bold shrink-0">試着室の実数</span>
+              <input type="text" inputMode="numeric" value={simRooms}
+                onChange={e => setSimRooms(e.target.value.replace(/[^0-9]/g, ''))}
+                className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center" />
+            </label>
+            <button onClick={() => saveActiveFittings(num(simRooms))} disabled={roomsSaving || num(simRooms) <= 0}
+              className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">
+              {roomsSaving ? '保存中…' : '保存'}
+            </button>
+          </div>
+          <p className="text-[10px] text-gray-400 -mt-1">
+            お客様LINEの混雑表示・採寸予約の枠数のヒントにも使われます
+          </p>
+          <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+            <NumField label="ブロック(分)" v={settings.time_block_min} onChange={v => saveSettings({ time_block_min: v })} />
+            <NumField label="試着時間(分)" v={settings.fitting_minutes} onChange={v => saveSettings({ fitting_minutes: v })} />
+            <NumField label="1人が捌く室数" v={settings.per_person_rooms} step={0.1} onChange={v => saveSettings({ per_person_rooms: v })} />
+            <NumField label="来店係数" v={settings.visit_factor} step={0.1} onChange={v => saveSettings({ visit_factor: v })} />
+            <NumField label="成約率" v={settings.conversion_rate} step={0.05} onChange={v => saveSettings({ conversion_rate: v })} />
+            <NumField label="最大人数" v={settings.max_staff} onChange={v => saveSettings({ max_staff: v })} />
+          </div>
         </div>
       )}
 
