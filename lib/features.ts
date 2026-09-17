@@ -32,27 +32,21 @@ export type FeatureKey =
   | 'kantan_line'           // LINE返信でタスク完了する運用
   | 'tray_scan'             // 置くだけスキャン
   // ── 学校規定・採寸連携 ──────────────────
-  | 'school_master'
   | 'school_ocr'
   | 'school_crm_card'
   | 'school_measurement'
   | 'school_waiting'
   | 'line_parent_info'
   | 'line_coupon'
-  | 'line_parent_rsv'
   | 'customer_self_intake'
   | 'customer_self_order'
-  // ── 既存フラグ（後方互換）──────────────
-  | 'crm'
-  | 'repairs'
+  // ── お客様LINE・商品まわり ───────────────
+  | 'repairs'      // LINEからのお直し依頼
+  | 'products'     // 学校・商品・価格マスタ＋LINE追加購入
   | 'reservation'
-  | 'orders'
-  | 'products'
-  | 'purchase_orders'
   | 'takeout'
   // ── 通知アドオン ───────────────────────
   | 'sms_notify'
-  | 'followup_notify'
   // ── UI β ──────────────────────────────
   | 'today_tasks_ui'
   // ── レジ ──────────────────────────────
@@ -74,13 +68,12 @@ const ALL_OFF: Partial<Record<FeatureKey, boolean>> = {
   repairs_tab_purchase: false, repairs_tab_arrival: false, repairs_tab_delivery: false,
   repairs_ocr: false, repairs_master: false, repairs_dummy: false,
   kantan_line: false, tray_scan: false,
-  school_master: false, school_ocr: false, school_crm_card: false,
+  school_ocr: false, school_crm_card: false,
   school_measurement: false, school_waiting: false,
-  line_parent_info: false, line_coupon: false, line_parent_rsv: false,
+  line_parent_info: false, line_coupon: false,
   customer_self_intake: false, customer_self_order: false,
-  crm: false, repairs: false, reservation: false,
-  orders: false, products: false, purchase_orders: false,
-  takeout: false, sms_notify: false, followup_notify: false,
+  repairs: false, products: false, reservation: false,
+  takeout: false, sms_notify: false,
   today_tasks_ui: false, pos: false,
   shift_management: false, shift_inter_store: false, shift_attendance: false,
   shift_leave: false, shift_swap: false, staff_push: false,
@@ -121,14 +114,13 @@ export const PLAN_DEFS: Record<Plan, {
       repairs_tab_purchase: true, repairs_tab_arrival: true, repairs_tab_delivery: true,
       repairs_ocr: true, repairs_master: true, repairs_dummy: true,  // ← テストデータ生成ON
       kantan_line: true, tray_scan: false,
-      school_master: true, school_ocr: true, school_crm_card: true,
+      school_ocr: true, school_crm_card: true,
       school_measurement: true, school_waiting: true,
-      line_parent_info: true, line_coupon: true, line_parent_rsv: true,
+      line_parent_info: true, line_coupon: true,
       customer_self_intake: true, customer_self_order: true,
-      crm: true, repairs: true, reservation: true,
-      orders: true, products: true, purchase_orders: true,
+      repairs: true, products: true, reservation: true,
       takeout: false,        // 制服店なのでテイクアウトはOFF
-      sms_notify: false, followup_notify: true,
+      sms_notify: false,
       today_tasks_ui: true, pos: true,
       shift_management: true, shift_inter_store: false, shift_attendance: true,
       shift_leave: true, shift_swap: true, staff_push: true,
@@ -150,7 +142,7 @@ export const PLAN_DEFS: Record<Plan, {
       repairs_master: true,     // 料金マスタ
       tab_crm: true,            // 顧客管理
       pos: true,                // レジ
-      repairs: true, crm: true,
+      repairs: true,
       customer_self_intake: true, // LINEからのお直し依頼（従来 repairs だけで出ていた）
     },
   },
@@ -188,10 +180,8 @@ export const PLAN_DEFS: Record<Plan, {
       repairs_tab_arrival: true,
       repairs_tab_delivery: true,
       repairs_master: true,
-      school_master: true,
       pos: true,
-      crm: true, repairs: true, orders: true,
-      products: true, purchase_orders: true,
+      repairs: true, products: true,
     },
   },
 
@@ -206,14 +196,13 @@ export const PLAN_DEFS: Record<Plan, {
       repairs_tab_purchase: true, repairs_tab_arrival: true, repairs_tab_delivery: true,
       repairs_ocr: true, repairs_master: true, repairs_dummy: false,
       kantan_line: true, tray_scan: false,
-      school_master: true, school_ocr: true, school_crm_card: true,
+      school_ocr: true, school_crm_card: true,
       school_measurement: true, school_waiting: false,
-      line_parent_info: true, line_coupon: true, line_parent_rsv: true,
+      line_parent_info: true, line_coupon: true,
       customer_self_intake: true, customer_self_order: true,
-      crm: true, repairs: true, reservation: true,
-      orders: true, products: true, purchase_orders: true,
+      repairs: true, products: true, reservation: true,
       takeout: false,   // 制服店。テイクアウトは業種設定で別途ON
-      sms_notify: false, followup_notify: true,
+      sms_notify: false,
       today_tasks_ui: false, pos: true,
       shift_management: true, shift_inter_store: false, shift_attendance: true,
       shift_leave: true, shift_swap: true, staff_push: true,
@@ -258,9 +247,17 @@ export function resolveFeature(
 // pos・shift_* はプラン定義（例: フル）通りに動作させたいため対象外
 // （2026-07-05: レジ・シフトが「フル」でもOFFのままになる不具合の修正）
 export const ADDON_DEFAULT_OFF: FeatureKey[] = [
-  'sms_notify', 'followup_notify',
+  'sms_notify',
   'today_tasks_ui',
 ]
+
+// 過去に stores.features へ書かれていたが、現在はどこからも読まれないキー。
+// DBに値が残っていても無視される（消しても動作は変わらない）。
+// 再利用する場合は必ず lib/featureCatalog.ts にも登録すること。
+export const RETIRED_FEATURE_KEYS = [
+  'crm', 'orders', 'purchase_orders',
+  'school_master', 'followup_notify', 'line_parent_rsv',
+] as const
 
 // ── プランごとの数量上限（無料トライアルの「人数/件数限定」用）──────
 // ここに無い項目・ここに無いプランは無制限。

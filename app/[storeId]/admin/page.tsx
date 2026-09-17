@@ -827,6 +827,10 @@ export default function StoreAdminPage() {
           setFetchError(error ?? '店舗が見つかりません'); setView('not_found'); return
         }
         setSelectedStore(match)
+        // ボトムナビは sessionStorage の sf_<storeId> を初期値に使うため、
+        // ここで取得した最新の features を必ず書き戻す。書き戻さないと
+        // 「タブは出ているのにタップすると弾かれて戻ってくる」幽霊タブになる。
+        try { sessionStorage.setItem(`sf_${storeId}`, JSON.stringify(match.features ?? {})) } catch {}
         // Supabase Auth セッション(RLS通過に必須)が生きている場合のみ復元
         const saved = sessionStorage.getItem('admin_store_id')
         if (saved && saved === storeId && sessionStorage.getItem('admin_auth') === '1'

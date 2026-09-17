@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { FeatureKey } from '@/lib/features'
+import { RETIRED_FEATURE_KEYS } from '@/lib/features'
+import { FEATURE_KEYS_IN_CATALOG } from '@/lib/featureCatalog'
 
 // ============================================================================
 //  スーパー管理画面のトグルと、実際の画面の対応チェック
@@ -40,19 +42,8 @@ function isGated(key: string): boolean {
   ].some(pat => SOURCE.includes(pat))
 }
 
-// super-admin に並ぶトグル（app/super-admin/page.tsx の GRANULAR_FEATURES と同じ並び）
-const TOGGLES: FeatureKey[] = [
-  'tab_queue', 'tab_repairs', 'tab_inquiries', 'tab_crm',
-  'repairs_tab_purchase', 'repairs_tab_arrival', 'repairs_tab_delivery',
-  'repairs_ocr', 'repairs_master', 'repairs_dummy',
-  'kantan_line', 'tray_scan', 'reservation', 'takeout',
-  'school_ocr', 'school_crm_card', 'school_measurement',
-  'school_waiting', 'line_parent_info', 'line_coupon',
-  'customer_self_intake', 'customer_self_order',
-  'sms_notify', 'today_tasks_ui', 'pos',
-  'shift_management', 'shift_inter_store', 'shift_attendance', 'shift_leave',
-  'shift_swap', 'staff_push', 'shift_demand', 'shift_dashboard', 'shift_ai',
-]
+// super-admin に並ぶトグル = カタログそのもの（手書きの二重管理をやめた）
+const TOGGLES: FeatureKey[] = FEATURE_KEYS_IN_CATALOG
 
 /**
  * トグルはあるが、まだどこも見ていないもの。
@@ -60,6 +51,22 @@ const TOGGLES: FeatureKey[] = [
  * 空であることが正常。増やすなら「なぜ今は配線できないか」を必ず書く。
  */
 const UNWIRED: FeatureKey[] = []
+
+/** ソース中で実際に機能判定に使われているキーを全部拾う */
+function gatedKeysInSource(): string[] {
+  const found = new Set<string>()
+  const patterns = [
+    /hasFeature\('([a-z_]+)'\)/g,
+    /resolveFeature\('([a-z_]+)'/g,
+    /featureKey: '([a-z_]+)'/g,
+    /feature: '([a-z_]+)'/g,
+    /feature="([a-z_]+)"/g,
+  ]
+  for (const re of patterns) {
+    for (const m of SOURCE.matchAll(re)) found.add(m[1])
+  }
+  return [...found]
+}
 
 describe('機能トグルと画面の対応', () => {
   it('未実装リストに載っていないトグルは、必ずどこかで判定に使われている', () => {
@@ -70,6 +77,23 @@ describe('機能トグルと画面の対応', () => {
   it('未実装リストの項目は、本当にどこでも使われていない（実装したら消す）', () => {
     const nowWired = UNWIRED.filter(k => isGated(k))
     expect(nowWired).toEqual([])
+  })
+
+  // 逆方向。products が「LINE追加購入・商品マスタ」を制御しているのにトグルが
+  // 無く、運用側から存在を知る術が無かった事故の再発防止。
+  it('画面で使われているキーは、必ず機能カタログに載っている（設定できない隠し機能を作らない）', () => {
+    const catalog = new Set<string>(FEATURE_KEYS_IN_CATALOG)
+    const retired = new Set<string>(RETIRED_FEATURE_KEYS)
+    const hidden = gatedKeysInSource()
+      .filter(k => !catalog.has(k) && !retired.has(k))
+      // 機能キー以外の同名プロパティを拾った場合の除外（feature: 'xxx' の誤検出）
+      .filter(k => k.length > 2)
+    expect(hidden).toEqual([])
+  })
+
+  it('引退したキーは本当にどこからも読まれていない', () => {
+    const stillUsed = RETIRED_FEATURE_KEYS.filter(k => isGated(k))
+    expect(stillUsed).toEqual([])
   })
 
   it('順番待ちQR POPは順番待ちタブの可否を見る（切っても作れてしまう不具合の再発防止）', () => {
