@@ -1,72 +1,21 @@
-'use client'
+import type { Metadata } from 'next'
+import AdminLayoutClient from './AdminLayoutClient'
 
-import { ReactNode, useEffect } from 'react'
-import { useParams } from 'next/navigation'
-import { DeviceModeProvider } from './_components/DeviceModeProvider'
-import { SideNav } from './_components/SideNav'
-import { OrderReminderBanner } from './_components/OrderReminderBanner'
-import { FixNoticeBanner } from './_components/FixNoticeBanner'
-import { FeedbackButton } from './_components/FeedbackButton'
-import { AdminTopBar } from './_components/AdminTopBar'
-import OfflineBanner from '@/app/_components/OfflineBanner'
-import { useDeviceMode } from '@/lib/useDeviceMode'
-import { useUiSettings } from '@/lib/useSimpleMode'
-
-// 「大きい文字」設定: Tailwind のサイズは全て rem 基準のため、
-// html の font-size を上げるだけで管理画面全体が拡大される。
-// この layout は /[storeId]/admin 配下でのみマウントされるので、
-// お客様向け画面（LIFF等）には影響しない。
-function LargeTextEffect() {
-  const { storeId } = useParams<{ storeId: string }>()
-  const { settings } = useUiSettings(storeId)
-  const largeText = settings.large_text === true
-
-  useEffect(() => {
-    if (typeof document === 'undefined') return
-    document.documentElement.style.fontSize = largeText ? '18px' : ''
-    return () => { document.documentElement.style.fontSize = '' }
-  }, [largeText])
-
-  return null
+type Props = {
+  children: React.ReactNode
+  params:   { storeId: string }
 }
 
-function AdminLayoutInner({ children }: { children: ReactNode }) {
-  const { isTablet } = useDeviceMode()
-
-  if (isTablet) {
-    return (
-      <div className="flex h-[100dvh] bg-gray-50">
-        <OfflineBanner />
-        <OrderReminderBanner />
-        <FixNoticeBanner />
-        <SideNav />
-        <main className="flex-1 min-w-0 overflow-y-auto">
-          {children}
-        </main>
-        <FeedbackButton />
-      </div>
-    )
+// 全店舗共通の public/manifest.json (start_url: "/") をそのまま使うと、
+// ホーム画面に追加したショートカットが必ずサイトルート(→LP)を開いてしまい、
+// 自店舗の管理画面に戻れなくなる（＝顧客・登録データが無い別画面に見える）。
+// /[storeId]/admin 配下だけは店舗別の manifest に差し替える。
+export function generateMetadata({ params }: Props): Metadata {
+  return {
+    manifest: `/${params.storeId}/admin/manifest.webmanifest`,
   }
-
-  // phone mode: pass through, BottomNav is rendered inside each page
-  return (
-    <>
-      <OfflineBanner />
-      <OrderReminderBanner />
-      <AdminTopBar />
-      {children}
-      <FeedbackButton />
-    </>
-  )
 }
 
-export default function AdminLayout({ children }: { children: ReactNode }) {
-  return (
-    <DeviceModeProvider>
-      <LargeTextEffect />
-      <AdminLayoutInner>
-        {children}
-      </AdminLayoutInner>
-    </DeviceModeProvider>
-  )
+export default function AdminLayout({ children }: Props) {
+  return <AdminLayoutClient>{children}</AdminLayoutClient>
 }
