@@ -24,13 +24,12 @@ describe('resolveFeature', () => {
     expect(resolveFeature('pos', { _plan: 'free_trial', pos: true })).toBe(true)
   })
 
-  it('sms_notify・followup_notify・today_tasks_ui は課金/β機能のため個別フラグなしでは常にOFF', () => {
+  it('sms_notify・today_tasks_ui は課金/β機能のため個別フラグなしでは常にOFF', () => {
     const rawFeatures = { _plan: 'full' }
     expect(resolveFeature('sms_notify', rawFeatures)).toBe(false)
-    expect(resolveFeature('followup_notify', rawFeatures)).toBe(false)
     expect(resolveFeature('today_tasks_ui', rawFeatures)).toBe(false)
     // 個別フラグをONにすれば有効化できる
-    expect(resolveFeature('followup_notify', { ...rawFeatures, followup_notify: true })).toBe(true)
+    expect(resolveFeature('sms_notify', { ...rawFeatures, sms_notify: true })).toBe(true)
   })
 
   it('ADDON_DEFAULT_OFF に pos・shift_* が含まれない', () => {

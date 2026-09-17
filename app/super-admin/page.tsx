@@ -11,80 +11,24 @@ import { PinScreen, verifySuperAdminPin } from '@/app/_components/PinScreen'
 import { supabase } from '@/lib/supabase'
 import type { Store, BusinessType } from '@/types/database'
 import { PLAN_DEFS, ADDON_DEFAULT_OFF, AREA_DEFS, type Plan, type FeatureKey, type AreaCode } from '@/lib/features'
+import { FEATURE_CATALOG_BY_GROUP } from '@/lib/featureCatalog'
 
-// ── 細粒度フラグ（プランに加えて個別 on/off できる項目） ────────
-//  ここに並べたキーは、必ずアプリのどこかで判定に使われていること。
-//  （tests/feature-gates.test.ts が機械的に確認する）
-//  重複していたので外したもの:
-//    orders        … 発注は repairs_tab_purchase が制御している
-//    school_master … 学校マスタ画面は products が制御している
-//    line_parent_rsv … 採寸予約は reservation が制御している
-const GRANULAR_FEATURES: { key: FeatureKey; label: string; icon: string }[] = [
-  { key: 'tab_queue',            label: '受付・順番待ちタブ', icon: '🔢' },
-  { key: 'tab_repairs',          label: 'お仕事タブ',       icon: '✂️' },
-  { key: 'tab_inquiries',        label: '問合せタブ',       icon: '💬' },
-  { key: 'tab_crm',              label: '顧客タブ',         icon: '👥' },
-  { key: 'repairs_tab_purchase', label: '発注サブタブ',     icon: '📋' },
-  { key: 'repairs_tab_arrival',  label: '入荷待ちサブタブ', icon: '🚚' },
-  { key: 'repairs_tab_delivery', label: 'お渡しサブタブ',   icon: '🎁' },
-  { key: 'repairs_ocr',          label: '伝票OCR',          icon: '📷' },
-  { key: 'repairs_master',       label: '料金マスタ',       icon: '📐' },
-  { key: 'repairs_dummy',        label: 'テストデータ生成', icon: '🗄️' },
-  { key: 'kantan_line',          label: 'かんたんLINE運用', icon: '🍀' },
-  { key: 'tray_scan',            label: '置くだけスキャン', icon: '📥' },
-  { key: 'reservation',         label: '採寸予約',         icon: '📅' },
-  { key: 'takeout',             label: 'テイクアウト',     icon: '🥡' },
-  { key: 'school_ocr',         label: '学校規定OCR取込',         icon: '📄' },
-  { key: 'school_crm_card',    label: 'CRM学校規定カード',        icon: '👤' },
-  { key: 'school_measurement', label: '採寸パネル（アイテム別）', icon: '📐' },
-  { key: 'school_waiting',     label: '顧客待機サイネージ',       icon: '🖥' },
-  { key: 'line_parent_info',   label: 'LINE保護者情報投稿',       icon: '💚' },
-  { key: 'line_coupon',        label: 'クーポン自動配布',         icon: '🎫' },
-  { key: 'customer_self_intake', label: 'お客様セルフ依頼入力',   icon: '📱' },
-  { key: 'customer_self_order',  label: 'お客様セルフ制服注文',   icon: '🛍️' },
-  { key: 'sms_notify',           label: 'SMS完了通知（アドオン）', icon: '📩' },
-  { key: 'today_tasks_ui',       label: '今日やること画面（β）',   icon: '📋' },
-  { key: 'pos',                  label: 'レジ（会計）',            icon: '🧾' },
-  { key: 'shift_management',     label: 'シフト管理',               icon: '📆' },
-  { key: 'shift_inter_store',    label: '店舗間ヘルプ',             icon: '🤝' },
-  { key: 'shift_attendance',     label: '出退勤打刻',               icon: '⏰' },
-  { key: 'shift_leave',          label: '休暇申請',                 icon: '🏖️' },
-  { key: 'shift_swap',           label: 'シフト交換',               icon: '🔄' },
-  { key: 'staff_push',           label: 'スタッフPWA通知',          icon: '🔔' },
-  { key: 'shift_demand',         label: '試着連動・人員設計',       icon: '📊' },
-  { key: 'shift_dashboard',      label: '経営ダッシュボード',       icon: '📈' },
-  { key: 'shift_ai',             label: 'AIシフト（生成/補充/申請）', icon: '🤖' },
-]
+// 機能トグルの一覧・説明は lib/featureCatalog.ts が唯一の定義元。
+// ここでは「プラン既定 / 強制ON / 強制OFF」の3状態の扱いだけを持つ。
 
-const GRANULAR_FEATURE_GROUPS: { label: string; keys: FeatureKey[] }[] = [
-  {
-    label: 'タブ・ナビ',
-    keys: ['tab_queue', 'tab_repairs', 'tab_inquiries', 'tab_crm', 'today_tasks_ui'],
-  },
-  {
-    label: '🧾 レジ・会計',
-    keys: ['pos'],
-  },
-  {
-    label: 'お仕事・修理',
-    keys: ['repairs_tab_purchase', 'repairs_tab_arrival', 'repairs_tab_delivery',
-           'repairs_ocr', 'repairs_master', 'repairs_dummy', 'sms_notify'],
-  },
-  {
-    label: 'LINE・スキャン',
-    keys: ['kantan_line', 'tray_scan', 'reservation', 'takeout', 'customer_self_intake', 'customer_self_order'],
-  },
-  {
-    label: '🏫 学校規定・採寸連携',
-    keys: ['school_ocr', 'school_crm_card', 'school_measurement',
-           'school_waiting', 'line_parent_info', 'line_coupon'],
-  },
-  {
-    label: '📆 シフト管理',
-    keys: ['shift_management', 'shift_inter_store', 'shift_attendance', 'shift_leave',
-           'shift_swap', 'staff_push', 'shift_demand', 'shift_dashboard', 'shift_ai'],
-  },
-]
+type ToggleState = 'default' | 'on' | 'off'
+
+/** 保存値(undefined=プラン既定)から、いま画面に出すべき状態を求める */
+function toggleStateOf(override: unknown): ToggleState {
+  if (override === true) return 'on'
+  if (override === false) return 'off'
+  return 'default'
+}
+
+/** タップのたびに 既定 → 強制ON → 強制OFF → 既定 と一巡させる */
+function nextToggleState(current: ToggleState): ToggleState {
+  return current === 'default' ? 'on' : current === 'on' ? 'off' : 'default'
+}
 
 interface StoreStats {
   store: Store & { group_id?: string | null; features?: Record<string, boolean> }
@@ -348,54 +292,61 @@ function StoreCard({
 
           {/* ── 個別フラグ（プランからの上書き） ── */}
           <div>
-            <p className="text-[10px] text-gray-400 mb-1.5 uppercase tracking-wider">個別オーバーライド（プランより優先）</p>
-            <div className="">
-              {GRANULAR_FEATURE_GROUPS.map(group => (
-                <div key={group.label} className="mb-2">
-                  <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-1 px-1">{group.label}</p>
-                  <div className="grid grid-cols-2 gap-1">
-                    {group.keys.map(key => {
-                      const f = GRANULAR_FEATURES.find(x => x.key === key)
-                      if (!f) return null
-                      const currentPlan = (features._plan as Plan | undefined) ?? 'full'
-                      // アドオン/β機能は未設定=OFF（resolveFeature と一致させる）
-                      const planDefault = ADDON_DEFAULT_OFF.includes(f.key)
-                        ? false
-                        : PLAN_DEFS[currentPlan]?.features[f.key as FeatureKey]
-                      const override = (features as Record<string, unknown>)[f.key]
-                      const effective = override !== undefined ? (override as boolean) : (planDefault !== false)
-                      const hasOverride = override !== undefined && override !== planDefault
-                      return (
-                        <button key={f.key}
-                          onClick={() => setFeatures(prev => {
-                            const next = { ...prev }
-                            if (override === undefined) {
-                              next[f.key] = !effective
-                            } else if (override === planDefault) {
-                              delete next[f.key]
-                            } else {
-                              delete next[f.key]
-                            }
-                            return next
-                          })}
-                          className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl border text-left text-xs font-bold transition-all ${
-                            effective
-                              ? 'border-indigo-500/50 bg-indigo-500/10 text-indigo-300'
-                              : 'border-gray-700 bg-gray-700/50 text-gray-500'
-                          }`}>
-                          <span className="text-[12px]">{f.icon}</span>
-                          <span className="flex-1 text-[10px] leading-tight">{f.label}</span>
-                          {hasOverride && <span className="text-[8px] px-1 py-0.5 rounded bg-amber-500/30 text-amber-300 font-black shrink-0">上書</span>}
-                          <div className={`w-6 h-3.5 rounded-full shrink-0 transition-colors ${effective ? 'bg-indigo-500' : 'bg-gray-600'}`}>
-                            <div className={`w-2.5 h-2.5 bg-white rounded-full mt-0.5 transition-transform shadow ${effective ? 'translate-x-3' : 'translate-x-0.5'}`} />
-                          </div>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
+            <div className="flex items-baseline justify-between mb-1.5">
+              <p className="text-[10px] text-gray-400 uppercase tracking-wider">機能ごとの設定</p>
+              <p className="text-[9px] text-gray-500">タップで 既定→ON→OFF</p>
             </div>
+
+            {FEATURE_CATALOG_BY_GROUP.map(({ group, features: defs }) => (
+              <div key={group.id} className="mb-3">
+                <p className="text-[10px] text-gray-300 font-black mb-0.5 px-1">
+                  {group.emoji} {group.label}
+                  <span className="ml-1.5 font-normal text-gray-500">{group.desc}</span>
+                </p>
+                <div className="space-y-1">
+                  {defs.map(f => {
+                    const currentPlan = (features._plan as Plan | undefined) ?? 'full'
+                    // アドオン/β機能は未設定=OFF（resolveFeature と一致させる）
+                    const planDefault = ADDON_DEFAULT_OFF.includes(f.key)
+                      ? false
+                      : PLAN_DEFS[currentPlan]?.features[f.key] !== false
+                    const state = toggleStateOf((features as Record<string, unknown>)[f.key])
+                    const effective = state === 'default' ? planDefault : state === 'on'
+                    return (
+                      <button key={f.key}
+                        onClick={() => setFeatures(prev => {
+                          const next = { ...prev }
+                          const ns = nextToggleState(toggleStateOf(prev[f.key]))
+                          if (ns === 'default') delete next[f.key]
+                          else next[f.key] = ns === 'on'
+                          return next
+                        })}
+                        className={`w-full flex items-start gap-2 px-2.5 py-2 rounded-xl border text-left transition-all ${
+                          effective
+                            ? 'border-indigo-500/50 bg-indigo-500/10'
+                            : 'border-gray-700 bg-gray-800/60'
+                        }`}>
+                        <span className="text-[13px] leading-none mt-0.5">{f.icon}</span>
+                        <span className="flex-1 min-w-0">
+                          <span className={`block text-[11px] font-black leading-tight ${effective ? 'text-indigo-200' : 'text-gray-400'}`}>
+                            {f.label}
+                          </span>
+                          <span className="block text-[9px] leading-snug text-gray-500 mt-0.5">{f.desc}</span>
+                          <span className="block text-[9px] leading-snug text-gray-600 mt-0.5">📍 {f.where}</span>
+                        </span>
+                        <span className={`shrink-0 px-1.5 py-0.5 rounded-lg text-[9px] font-black ${
+                          state === 'default' ? 'bg-gray-700 text-gray-400'
+                            : state === 'on'   ? 'bg-emerald-500/25 text-emerald-300'
+                                               : 'bg-red-500/25 text-red-300'
+                        }`}>
+                          {state === 'default' ? `既定:${planDefault ? 'ON' : 'OFF'}` : state === 'on' ? '強制ON' : '強制OFF'}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* 📣 在校生フォロー通知 単価 */}

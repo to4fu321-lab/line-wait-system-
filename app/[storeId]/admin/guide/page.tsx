@@ -16,7 +16,7 @@ type CanDo = { problem: string; solution: string; feature?: FeatureKey }
 const CAN_DO: CanDo[] = [
   { problem: '採寸会や店頭で行列ができて大混乱', solution: 'LINEで整理番号を自動発行。呼び出しもLINEで自動通知', feature: 'tab_queue' },
   { problem: '電話が鳴りやまない', solution: 'お客様がLINEで予約・状況確認できるので電話が減る', feature: 'tab_queue' },
-  { problem: '学校ごとのルールを覚えきれない', solution: '学校マスターに登録しておけば、検索一発で確認できる', feature: 'school_master' },
+  { problem: '学校ごとのルールを覚えきれない', solution: '学校マスターに登録しておけば、検索一発で確認できる', feature: 'products' },
   { problem: 'お直しの受け渡し漏れ', solution: '完成したらLINEで自動通知→お渡し漏れを防止', feature: 'tab_repairs' },
   { problem: '発注の締切を忘れる', solution: '締切が近づくと管理画面にアラートが表示される', feature: 'repairs_tab_purchase' },
   { problem: 'お会計・売上の記録がバラバラ', solution: 'レジ機能でその場で会計・売上を記録できる', feature: 'pos' },
