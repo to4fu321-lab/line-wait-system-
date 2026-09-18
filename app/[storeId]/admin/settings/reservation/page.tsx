@@ -27,7 +27,8 @@ import {
   type VisitPurpose,
 } from '../../reservations/_lib/purposes'
 import {
-  DEFAULT_SEASON, defaultOffSeasonMessage, seasonFromRow, type SeasonSettings,
+  DEFAULT_SEASON, defaultOffSeasonMessage, seasonFromRow, seasonRangeLabel,
+  isWrappingSeason, daysInMonth, clampDay, type SeasonSettings,
 } from '../../reservations/_lib/season'
 import {
   capacityOf, loadCapacityInputs, generateSlotTimes,
@@ -50,6 +51,7 @@ function addDays(d: string, n: number): string {
 }
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1)
+const daysOf = (month: number) => Array.from({ length: daysInMonth(month) }, (_, i) => i + 1)
 
 function ReservationSettingsPage() {
   const storeId = useParams<{ storeId: string }>()?.storeId ?? ''
@@ -97,8 +99,10 @@ function ReservationSettingsPage() {
     const { data } = await sb.from('stores')
       .select([
         'reservation_slot_min', 'reservation_slot_capacity', 'reservation_purposes',
-        'reservation_season_enabled', 'reservation_season_from_month',
-        'reservation_season_to_month', 'reservation_offseason_message',
+        'reservation_season_enabled',
+        'reservation_season_from_month', 'reservation_season_from_day',
+        'reservation_season_to_month', 'reservation_season_to_day',
+        'reservation_offseason_message',
       ].join(', '))
       .eq('id', storeId).maybeSingle()
     setSlotMin(Number(data?.reservation_slot_min ?? 60) || 60)
@@ -167,7 +171,9 @@ function ReservationSettingsPage() {
       saveStore({
         reservation_season_enabled:     next.enabled,
         reservation_season_from_month:  next.fromMonth,
+        reservation_season_from_day:    next.fromDay,
         reservation_season_to_month:    next.toMonth,
+        reservation_season_to_day:      next.toDay,
         reservation_offseason_message:  next.message.trim() || null,
       }, { silent: true })
     })
@@ -387,23 +393,51 @@ function ReservationSettingsPage() {
 
             {season.enabled && (
               <>
-                <div className="flex items-center gap-2">
-                  <select value={season.fromMonth}
-                    onChange={e => saveSeason({ ...season, fromMonth: Number(e.target.value) })}
-                    className={INPUT}>
-                    {MONTHS.map(m => <option key={m} value={m}>{m}月</option>)}
-                  </select>
-                  <span className="text-gray-400 text-sm">〜</span>
-                  <select value={season.toMonth}
-                    onChange={e => saveSeason({ ...season, toMonth: Number(e.target.value) })}
-                    className={INPUT}>
-                    {MONTHS.map(m => <option key={m} value={m}>{m}月</option>)}
-                  </select>
-                  <span className="text-xs text-gray-400">が予約期間</span>
+                {/* 月を変えると日がその月からはみ出すことがあるので、そのつど丸める
+                    （例: 3月31日 → 4月にすると4月30日） */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-gray-500 w-10 shrink-0">開始</span>
+                    <select value={season.fromMonth}
+                      onChange={e => {
+                        const m = Number(e.target.value)
+                        saveSeason({ ...season, fromMonth: m, fromDay: clampDay(season.fromDay, m, 1) })
+                      }}
+                      className={`${INPUT} flex-1 min-w-0`}>
+                      {MONTHS.map(m => <option key={m} value={m}>{m}月</option>)}
+                    </select>
+                    <select value={season.fromDay}
+                      onChange={e => saveSeason({ ...season, fromDay: Number(e.target.value) })}
+                      className={`${INPUT} flex-1 min-w-0`}>
+                      {daysOf(season.fromMonth).map(d => <option key={d} value={d}>{d}日</option>)}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-gray-500 w-10 shrink-0">終了</span>
+                    <select value={season.toMonth}
+                      onChange={e => {
+                        const m = Number(e.target.value)
+                        saveSeason({ ...season, toMonth: m, toDay: clampDay(season.toDay, m, daysInMonth(m)) })
+                      }}
+                      className={`${INPUT} flex-1 min-w-0`}>
+                      {MONTHS.map(m => <option key={m} value={m}>{m}月</option>)}
+                    </select>
+                    <select value={season.toDay}
+                      onChange={e => saveSeason({ ...season, toDay: Number(e.target.value) })}
+                      className={`${INPUT} flex-1 min-w-0`}>
+                      {daysOf(season.toMonth).map(d => <option key={d} value={d}>{d}日</option>)}
+                    </select>
+                  </div>
                 </div>
-                {season.fromMonth > season.toMonth && (
+
+                <p className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-2">
+                  {seasonRangeLabel(season)} が予約期間
+                  {isWrappingSeason(season) && <span className="font-normal text-gray-500">（年をまたぐ期間として扱います）</span>}
+                </p>
+
+                {season.toMonth === 2 && season.toDay === 29 && (
                   <p className="text-[11px] text-gray-500">
-                    年をまたぐ期間として扱います（{season.fromMonth}月〜翌{season.toMonth}月）。
+                    2月29日は閏年だけの日付です。毎年同じ日で区切るなら2月28日か3月1日をお選びください。
                   </p>
                 )}
 
@@ -411,7 +445,7 @@ function ReservationSettingsPage() {
                   <label className="block text-xs font-bold text-gray-500 mb-1.5">シーズン外に出す案内文</label>
                   <textarea value={season.message} rows={3}
                     onChange={e => saveSeason({ ...season, message: e.target.value })}
-                    placeholder={defaultOffSeasonMessage(season.fromMonth, season.toMonth)}
+                    placeholder={defaultOffSeasonMessage(season)}
                     className={`${INPUT} w-full resize-none leading-relaxed`} />
                   <p className="text-[11px] text-gray-400 mt-1">
                     空欄のままだと、上の文がそのまま表示されます。

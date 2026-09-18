@@ -218,8 +218,10 @@ export default function ReservePage() {
           .from('stores')
           .select([
             'reservation_purposes',
-            'reservation_season_enabled', 'reservation_season_from_month',
-            'reservation_season_to_month', 'reservation_offseason_message',
+            'reservation_season_enabled',
+            'reservation_season_from_month', 'reservation_season_from_day',
+            'reservation_season_to_month', 'reservation_season_to_day',
+            'reservation_offseason_message',
           ].join(', '))
           .eq('id', storeId).maybeSingle()
         if (cfg) {
