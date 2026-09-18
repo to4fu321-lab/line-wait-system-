@@ -79,14 +79,14 @@ type SlotInfo = {
   available: boolean
 }
 
-// reservation_settings 未登録の店舗用デフォルト枠（admin/settings の DEFAULT_RESV と同値）
+// reservation_settings 未登録の店舗用デフォルト枠（シーズン時のみ使用するため、デフォルトは0）
 const DEFAULT_SETTINGS: ReservationSetting[] = [
   { id: 'default-uniform', service_type: 'uniform', label: '制服採寸', duration_min: 60,
     start_time: '10:00', end_time: '17:00', is_active: true,
-    slots_sun: 0, slots_mon: 5, slots_tue: 5, slots_wed: 5, slots_thu: 5, slots_fri: 5, slots_sat: 5 },
+    slots_sun: 0, slots_mon: 0, slots_tue: 0, slots_wed: 0, slots_thu: 0, slots_fri: 0, slots_sat: 0 },
   { id: 'default-jersey', service_type: 'jersey', label: 'ジャージ採寸', duration_min: 30,
     start_time: '10:00', end_time: '17:00', is_active: true,
-    slots_sun: 0, slots_mon: 5, slots_tue: 5, slots_wed: 5, slots_thu: 5, slots_fri: 5, slots_sat: 5 },
+    slots_sun: 0, slots_mon: 0, slots_tue: 0, slots_wed: 0, slots_thu: 0, slots_fri: 0, slots_sat: 0 },
 ]
 
 // ============================================================

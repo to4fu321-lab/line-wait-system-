@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ChevronLeft, Copy, Loader2, X, Clock, Users, CheckCheck,
+  ChevronLeft, Copy, Loader2, X, Clock, Users, CheckCheck, Plus, Minus,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Toast } from '@/app/_components/Toast'
@@ -184,16 +184,28 @@ export default function ReservationSettingsPage() {
                 {WEEKDAYS.map(wd => (
                   <div key={wd.key} className="space-y-1">
                     <label className="text-xs font-bold text-gray-700">{wd.label_full}</label>
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => updateSetting(setting.id, { [wd.key]: Math.max(0, setting[wd.key] - 1) })}
+                        className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                      >
+                        <Minus size={16} className="text-gray-700" />
+                      </button>
                       <input
                         type="number"
                         min="0"
                         max="99"
                         value={setting[wd.key]}
                         onChange={e => updateSetting(setting.id, { [wd.key]: Math.max(0, parseInt(e.target.value) || 0) })}
-                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-center font-bold text-gray-900 focus:outline-none focus:border-indigo-500"
+                        className="w-12 border border-gray-300 rounded-lg px-2 py-2 text-center font-bold text-gray-900 focus:outline-none focus:border-indigo-500"
                       />
-                      <span className="text-xs text-gray-600 py-2">件</span>
+                      <button
+                        onClick={() => updateSetting(setting.id, { [wd.key]: Math.min(99, setting[wd.key] + 1) })}
+                        className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                      >
+                        <Plus size={16} className="text-gray-700" />
+                      </button>
+                      <span className="text-xs text-gray-600 flex-1">件</span>
                     </div>
                   </div>
                 ))}
