@@ -147,7 +147,9 @@ export async function loadCapacityInputs(
   return {
     businessHours: (store?.business_hours as BusinessHours | null) ?? null,
     slotMin: Number(store?.reservation_slot_min ?? 60) || 60,
-    defaultCapacity: Number(store?.reservation_slot_capacity ?? 1) || 1,
+    // 予約はシーズン時のみ使うので既定は0（受付なし）。
+    // 0 を 1 に丸めないよう、|| ではなく NaN だけを弾く
+    defaultCapacity: Math.max(0, Number(store?.reservation_slot_capacity ?? 0) || 0),
     dateOverrides,
     slotOverrides,
     staffByDate,

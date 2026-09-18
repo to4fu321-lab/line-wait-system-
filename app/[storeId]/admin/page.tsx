@@ -852,8 +852,7 @@ export default function StoreAdminPage() {
           const gc = sessionStorage.getItem('admin_group_code')
           if (gc) setGroupCode(gc); else loadGroupCode(match)
           loadGroupStores(match) // ログアウト後の店舗切替UI用に事前取得
-          if (!resolveFeature('tab_queue', match.features ?? {})) { router.replace(`/${match.id}/admin/repairs`); return }
-          setView('dashboard'); return
+          router.replace(`/${match.id}/admin/repairs`); return
         }
         // トライアル店舗など features.pin_skip === true の場合はPIN入力を省略する
         if ((match.features as Record<string, unknown> | undefined)?.pin_skip === true) {
@@ -863,8 +862,7 @@ export default function StoreAdminPage() {
             sessionStorage.setItem('admin_role', role)
             loadGroupCode(match)
             loadGroupStores(match)
-            if (!resolveFeature('tab_queue', match.features ?? {})) { router.replace(`/${match.id}/admin/repairs`); return }
-            setView('dashboard'); return
+            router.replace(`/${match.id}/admin/repairs`); return
           }
         }
         setView('pin')
