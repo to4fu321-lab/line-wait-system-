@@ -870,10 +870,9 @@ export default function StoreAdminPage() {
       sessionStorage.setItem('admin_role', role)
       loadGroupCode(selectedStore)
       loadGroupStores(selectedStore) // ログアウト後の店舗切替UI用に事前取得
-      if (!resolveFeature('tab_queue', selectedStore.features ?? {})) {
-        router.replace(`/${selectedStore.id}/admin/repairs`)
-        return
-      }
+      // デフォルトでお仕事タブへリダイレクト
+      router.replace(`/${selectedStore.id}/admin/repairs`)
+      return
     }
     setView('dashboard')
   }
