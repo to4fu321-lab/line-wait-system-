@@ -68,15 +68,20 @@ export function MonthCalendar({ storeId, value, onChange }: {
           {cells.map((date, idx) => {
             if (!date) return <div key={`e${idx}`} />
             const level = info[date]?.level ?? 'none'
+            const holiday = info[date]?.holiday ?? null
             const sel = date === value
             const isToday = date === today
             const day = Number(date.slice(8, 10))
             return (
-              <button key={date} onClick={() => onChange(date)}
+              <button key={date} onClick={() => onChange(date)} title={holiday ?? undefined}
                 className={`relative aspect-square rounded-lg border text-sm font-bold flex items-center justify-center active:scale-95 transition-all ${
                   sel ? 'border-indigo-600 bg-indigo-600 text-white' : LEVEL_STYLE[level]
-                } ${isToday && !sel ? 'ring-1 ring-indigo-400' : ''}`}>
+                } ${isToday && !sel ? 'ring-1 ring-indigo-400' : ''} ${
+                  holiday && !sel && level !== 'closed' ? 'text-red-600' : ''
+                }`}>
                 {day}
+                {/* 祝日は右上に赤点。営業するかは店舗の判断なので色を出すだけ */}
+                {holiday && !sel && <span className="absolute top-0.5 right-0.5 w-1 h-1 rounded-full bg-red-500" />}
                 {!sel && DOT[level] && <span className={`absolute bottom-1 w-1.5 h-1.5 rounded-full ${DOT[level]}`} />}
               </button>
             )
@@ -90,6 +95,7 @@ export function MonthCalendar({ storeId, value, onChange }: {
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500" />混雑</span>
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" />満</span>
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-gray-200" />休</span>
+        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-500" />祝日</span>
       </div>
     </div>
   )

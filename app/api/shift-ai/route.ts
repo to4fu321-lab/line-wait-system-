@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabaseAdmin'
+import { isFitting } from '@/lib/fittingTypes'
 
 // ============================================================
 // AIシフト（両輪：割当はコードで決定的に・説明はLLM補助）
@@ -11,12 +12,6 @@ import { createAdminClient } from '@/lib/supabaseAdmin'
 // ============================================================
 type SB = ReturnType<typeof createAdminClient>
 
-const FITTING_TYPES = ['uniform', 'jersey', 'fitting']
-function isFitting(purpose: string | null, st: string | null): boolean {
-  if (st && FITTING_TYPES.includes(st)) return true
-  if (purpose && purpose.includes('採寸')) return true
-  return false
-}
 const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return (h || 0) * 60 + (m || 0) }
 const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 

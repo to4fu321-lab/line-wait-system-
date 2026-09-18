@@ -5,6 +5,8 @@
 // ============================================================
 import { supabase } from '@/lib/supabase'
 import { toJstTimeString } from '@/lib/date'
+import { loadDayCapacity } from '@/lib/reservationCapacity'
+import { isFitting } from '@/lib/fittingTypes'
 
 const sb = supabase as any
 
@@ -24,11 +26,10 @@ export interface SlotResult {
   slots: SlotInfo[]; dayClosed: boolean; hasSettings: boolean
 }
 
-const WEEKDAY_KEYS = ['slots_sun', 'slots_mon', 'slots_tue', 'slots_wed', 'slots_thu', 'slots_fri', 'slots_sat'] as const
 
-export function isFitting(purpose: string | null | undefined, serviceType: string | null | undefined): boolean {
-  return (purpose ?? '').includes('採寸') || ['uniform', 'jersey', 'fitting'].includes(serviceType ?? '')
-}
+// 判定本体は lib/fittingTypes（4か所に写経されていたのを集約）。
+// 既存の呼び出し元のために、ここからも再エクスポートしておく。
+export { isFitting }
 
 function genSlots(start: string, end: string, stepMin: number): string[] {
   const out: string[] = []
@@ -51,19 +52,16 @@ export async function loadServices(storeId: string): Promise<ResvService[]> {
 }
 
 // 指定サービスの所要時間で当日の空き枠を計算
+//   受付時間帯・同時枠数は lib/reservationCapacity に集約している
+//   （営業時間・試着室数・出勤人数・日付別の上書きから自動で決まる）。
+//   ここが持つのは「メニューの所要時間で時間を刻み、既存予約と重ねる」部分だけ。
 export async function computeSlotInfo(storeId: string, date: string, service: ResvService): Promise<SlotResult> {
   const all = await loadServices(storeId)
   if (all.length === 0) return { slots: [], dayClosed: false, hasSettings: false }
 
-  const dow = new Date(date + 'T12:00:00Z').getUTCDay()
-  const weekdayKey = WEEKDAY_KEYS[dow]
-  let maxSlots = Math.min(...all.map(s => Number((s as Record<string, unknown>)[weekdayKey] ?? 0)))
-  try {
-    const { data: override } = await sb.from('reservation_date_overrides')
-      .select('max_slots').eq('store_id', storeId).eq('date', date).limit(1).maybeSingle()
-    if (override != null) maxSlots = override.max_slots
-  } catch { /* テーブル無ければ無視 */ }
-  if (maxSlots <= 0) return { slots: [], dayClosed: true, hasSettings: true }
+  const cap = await loadDayCapacity(storeId, date)
+  if (!cap.open || cap.maxSlots <= 0) return { slots: [], dayClosed: true, hasSettings: true }
+  const maxSlots = cap.maxSlots
 
   const slotDuration = service.duration_min || 60
   const durationMap: Record<string, number> = {}
@@ -75,10 +73,10 @@ export async function computeSlotInfo(storeId: string, date: string, service: Re
     .select('reserved_at, purpose, service_type').eq('store_id', storeId)
     .gte('reserved_at', dayStart).lte('reserved_at', dayEnd).neq('status', 'cancelled')
 
-  const [eh, em] = service.end_time.split(':').map(Number)
+  const [eh, em] = cap.endTime.split(':').map(Number)
   const endOfDay = eh * 60 + em
 
-  const slots: SlotInfo[] = genSlots(service.start_time, service.end_time, slotDuration).map(time => {
+  const slots: SlotInfo[] = genSlots(cap.startTime, cap.endTime, slotDuration).map(time => {
     const [th, tm] = time.split(':').map(Number)
     const tStart = th * 60 + tm
     const tEnd = tStart + slotDuration

@@ -8,14 +8,16 @@ import { initLiff, getLineProfile } from '@/lib/liff'
 import { fetchCustomerSession, saveCustomer, createReservation, fetchReservationsOfDay } from '@/lib/customerApi'
 import { fetchSchools } from '@/lib/masterApi'
 import { todayJst, toJstTimeString } from '@/lib/date'
+import { loadDayCapacity } from '@/lib/reservationCapacity'
+import { isFitting } from '@/lib/fittingTypes'
 import {
   CalendarDays, Clock, User, FileText, Check,
   Loader2, ChevronLeft, ChevronRight, GraduationCap, Plus, X,
 } from 'lucide-react'
 
-// 採寸サービスかどうかの判定
+// 採寸サービスかどうかの判定（判定本体は lib/fittingTypes に集約）
 function isFittingService(serviceType: string, label: string) {
-  return label.includes('採寸') || serviceType.includes('fitting') || serviceType.includes('uniform')
+  return isFitting(label, serviceType)
 }
 
 const GRADE_OPTIONS = ['中学1年', '中学2年', '中学3年', '高校1年', '高校2年', '高校3年']
@@ -316,35 +318,21 @@ export default function ReservePage() {
     setSelectedTime(null)
 
     try {
-      // 1. 曜日に対応する max_slots を取得（共有枠：全サービス共通の最小値）
-      const d = new Date(selectedDate + 'T12:00:00Z')
-      const dow = d.getUTCDay()
-      const weekdayKey = WEEKDAY_KEYS[dow] as WeekdayKey
-      // 全設定のスロット数の最小値を共有枠として使用
-      let maxSlots: number = Math.min(...settings.map(s => (s as any)[weekdayKey] ?? 0))
+      // 1. その日の受付枠を取得。営業時間・試着室数・出勤人数・日付別の
+      //    上書きから決まる（判断は lib/reservationCapacity に集約）
+      const cap = await loadDayCapacity(storeId, selectedDate)
+      const maxSlots = cap.maxSlots
 
-      // 2. reservation_date_overrides で上書き（サービス不問で最初にヒットしたもの）
-      try {
-        const { data: override } = await (supabase as any)
-          .from('reservation_date_overrides')
-          .select('max_slots')
-          .eq('store_id', storeId)
-          .eq('date', selectedDate)
-          .limit(1)
-          .maybeSingle()
-        if (override != null) maxSlots = override.max_slots
-      } catch { /* テーブルなければ無視 */ }
-
-      if (maxSlots === 0) {
+      if (!cap.open || maxSlots === 0) {
         setDayUnavailable(true)
         setSlotsLoading(false)
         return
       }
 
-      // 3. スロット文字列を30分間隔で生成（最短サービス単位）
+      // 2. スロット文字列を30分間隔で生成（最短サービス単位）
       const slotTimes = generateSlots(
-        selectedService.start_time,
-        selectedService.end_time,
+        cap.startTime,
+        cap.endTime,
         30,  // 30分間隔（最短ジャージ採寸と同じ）
       )
 
@@ -362,7 +350,7 @@ export default function ReservePage() {
         const tEnd   = tStart + selectedService.duration_min
 
         // この枠の終了時刻が営業終了を超える場合はスキップ
-        const [eh, em] = selectedService.end_time.split(':').map(Number)
+        const [eh, em] = cap.endTime.split(':').map(Number)
         const endOfDay = eh * 60 + em
         if (tEnd > endOfDay) return { time, maxSlots: 0, booked: 0, remaining: 0, available: false }
 
