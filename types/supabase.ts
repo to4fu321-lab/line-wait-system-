@@ -3569,6 +3569,13 @@ export type Database = {
           queue_pop_settings: Json | null
           repair_notes: string | null
           repair_settings: Json | null
+          reservation_offseason_message: string | null
+          reservation_purposes: Json | null
+          reservation_season_enabled: boolean
+          reservation_season_from_day: number | null
+          reservation_season_from_month: number | null
+          reservation_season_to_day: number | null
+          reservation_season_to_month: number | null
           school_names: string[] | null
           setup: Json
           staff_link_code: string | null
@@ -3612,6 +3619,13 @@ export type Database = {
           queue_pop_settings?: Json | null
           repair_notes?: string | null
           repair_settings?: Json | null
+          reservation_offseason_message?: string | null
+          reservation_purposes?: Json | null
+          reservation_season_enabled?: boolean
+          reservation_season_from_day?: number | null
+          reservation_season_from_month?: number | null
+          reservation_season_to_day?: number | null
+          reservation_season_to_month?: number | null
           school_names?: string[] | null
           setup?: Json
           staff_link_code?: string | null
@@ -3655,6 +3669,13 @@ export type Database = {
           queue_pop_settings?: Json | null
           repair_notes?: string | null
           repair_settings?: Json | null
+          reservation_offseason_message?: string | null
+          reservation_purposes?: Json | null
+          reservation_season_enabled?: boolean
+          reservation_season_from_day?: number | null
+          reservation_season_from_month?: number | null
+          reservation_season_to_day?: number | null
+          reservation_season_to_month?: number | null
           school_names?: string[] | null
           setup?: Json
           staff_link_code?: string | null
