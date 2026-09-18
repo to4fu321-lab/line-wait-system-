@@ -3,6 +3,8 @@
 // ============================================================
 // 月カレンダー（営業日・混み具合をひと目で）
 //   採寸枠の混雑度を色/ドットで表示。日付タップで onChange。
+//   予約を受けられない日（休業・枠0・満員）は色の違いだけだと見分けにくいので、
+//   日付の上に大きく ✕ を重ねる。
 // ============================================================
 import { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
@@ -22,6 +24,11 @@ const LEVEL_STYLE: Record<DayLevel, string> = {
 }
 const DOT: Record<DayLevel, string> = {
   none: '', closed: '', free: 'bg-emerald-400', some: 'bg-amber-400', busy: 'bg-orange-500', full: 'bg-red-500',
+}
+
+/** 空き枠が無い日。日付に ✕ を重ねて、予約を受けられないことをはっきり出す */
+const NO_SLOT: Record<DayLevel, boolean> = {
+  none: false, closed: true, free: false, some: false, busy: false, full: true,
 }
 
 export function MonthCalendar({ storeId, value, onChange }: {
@@ -72,8 +79,11 @@ export function MonthCalendar({ storeId, value, onChange }: {
             const sel = date === value
             const isToday = date === today
             const day = Number(date.slice(8, 10))
+            const noSlot = NO_SLOT[level]
+            const title = [holiday, noSlot ? (level === 'full' ? '空き枠なし' : '受付なし') : null]
+              .filter(Boolean).join(' / ')
             return (
-              <button key={date} onClick={() => onChange(date)} title={holiday ?? undefined}
+              <button key={date} onClick={() => onChange(date)} title={title || undefined}
                 className={`relative aspect-square rounded-lg border text-sm font-bold flex items-center justify-center active:scale-95 transition-all ${
                   sel ? 'border-indigo-600 bg-indigo-600 text-white' : LEVEL_STYLE[level]
                 } ${isToday && !sel ? 'ring-1 ring-indigo-400' : ''} ${
@@ -82,7 +92,15 @@ export function MonthCalendar({ storeId, value, onChange }: {
                 {day}
                 {/* 祝日は右上に赤点。営業するかは店舗の判断なので色を出すだけ */}
                 {holiday && !sel && <span className="absolute top-0.5 right-0.5 w-1 h-1 rounded-full bg-red-500" />}
-                {!sel && DOT[level] && <span className={`absolute bottom-1 w-1.5 h-1.5 rounded-full ${DOT[level]}`} />}
+                {/* 予約を受けられない日は ✕ を重ねる。色だけだと一覧の中で埋もれてしまう */}
+                {noSlot ? (
+                  <span aria-label="空き枠なし"
+                    className={`absolute inset-0 grid place-items-center text-lg font-black pointer-events-none ${
+                      sel ? 'text-white/70' : level === 'full' ? 'text-red-400/80' : 'text-gray-400/70'
+                    }`}>✕</span>
+                ) : (
+                  !sel && DOT[level] && <span className={`absolute bottom-1 w-1.5 h-1.5 rounded-full ${DOT[level]}`} />
+                )}
               </button>
             )
           })}
@@ -93,8 +111,7 @@ export function MonthCalendar({ storeId, value, onChange }: {
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400" />空き</span>
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" />やや</span>
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500" />混雑</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" />満</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-gray-200" />休</span>
+        <span className="flex items-center gap-1"><span className="text-red-400 font-black">✕</span>空き枠なし・休</span>
         <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-500" />祝日</span>
       </div>
     </div>

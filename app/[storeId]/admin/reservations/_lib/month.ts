@@ -5,7 +5,7 @@
 // ============================================================
 import { supabase } from '@/lib/supabase'
 import { isFitting } from '@/lib/fittingTypes'
-import { toJstDateString } from '@/lib/date'
+import { toJstDateString, toJstTimeString } from '@/lib/date'
 import { capacityOf, loadCapacityInputs } from '@/lib/reservationCapacity'
 import { holidayMapOfMonth } from '@/lib/japaneseHolidays'
 
@@ -17,6 +17,7 @@ export interface DayInfo {
   isOpen: boolean       // 営業日か
   capacity: number      // その日に受けられる合計件数
   booked: number        // 予約件数
+  remaining: number     // 空き枠数（0なら予約を受けられない）
   level: DayLevel       // 混雑度
   holiday: string | null // 祝日名（祝日でなければ null）
   staffOnDuty: number | null // その日の出勤人数（参考）
@@ -41,10 +42,15 @@ export async function loadMonthInfo(storeId: string, year: number, month: number
   ])
 
   const bookedMap: Record<string, number> = {}
+  // 「空きがあるか」は枠ごとに見ないと判定を誤る
+  //（合計では空いていても、全部が同じ時間に入っていれば実際には取れない）
+  const bookedAtSlot: Record<string, number> = {}
   for (const r of (resv ?? []) as { reserved_at: string; purpose: string | null; service_type: string | null }[]) {
     if (!isFitting(r.purpose, r.service_type)) continue
     const d = toJstDateString(r.reserved_at)
     bookedMap[d] = (bookedMap[d] ?? 0) + 1
+    const k = `${d} ${toJstTimeString(r.reserved_at)}`
+    bookedAtSlot[k] = (bookedAtSlot[k] ?? 0) + 1
   }
 
   const holidays = holidayMapOfMonth(year, month)
@@ -55,17 +61,21 @@ export async function loadMonthInfo(storeId: string, year: number, month: number
     const cap = capacityOf(date, inputs)
     const booked = bookedMap[date] ?? 0
     const capacity = cap.slots.reduce((sum, s) => sum + s.capacity, 0)
+    const remaining = cap.slots.reduce(
+      (sum, s) => sum + Math.max(0, s.capacity - (bookedAtSlot[`${date} ${s.time}`] ?? 0)), 0,
+    )
 
     let level: DayLevel
     let isOpen: boolean
     if (!cap.open || capacity <= 0) { level = 'closed'; isOpen = false }
+    else if (remaining <= 0) { level = 'full'; isOpen = true }
     else {
       isOpen = true
       const ratio = booked / capacity
-      level = booked === 0 ? 'free' : ratio < 0.5 ? 'some' : ratio < 1 ? 'busy' : 'full'
+      level = booked === 0 ? 'free' : ratio < 0.5 ? 'some' : 'busy'
     }
     out[date] = {
-      date, isOpen, capacity, booked, level,
+      date, isOpen, capacity, booked, remaining, level,
       holiday: holidays[date] ?? null,
       staffOnDuty: cap.staffOnDuty,
     }

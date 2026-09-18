@@ -10,9 +10,14 @@ import { fetchSchools } from '@/lib/masterApi'
 import { todayJst, toJstTimeString } from '@/lib/date'
 import { loadDayCapacity } from '@/lib/reservationCapacity'
 import { isFitting } from '@/lib/fittingTypes'
-import { RESERVABLE_PURPOSES, WALK_IN_PURPOSES, type VisitPurpose } from '@/app/[storeId]/admin/reservations/_lib/purposes'
 import {
-  CalendarDays, Clock, User, FileText, Check,
+  DEFAULT_RESERVABLE_PURPOSES, WALK_IN_PURPOSES, normalizePurposes, type VisitPurpose,
+} from '@/app/[storeId]/admin/reservations/_lib/purposes'
+import {
+  DEFAULT_SEASON, isDateInSeason, offSeasonMessageOf, seasonFromRow, type SeasonSettings,
+} from '@/app/[storeId]/admin/reservations/_lib/season'
+import {
+  CalendarDays, Clock, User, FileText, Check, Info,
   Loader2, ChevronLeft, ChevronRight, GraduationCap, Plus, X,
 } from 'lucide-react'
 
@@ -146,6 +151,10 @@ export default function ReservePage() {
   const [storeName, setStoreName] = useState('')
   const [lineUserId, setLineUserId] = useState<string | null>(null)
 
+  // 店舗設定（来店理由・予約シーズン）
+  const [purposes, setPurposes] = useState<VisitPurpose[]>(DEFAULT_RESERVABLE_PURPOSES)
+  const [season, setSeason]     = useState<SeasonSettings>(DEFAULT_SEASON)
+
   // ステップ内の状態
   // step: 'service' | 'child' | 'datetime' | 'info'
   const [step, setStep] = useState<'service' | 'child' | 'datetime' | 'info'>('service')
@@ -201,6 +210,22 @@ export default function ReservePage() {
           }
           setStoreName(store.name ?? '')
         }
+
+        // 来店理由とシーズンは別のクエリにしておく。
+        // マイグレーション前のDBだと列が無くてクエリごと失敗するので、
+        // 店名・機能フラグの取得まで巻き込まないようにする（既定値で動く）
+        const { data: cfg } = await (supabase as any)
+          .from('stores')
+          .select([
+            'reservation_purposes',
+            'reservation_season_enabled', 'reservation_season_from_month',
+            'reservation_season_to_month', 'reservation_offseason_message',
+          ].join(', '))
+          .eq('id', storeId).maybeSingle()
+        if (cfg) {
+          setPurposes(normalizePurposes(cfg.reservation_purposes) ?? DEFAULT_RESERVABLE_PURPOSES)
+          setSeason(seasonFromRow(cfg))
+        }
       } catch { /* ignore */ }
 
       // LIFF（フォールバック表示時も顧客名を反映できるよう、設定取得より先に実行）
@@ -253,6 +278,11 @@ export default function ReservePage() {
   // ============================================================
   const fetchSlots = useCallback(async () => {
     if (!selectedPurpose || !selectedDate) return
+    // シーズン外の日はそもそも受け付けないので、枠を取りに行かない
+    if (!isDateInSeason(selectedDate, season)) {
+      setSlots([]); setSelectedTime(null); setDayUnavailable(false); setSlotsLoading(false)
+      return
+    }
     setSlotsLoading(true)
     setSlots([])
     setDayUnavailable(false)
@@ -291,13 +321,24 @@ export default function ReservePage() {
     }
 
     setSlotsLoading(false)
-  }, [selectedPurpose, selectedDate, storeId])
+  }, [selectedPurpose, selectedDate, storeId, season])
 
   useEffect(() => {
     if (step === 'datetime' && selectedPurpose) {
       fetchSlots()
     }
   }, [step, selectedPurpose, selectedDate, fetchSlots])
+
+  // いまがシーズン外でも先の日付なら取れることがあるので、
+  // 最初に選ぶ日をシーズンが始まる日まで進めておく（お客様に探させない）
+  useEffect(() => {
+    if (!season.enabled || isDateInSeason(selectedDate, season)) return
+    for (let d = minDate, i = 0; d <= maxDate && i < 400; d = addDays(d, 1), i++) {
+      if (isDateInSeason(d, season)) { setSelectedDate(d); return }
+    }
+    // 90日先までずっとシーズン外のときは案内文だけを出すので、日付はそのままでよい
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [season])
 
   // ============================================================
   // 送信
@@ -379,6 +420,28 @@ export default function ReservePage() {
   // ============================================================
   // スロット制フォーム
   // ============================================================
+  // シーズン外は予約を受けない。
+  // 受付できる日（今日〜90日先）が丸ごとシーズン外なら、案内文だけを出して
+  // フォームは見せない。一部でもシーズン内の日があれば、上に案内を出したうえで
+  // シーズン内の日だけ選べるようにする。
+  const offSeasonNow      = !isDateInSeason(minDate, season)
+  const offSeasonSelected = !isDateInSeason(selectedDate, season)
+  const wholeWindowOffSeason = offSeasonNow && !isDateInSeason(maxDate, season)
+  const offSeasonMessage = offSeasonMessageOf(season)
+
+  if (wholeWindowOffSeason) {
+    return (
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center px-6 text-center bg-zinc-950">
+        <div className="w-16 h-16 rounded-full bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center mb-5">
+          <Info size={26} className="text-indigo-300" />
+        </div>
+        {storeName && <p className="text-indigo-400 text-xs font-bold mb-1">{storeName}</p>}
+        <h1 className="text-xl font-black text-white mb-3">ただいま予約の受付はありません</h1>
+        <p className="text-zinc-300 text-sm leading-relaxed whitespace-pre-wrap max-w-sm">{offSeasonMessage}</p>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-[100dvh] pb-12 bg-zinc-950">
       {/* ヘッダー */}
@@ -390,13 +453,21 @@ export default function ReservePage() {
 
       <div className="px-5 space-y-6">
 
+        {/* シーズン外の案内。いまは受付期間外でも、先の日付なら取れることがある */}
+        {offSeasonNow && (
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-950/30 px-4 py-3 flex items-start gap-2">
+            <Info size={14} className="text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-amber-100 text-xs leading-relaxed whitespace-pre-wrap">{offSeasonMessage}</p>
+          </div>
+        )}
+
         {/* ============ STEP 1: 来店理由 ============ */}
         <section>
           <label className="flex items-center gap-2 text-xs font-bold text-zinc-400 mb-3">
             <FileText size={13} className="text-indigo-400" />ご来店の理由をお選びください
           </label>
           <div className="grid grid-cols-1 gap-3">
-            {RESERVABLE_PURPOSES.map(p => (
+            {purposes.map(p => (
               <button
                 key={p.key}
                 onClick={() => {
@@ -593,18 +664,23 @@ export default function ReservePage() {
               <Clock size={13} className="text-indigo-400" />時間帯を選択 <span className="text-red-400">*</span>
             </label>
 
-            {slotsLoading ? (
+            {offSeasonSelected ? (
+              <div className="bg-zinc-900 border border-amber-500/30 rounded-2xl px-4 py-5 text-center space-y-1.5">
+                <p className="text-amber-200 text-sm font-bold">この日は予約の受付期間外です</p>
+                <p className="text-zinc-400 text-xs leading-relaxed whitespace-pre-wrap">{offSeasonMessage}</p>
+              </div>
+            ) : slotsLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 size={24} className="animate-spin text-indigo-400" />
               </div>
             ) : dayUnavailable ? (
               <div className="bg-zinc-900 border border-zinc-700 rounded-2xl px-4 py-5 text-center">
-                <p className="text-zinc-400 text-sm font-bold">この日は予約をお受けできません</p>
+                <p className="text-zinc-400 text-sm font-bold">✕ この日は予約をお受けできません</p>
                 <p className="text-zinc-600 text-xs mt-1">別の日をお選びください</p>
               </div>
             ) : slots.length === 0 ? (
               <div className="bg-zinc-900 border border-zinc-700 rounded-2xl px-4 py-5 text-center">
-                <p className="text-zinc-400 text-sm font-bold">この日はスロットがありません</p>
+                <p className="text-zinc-400 text-sm font-bold">✕ この日は空き枠がありません</p>
                 <p className="text-zinc-600 text-xs mt-1">別の日をお選びください</p>
               </div>
             ) : (

@@ -3,21 +3,34 @@
 // ============================================================
 // 予約枠の設定
 //
-//  店舗が触るのは次の3つだけ。
+//  店舗が触るのは次の5つ。
 //    ① 枠の長さ（例: 1時間）と、1枠あたりの既定の受付数（例: 30）
 //    ② カレンダーで日を選び、その日の時間ごとの枠数を変える／休業にする
 //    ③ 期間をまとめて指定して一括設定
+//    ④ 予約の来店理由（採寸の種類など）の追加・削除
+//    ⑤ 予約を受け付けるシーズンと、シーズン外の案内文
 //  受付する時間帯は営業時間（設定 → 営業時間）から自動で決まる。
 // ============================================================
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Loader2, CalendarClock, Info, CalendarRange, Check, Plus, Minus } from 'lucide-react'
+import {
+  ArrowLeft, Loader2, CalendarClock, Info, CalendarRange, Check, Plus,
+  Trash2, ListChecks, Sun, RotateCcw,
+} from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { FeatureGuard } from '@/app/_components/FeatureGuard'
 import { Toast } from '@/app/_components/Toast'
 import { MonthCalendar } from '../../reservations/_components/MonthCalendar'
+import { CapacityStepper } from '../../reservations/_components/CapacityStepper'
 import {
-  capacityOf, loadCapacityInputs, generateSlotTimes, slotKey,
+  DEFAULT_RESERVABLE_PURPOSES, WALK_IN_PURPOSES, makePurpose, normalizePurposes,
+  type VisitPurpose,
+} from '../../reservations/_lib/purposes'
+import {
+  DEFAULT_SEASON, defaultOffSeasonMessage, seasonFromRow, type SeasonSettings,
+} from '../../reservations/_lib/season'
+import {
+  capacityOf, loadCapacityInputs, generateSlotTimes,
   SLOT_MIN_OPTIONS, type DayCapacity, type CapacityInputs,
 } from '@/lib/reservationCapacity'
 import { holidayName } from '@/lib/japaneseHolidays'
@@ -36,29 +49,7 @@ function addDays(d: string, n: number): string {
   return x.toISOString().slice(0, 10)
 }
 
-// 枠数はスマホで手打ちすると大変なので、−／＋のタップでも増減できるようにする
-function CapacityStepper({ value, onChange, disabled }: {
-  value: number
-  onChange: (v: number) => void
-  disabled?: boolean
-}) {
-  const BTN = 'w-11 h-11 shrink-0 grid place-items-center rounded-xl bg-gray-100 text-gray-700 active:scale-95 transition-all disabled:opacity-40'
-  return (
-    <div className="flex items-center gap-1.5">
-      <button type="button" aria-label="1件減らす" disabled={disabled || value <= 0}
-        onClick={() => onChange(Math.max(0, value - 1))} className={BTN}>
-        <Minus size={18} />
-      </button>
-      <input type="text" inputMode="numeric" value={String(value)} disabled={disabled}
-        onChange={e => onChange(Math.min(99, Number(e.target.value.replace(/[^0-9]/g, '')) || 0))}
-        className="w-14 border border-gray-300 rounded-xl px-2 py-2 text-sm text-center font-black bg-white tabular-nums" />
-      <button type="button" aria-label="1件増やす" disabled={disabled || value >= 99}
-        onClick={() => onChange(Math.min(99, value + 1))} className={BTN}>
-        <Plus size={18} />
-      </button>
-    </div>
-  )
-}
+const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1)
 
 function ReservationSettingsPage() {
   const storeId = useParams<{ storeId: string }>()?.storeId ?? ''
@@ -77,6 +68,13 @@ function ReservationSettingsPage() {
   const [inputs, setInputs] = useState<CapacityInputs | null>(null)
   const [cap, setCap] = useState<DayCapacity | null>(null)
   const [calKey, setCalKey] = useState(0)
+
+  // ④ 来店理由
+  const [purposes, setPurposes] = useState<VisitPurpose[]>(DEFAULT_RESERVABLE_PURPOSES)
+  const [newPurposeLabel, setNewPurposeLabel] = useState('')
+
+  // ⑤ シーズン
+  const [season, setSeason] = useState<SeasonSettings>(DEFAULT_SEASON)
 
   // ③ 一括設定
   const [bulkOpen, setBulkOpen] = useState(false)
@@ -97,9 +95,16 @@ function ReservationSettingsPage() {
 
   const loadBase = useCallback(async () => {
     const { data } = await sb.from('stores')
-      .select('reservation_slot_min, reservation_slot_capacity').eq('id', storeId).maybeSingle()
+      .select([
+        'reservation_slot_min', 'reservation_slot_capacity', 'reservation_purposes',
+        'reservation_season_enabled', 'reservation_season_from_month',
+        'reservation_season_to_month', 'reservation_offseason_message',
+      ].join(', '))
+      .eq('id', storeId).maybeSingle()
     setSlotMin(Number(data?.reservation_slot_min ?? 60) || 60)
     setDefaultCapacity(Math.max(0, Number(data?.reservation_slot_capacity ?? 0) || 0))
+    setPurposes(normalizePurposes(data?.reservation_purposes) ?? DEFAULT_RESERVABLE_PURPOSES)
+    setSeason(seasonFromRow(data))
     setLoading(false)
   }, [storeId])
 
@@ -112,14 +117,60 @@ function ReservationSettingsPage() {
   useEffect(() => { if (storeId) loadBase() }, [storeId, loadBase])
   useEffect(() => { if (storeId) loadDay() }, [storeId, loadDay, calKey])
 
-  // ── ① 基本設定の保存 ──────────────────────────────────────
-  const saveBase = async (patch: { reservation_slot_min?: number; reservation_slot_capacity?: number }) => {
+  // ── stores への保存（基本設定・来店理由・シーズンで共用） ──────────
+  const saveStore = async (patch: Record<string, unknown>, opts?: { silent?: boolean }) => {
     setSaving(true)
     const { error } = await sb.from('stores').update(patch).eq('id', storeId)
     setSaving(false)
-    if (error) { setToast({ type: 'err', msg: `保存に失敗しました: ${error.message}` }); return }
-    setToast({ type: 'ok', msg: '保存しました' })
-    setCalKey(k => k + 1)
+    if (error) { setToast({ type: 'err', msg: `保存に失敗しました: ${error.message}` }); return false }
+    if (!opts?.silent) setToast({ type: 'ok', msg: '保存しました' })
+    return true
+  }
+
+  // ── ① 基本設定の保存 ──────────────────────────────────────
+  const saveBase = async (patch: { reservation_slot_min?: number; reservation_slot_capacity?: number }) => {
+    if (await saveStore(patch)) setCalKey(k => k + 1)
+  }
+
+  // ── ④ 来店理由 ───────────────────────────────────────────
+  // 保存できたときだけ画面を更新する（失敗したまま追加済みに見えると事故る）
+  const savePurposes = async (next: VisitPurpose[]) => {
+    if (await saveStore({ reservation_purposes: next })) setPurposes(next)
+  }
+
+  const addPurpose = async () => {
+    const label = newPurposeLabel.trim()
+    if (!label) return
+    if (purposes.some(p => p.label === label)) {
+      setToast({ type: 'err', msg: 'その来店理由はすでにあります' }); return
+    }
+    await savePurposes([...purposes, makePurpose(label, '📌', purposes)])
+    setNewPurposeLabel('')
+  }
+
+  const removePurpose = async (key: string) => {
+    if (purposes.length <= 1) {
+      setToast({ type: 'err', msg: '来店理由は1つ以上必要です' }); return
+    }
+    await savePurposes(purposes.filter(p => p.key !== key))
+  }
+
+  // 既定の3つ（制服採寸／制服＋ジャージ採寸／ジャージ採寸）に戻す
+  const resetPurposes = async () => {
+    if (await saveStore({ reservation_purposes: null })) setPurposes(DEFAULT_RESERVABLE_PURPOSES)
+  }
+
+  // ── ⑤ シーズン ───────────────────────────────────────────
+  const saveSeason = (next: SeasonSettings) => {
+    setSeason(next)
+    debounce('season', () => {
+      saveStore({
+        reservation_season_enabled:     next.enabled,
+        reservation_season_from_month:  next.fromMonth,
+        reservation_season_to_month:    next.toMonth,
+        reservation_offseason_message:  next.message.trim() || null,
+      }, { silent: true })
+    })
   }
 
   // ── ② その日の枠 ─────────────────────────────────────────
@@ -271,6 +322,110 @@ function ReservationSettingsPage() {
               </p>
             </div>
           )}
+        </section>
+
+        {/* ④ 来店理由 */}
+        <section className="space-y-2">
+          <h2 className="text-sm font-black text-gray-800 px-1 flex items-center gap-1.5">
+            <ListChecks size={14} className="text-indigo-600" />予約の来店理由
+          </h2>
+          <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-3">
+            <p className="text-[11px] text-gray-500 leading-relaxed">
+              お客様の予約画面に、ここで作った順に並びます。
+            </p>
+
+            <div className="space-y-1.5">
+              {purposes.map(p => (
+                <div key={p.key} className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-gray-200">
+                  <span className="text-base shrink-0">{p.emoji}</span>
+                  <span className="flex-1 font-bold text-gray-800 text-sm truncate">{p.label}</span>
+                  <button onClick={() => removePurpose(p.key)} disabled={saving || purposes.length <= 1}
+                    aria-label={`${p.label}を削除`}
+                    className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-30 transition-colors">
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input type="text" value={newPurposeLabel}
+                onChange={e => setNewPurposeLabel(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') addPurpose() }}
+                placeholder="例：体操服採寸"
+                className={`${INPUT} flex-1 min-w-0`} />
+              <button onClick={addPurpose} disabled={saving || !newPurposeLabel.trim()}
+                className="shrink-0 flex items-center gap-1 px-3 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-black disabled:opacity-40">
+                <Plus size={14} />追加
+              </button>
+            </div>
+
+            <button onClick={resetPurposes} disabled={saving}
+              className="w-full flex items-center justify-center gap-1 py-2 rounded-xl bg-gray-100 text-gray-600 text-xs font-bold disabled:opacity-60">
+              <RotateCcw size={12} />既定の3つに戻す
+            </button>
+
+            <p className="text-[11px] text-gray-400 leading-relaxed border-t border-gray-100 pt-2.5">
+              {WALK_IN_PURPOSES.map(p => p.label).join('・')}は予約不要の用件として、
+              お客様の予約画面に「そのままご来店ください」と案内が出ます。
+            </p>
+          </div>
+        </section>
+
+        {/* ⑤ 予約シーズン */}
+        <section className="space-y-2">
+          <h2 className="text-sm font-black text-gray-800 px-1 flex items-center gap-1.5">
+            <Sun size={14} className="text-amber-500" />予約を受け付ける時期
+          </h2>
+          <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-3">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" checked={season.enabled}
+                onChange={e => saveSeason({ ...season, enabled: e.target.checked })}
+                className="w-5 h-5 accent-indigo-600" />
+              <span className="text-sm font-bold text-gray-800">シーズン外は予約を受け付けない</span>
+            </label>
+
+            {season.enabled && (
+              <>
+                <div className="flex items-center gap-2">
+                  <select value={season.fromMonth}
+                    onChange={e => saveSeason({ ...season, fromMonth: Number(e.target.value) })}
+                    className={INPUT}>
+                    {MONTHS.map(m => <option key={m} value={m}>{m}月</option>)}
+                  </select>
+                  <span className="text-gray-400 text-sm">〜</span>
+                  <select value={season.toMonth}
+                    onChange={e => saveSeason({ ...season, toMonth: Number(e.target.value) })}
+                    className={INPUT}>
+                    {MONTHS.map(m => <option key={m} value={m}>{m}月</option>)}
+                  </select>
+                  <span className="text-xs text-gray-400">が予約期間</span>
+                </div>
+                {season.fromMonth > season.toMonth && (
+                  <p className="text-[11px] text-gray-500">
+                    年をまたぐ期間として扱います（{season.fromMonth}月〜翌{season.toMonth}月）。
+                  </p>
+                )}
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1.5">シーズン外に出す案内文</label>
+                  <textarea value={season.message} rows={3}
+                    onChange={e => saveSeason({ ...season, message: e.target.value })}
+                    placeholder={defaultOffSeasonMessage(season.fromMonth, season.toMonth)}
+                    className={`${INPUT} w-full resize-none leading-relaxed`} />
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    空欄のままだと、上の文がそのまま表示されます。
+                  </p>
+                </div>
+
+                <p className="text-[11px] text-gray-500 leading-relaxed flex items-start gap-1 border-t border-gray-100 pt-2.5">
+                  <Info size={12} className="shrink-0 mt-0.5" />
+                  シーズン外の日は、お客様の予約画面で日時を選べなくなり、この案内文だけが出ます。
+                  管理画面からの代理予約はいつでもできます。
+                </p>
+              </>
+            )}
+          </div>
         </section>
 
         {/* ③ 期間の一括設定 */}

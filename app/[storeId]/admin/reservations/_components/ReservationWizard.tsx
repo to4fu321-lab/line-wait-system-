@@ -10,7 +10,9 @@ import { Loader2, Check, X, ChevronLeft, ChevronRight, User, Clock, ShoppingCart
 import { supabase } from '@/lib/supabase'
 import { CustomerLinkSheet } from '../../repairs/_components/CustomerLinkSheet'
 import type { CustResult } from '../../repairs/_components/types'
-import { RESERVABLE_PURPOSES, WALK_IN_PURPOSES, type VisitPurpose } from '../_lib/purposes'
+import {
+  DEFAULT_RESERVABLE_PURPOSES, WALK_IN_PURPOSES, loadReservablePurposes, type VisitPurpose,
+} from '../_lib/purposes'
 import { computeSlotInfo, type SlotInfo } from '../_lib/slots'
 import { MonthCalendar } from './MonthCalendar'
 import { todayJst } from '@/lib/date'
@@ -49,6 +51,16 @@ export function ReservationWizard({ storeId, onSaved, onCancel, onProductPurchas
 
   const [slots, setSlots] = useState<SlotInfo[]>([])
   const [slotState, setSlotState] = useState<'idle' | 'loading' | 'closed' | 'nosettings' | 'ok'>('idle')
+
+  // 来店理由は店舗ごとに設定できる（設定 → 予約枠の設定）
+  const [purposes, setPurposes] = useState<VisitPurpose[]>(DEFAULT_RESERVABLE_PURPOSES)
+  useEffect(() => {
+    let cancelled = false
+    loadReservablePurposes(storeId)
+      .then(p => { if (!cancelled) setPurposes(p) })
+      .catch(() => { /* 取れなければ既定の3つのまま。受付を止めるほどではない */ })
+    return () => { cancelled = true }
+  }, [storeId])
 
   // 日付に応じて空き枠を取得（枠の長さ・枠数は店舗設定で決まる）
   useEffect(() => {
@@ -175,12 +187,12 @@ export function ReservationWizard({ storeId, onSaved, onCancel, onProductPurchas
             <p className="text-lg font-black text-gray-900">ご用件は何ですか？</p>
 
             {/* 予約が必要な用件（どれも1枠を使う） */}
-            <div className="grid grid-cols-3 gap-2">
-              {RESERVABLE_PURPOSES.map(p => {
+            <div className="grid grid-cols-2 gap-2">
+              {purposes.map(p => {
                 const sel = choice?.key === p.key
                 return (
                   <button key={p.key} onClick={() => { setChoice(p); setTime(null); setStep('customer') }}
-                    className={`py-4 rounded-2xl border-2 font-black text-base flex flex-col items-center gap-1 active:scale-[0.98] transition-all ${
+                    className={`py-4 px-2 rounded-2xl border-2 font-black text-sm leading-tight text-center flex flex-col items-center gap-1 active:scale-[0.98] transition-all ${
                       sel ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-700'
                     }`}>
                     <span className="text-2xl">{p.emoji}</span>{p.label}

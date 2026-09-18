@@ -9,13 +9,15 @@ import { RecentCustomers, type RecentCust } from '../_components/RecentCustomers
 import {
   ArrowLeft, Plus, Loader2, X, CalendarDays, Clock,
   User, Phone, GraduationCap, CheckCheck, BellRing,
-  ChevronLeft, ChevronRight, AlertCircle, Search, UserX, Ruler,
+  ChevronLeft, ChevronRight, AlertCircle, Search, UserX, Ruler, CalendarRange,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Customer, Child } from '@/types/crm'
 import { ReservationWizard } from './_components/ReservationWizard'
 import { ReservationCard, type ReservationFull } from './_components/ReservationCard'
 import { AllReservationsView } from './_components/AllReservationsView'
+import { MonthCalendar } from './_components/MonthCalendar'
+import { DaySlotEditor } from './_components/DaySlotEditor'
 import { NewOrderModal } from '../repairs/_components/NewOrderModal'
 import { Toast } from '@/app/_components/Toast'
 import { todayJst, toJstTimeString } from '@/lib/date'
@@ -274,6 +276,9 @@ export default function ReservationsPage() {
   const [showForm,     setShowForm]     = useState(false)
   const [showNewOrder, setShowNewOrder] = useState(false)
   const [view,         setView]         = useState<'day' | 'all'>('day')
+  const [showCalendar, setShowCalendar] = useState(false)
+  // カレンダーと枠エディタを、枠を変えたあとに読み直させるための印
+  const [capacityKey,  setCapacityKey]  = useState(0)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string; onUndo?: () => Promise<void> } | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -436,6 +441,27 @@ export default function ReservationsPage() {
             </button>
           )}
         </div>
+
+        {/* 月カレンダー。空き枠の無い日は ✕ が出るので、受けられる日がひと目で分かる */}
+        <div className="space-y-2">
+          <button onClick={() => setShowCalendar(v => !v)}
+            className="w-full flex items-center gap-2 px-4 py-3 rounded-2xl bg-white border border-gray-200 active:scale-[0.99] transition-all">
+            <CalendarRange size={16} className="text-indigo-600 shrink-0" />
+            <span className="flex-1 text-left text-sm font-black text-gray-800">カレンダーで空き状況を見る</span>
+            <span className="text-xs text-gray-400">{showCalendar ? '閉じる' : '開く'}</span>
+          </button>
+          {showCalendar && (
+            <MonthCalendar key={capacityKey} storeId={storeId} value={selectedDate} onChange={setSelectedDate} />
+          )}
+        </div>
+
+        {/* その日の予約枠をその場で増減する（急なスタッフ増減・イレギュラー対応用） */}
+        <DaySlotEditor
+          storeId={storeId}
+          date={selectedDate}
+          onToast={showToast}
+          onChanged={() => setCapacityKey(k => k + 1)}
+        />
 
         {/* 統計バー */}
         {reservations.length > 0 && (
