@@ -2,30 +2,24 @@
 
 // ============================================================
 // 予約受付ウィザード（受付トークを画面化）
-//   ①お客様 → ②来店内容 → ③日時 → ④確認
-//   どのステップからでも操作可。採寸系のみ試着室(枠)を消費。
+//   ①来店理由 → ②お客様 → ③日時 → ④確認
+//   どのステップからでも操作可。予約はどの理由でも1枠を使う。
 // ============================================================
 import { useEffect, useState } from 'react'
 import { Loader2, Check, X, ChevronLeft, ChevronRight, User, Clock, ShoppingCart } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { CustomerLinkSheet } from '../../repairs/_components/CustomerLinkSheet'
 import type { CustResult } from '../../repairs/_components/types'
-import { INFO_PURPOSES, type InfoPurpose } from '../_lib/purposes'
-import { computeSlotInfo, loadServices, type SlotInfo, type ResvService } from '../_lib/slots'
+import { RESERVABLE_PURPOSES, WALK_IN_PURPOSES, type VisitPurpose } from '../_lib/purposes'
+import { computeSlotInfo, type SlotInfo } from '../_lib/slots'
 import { MonthCalendar } from './MonthCalendar'
 import { todayJst } from '@/lib/date'
 
 type Child = { id: string; name: string; school_name: string | null }
 type StepKey = 'customer' | 'purpose' | 'datetime' | 'confirm'
 
-// 来店内容の統一選択型：採寸(試着室を使う) or 情報のみ
-type Choice =
-  | { kind: 'fitting'; service: ResvService }
-  | { kind: 'info'; info: InfoPurpose }
-
-function choiceLabel(c: Choice | null): string | null {
-  if (!c) return null
-  return c.kind === 'fitting' ? c.service.label : c.info.label
+function choiceLabel(c: VisitPurpose | null): string | null {
+  return c?.label ?? null
 }
 
 function addDays(d: string, n: number): string { const x = new Date(d + 'T12:00:00Z'); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10) }
@@ -46,40 +40,29 @@ export function ReservationWizard({ storeId, onSaved, onCancel, onProductPurchas
   const [child, setChild] = useState<Child | null>(null)
   const [customerName, setCustomerName] = useState('')   // 未登録客の氏名のみ受付
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [choice, setChoice] = useState<Choice | null>(null)
+  const [choice, setChoice] = useState<VisitPurpose | null>(null)
   const [date, setDate] = useState(todayJst())
   const [time, setTime] = useState<string | null>(null)
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [services, setServices] = useState<ResvService[]>([])
   const [slots, setSlots] = useState<SlotInfo[]>([])
   const [slotState, setSlotState] = useState<'idle' | 'loading' | 'closed' | 'nosettings' | 'ok'>('idle')
 
-  const usesFitting = choice?.kind === 'fitting'
-
-  // 採寸（試着室を使う）メニューを reservation_settings から取得
+  // 日付に応じて空き枠を取得（枠の長さ・枠数は店舗設定で決まる）
   useEffect(() => {
-    let cancelled = false
-    loadServices(storeId).then(s => { if (!cancelled) setServices(s) })
-    return () => { cancelled = true }
-  }, [storeId])
-
-  // 採寸系のとき、日付・サービスに応じて空き枠を取得
-  useEffect(() => {
-    if (step !== 'datetime' || !choice || choice.kind !== 'fitting') return
-    const service = choice.service
+    if (step !== 'datetime') return
     let cancelled = false
     setSlotState('loading'); setSlots([]); setTime(null)
-    computeSlotInfo(storeId, date, service).then(r => {
+    computeSlotInfo(storeId, date).then(r => {
       if (cancelled) return
       if (!r.hasSettings) { setSlotState('nosettings'); return }
       if (r.dayClosed) { setSlotState('closed'); return }
       setSlots(r.slots); setSlotState('ok')
     })
     return () => { cancelled = true }
-  }, [step, choice, date, storeId])
+  }, [step, date, storeId])
 
   const hasIdentity = !!cust || !!customerName.trim()   // 顧客紐付け or 氏名入力が必須
   const donePurpose = !!choice
@@ -96,8 +79,8 @@ export function ReservationWizard({ storeId, onSaved, onCancel, onProductPurchas
       customer_name: cust ? null : (customerName.trim() || null),   // CRM紐付け時はnull（customers.nameが真値）
       child_id: child?.id ?? null,
       reserved_at: `${date}T${time}:00+09:00`,
-      purpose: choice.kind === 'fitting' ? choice.service.label : choice.info.label,
-      service_type: choice.kind === 'fitting' ? choice.service.service_type : 'other',
+      purpose: choice.label,
+      service_type: choice.serviceType,
       notes: notes.trim() || null,
       status: 'confirmed',
     })
@@ -191,46 +174,30 @@ export function ReservationWizard({ storeId, onSaved, onCancel, onProductPurchas
           <div className="space-y-3">
             <p className="text-lg font-black text-gray-900">ご用件は何ですか？</p>
 
-            {/* 採寸（試着室を使う）＝予約枠を消費 */}
-            <div className="space-y-1.5">
-              <p className="text-xs font-bold text-amber-600 flex items-center gap-1"><Clock size={12} /> 採寸（試着室を使用）</p>
-              {services.length === 0 ? (
-                <p className="text-[11px] text-gray-500 bg-gray-50 rounded-xl px-3 py-2.5">
-                  採寸メニューが未設定です（設定 → 採寸予約設定）。
-                </p>
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {services.map(s => {
-                    const sel = choice?.kind === 'fitting' && choice.service.service_type === s.service_type
-                    return (
-                      <button key={s.service_type} onClick={() => { setChoice({ kind: 'fitting', service: s }); setTime(null); setStep('customer') }}
-                        className={`py-4 rounded-2xl border-2 font-black text-base flex flex-col items-center gap-0.5 active:scale-[0.98] transition-all ${
-                          sel ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-700'
-                        }`}>
-                        <span className="text-2xl">📏</span>{s.label}
-                        <span className="text-[10px] font-bold text-amber-600">試着室を使用（{s.duration_min}分）</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
+            {/* 予約が必要な用件（どれも1枠を使う） */}
+            <div className="grid grid-cols-3 gap-2">
+              {RESERVABLE_PURPOSES.map(p => {
+                const sel = choice?.key === p.key
+                return (
+                  <button key={p.key} onClick={() => { setChoice(p); setTime(null); setStep('customer') }}
+                    className={`py-4 rounded-2xl border-2 font-black text-base flex flex-col items-center gap-1 active:scale-[0.98] transition-all ${
+                      sel ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-700'
+                    }`}>
+                    <span className="text-2xl">{p.emoji}</span>{p.label}
+                  </button>
+                )
+              })}
             </div>
 
-            {/* 情報のみ＝予約枠を消費しない */}
-            <div className="space-y-1.5">
-              <p className="text-xs font-bold text-gray-500">情報のみ（枠を消費しない）</p>
-              <div className="grid grid-cols-2 gap-2">
-                {INFO_PURPOSES.map(p => {
-                  const sel = choice?.kind === 'info' && choice.info.key === p.key
-                  return (
-                    <button key={p.key} onClick={() => { setChoice({ kind: 'info', info: p }); setTime(null); setStep('customer') }}
-                      className={`py-4 rounded-2xl border-2 font-black text-base flex flex-col items-center gap-1 active:scale-[0.98] transition-all ${
-                        sel ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-700'
-                      }`}>
-                      <span className="text-2xl">{p.emoji}</span>{p.label}
-                    </button>
-                  )
-                })}
+            {/* 予約が要らない用件は、枠を取らずにそのまま来店してもらう */}
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2.5">
+              <p className="text-[11px] font-bold text-gray-500 mb-1">下記は予約不要です（そのままご来店でOK）</p>
+              <div className="flex flex-wrap gap-1.5">
+                {WALK_IN_PURPOSES.map(p => (
+                  <span key={p.key} className="px-2 py-1 rounded-lg bg-white border border-gray-200 text-[11px] font-bold text-gray-600">
+                    {p.emoji} {p.label}
+                  </span>
+                ))}
               </div>
             </div>
 
@@ -262,9 +229,8 @@ export function ReservationWizard({ storeId, onSaved, onCancel, onProductPurchas
             {/* 月カレンダー（営業日・混み具合） */}
             <MonthCalendar storeId={storeId} value={date} onChange={setDate} />
 
-            {usesFitting ? (
-              <div>
-                <p className="text-xs font-bold text-gray-500 mb-1.5 flex items-center gap-1"><Clock size={12} /> 試着室の空き枠</p>
+            <div>
+                <p className="text-xs font-bold text-gray-500 mb-1.5 flex items-center gap-1"><Clock size={12} /> 空き枠</p>
                 {slotState === 'loading' && <div className="py-6 grid place-items-center"><Loader2 className="animate-spin text-indigo-400" /></div>}
                 {slotState === 'closed' && <p className="text-sm text-gray-500 bg-gray-50 rounded-xl px-3 py-3 text-center">この日は予約を受け付けていません。</p>}
                 {slotState === 'nosettings' && (
@@ -295,13 +261,7 @@ export function ReservationWizard({ storeId, onSaved, onCancel, onProductPurchas
                     </div>
                   )
                 )}
-              </div>
-            ) : (
-              <div>
-                <p className="text-xs font-bold text-gray-500 mb-1.5">時刻（枠の消費なし）</p>
-                <input type="time" value={time ?? ''} onChange={e => setTime(e.target.value || null)} className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm" />
-              </div>
-            )}
+            </div>
 
             <button onClick={() => setStep('confirm')} disabled={!time}
               className="w-full py-3 rounded-2xl bg-indigo-600 text-white font-black disabled:opacity-40">確認へ</button>

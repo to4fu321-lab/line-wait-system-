@@ -1,27 +1,28 @@
 // ============================================================
-// 「その予約は試着室(＝予約枠)を使うか」の判定
+// 「その予約は枠を使うか」の判定
 //
 //  同じ判定が予約枠の計算・カレンダー・人員設計・AIシフトの
 //  4か所に写経されていて、片方だけ直すとズレる状態だった。
-//  採寸メニューを増やすとキーも増えるため、ここに集約する。
+//
+//  枠の長さを店舗でひとつに固定したので、いまは
+//  「予約が入っている＝1枠使う」が基本。
+//  予約不要の用件（商品受取・問合せ）だけが枠を使わない。
 // ============================================================
 
-/**
- * 試着室を使うメニューの service_type 接頭辞。
- * プリセットの uniform2 / jersey2 のような枝番も拾えるよう前方一致で見る。
- */
-const FITTING_PREFIXES = ['uniform', 'jersey', 'fitting'] as const
+/** 予約不要の用件に付ける service_type の接頭辞 */
+const WALK_IN_PREFIX = 'walkin'
 
-export function isFittingServiceType(serviceType: string | null | undefined): boolean {
-  const t = (serviceType ?? '').trim().toLowerCase()
-  if (!t) return false
-  return FITTING_PREFIXES.some(p => t.startsWith(p))
-}
-
-/** 予約の purpose / service_type から採寸（枠を消費する）かを判定する */
+/** 予約の purpose / service_type から、枠を1つ使う予約かを判定する */
 export function isFitting(
   purpose: string | null | undefined,
   serviceType: string | null | undefined,
 ): boolean {
-  return (purpose ?? '').includes('採寸') || isFittingServiceType(serviceType)
+  const t = (serviceType ?? '').trim().toLowerCase()
+  if (t.startsWith(WALK_IN_PREFIX)) return false
+  return true
+}
+
+/** service_type 単体で見たいとき */
+export function isFittingServiceType(serviceType: string | null | undefined): boolean {
+  return isFitting(null, serviceType)
 }

@@ -1,10 +1,10 @@
 // ============================================================
 // 月単位の「営業日・混み具合」集計（カレンダー表示用）
-//   営業日・同時枠数の判断は lib/reservationCapacity に集約している。
+//   受付するか・何件受けられるかは lib/reservationCapacity が決める。
 //   ここはそれを月ぶん回して、予約件数と突き合わせるだけ。
 // ============================================================
 import { supabase } from '@/lib/supabase'
-import { isFitting, loadServices } from './slots'
+import { isFitting } from '@/lib/fittingTypes'
 import { toJstDateString } from '@/lib/date'
 import { capacityOf, loadCapacityInputs } from '@/lib/reservationCapacity'
 import { holidayMapOfMonth } from '@/lib/japaneseHolidays'
@@ -15,23 +15,11 @@ export type DayLevel = 'none' | 'closed' | 'free' | 'some' | 'busy' | 'full'
 export interface DayInfo {
   date: string          // YYYY-MM-DD
   isOpen: boolean       // 営業日か
-  capacity: number      // 当日の採寸キャパ概算（同時枠×スロット数）
-  booked: number        // 採寸予約件数
-  level: DayLevel       // 混雑度（none=採寸設定なし）
-  maxSlots: number      // 同時受付枠数
+  capacity: number      // その日に受けられる合計件数
+  booked: number        // 予約件数
+  level: DayLevel       // 混雑度
   holiday: string | null // 祝日名（祝日でなければ null）
-  staffOnDuty: number | null // その日の出勤人数（シフト未登録なら null）
-}
-
-// 営業時間内のスロット数（混雑度の分母用の概算）
-function slotCount(start: string, end: string, step: number): number {
-  const [sh, sm] = start.split(':').map(Number)
-  const [eh, em] = end.split(':').map(Number)
-  let cur = sh * 60 + sm
-  const stop = eh * 60 + em
-  let n = 0
-  while (cur < stop) { n++; cur += step }
-  return n
+  staffOnDuty: number | null // その日の出勤人数（参考）
 }
 
 function ymd(year: number, month: number, day: number): string {
@@ -40,10 +28,6 @@ function ymd(year: number, month: number, day: number): string {
 
 // year, month(1-based) の各日の DayInfo を返す
 export async function loadMonthInfo(storeId: string, year: number, month: number): Promise<Record<string, DayInfo>> {
-  const services = await loadServices(storeId)
-  const hasFitting = services.length > 0
-  const shortest = hasFitting ? services.reduce((a, b) => (b.duration_min < a.duration_min ? b : a)) : null
-
   const daysInMonth = new Date(year, month, 0).getDate()   // month(1-based) の末日
   const monthStart = ymd(year, month, 1)
   const monthEnd = ymd(year, month, daysInMonth)
@@ -70,14 +54,11 @@ export async function loadMonthInfo(storeId: string, year: number, month: number
     const date = ymd(year, month, day)
     const cap = capacityOf(date, inputs)
     const booked = bookedMap[date] ?? 0
-    const capacity = cap.open && shortest
-      ? cap.maxSlots * slotCount(cap.startTime, cap.endTime, shortest.duration_min)
-      : 0
+    const capacity = cap.slots.reduce((sum, s) => sum + s.capacity, 0)
 
     let level: DayLevel
     let isOpen: boolean
-    if (!hasFitting) { level = 'none'; isOpen = cap.open }
-    else if (!cap.open || capacity <= 0) { level = 'closed'; isOpen = false }
+    if (!cap.open || capacity <= 0) { level = 'closed'; isOpen = false }
     else {
       isOpen = true
       const ratio = booked / capacity
@@ -85,7 +66,6 @@ export async function loadMonthInfo(storeId: string, year: number, month: number
     }
     out[date] = {
       date, isOpen, capacity, booked, level,
-      maxSlots: cap.maxSlots,
       holiday: holidays[date] ?? null,
       staffOnDuty: cap.staffOnDuty,
     }
