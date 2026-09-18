@@ -117,7 +117,7 @@ export default function ReservationSettingsPage() {
     if (!setting) return
     const sourceValue = setting[applyMode.sourceDay]
     const updates: Partial<ReservationSetting> = {}
-    for (const day of selectedDays) {
+    for (const day of Array.from(selectedDays)) {
       updates[day] = sourceValue
     }
     updateSetting(applyMode.settingId, updates)
@@ -320,7 +320,7 @@ export default function ReservationSettingsPage() {
       {/* トースト */}
       {toast && (
         <Toast
-          message={toast.msg}
+          msg={toast.msg}
           type={toast.type}
           onClose={() => setToast(null)}
         />
