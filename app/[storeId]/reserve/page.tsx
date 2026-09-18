@@ -83,10 +83,10 @@ type SlotInfo = {
 const DEFAULT_SETTINGS: ReservationSetting[] = [
   { id: 'default-uniform', service_type: 'uniform', label: '制服採寸', duration_min: 60,
     start_time: '10:00', end_time: '17:00', is_active: true,
-    slots_sun: 0, slots_mon: 2, slots_tue: 2, slots_wed: 2, slots_thu: 2, slots_fri: 2, slots_sat: 3 },
+    slots_sun: 0, slots_mon: 5, slots_tue: 5, slots_wed: 5, slots_thu: 5, slots_fri: 5, slots_sat: 5 },
   { id: 'default-jersey', service_type: 'jersey', label: 'ジャージ採寸', duration_min: 30,
     start_time: '10:00', end_time: '17:00', is_active: true,
-    slots_sun: 0, slots_mon: 2, slots_tue: 2, slots_wed: 2, slots_thu: 2, slots_fri: 2, slots_sat: 3 },
+    slots_sun: 0, slots_mon: 5, slots_tue: 5, slots_wed: 5, slots_thu: 5, slots_fri: 5, slots_sat: 5 },
 ]
 
 // ============================================================

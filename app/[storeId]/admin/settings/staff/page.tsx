@@ -375,6 +375,19 @@ export default function StaffSettingsPage() {
             </Link>
           )}
 
+          {/* 📅 採寸予約枠の設定 */}
+          <Link href={`/${storeId}/admin/settings/reservation`}
+            className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-blue-200 hover:border-blue-400 active:scale-[0.98] transition-all shadow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center shrink-0">
+              <CalendarDays size={28} className="text-blue-600" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-black text-lg text-blue-700">採寸予約枠の設定</p>
+              <p className="text-sm text-gray-500 mt-0.5">サービスごとの曜日別受付枠数を設定</p>
+            </div>
+            <ChevronRight size={20} className="text-blue-400 shrink-0" />
+          </Link>
+
           {/* 📖 使い方ガイド */}
           <Link href={`/${storeId}/admin/guide`}
             className="flex items-center gap-4 px-5 py-5 rounded-2xl bg-white border-2 border-indigo-200 hover:border-indigo-400 active:scale-[0.98] transition-all shadow-sm">
@@ -618,6 +631,19 @@ export default function StaffSettingsPage() {
               <div>
                 <p className="text-sm font-black text-emerald-700">伝票受付（撮影→保存）</p>
                 <p className="text-xs text-emerald-500 mt-0.5 leading-relaxed">テンプレを選んで伝票を撮影し受付を登録</p>
+              </div>
+            </Link>
+            <Link href={`/${storeId}/admin/settings/reservation`}
+              className="flex flex-col gap-3 px-4 py-4 rounded-2xl bg-blue-50 border border-blue-200 hover:bg-blue-100 active:scale-[0.98] transition-all">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 border border-blue-200 flex items-center justify-center">
+                  <CalendarDays size={20} className="text-blue-600" />
+                </div>
+                <ChevronRight size={14} className="text-blue-400" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-blue-700">採寸予約枠の設定</p>
+                <p className="text-xs text-blue-500 mt-0.5 leading-relaxed">サービスごとの曜日別受付枠数</p>
               </div>
             </Link>
           </div>
