@@ -8,17 +8,14 @@ import { initLiff, getLineProfile } from '@/lib/liff'
 import { fetchCustomerSession, saveCustomer, createReservation, fetchReservationsOfDay } from '@/lib/customerApi'
 import { fetchSchools } from '@/lib/masterApi'
 import { todayJst, toJstTimeString } from '@/lib/date'
-import { loadDayCapacity } from '@/lib/reservationCapacity'
-import { isFitting } from '@/lib/fittingTypes'
-import { RESERVABLE_PURPOSES, WALK_IN_PURPOSES, type VisitPurpose } from '@/app/[storeId]/admin/reservations/_lib/purposes'
 import {
   CalendarDays, Clock, User, FileText, Check,
-  Loader2, ChevronLeft, ChevronRight, GraduationCap, Plus, X,
+  Loader2, ChevronLeft, ChevronRight, GraduationCap, Plus, X, ShoppingBag,
 } from 'lucide-react'
 
-// 採寸サービスかどうかの判定（判定本体は lib/fittingTypes に集約）
+// 採寸サービスかどうかの判定
 function isFittingService(serviceType: string, label: string) {
-  return isFitting(label, serviceType)
+  return label.includes('採寸') || serviceType.includes('fitting') || serviceType.includes('uniform')
 }
 
 const GRADE_OPTIONS = ['中学1年', '中学2年', '中学3年', '高校1年', '高校2年', '高校3年']
@@ -39,9 +36,41 @@ function fmtDateJp(dateStr: string): string {
   return `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月${d.getUTCDate()}日（${weekdays[d.getUTCDay()]}）`
 }
 
+// 曜日インデックス（0=日〜6=土）をスロットキーに変換
+const WEEKDAY_KEYS = ['slots_sun', 'slots_mon', 'slots_tue', 'slots_wed', 'slots_thu', 'slots_fri', 'slots_sat'] as const
+type WeekdayKey = typeof WEEKDAY_KEYS[number]
+
+// HH:MM スロット配列を生成
+function generateSlots(startTime: string, endTime: string, durationMin: number): string[] {
+  const slots: string[] = []
+  const [sh, sm] = startTime.split(':').map(Number)
+  const [eh, em] = endTime.split(':').map(Number)
+  let current = sh * 60 + sm
+  const end   = eh * 60 + em
+  while (current < end) {
+    const h = Math.floor(current / 60)
+    const m = current % 60
+    slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`)
+    current += durationMin
+  }
+  return slots
+}
+
 // ============================================================
 // 型
 // ============================================================
+type ReservationSetting = {
+  id: string
+  service_type: string
+  label: string
+  duration_min: number
+  start_time: string
+  end_time: string
+  is_active: boolean
+  slots_sun: number; slots_mon: number; slots_tue: number; slots_wed: number
+  slots_thu: number; slots_fri: number; slots_sat: number
+}
+
 type SlotInfo = {
   time: string
   maxSlots: number
@@ -50,10 +79,20 @@ type SlotInfo = {
   available: boolean
 }
 
+// reservation_settings 未登録の店舗用デフォルト枠（admin/settings の DEFAULT_RESV と同値）
+const DEFAULT_SETTINGS: ReservationSetting[] = [
+  { id: 'default-uniform', service_type: 'uniform', label: '制服採寸', duration_min: 60,
+    start_time: '10:00', end_time: '17:00', is_active: true,
+    slots_sun: 0, slots_mon: 5, slots_tue: 5, slots_wed: 5, slots_thu: 5, slots_fri: 5, slots_sat: 5 },
+  { id: 'default-jersey', service_type: 'jersey', label: 'ジャージ採寸', duration_min: 30,
+    start_time: '10:00', end_time: '17:00', is_active: true,
+    slots_sun: 0, slots_mon: 5, slots_tue: 5, slots_wed: 5, slots_thu: 5, slots_fri: 5, slots_sat: 5 },
+]
+
 // ============================================================
-// シンプルフォールバックフォーム（枠が読めない等の非常時）
+// シンプルフォールバックフォーム（reservation_settings 未対応時）
 // ============================================================
-function FallbackForm({ storeId, storeName, initialName }: { storeId: string; storeName: string; initialName?: string }) {
+function FallbackForm({ storeId, storeName, initialName, selfOrderEnabled }: { storeId: string; storeName: string; initialName?: string; selfOrderEnabled?: boolean }) {
   const [step, setStep] = useState<'form' | 'done'>('form')
   const [name, setName] = useState(initialName ?? '')
   const [date, setDate] = useState('')
@@ -72,8 +111,17 @@ function FallbackForm({ storeId, storeName, initialName }: { storeId: string; st
         </div>
         <h1 className="text-xl font-black text-white mb-2">予約を受け付けました</h1>
         <p className="text-zinc-400 text-sm">ご来店予約を承りました。</p>
-        {/* 予約しただけの段階で注文まで進めるのは誤発注のもとなので導線を置かない。
-            採寸・対面での確認が済んだあとにご案内する。 */}
+
+        {/* 予約のお客様もそのままスマホから制服注文を入力できる（店舗設定でON/OFF） */}
+        {selfOrderEnabled && (
+          <>
+            <a href={`/${storeId}?action=purchase`}
+              className="mt-7 w-full max-w-xs flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-2xl transition-colors">
+              <ShoppingBag size={18} />制服を注文する
+            </a>
+            <p className="text-zinc-600 text-xs mt-2">サイズ・数量を選んでご注文いただけます</p>
+          </>
+        )}
       </div>
     )
   }
@@ -144,14 +192,16 @@ export default function ReservePage() {
   // 全体の状態
   const [pageState, setPageState] = useState<'loading' | 'slot' | 'fallback' | 'done' | 'error'>('loading')
   const [storeName, setStoreName] = useState('')
+  const [selfOrderEnabled, setSelfOrderEnabled] = useState(true)
   const [lineUserId, setLineUserId] = useState<string | null>(null)
+  const [settings, setSettings] = useState<ReservationSetting[]>([])
 
   // ステップ内の状態
   // step: 'service' | 'child' | 'datetime' | 'info'
   const [step, setStep] = useState<'service' | 'child' | 'datetime' | 'info'>('service')
 
   // フォーム値
-  const [selectedPurpose, setSelectedPurpose] = useState<VisitPurpose | null>(null)
+  const [selectedService, setSelectedService] = useState<ReservationSetting | null>(null)
   const [selectedDate, setSelectedDate]       = useState(todayJst())
   const [selectedTime, setSelectedTime]       = useState<string | null>(null)
   const [name, setName]                       = useState('')
@@ -200,6 +250,7 @@ export default function ReservePage() {
             return
           }
           setStoreName(store.name ?? '')
+          setSelfOrderEnabled(resolveFeature('customer_self_order', features))
         }
       } catch { /* ignore */ }
 
@@ -224,8 +275,25 @@ export default function ReservePage() {
         }
       } catch { /* LIFF not available */ }
 
-      // 枠の長さ・枠数は店舗設定(stores)から自動で決まるので、
-      // ここで取りに行くものは無い
+      // reservation_settings を取得（テーブル自体がない場合のみフォールバック）
+      let fetchedSettings: ReservationSetting[] = []
+      try {
+        const { data, error } = await (supabase as any)
+          .from('reservation_settings')
+          .select('*')
+          .eq('store_id', storeId)
+          .eq('is_active', true)
+          .order('label')
+        if (error) throw error
+        fetchedSettings = data ?? []
+      } catch {
+        setPageState('fallback')
+        return
+      }
+
+      // 設定未登録の店舗はデフォルト枠でスロットUIを表示
+      setSettings(fetchedSettings.length > 0 ? fetchedSettings : DEFAULT_SETTINGS)
+
       setPageState('slot')
     }
     init()
@@ -252,37 +320,78 @@ export default function ReservePage() {
   // スロット可用性の計算
   // ============================================================
   const fetchSlots = useCallback(async () => {
-    if (!selectedPurpose || !selectedDate) return
+    if (!selectedService || !selectedDate) return
     setSlotsLoading(true)
     setSlots([])
     setDayUnavailable(false)
     setSelectedTime(null)
 
     try {
-      // その日の受付枠を取得。営業時間・枠の長さ・枠数から決まる
-      //（判断は lib/reservationCapacity に集約）
-      const cap = await loadDayCapacity(storeId, selectedDate)
-      if (!cap.open) {
+      // 1. 曜日に対応する max_slots を取得（共有枠：全サービス共通の最小値）
+      const d = new Date(selectedDate + 'T12:00:00Z')
+      const dow = d.getUTCDay()
+      const weekdayKey = WEEKDAY_KEYS[dow] as WeekdayKey
+      // 全設定のスロット数の最小値を共有枠として使用
+      let maxSlots: number = Math.min(...settings.map(s => (s as any)[weekdayKey] ?? 0))
+
+      // 2. reservation_date_overrides で上書き（サービス不問で最初にヒットしたもの）
+      try {
+        const { data: override } = await (supabase as any)
+          .from('reservation_date_overrides')
+          .select('max_slots')
+          .eq('store_id', storeId)
+          .eq('date', selectedDate)
+          .limit(1)
+          .maybeSingle()
+        if (override != null) maxSlots = override.max_slots
+      } catch { /* テーブルなければ無視 */ }
+
+      if (maxSlots === 0) {
         setDayUnavailable(true)
         setSlotsLoading(false)
         return
       }
 
-      // 対象日の全予約をまとめて取得（非PII列のみのAPI経由）
+      // 3. スロット文字列を30分間隔で生成（最短サービス単位）
+      const slotTimes = generateSlots(
+        selectedService.start_time,
+        selectedService.end_time,
+        30,  // 30分間隔（最短ジャージ採寸と同じ）
+      )
+
+      // 4. 対象日の全予約をまとめて取得（サービス種別問わず、非PII列のみのAPI経由）
       const { reservations } = await fetchReservationsOfDay(storeId, selectedDate)
 
-      // 枠は固定長なので、予約は開始時刻の枠に1件として入る
-      const bookedAt: Record<string, number> = {}
-      for (const r of (reservations ?? [])) {
-        if (!isFittingService(r.service_type ?? '', r.purpose ?? '')) continue
-        const t = toJstTimeString(r.reserved_at)
-        bookedAt[t] = (bookedAt[t] ?? 0) + 1
-      }
+      // サービスタイプ→所要時間のマップを構築
+      const durationMap: Record<string, number> = {}
+      for (const s of settings) durationMap[s.service_type] = s.duration_min
 
-      const slotInfos: SlotInfo[] = cap.slots.map(s => {
-        const booked = bookedAt[s.time] ?? 0
-        const remaining = s.capacity - booked
-        return { time: s.time, maxSlots: s.capacity, booked, remaining, available: remaining > 0 }
+      // 5. 重複チェックで各スロットの可用性を計算
+      const slotInfos: SlotInfo[] = slotTimes.map(time => {
+        const [th, tm] = time.split(':').map(Number)
+        const tStart = th * 60 + tm
+        const tEnd   = tStart + selectedService.duration_min
+
+        // この枠の終了時刻が営業終了を超える場合はスキップ
+        const [eh, em] = selectedService.end_time.split(':').map(Number)
+        const endOfDay = eh * 60 + em
+        if (tEnd > endOfDay) return { time, maxSlots: 0, booked: 0, remaining: 0, available: false }
+
+        let overlapCount = 0
+        for (const r of (reservations ?? [])) {
+          // 試着室(採寸)を使う予約のみ枠を消費する
+          if (!isFittingService(r.service_type ?? '', r.purpose ?? '')) continue
+          const jstTime = toJstTimeString(r.reserved_at)
+          const [rh, rm] = jstTime.split(':').map(Number)
+          const rStart    = rh * 60 + rm
+          const rDuration = durationMap[r.service_type ?? ''] ?? selectedService.duration_min
+          const rEnd      = rStart + rDuration
+          // 重複判定: [tStart, tEnd) と [rStart, rEnd) が重なる
+          if (tStart < rEnd && tEnd > rStart) overlapCount++
+        }
+
+        const remaining = maxSlots - overlapCount
+        return { time, maxSlots, booked: overlapCount, remaining, available: remaining > 0 }
       })
 
       setSlots(slotInfos.filter(s => s.maxSlots > 0))
@@ -291,19 +400,19 @@ export default function ReservePage() {
     }
 
     setSlotsLoading(false)
-  }, [selectedPurpose, selectedDate, storeId])
+  }, [selectedService, selectedDate, storeId])
 
   useEffect(() => {
-    if (step === 'datetime' && selectedPurpose) {
+    if (step === 'datetime' && selectedService) {
       fetchSlots()
     }
-  }, [step, selectedPurpose, selectedDate, fetchSlots])
+  }, [step, selectedService, selectedDate, fetchSlots])
 
   // ============================================================
   // 送信
   // ============================================================
   async function handleSubmit() {
-    if (!selectedPurpose || !selectedDate || !selectedTime) return
+    if (!selectedService || !selectedDate || !selectedTime) return
     setSubmitting(true)
     setErrorMsg('')
 
@@ -314,8 +423,8 @@ export default function ReservePage() {
       await createReservation(storeId, {
         childId:     selectedChild?.id ?? null,
         reservedAt,
-        serviceType: selectedPurpose.serviceType,
-        purpose:     selectedPurpose.label,
+        serviceType: selectedService.service_type,
+        purpose:     selectedService.label,
         notes:       [name ? `お名前: ${name}` : null, note || null].filter(Boolean).join('\n') || undefined,
       })
       setPageState('done')
@@ -337,7 +446,7 @@ export default function ReservePage() {
   }
 
   if (pageState === 'fallback') {
-    return <FallbackForm storeId={storeId} storeName={storeName} initialName={name} />
+    return <FallbackForm storeId={storeId} storeName={storeName} initialName={name} selfOrderEnabled={selfOrderEnabled} />
   }
 
   if (pageState === 'error') {
@@ -363,15 +472,24 @@ export default function ReservePage() {
         <p className="text-zinc-400 text-sm mb-1">
           {storeName && `${storeName}への`}ご来店予約を承りました。
         </p>
-        {selectedPurpose && (
-          <p className="text-indigo-300 text-sm font-bold mb-1">{selectedPurpose.label}</p>
+        {selectedService && (
+          <p className="text-indigo-300 text-sm font-bold mb-1">{selectedService.label}</p>
         )}
         <p className="text-zinc-500 text-xs">
           {dateLabel}{selectedTime && ` ${selectedTime}〜`}
         </p>
         <p className="text-zinc-600 text-xs mt-4">※ 確認のご連絡をお送りする場合があります</p>
-        {/* 予約しただけの段階で注文まで進めるのは誤発注のもとなので導線を置かない。
-            採寸・対面での確認が済んだあとにご案内する。 */}
+
+        {/* 予約のお客様もそのままスマホから制服注文を入力できる（店舗設定でON/OFF） */}
+        {selfOrderEnabled && (
+          <>
+            <a href={`/${storeId}?action=purchase`}
+              className="mt-7 w-full max-w-xs flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-2xl transition-colors">
+              <ShoppingBag size={18} />制服を注文する
+            </a>
+            <p className="text-zinc-600 text-xs mt-2">サイズ・数量を選んでご注文いただけます</p>
+          </>
+        )}
       </div>
     )
   }
@@ -390,48 +508,41 @@ export default function ReservePage() {
 
       <div className="px-5 space-y-6">
 
-        {/* ============ STEP 1: 来店理由 ============ */}
+        {/* ============ STEP 1: サービス選択 ============ */}
         <section>
           <label className="flex items-center gap-2 text-xs font-bold text-zinc-400 mb-3">
-            <FileText size={13} className="text-indigo-400" />ご来店の理由をお選びください
+            <FileText size={13} className="text-indigo-400" />サービスを選択
           </label>
           <div className="grid grid-cols-1 gap-3">
-            {RESERVABLE_PURPOSES.map(p => (
+            {settings.map(s => (
               <button
-                key={p.key}
+                key={s.id}
                 onClick={() => {
-                  setSelectedPurpose(p)
+                  setSelectedService(s)
                   setSelectedTime(null)
                   setSelectedChild(null)
-                  if (lineUserId) { loadChildren(lineUserId); setStep('child') }
-                  else setStep('datetime')
+                  if (isFittingService(s.service_type, s.label) && lineUserId) {
+                    loadChildren(lineUserId)
+                    setStep('child')
+                  } else {
+                    setStep('datetime')
+                  }
                 }}
                 className={`w-full text-left rounded-2xl border px-4 py-4 transition-all ${
-                  selectedPurpose?.key === p.key
+                  selectedService?.id === s.id
                     ? 'bg-indigo-600/20 border-indigo-500 ring-1 ring-indigo-500/40'
                     : 'bg-zinc-900 border-zinc-700 hover:border-zinc-500'
                 }`}
               >
-                <p className="font-black text-white text-base">{p.emoji} {p.label}</p>
+                <p className="font-black text-white text-base">{s.label}</p>
+                <p className="text-zinc-500 text-xs mt-0.5">{s.duration_min}分枠</p>
               </button>
             ))}
-          </div>
-
-          {/* 予約が要らない用件は、枠を取らずにそのまま来ていただく */}
-          <div className="mt-3 rounded-2xl border border-zinc-800 bg-zinc-900/60 px-4 py-3">
-            <p className="text-[11px] font-bold text-zinc-400 mb-1.5">下記は予約不要です。そのままご来店ください。</p>
-            <div className="flex flex-wrap gap-1.5">
-              {WALK_IN_PURPOSES.map(p => (
-                <span key={p.key} className="px-2 py-1 rounded-lg bg-zinc-800 text-[11px] font-bold text-zinc-300">
-                  {p.emoji} {p.label}
-                </span>
-              ))}
-            </div>
           </div>
         </section>
 
         {/* ============ STEP 1.5: お子様選択（採寸サービスのみ） ============ */}
-        {(step === 'child' || step === 'datetime' || step === 'info') && selectedPurpose && (
+        {(step === 'child' || step === 'datetime' || step === 'info') && selectedService && isFittingService(selectedService.service_type, selectedService.label) && (
           <section>
             <label className="flex items-center gap-2 text-xs font-bold text-zinc-400 mb-3">
               <GraduationCap size={13} className="text-indigo-400" />採寸するお子様を選択
@@ -545,7 +656,7 @@ export default function ReservePage() {
         )}
 
         {/* ============ STEP 2: 日付・時間帯選択 ============ */}
-        {(step === 'datetime' || step === 'info') && selectedPurpose && (
+        {(step === 'datetime' || step === 'info') && selectedService && (
           <section>
             <label className="flex items-center gap-2 text-xs font-bold text-zinc-400 mb-3">
               <CalendarDays size={13} className="text-indigo-400" />日付を選択
@@ -682,7 +793,7 @@ export default function ReservePage() {
             <div className="bg-indigo-950/40 border border-indigo-500/20 rounded-2xl px-4 py-3 mb-4 space-y-1">
               <p className="text-indigo-300 text-xs font-bold">選択中</p>
               <p className="text-white font-black text-sm">
-                {selectedPurpose?.label} / {fmtDateJp(selectedDate)} {selectedTime}〜
+                {selectedService?.label} / {fmtDateJp(selectedDate)} {selectedTime}〜
               </p>
               {selectedChild && (
                 <p className="text-indigo-200 text-xs flex items-center gap-1">
