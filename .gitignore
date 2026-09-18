@@ -33,3 +33,6 @@ next-env.d.ts
 # Claude Code internal state
 .claude/
 ALL_SOURCE_CODE.txt
+
+# Supabase CLI の作業用キャッシュ（マイグレーション本体は supabase/migrations/ 側）
+supabase/.temp/
