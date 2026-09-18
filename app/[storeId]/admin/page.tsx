@@ -821,6 +821,24 @@ export default function StoreAdminPage() {
     setGroupStores((data as StoreInfo[] | null) ?? [store])
   }, [])
 
+  // このページは「順番待•予約」タブの遷移先そのもの（BottomNav参照）なので、
+  // 常にお仕事タブへ飛ばすとタブを押しても戻されて画面が変わらなくなる。
+  // そのためリダイレクトはセッション内の初回アクセス時だけに限る。
+  // お仕事タブが無効な店舗で飛ばすとFeatureGuardに弾かれるので、その場合は飛ばさない。
+  const landOnWorkTab = useCallback((store: StoreInfo): boolean => {
+    const key = `admin_landed_${store.id}`
+    try {
+      if (sessionStorage.getItem(key) === '1') return false
+      sessionStorage.setItem(key, '1')
+    } catch { /* プライベートモード等で使えない場合はリダイレクトしない */ return false }
+    const features = store.features ?? {}
+    if (!resolveFeature('tab_repairs', features)) return false
+    // やること表示がONの店舗はお仕事タブ自体が /admin/today に差し替わる
+    const path = resolveFeature('today_tasks_ui', features) ? 'today' : 'repairs'
+    router.replace(`/${store.id}/admin/${path}`)
+    return true
+  }, [router])
+
   useEffect(() => {
     if (!storeId) { setView('not_found'); return }
     // 認証前は自分の storeId 以外の店舗情報を一切取得しない。
@@ -852,7 +870,8 @@ export default function StoreAdminPage() {
           const gc = sessionStorage.getItem('admin_group_code')
           if (gc) setGroupCode(gc); else loadGroupCode(match)
           loadGroupStores(match) // ログアウト後の店舗切替UI用に事前取得
-          router.replace(`/${match.id}/admin/repairs`); return
+          if (landOnWorkTab(match)) return
+          setView('dashboard'); return
         }
         // トライアル店舗など features.pin_skip === true の場合はPIN入力を省略する
         if ((match.features as Record<string, unknown> | undefined)?.pin_skip === true) {
@@ -862,7 +881,8 @@ export default function StoreAdminPage() {
             sessionStorage.setItem('admin_role', role)
             loadGroupCode(match)
             loadGroupStores(match)
-            router.replace(`/${match.id}/admin/repairs`); return
+            if (landOnWorkTab(match)) return
+            setView('dashboard'); return
           }
         }
         setView('pin')
@@ -876,7 +896,7 @@ export default function StoreAdminPage() {
       })
       .finally(() => clearTimeout(timer))
     return () => { cancelled = true; clearTimeout(timer); ac.abort() }
-  }, [storeId, loadGroupCode, loadGroupStores])
+  }, [storeId, loadGroupCode, loadGroupStores, landOnWorkTab])
 
   // 想定外の経路で詰まってもスピナーのまま放置しないための最後の保険。
   // load_error には再試行ボタンがあるので、そこまで必ず到達させる。
@@ -897,14 +917,13 @@ export default function StoreAdminPage() {
       sessionStorage.setItem('admin_role', role)
       loadGroupCode(selectedStore)
       loadGroupStores(selectedStore) // ログアウト後の店舗切替UI用に事前取得
-      // デフォルトでお仕事タブへリダイレクト
-      router.replace(`/${selectedStore.id}/admin/repairs`)
-      return
+      if (landOnWorkTab(selectedStore)) return
     }
     setView('dashboard')
   }
   const handleLogout = () => {
     sessionStorage.removeItem('admin_auth'); sessionStorage.removeItem('admin_store_id'); sessionStorage.removeItem('admin_role')
+    if (storeId) sessionStorage.removeItem(`admin_landed_${storeId}`) // 再ログイン時はまたお仕事タブから始める
     clearStaffSession()
     setSelectedStore(null); setView('select_store')
   }
