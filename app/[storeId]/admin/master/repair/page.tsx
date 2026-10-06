@@ -11,7 +11,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   ChevronLeft, Plus, Pencil, Trash2, Loader2, X, Scissors, ChevronDown, ChevronRight,
-  Ruler, ImagePlus, AlertTriangle, Sparkles, Camera, ChevronUp,
+  Ruler, ImagePlus, AlertTriangle, Sparkles, Camera, ChevronUp, Copy,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useStoreFeatures } from '@/lib/useStoreFeatures'
@@ -27,6 +27,8 @@ import {
 } from '@/types/repair'
 import { FieldsEditor } from './_components/FieldsEditor'
 import { TierWizard } from './_components/TierWizard'
+import { CopyModal } from './_components/CopyModal'
+import { copyGarment, copyItem, type PriceAdjust } from '@/lib/repairCopy'
 import { seedRepairPresets } from '@/lib/repairPresets'
 import {
   REPAIR_LABELS as labels, PRESET_KEYS, PRESET_SET_LABELS, type PresetKey,
@@ -347,6 +349,32 @@ export default function RepairMasterPage() {
     showToast('ok', '削除しました'); fetchOptions(o.item_id)
   }
 
+  // ── コピー（大分類まるごと / 作業単体）#35 ─────────────────
+  //  価格だけ違う部門（学生/一般など）を作るとき、一から作り直さずに済むように。
+  const [copySrc, setCopySrc] = useState<
+    { kind: 'garment'; g: RepairGarmentType } | { kind: 'item'; it: RepairItem } | null
+  >(null)
+  const runCopy = async (v: { name: string; targetGarmentId: string | null; adjust: PriceAdjust }) => {
+    if (!copySrc) return false
+    if (copySrc.kind === 'garment') {
+      const r = await copyGarment(storeId, copySrc.g.id, {
+        name: v.name, icon: copySrc.g.icon, sortOrder: (garments.at(-1)?.sort_order ?? 0) + 10, adjust: v.adjust,
+      })
+      if (!r.ok) { showToast('err', `コピーに失敗しました: ${r.error}`); return false }
+      showToast('ok', `「${v.name}」を作成しました（${labels.item}${r.items}・${labels.option}${r.options}件）`)
+      await fetchGarments()
+      return true
+    }
+    if (!v.targetGarmentId) return false
+    const r = await copyItem(storeId, copySrc.it.id, { targetGarmentId: v.targetGarmentId, name: v.name, adjust: v.adjust })
+    if (!r.ok) { showToast('err', `コピーに失敗しました: ${r.error}`); return false }
+    showToast('ok', `「${v.name}」を作成しました（${labels.option}${r.options}件）`)
+    // コピー先が別の大分類なら、そちらを開いて結果が見えるようにする
+    if (v.targetGarmentId === selectedGarment) fetchItems(v.targetGarmentId)
+    else { setSelectedGarment(v.targetGarmentId); setExpandedItem(null) }
+    return true
+  }
+
   // ── 段階で選ぶ選択肢のウィザード ────────────────────────────
   //  設定項目を一度に並べると何を触ればよいか分からなかったので、
   //  1画面1問のウィザード（TierWizard）に出す。ここは「どの作業に足すか」だけ持つ。
@@ -490,6 +518,7 @@ export default function RepairMasterPage() {
                     <RepairIcon icon={g.icon} /> {g.name}
                   </button>
                   <button onClick={() => { if (gDrag.ignoreClick()) return; openG(g) }} className="p-1 opacity-60 hover:opacity-100"><Pencil size={12} /></button>
+                  <button onClick={() => { if (gDrag.ignoreClick()) return; setCopySrc({ kind: 'garment', g }) }} aria-label="コピー" className="p-1 opacity-60 hover:opacity-100"><Copy size={12} /></button>
                   <button onClick={() => { if (gDrag.ignoreClick()) return; delG(g) }} className="pr-2 pl-0.5 py-1 opacity-60 hover:opacity-100"><Trash2 size={12} /></button>
                 </div>
               ))}
@@ -551,6 +580,7 @@ export default function RepairMasterPage() {
                         </div>
                       </div>
                       <button onClick={() => { if (iDrag.ignoreClick()) return; openI(it) }} className="p-1.5 text-gray-400 hover:text-indigo-600"><Pencil size={15} /></button>
+                      <button onClick={() => { if (iDrag.ignoreClick()) return; setCopySrc({ kind: 'item', it }) }} aria-label="コピー" className="p-1.5 text-gray-400 hover:text-amber-600"><Copy size={15} /></button>
                       <button onClick={() => { if (iDrag.ignoreClick()) return; delI(it) }} className="p-1.5 text-gray-400 hover:text-red-600"><Trash2 size={15} /></button>
                     </div>
 
@@ -674,6 +704,19 @@ export default function RepairMasterPage() {
           <ManualEditor value={oManual} onChange={setOManual} storeId={storeId} onToast={showToast} />
           <button onClick={saveO} className="w-full bg-amber-500 text-white font-black py-3 rounded-xl">保存</button>
         </Modal>
+      )}
+
+      {/* ── コピー Modal ── */}
+      {copySrc && (
+        <CopyModal
+          kind={copySrc.kind}
+          sourceName={copySrc.kind === 'garment' ? copySrc.g.name : copySrc.it.name}
+          samplePrice={copySrc.kind === 'item' ? copySrc.it.base_price : undefined}
+          garments={copySrc.kind === 'item' ? garments : undefined}
+          defaultGarmentId={copySrc.kind === 'item' ? copySrc.it.garment_type_id : undefined}
+          onClose={() => setCopySrc(null)}
+          onCopy={runCopy}
+        />
       )}
 
       {/* ── 段階で選ぶ選択肢のウィザード ── */}
